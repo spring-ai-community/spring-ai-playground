@@ -145,7 +145,7 @@ public class McpServerConnectionView extends VerticalLayout implements BeforeEnt
     }
 
     private Header initMcpServerInfoHeader() {
-        Span appName = new Span("MCP Connections");
+        Span appName = new Span("MCP Server Connections");
         appName.addClassNames(LumoUtility.FontWeight.SEMIBOLD, LumoUtility.FontSize.LARGE);
 
         MenuBar menuBar = new MenuBar();
