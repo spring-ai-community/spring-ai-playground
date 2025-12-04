@@ -42,7 +42,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 
-import static org.springaicommunity.playground.webui.mcp.McpView.MCP_CONNECTION_CHANGE_EVENT;
+import static org.springaicommunity.playground.webui.mcp.McpServerView.MCP_CONNECTION_CHANGE_EVENT;
 
 @NpmPackage(value = "jsoneditor", version = "10.2.0")
 @NpmPackage(value = "ace-builds", version = "1.43.2")

@@ -48,8 +48,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
-import static org.springaicommunity.playground.webui.mcp.McpView.MCP_CONNECTION_DELETE_EVENT;
-import static org.springaicommunity.playground.webui.mcp.McpView.MCP_CONNECTION_SELECT_EVENT;
+import static org.springaicommunity.playground.webui.mcp.McpServerView.MCP_CONNECTION_DELETE_EVENT;
+import static org.springaicommunity.playground.webui.mcp.McpServerView.MCP_CONNECTION_SELECT_EVENT;
 
 public class McpServerConnectionView extends VerticalLayout implements BeforeEnterObserver {
 

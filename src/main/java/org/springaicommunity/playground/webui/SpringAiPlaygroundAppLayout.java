@@ -32,7 +32,7 @@ import com.vaadin.flow.router.BeforeEnterObserver;
 import com.vaadin.flow.router.PageTitle;
 import org.springaicommunity.playground.webui.chat.ChatView;
 import org.springaicommunity.playground.webui.home.HomeView;
-import org.springaicommunity.playground.webui.mcp.McpView;
+import org.springaicommunity.playground.webui.mcp.McpServerView;
 import org.springaicommunity.playground.webui.tool.ToolStudioView;
 import org.springaicommunity.playground.webui.vectorstore.VectorStoreView;
 import org.vaadin.googleanalytics.tracking.EnableGoogleAnalytics;
@@ -67,7 +67,7 @@ public class SpringAiPlaygroundAppLayout extends AppLayout
         this.tabs = new Tabs();
         createTab("Home", VaadinIcon.HOME, HomeView.class);
         createTab("Tool Studio", VaadinIcon.TOOLS, ToolStudioView.class);
-        createTab("MCP", VaadinIcon.TOOLBOX, McpView.class);
+        createTab("MCP Server", VaadinIcon.TOOLBOX, McpServerView.class);
         createTab("Vector Database", VaadinIcon.SEARCH_PLUS, VectorStoreView.class);
         createTab("Chat", VaadinIcon.CHAT, ChatView.class);
         this.tabs.setWidthFull();
