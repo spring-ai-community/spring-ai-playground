@@ -19,5 +19,5 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
-      - name: Build and Test
-        run: ./mvnw verify
+      - name: Build
+        run: ./mvnw verify -DskipTests

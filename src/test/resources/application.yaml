@@ -1,7 +1,7 @@
 logging:
   level:
     org.springframework.ai.chat.client.advisor.*: DEBUG
-    jm.kr.spring.ai.playground.service.*: DEBUG
+    org.springaicommunity.playground.service.*: DEBUG
     org.springframework.ai.mcp: DEBUG
 
 spring:
