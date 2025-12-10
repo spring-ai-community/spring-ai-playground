@@ -25,12 +25,12 @@
         <version>3.5.3</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
-    <groupId>jm.kr</groupId>
+    <groupId>org.springaicommunity</groupId>
     <artifactId>spring-ai-playground</artifactId>
     <version>0.1.1-M2</version>
     <name>Spring AI Playground</name>
-    <description>spring-ai-playground</description>
-    <url>https://github.com/JM-Lab/spring-ai-playground</url>
+    <description>A self-hosted web UI for AI experimentation with Spring AI</description>
+    <url>https://github.com/spring-ai-community/spring-ai-playground</url>
     <licenses>
         <license>
             <name>The Apache License, Version 2.0</name>
@@ -46,10 +46,9 @@
         </developer>
     </developers>
     <scm>
-        <connection>scm:git:git@github.com:JM-Lab/spring-ai-playground.git</connection>
-        <developerConnection>scm:git:git@github.com:JM-Lab/spring-ai-playground.git
-        </developerConnection>
-        <url>git@github.com:JM-Lab/spring-ai-playground.git</url>
+        <connection>scm:git:git@github.com:spring-ai-community/spring-ai-playground.git</connection>
+        <developerConnection>scm:git:git@github.com:spring-ai-community/spring-ai-playground.git</developerConnection>
+        <url>https://github.com/spring-ai-community/spring-ai-playground</url>
     </scm>
     <properties>
         <java.version>21</java.version>

@@ -43,7 +43,7 @@ Built on **Spring AI**, it supports leading model providers and includes compreh
 ### Getting Started
 First, clone the Spring AI Playground project from GitHub:
 ```
-git clone https://github.com/JM-Lab/spring-ai-playground.git
+git clone https://github.com/spring-ai-community/spring-ai-playground.git
 cd spring-ai-playground
 ```
 
