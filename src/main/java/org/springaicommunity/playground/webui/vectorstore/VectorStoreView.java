@@ -68,7 +68,7 @@ import static org.springaicommunity.playground.webui.VaadinUtils.styledIcon;
 @SpringComponent
 @UIScope
 @CssImport("./playground/vectorstore-styles.css")
-@PageTitle("Vector Database")
+@PageTitle("Vector Database | Spring AI Playground")
 @Route(value = "vector-database", layout = SpringAiPlaygroundAppLayout.class)
 public class VectorStoreView extends Div {
 
@@ -278,7 +278,7 @@ public class VectorStoreView extends Div {
         return horizontalLayout;
     }
 
-    private @NotNull Div buildEmbeddingModelServiceTextDiv() {
+    private Div buildEmbeddingModelServiceTextDiv() {
         H4 embeddingModelServiceText = buildEmbeddingModelServiceText();
         embeddingModelServiceText.getStyle().set("white-space", "nowrap");
         Div embeddingModelServiceTextDiv = new Div(embeddingModelServiceText);
@@ -287,7 +287,7 @@ public class VectorStoreView extends Div {
         return embeddingModelServiceTextDiv;
     }
 
-    private @NotNull H4 buildEmbeddingModelServiceText() {
+    private H4 buildEmbeddingModelServiceText() {
         EmbeddingOptions embeddingOptions = this.vectorStoreService.getEmbeddingOptions();
         return new H4(Objects.nonNull(embeddingOptions.getDimensions()) ?
                 String.format("%s - %s: %s - %d", this.vectorStoreService.getVectorStoreName(),
