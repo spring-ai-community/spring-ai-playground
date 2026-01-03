@@ -57,7 +57,7 @@ import static org.springaicommunity.playground.webui.VaadinUtils.styledIcon;
 @SpringComponent
 @UIScope
 @CssImport("./playground/chat-styles.css")
-@PageTitle("Agentic Chat | Spring AI Playground")
+@PageTitle("Agentic Chat")
 @Route(value = "agentic-chat", layout = SpringAiPlaygroundAppLayout.class)
 public class ChatView extends Div {
 

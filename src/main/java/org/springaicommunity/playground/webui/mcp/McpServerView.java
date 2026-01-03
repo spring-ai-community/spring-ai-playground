@@ -49,7 +49,7 @@ import static org.springaicommunity.playground.webui.VaadinUtils.styledIcon;
 @SpringComponent
 @UIScope
 @CssImport("./playground/mcp-inspector-styles.css")
-@PageTitle("MCP Server | Spring AI Playground")
+@PageTitle("MCP Server")
 @Route(value = "mcp-server", layout = SpringAiPlaygroundAppLayout.class)
 public class McpServerView extends Div {
 
