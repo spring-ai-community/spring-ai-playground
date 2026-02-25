@@ -44,3 +44,6 @@ vite.generated.ts
 /node_modules/
 /src/main/bundles/
 /log
+
+### Claude Code ###
+CLAUDE.md

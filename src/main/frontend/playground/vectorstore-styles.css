@@ -4,5 +4,19 @@
     margin: 0;
     border: none;
     gap: var(--lumo-space-s);
+}
 
+/* Resizable split layout splitter styling */
+vaadin-split-layout::part(splitter) {
+    min-width: 8px;
+    background: var(--lumo-contrast-10pct);
+    cursor: col-resize;
+}
+
+vaadin-split-layout::part(splitter):hover {
+    background: var(--lumo-primary-color-50pct);
+}
+
+vaadin-split-layout::part(splitter):active {
+    background: var(--lumo-primary-color);
 }

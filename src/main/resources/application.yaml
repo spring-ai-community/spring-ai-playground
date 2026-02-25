@@ -13,11 +13,11 @@ spring:
   application:
     name: spring-ai-playground
   profiles:
-    default: mcp, ollama
+    default: mcp, openai
   ai:
     model:
-      chat: ollama
-      embedding: ollama
+      chat: openai
+      embedding: openai
     playground:
       user-home:
       chat:
