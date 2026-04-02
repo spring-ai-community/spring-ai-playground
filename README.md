@@ -239,7 +239,7 @@ When running Spring AI Playground with the **`ollama`** profile, you can configu
 
 Switching to **OpenAI** is a primary example of how you can use a different AI model with Spring AI Playground. To explore other models supported by Spring AI, learn more in the [Spring AI Documentation](https://spring.io/projects/spring-ai).
 
-By default, Spring AI Playground uses Ollama as the primary AI model provider. To switch to OpenAI at runtime (without modifying files like `pom.xml` or `application.yaml`), activate the `openai` profile and provide the API key via environment variables.
+By default, Spring AI Playground uses Ollama as the primary AI model provider. The current OpenAI integration uses Spring AI's **official OpenAI SDK starter** (`spring-ai-starter-model-openai-sdk`). To use OpenAI, start the application with the `openai` profile enabled and provide the API key via environment variables.
 
 To switch to OpenAI, follow these steps:
 
@@ -271,17 +271,20 @@ To switch to OpenAI, follow these steps:
         ``` 
     - For local run (using Maven, combine profile and API key):
       ```bash
-      ./mvnw spring-boot:run --spring.profiles.active=openai --spring.ai.openai.api-key=your-openai-api-key
+      ./mvnw spring-boot:run --spring.profiles.active=openai --spring.ai.openai-sdk.api-key=your-openai-api-key
       ```
 ### Switching to OpenAI-Compatible Servers
 
-You can connect Spring AI to OpenAI-compatible servers such as `llama.cpp`, `TabbyAPI`, `LM Studio`, `vLLM`, `Ollama`, or others that expose OpenAI-compatible endpoints (e.g., `/v1/chat/completions`) by configuring the following properties in `application.yml` or via environment variables/run arguments. This leverages Spring AI's OpenAI Chat Client, which supports seamless integration with these servers.
+You can connect Spring AI to OpenAI-compatible servers such as `llama.cpp`, `TabbyAPI`, `LM Studio`, `vLLM`, `Ollama`, or others that expose OpenAI-compatible endpoints (e.g., `/v1/chat/completions`) by configuring the following properties in `application.yaml` or via environment variables/run arguments. This leverages Spring AI's OpenAI Chat Client, which supports seamless integration with these servers.
 
 ```yaml
 # Quick Start Example - Ollama as OpenAI-compatible server
 spring:
   ai:
-    openai:
+    model:
+      chat: openai-sdk
+      embedding: ollama
+    openai-sdk:
       api-key: "not-used"  # No auth required for local Ollama
       base-url: "http://localhost:11434/v1"
       chat:
@@ -308,7 +311,10 @@ spring:
 ```yaml
 spring:
   ai:
-    openai:
+    model:
+      chat: openai-sdk
+      embedding: ollama
+    openai-sdk:
       api-key: "not-used"  # No auth typically required
       base-url: "http://localhost:8080/v1"  # Include /v1 if server exposes it
       chat:
@@ -323,7 +329,10 @@ spring:
 ```yaml
 spring:
   ai:
-    openai:
+    model:
+      chat: openai-sdk
+      embedding: ollama
+    openai-sdk:
       api-key: "your-tabby-key"  # Use real key if auth enabled in TabbyAPI
       base-url: "http://localhost:5000/v1"  # Adjust port/path as per setup
       chat:
@@ -337,7 +346,10 @@ spring:
 ```yaml
 spring:
   ai:
-    openai:
+    model:
+      chat: openai-sdk
+      embedding: ollama
+    openai-sdk:
       api-key: "not-used"  # Typically no auth
       base-url: "http://localhost:1234/v1"  # Default LM Studio port with /v1
       chat:
@@ -351,7 +363,10 @@ spring:
 ```yaml
 spring:
   ai:
-    openai:
+    model:
+      chat: openai-sdk
+      embedding: ollama
+    openai-sdk:
       api-key: "not-used"  # Optional; Ollama often doesn't require
       base-url: "http://localhost:11434/v1"  # Standard Ollama endpoint
       chat:
@@ -366,7 +381,10 @@ spring:
 ```yaml
 spring:
   ai:
-    openai:
+    model:
+      chat: openai-sdk
+      embedding: ollama
+    openai-sdk:
       api-key: "not-used"
       base-url: "http://localhost:8000/v1"  # vLLM default
       chat:
@@ -378,7 +396,7 @@ spring:
 ```
 
 > **Note**:
-> Ensure your server fully adheres to OpenAI’s API specification for best compatibility, including support for `/v1/chat/completions` and proper model listing at `/v1/models`. Verify server capabilities with tools like curl (e.g., `curl http://localhost:8080/v1/models`). Streaming works if the server supports SSE. For production, use environment variables for secrets. Refer to [Spring AI OpenAI Chat Documentation](https://docs.spring.io/spring-ai/reference/api/chat/openai-chat.html) for full details on advanced options like `stream-usage` or reasoning model support. Test connectivity before integrating.
+> Ensure your server fully adheres to OpenAI’s API specification for best compatibility, including support for `/v1/chat/completions` and proper model listing at `/v1/models`. Verify server capabilities with tools like curl (e.g., `curl http://localhost:8080/v1/models`). Streaming works if the server supports SSE. For production, use environment variables for secrets. Refer to [Spring AI OpenAI Chat Documentation](https://docs.spring.io/spring-ai/reference/api/chat/openai-chat.html) for full details on advanced options like reasoning model support. The current chat integration also extracts reasoning/thinking content from streamed OpenAI SDK responses when the provider exposes it.
 
 ## Tool Studio
 
@@ -492,7 +510,7 @@ Tool actions are implemented in **JavaScript (ECMAScript 2023)** executed *insid
 - **Java interop**: Controlled via whitelist and configuration.
 - **Sandboxing**: Unsafe operations (file I/O, native access, etc.) are restricted by design; tool code should be kept minimal and deterministic.
 
-> **Security Note**: Host access is strictly controlled to ensure safe execution. By default, all broad access is disabled, and only explicitly allowed Java classes and capabilities are exposed. Configuration is done via `application.yml`:
+> **Security Note**: Host access is strictly controlled to ensure safe execution. By default, all broad access is disabled, and only explicitly allowed Java classes and capabilities are exposed. Configuration is done via `application.yaml`:
 >
 > ```yaml
 > js-sandbox:

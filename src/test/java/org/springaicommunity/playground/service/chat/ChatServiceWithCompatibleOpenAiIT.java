@@ -32,11 +32,11 @@ import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(properties = {
-        "spring.ai.model.chat=openai",
-        "spring.ai.openai.base-url=http://localhost:11434",
-        "spring.ai.openai.api-key=ollama",
-        "spring.ai.openai.chat.options.model=qwen3"
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK, properties = {
+        "spring.ai.model.chat=openai-sdk",
+        "spring.ai.openai-sdk.base-url=http://localhost:11434/v1",
+        "spring.ai.openai-sdk.api-key=ollama",
+        "spring.ai.openai-sdk.chat.options.model=qwen3",
 })
 class ChatServiceWithCompatibleOpenAiIT {
 

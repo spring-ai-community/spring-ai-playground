@@ -82,7 +82,7 @@ spring:
         pull-model-strategy: when_missing
       chat:
         options:
-          model: qwen3
+          model: qwen3.5
       embedding:
         options:
           model: qwen3-embedding:0.6b
@@ -90,11 +90,8 @@ spring:
       chat:
         models:
           - gpt-oss
-          - llama3.2
-          - mistral
+          - qwen3.5
           - qwen3
-          - deepseek-r1
-          - hf.co/rippertnt/HyperCLOVAX-SEED-Text-Instruct-1.5B-Q4_K_M-GGUF
 ---
 spring:
   config:
@@ -102,26 +99,23 @@ spring:
       on-profile: openai
   ai:
     model:
-      chat: openai
-      embedding: openai
-    openai:
+      chat: openai-sdk
+      embedding: openai-sdk
+    openai-sdk:
       api-key: ${OPENAI_API_KEY}
       chat:
         options:
           model: gpt-4.1-nano
+          stream-options:
+            include-usage: false
       embedding:
         options:
           model: text-embedding-3-small
     playground:
       chat:
         models:
-          - gpt-4.1-nano
-          - gpt-4.1-mini
-          - gpt-4o-mini
-          - gpt-4o
+          - gpt-5.2
+          - gpt-5-mini
+          - gpt-5-nano
           - gpt-4.1
-          - gpt-3.5-turbo
-          - gpt-3.5-turbo-16k
-          - gpt-4
-          - gpt-4-32k
-          - gpt-4-turbo
+          - gpt-4o
