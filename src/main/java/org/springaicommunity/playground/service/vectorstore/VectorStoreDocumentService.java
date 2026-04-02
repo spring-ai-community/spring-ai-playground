@@ -145,9 +145,11 @@ public class VectorStoreDocumentService implements SharedDataReader<List<VectorS
     }
 
     public TokenTextSplitter newTokenTextSplitter(TokenTextSplitInfo tokenTextSplitInfo) {
-        return new TokenTextSplitter(tokenTextSplitInfo.chunkSize(), tokenTextSplitInfo.minChunkSizeChars(),
-                tokenTextSplitInfo.minChunkLengthToEmbed(), tokenTextSplitInfo.maxNumChunks(),
-                tokenTextSplitInfo.keepSeparator());
+        return TokenTextSplitter.builder().withChunkSize(tokenTextSplitInfo.chunkSize())
+                .withMinChunkSizeChars(tokenTextSplitInfo.minChunkSizeChars())
+                .withMinChunkLengthToEmbed(tokenTextSplitInfo.minChunkLengthToEmbed()).withMaxNumChunks(
+                        tokenTextSplitInfo.maxNumChunks()).withKeepSeparator(
+                        tokenTextSplitInfo.keepSeparator()).build();
     }
 
     public void addUploadedDocumentFile(String fileName, File uploadedFile) throws Exception {
