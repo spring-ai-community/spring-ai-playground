@@ -41,9 +41,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.ai.rag.retrieval.search.VectorStoreDocumentRetriever.FILTER_EXPRESSION;
 
-@SpringBootTest
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK, properties = {
+        "spring.ai.playground.chat.models=gpt-4.1-nano, gpt-4.1-mini",
+})
 class ChatServiceTest {
-
     @Autowired
     ChatService chatService;
 
@@ -104,9 +105,7 @@ class ChatServiceTest {
 
     @Test
     void testGetModels() {
-        assertEquals(
-                "[gpt-4.1-nano, gpt-4.1-mini, gpt-4o-mini, gpt-4o, gpt-4.1, gpt-3.5-turbo, gpt-3.5-turbo-16k, gpt-4, gpt-4-32k, gpt-4-turbo]",
-                chatService.getModels().toString());
+        assertEquals("[gpt-4.1-nano, gpt-4.1-mini]", chatService.getModels().toString());
     }
 
     @Test
