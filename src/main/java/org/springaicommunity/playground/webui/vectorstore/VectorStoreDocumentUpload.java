@@ -108,8 +108,7 @@ public class VectorStoreDocumentUpload extends VerticalLayout {
 
         upload.getElement().addEventListener("file-remove",
                 event -> {
-                    String string = event.getEventData().getString("event.detail.file.name");
-                    Optional.ofNullable(string)
+                    Optional.ofNullable(event.getEventData().get("event.detail.file.name")).map(Object::toString)
                             .ifPresent(fileName -> {
                                 try {
                                     this.vectorStoreDocumentService.removeUploadedDocumentFile(fileName);
@@ -157,7 +156,7 @@ public class VectorStoreDocumentUpload extends VerticalLayout {
         return i18n;
     }
 
-    private static @NotNull Uploading buildUploading() {
+    private static Uploading buildUploading() {
         Uploading uploading = new Uploading();
 
         Uploading.Status status = new Uploading.Status();
