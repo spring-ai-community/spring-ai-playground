@@ -36,8 +36,6 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextArea;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.value.ValueChangeMode;
-import com.vaadin.flow.internal.JsonDecodingException;
-import com.vaadin.flow.internal.JsonUtils;
 import com.vaadin.flow.router.BeforeEnterEvent;
 import com.vaadin.flow.router.BeforeEnterObserver;
 import com.vaadin.flow.router.BeforeLeaveEvent;
@@ -280,18 +278,24 @@ public class VectorStoreContentView extends VerticalLayout implements BeforeEnte
 
     private VectorStoreContentItem convertToViewDocument(Document document) {
         return new VectorStoreContentItem(document.getScore(), document.getId(), document.getText(),
-                Objects.nonNull(document.getMedia()) ? JsonUtils.writeValue(document.getMedia())
-                        .toJson() : null,
-                JsonUtils.beanToJson(document.getMetadata()).toJson());
+                Objects.nonNull(document.getMedia()) ? writeAsJson(document.getMedia()) : null,
+                writeAsJson(document.getMetadata()));
+    }
+
+    private String writeAsJson(Object value) {
+        try {
+            return ObjectMapper.writeValueAsString(value);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("Error converting value to JSON", e);
+        }
     }
 
     private <T> T readToObject(String jsonString, TypeReference<T> typeReference) {
         try {
             return ObjectMapper.readValue(jsonString, typeReference);
         } catch (JsonProcessingException e) {
-            throw new JsonDecodingException(
-                    "Error converting JsonValue to " + typeReference.getType().getTypeName(),
-                    e);
+            throw new IllegalArgumentException(
+                    "Error converting JSON to " + typeReference.getType().getTypeName(), e);
         }
     }
 
