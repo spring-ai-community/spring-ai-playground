@@ -2,11 +2,6 @@ vaadin:
   pushmode: automatic
 server:
   port: 8282
-logging:
-  level:
-    org.springframework.ai.chat.client.advisor.*: DEBUG
-    jm.kr.spring.ai.playground.service.*: DEBUG
-    org.springframework.ai.mcp: DEBUG
 spring:
   threads:
     virtual:

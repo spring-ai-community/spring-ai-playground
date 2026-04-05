@@ -29,8 +29,8 @@
     <artifactId>spring-ai-playground</artifactId>
     <version>0.2.0-M1</version>
     <name>Spring AI Playground</name>
-    <description>spring-ai-playground</description>
-    <url>https://github.com/JM-Lab/spring-ai-playground</url>
+    <description>Incubating project from the Spring AI Community</description>
+    <url>https://github.com/spring-ai-community/spring-ai-playground</url>
     <licenses>
         <license>
             <name>The Apache License, Version 2.0</name>
@@ -41,15 +41,15 @@
         <developer>
             <name>Jemin Huh</name>
             <email>hjm1980@gmail.com</email>
-            <organization>JMLab</organization>
-            <organizationUrl>https://github.com/jm-lab</organizationUrl>
+            <organization>Spring AI Community</organization>
+            <organizationUrl>https://github.com/spring-ai-community</organizationUrl>
         </developer>
     </developers>
     <scm>
-        <connection>scm:git:git@github.com:JM-Lab/spring-ai-playground.git</connection>
-        <developerConnection>scm:git:git@github.com:JM-Lab/spring-ai-playground.git
+        <connection>scm:git:https://github.com/spring-ai-community/spring-ai-playground.git</connection>
+        <developerConnection>scm:git:https://github.com/spring-ai-community/spring-ai-playground.git
         </developerConnection>
-        <url>git@github.com:JM-Lab/spring-ai-playground.git</url>
+        <url>https://github.com/spring-ai-community/spring-ai-playground</url>
     </scm>
     <properties>
         <java.version>21</java.version>
