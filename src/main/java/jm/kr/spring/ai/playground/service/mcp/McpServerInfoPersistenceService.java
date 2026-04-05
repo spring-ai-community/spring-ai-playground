@@ -20,6 +20,7 @@ import jm.kr.spring.ai.playground.service.mcp.client.McpClientService;
 import jm.kr.spring.ai.playground.service.mcp.client.McpTransportType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.web.context.WebServerInitializedEvent;
 import org.springframework.context.ApplicationListener;
 import org.springframework.stereotype.Service;
@@ -38,15 +39,16 @@ public class McpServerInfoPersistenceService implements PersistenceServiceInterf
     private static final Logger logger = LoggerFactory.getLogger(McpServerInfoPersistenceService.class);
 
     private final Path saveDir;
-    private final McpServerInfoService mcpServerInfoService;
+    private final ObjectProvider<McpServerInfoService> mcpServerInfoServiceProvider;
     private final McpClientService mcpClientService;
     private final List<McpServerInfo> mcpServerInfos;
 
-    public McpServerInfoPersistenceService(Path springAiPlaygroundHomeDir, McpServerInfoService mcpServerInfoService,
+    public McpServerInfoPersistenceService(Path springAiPlaygroundHomeDir,
+            ObjectProvider<McpServerInfoService> mcpServerInfoServiceProvider,
             McpClientService mcpClientService) throws IOException {
         this.saveDir = springAiPlaygroundHomeDir.resolve("mcp").resolve("save");
         Files.createDirectories(this.saveDir);
-        this.mcpServerInfoService = mcpServerInfoService;
+        this.mcpServerInfoServiceProvider = mcpServerInfoServiceProvider;
         this.mcpClientService = mcpClientService;
         this.mcpServerInfos = this.loads();
     }
@@ -85,8 +87,9 @@ public class McpServerInfoPersistenceService implements PersistenceServiceInterf
 
     @Override
     public void onStart() throws IOException {
+        McpServerInfoService mcpServerInfoService = this.mcpServerInfoServiceProvider.getObject();
         this.mcpServerInfos.forEach(
-                mcpServerInfo -> this.mcpServerInfoService.updateMcpServerInfo(mcpServerInfo.mcpTransportType(),
+                mcpServerInfo -> mcpServerInfoService.updateMcpServerInfo(mcpServerInfo.mcpTransportType(),
                         mcpServerInfo.serverName(), mcpServerInfo));
     }
 
@@ -97,9 +100,10 @@ public class McpServerInfoPersistenceService implements PersistenceServiceInterf
 
     @Override
     public void onShutdown() throws IOException {
-        for (McpServerInfo mcpServerInfo : this.mcpServerInfoService.getMcpServerInfos().values().stream()
+        McpServerInfoService mcpServerInfoService = this.mcpServerInfoServiceProvider.getObject();
+        for (McpServerInfo mcpServerInfo : mcpServerInfoService.getMcpServerInfos().values().stream()
                 .flatMap(List::stream)
-                .filter(Predicate.not(this.mcpServerInfoService.getDefaultMcpServerInfo()::equals)).toList())
+                .filter(Predicate.not(mcpServerInfoService.getDefaultMcpServerInfo()::equals)).toList())
             save(mcpServerInfo);
     }
 
