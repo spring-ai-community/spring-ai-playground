@@ -1,0 +1,1387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spring AI Playground Config</title>
+    <style>
+        :root {
+            color-scheme: light;
+            --lumo-font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+            --lumo-base-color: #fff;
+            --lumo-body-text-color: hsl(214, 35%, 15%);
+            --lumo-primary-color: #1f7a5a;
+            --lumo-primary-text-color: #fff;
+            --lumo-secondary-text-color: hsl(214, 20%, 47%);
+            --lumo-shade-5pct: rgba(33, 43, 54, 0.05);
+            --lumo-shade-10pct: rgba(33, 43, 54, 0.1);
+            --lumo-space-s: 0.75rem;
+            --lumo-space-m: 1rem;
+            --lumo-space-l: 1.5rem;
+            --lumo-border-radius-m: 0.55rem;
+            --lumo-border-radius-l: 1rem;
+            --bg: #f7f9fc;
+            --panel: rgba(255, 255, 255, 0.96);
+            --panel-2: #fbf6ee;
+            --border: rgba(95, 106, 100, 0.14);
+            --accent: var(--lumo-primary-color);
+            --accent-2: #d2a147;
+            --text: var(--lumo-body-text-color);
+            --muted: var(--lumo-secondary-text-color);
+            --danger: #c0392b;
+            --warning-bg: #fff8ea;
+            --warning-border: #f1c26b;
+            --success-bg: #eff8f2;
+            --success-border: #69b37b;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background:
+                radial-gradient(circle at top left, rgba(31, 122, 90, 0.12), transparent 28%),
+                radial-gradient(circle at top right, rgba(210, 161, 71, 0.16), transparent 22%),
+                linear-gradient(180deg, #fbf6ee 0%, #efe4d4 100%);
+            color: var(--text);
+            font-family: var(--lumo-font-family);
+        }
+
+        .shell {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            padding: 24px;
+            min-height: 100vh;
+        }
+
+        .hero {
+            display: flex;
+            justify-content: space-between;
+            gap: 24px;
+            align-items: flex-end;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .brand-mark {
+            width: 64px;
+            height: 64px;
+            border-radius: 18px;
+            background: linear-gradient(180deg, #ffffff 0%, #f4f8fc 100%);
+            border: 1px solid var(--border);
+            box-shadow: 0 10px 24px rgba(33, 43, 54, 0.08);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .brand-mark img {
+            width: 42px;
+            height: 42px;
+            object-fit: contain;
+        }
+
+        .title {
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            margin: 0 0 8px;
+        }
+
+        .subtitle {
+            margin: 0;
+            color: var(--muted);
+            max-width: 820px;
+            line-height: 1.5;
+        }
+
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: var(--lumo-border-radius-l);
+            box-shadow: 0 14px 30px rgba(33, 43, 54, 0.08);
+        }
+
+        #setup-notes-card { order: 1; }
+        #config-card { order: 2; }
+        #ollama-card { order: 3; }
+        #env-card { order: 4; }
+        #jvm-card { order: 5; }
+        .footer { order: 6; }
+
+        .meta {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+            padding: 16px 18px;
+        }
+
+        .meta-item {
+            background: rgba(255, 255, 255, 0.55);
+            border: 1px solid var(--border);
+            border-radius: var(--lumo-border-radius-m);
+            padding: 12px 14px;
+        }
+
+        .meta-label {
+            color: var(--muted);
+            font-size: 12px;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .meta-value {
+            word-break: break-all;
+            font-size: 13px;
+            line-height: 1.45;
+        }
+
+        .editor-wrap {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            padding: 18px;
+            gap: 14px;
+        }
+
+        .wizard-section {
+            display: grid;
+            gap: 14px;
+            padding: 18px;
+        }
+
+        .section-header {
+            display: grid;
+            gap: 6px;
+        }
+
+        .section-header h2 {
+            margin: 0;
+            font-size: 20px;
+            letter-spacing: -0.01em;
+        }
+
+        .section-header p {
+            margin: 0;
+            color: var(--muted);
+            line-height: 1.55;
+        }
+
+        .notice {
+            padding: 16px 18px;
+            border-radius: var(--lumo-border-radius-m);
+            border: 1px solid var(--warning-border);
+            background: var(--warning-bg);
+            color: #5e471d;
+            line-height: 1.55;
+        }
+
+        .notice strong {
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: end;
+        }
+
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-width: 220px;
+        }
+
+        .field.grow {
+            flex: 1;
+        }
+
+        .field label {
+            color: var(--muted);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .field input,
+        .field select {
+            width: 100%;
+            background: #fffdfa;
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: var(--lumo-border-radius-m);
+            padding: 12px 14px;
+            font: 14px/1.4 var(--lumo-font-family);
+            outline: none;
+        }
+
+        .field input:focus,
+        .field select:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(93, 187, 138, 0.18);
+        }
+
+        #yaml-editor {
+            width: 100%;
+            min-height: 520px;
+            flex: 1;
+            border: 1px solid var(--border);
+            border-radius: var(--lumo-border-radius-m);
+            overflow: hidden;
+            background: #fffdfa;
+        }
+
+        .launcher-panel {
+            display: grid;
+            gap: 12px;
+            padding: 16px;
+            border: 1px solid var(--border);
+            border-radius: var(--lumo-border-radius-m);
+            background: var(--panel-2);
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .secret-panel {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            padding: 16px;
+            border: 1px solid var(--border);
+            border-radius: var(--lumo-border-radius-m);
+            background: #fffdf8;
+        }
+
+        .secret-section {
+            display: none;
+            gap: 12px;
+        }
+
+        .secret-section.open {
+            display: grid;
+        }
+
+        .ollama-section {
+            display: grid;
+            gap: 12px;
+            padding: 16px;
+            border: 1px solid var(--border);
+            border-radius: var(--lumo-border-radius-m);
+            background: #f8fbff;
+        }
+
+        .ollama-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .ollama-card {
+            border: 1px solid var(--border);
+            border-radius: var(--lumo-border-radius-m);
+            background: #fff;
+            padding: 14px;
+        }
+
+        .ollama-title {
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .ollama-copy {
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .ollama-status {
+            display: grid;
+            gap: 6px;
+            color: var(--text);
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .ollama-status strong {
+            color: var(--text);
+        }
+
+        .status-good {
+            color: #217a42;
+        }
+
+        .status-warn {
+            color: #9d6a00;
+        }
+
+        .status-bad {
+            color: var(--danger);
+        }
+
+        .ollama-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .section-copy {
+            display: grid;
+            gap: 6px;
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.55;
+        }
+
+        .section-copy strong {
+            color: var(--text);
+            font-size: 14px;
+        }
+
+        .secret-card {
+            border: 1px solid var(--border);
+            border-radius: var(--lumo-border-radius-m);
+            background: #fff;
+            padding: 14px;
+        }
+
+        .secret-key {
+            font: 700 13px/1.4 "SF Mono", "Monaco", "Cascadia Code", "Consolas", monospace;
+            margin-bottom: 4px;
+        }
+
+        .secret-help {
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.45;
+            margin-bottom: 6px;
+        }
+
+        .secret-usage {
+            color: #4d6488;
+            font-size: 12px;
+            line-height: 1.45;
+            margin-bottom: 4px;
+        }
+
+        .secret-scope {
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.45;
+            margin-bottom: 10px;
+        }
+
+        .secret-card input {
+            width: 100%;
+            border: 1px solid var(--border);
+            border-radius: var(--lumo-border-radius-m);
+            padding: 10px 12px;
+            font: 13px/1.4 "SF Mono", "Monaco", "Cascadia Code", "Consolas", monospace;
+        }
+
+        .secret-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .secret-input-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .secret-input-row input {
+            flex: 1;
+        }
+
+        .tiny-button {
+            border-radius: 12px;
+            padding: 8px 10px;
+            font-size: 12px;
+            border: 1px solid var(--border);
+            background: #fffdfa;
+            cursor: pointer;
+        }
+
+        .secret-custom-grid {
+            display: grid;
+            gap: 8px;
+        }
+
+        .secret-custom-grid input {
+            width: 100%;
+            background: #fffdfa;
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: var(--lumo-border-radius-m);
+            padding: 10px 12px;
+            font: 13px/1.4 "SF Mono", "Monaco", "Cascadia Code", "Consolas", monospace;
+        }
+
+        .field textarea {
+            width: 100%;
+            min-height: 140px;
+            resize: vertical;
+            border: 1px solid var(--border);
+            border-radius: var(--lumo-border-radius-m);
+            padding: 12px 14px;
+            background: #fff;
+            color: var(--text);
+            font: 13px/1.5 "SF Mono", "Monaco", "Cascadia Code", "Consolas", monospace;
+        }
+
+        .editor-help {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .validation {
+            color: var(--muted);
+            font-size: 13px;
+            min-height: 20px;
+        }
+
+        .validation.error {
+            color: var(--danger);
+        }
+
+        .validation.ok {
+            color: var(--accent);
+        }
+
+        .footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            padding: 18px;
+        }
+
+        .meta-grid {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .mini-card {
+            background: rgba(255, 255, 255, 0.55);
+            border: 1px solid var(--border);
+            border-radius: var(--lumo-border-radius-m);
+            padding: 12px 14px;
+        }
+
+        .status {
+            color: var(--muted);
+            font-size: 13px;
+            min-height: 20px;
+        }
+
+        .status.error {
+            color: var(--danger);
+        }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .checkbox-row {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--muted);
+            user-select: none;
+        }
+
+        .checkbox-row input {
+            width: 16px;
+            height: 16px;
+        }
+
+        button {
+            border: 0;
+            border-radius: 999px;
+            padding: 11px 18px;
+            font: inherit;
+            cursor: pointer;
+            transition: transform 120ms ease, opacity 120ms ease, background 120ms ease;
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: wait;
+            transform: none;
+        }
+
+        .secondary {
+            background: #fff;
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .primary {
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+            color: #fff;
+            font-weight: 700;
+        }
+
+        @media (max-width: 860px) {
+            .hero,
+            .footer {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .meta {
+                grid-template-columns: 1fr;
+            }
+
+            .meta-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .toolbar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .launcher-panel {
+                grid-template-columns: 1fr;
+            }
+
+            .secret-panel {
+                grid-template-columns: 1fr;
+            }
+
+            .ollama-grid {
+                grid-template-columns: 1fr;
+            }
+
+            #yaml-editor {
+                min-height: 420px;
+            }
+
+            .editor-help {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="shell">
+    <div class="hero">
+        <div class="brand">
+            <div class="brand-mark">
+                <img src="./electron/build/icon.png" alt="Spring AI Playground logo">
+            </div>
+            <div>
+            <h1 class="title">Configure Spring AI Playground</h1>
+            <p class="subtitle">Set up the Spring AI Community incubating project for this machine. First launch opens this screen, and later launches reuse the selected config automatically.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="card wizard-section" id="setup-notes-card">
+        <div class="section-header">
+            <h2>Current Config and Setup Notes</h2>
+            <p>Review the selected setting and the important launch notes before editing the profile-specific override YAML.</p>
+        </div>
+        <div class="meta-grid">
+            <div class="mini-card">
+                <div class="meta-label">Selected Config</div>
+                <div class="meta-value" id="config-path">Loading...</div>
+            </div>
+            <div class="mini-card">
+                <div class="meta-label">Base Setup</div>
+                <div class="meta-value">Bundled default settings are hidden. This editor only shows overrides for the selected setting.</div>
+            </div>
+            <div class="mini-card">
+                <div class="meta-label">How It Runs</div>
+                <div class="meta-value">At launch, this YAML is applied on top of the built-in default configuration.</div>
+            </div>
+        </div>
+        <div class="notice" id="embedding-warning">
+            <strong>Embedding model warning</strong>
+            Changing the embedding model after documents were indexed can make existing vector data inconsistent. If you change it, re-import or rebuild the vector database before relying on search results.
+        </div>
+    </div>
+
+    <div class="card wizard-section" id="ollama-card">
+        <div class="section-header">
+            <h2>Ollama Startup</h2>
+            <p>Check whether this setting needs Ollama before launch. If Ollama is required, install it and make sure it is already running before you start Spring AI Playground.</p>
+        </div>
+        <div class="ollama-section" id="ollama-section">
+            <div class="ollama-grid">
+                <div class="ollama-card">
+                    <div class="ollama-title">Current status</div>
+                    <div class="ollama-status" id="ollama-status">Checking Ollama...</div>
+                </div>
+                <div class="ollama-card">
+                    <div class="ollama-title">What you need to do</div>
+                    <div class="ollama-copy" id="ollama-copy">If this setting uses Ollama, install it first and start Ollama yourself before launching Spring AI Playground.</div>
+                    <div class="ollama-actions">
+                        <label class="checkbox-row" for="skip-ollama-check">
+                            <input id="skip-ollama-check" type="checkbox">
+                            <span>Do not check Ollama at startup</span>
+                        </label>
+                    </div>
+                    <div class="ollama-actions" id="ollama-actions-row">
+                        <button class="secondary" id="check-ollama-button" type="button">Check Connection</button>
+                        <button class="secondary" id="open-ollama-site-button" type="button">Open Install Page</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card wizard-section" id="config-card">
+        <div class="section-header">
+            <h2>Spring AI Playground Config</h2>
+            <p>Choose the backend type first, then manage saved settings for that type. Only the YAML override for the selected setting is shown below.</p>
+        </div>
+        <div class="toolbar">
+            <div class="field">
+                <label for="provider-select">Config Type</label>
+                <select id="provider-select" aria-label="config type selector">
+                    <option value="ollama">Ollama</option>
+                    <option value="openai">OpenAI</option>
+                    <option value="openai-compatible">OpenAI-Compatible</option>
+                </select>
+            </div>
+            <div class="field grow">
+                <label for="config-select">Setting Name</label>
+                <select id="config-select" aria-label="saved config selector"></select>
+            </div>
+            <div class="field grow">
+                <label for="save-as-name">Save As</label>
+                <input id="save-as-name" type="text" placeholder="Example: OpenAI Demo">
+            </div>
+            <button class="secondary" id="save-as-button" type="button">Save As</button>
+            <button class="secondary" id="delete-button" type="button">Delete</button>
+        </div>
+        <div id="yaml-editor" aria-label="application yaml editor"></div>
+        <div class="editor-help">
+            <div>This editor only shows the override YAML for the selected setting. At launch, it is merged on top of the built-in default configuration.</div>
+            <div>Use environment variables for API keys and tool secrets instead of writing them into YAML. They are set only for the app launch process.</div>
+        </div>
+        <div class="validation" id="validation-status">Preparing editor...</div>
+    </div>
+
+    <div class="card wizard-section" id="env-card">
+        <div class="section-header">
+            <h2>Environment Variables</h2>
+            <p>Store API keys and tool secrets here so they stay out of YAML and are exported only for this app launch.</p>
+        </div>
+        <div class="notice" id="secrets-storage-status">
+            <strong>Secrets storage</strong>
+            Checking secure storage availability...
+        </div>
+        <div class="secret-section" id="secret-section">
+            <div class="section-copy" id="secret-copy">
+                <strong>Optional environment variables for this setting and tools</strong>
+                <div>The fields below are stored securely by the launcher and exported only for the app launch process, for example `OPENAI_API_KEY=...`.</div>
+                <div>Leave them empty unless the selected backend or a built-in tool actually needs that key at runtime.</div>
+            </div>
+            <div class="secret-panel" id="secret-panel"></div>
+            <div class="secret-actions">
+                <div class="section-copy">
+                    <strong>Add Environment Variable</strong>
+                    <div>Add your own key/value entry when a backend or tool needs a variable that is not listed above.</div>
+                </div>
+                <button class="secondary" id="add-custom-secret-button" type="button">Add Environment Variable</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card wizard-section" id="jvm-card">
+        <div class="section-header">
+            <h2>JVM Settings</h2>
+            <p>Only JVM options and application arguments belong here. They are passed when Spring AI Playground starts.</p>
+        </div>
+        <div class="launcher-panel" id="launcher-panel">
+            <div class="field">
+                <label for="jvm-options">JVM Options</label>
+                <textarea id="jvm-options" placeholder="-Xmx2g"></textarea>
+            </div>
+            <div class="field">
+                <label for="app-args">Application Args</label>
+                <textarea id="app-args" placeholder="--logging.level.root=INFO"></textarea>
+            </div>
+        </div>
+    </div>
+
+    <div class="card footer">
+        <div class="status" id="status">Loading configuration...</div>
+        <div class="actions">
+            <button class="secondary" id="export-button" type="button">Export</button>
+            <button class="secondary" id="import-button" type="button">Import</button>
+            <button class="secondary" id="reset-button" type="button">Reset to Default</button>
+            <button class="secondary" id="save-button" type="button">Save</button>
+            <button class="primary" id="launch-button" type="button">Save and Launch</button>
+        </div>
+    </div>
+</div>
+
+<script src="./resources/editor/ace.js"></script>
+<script src="./resources/editor/mode-yaml.js"></script>
+<script src="./resources/editor/theme-textmate.js"></script>
+<script src="./resources/editor/worker-yaml.js"></script>
+<script>
+    const { ipcRenderer } = require('electron');
+
+    const configSelect = document.getElementById('config-select');
+    const providerSelect = document.getElementById('provider-select');
+    const saveAsName = document.getElementById('save-as-name');
+    const configPath = document.getElementById('config-path');
+    const statusEl = document.getElementById('status');
+    const validationStatus = document.getElementById('validation-status');
+    const saveButton = document.getElementById('save-button');
+    const saveAsButton = document.getElementById('save-as-button');
+    const resetButton = document.getElementById('reset-button');
+    const launchButton = document.getElementById('launch-button');
+    const exportButton = document.getElementById('export-button');
+    const importButton = document.getElementById('import-button');
+    const deleteButton = document.getElementById('delete-button');
+    const ollamaCard = document.getElementById('ollama-card');
+    const launcherPanel = document.getElementById('launcher-panel');
+    const ollamaSection = document.getElementById('ollama-section');
+    const jvmOptions = document.getElementById('jvm-options');
+    const appArgs = document.getElementById('app-args');
+    const embeddingWarning = document.getElementById('embedding-warning');
+    const secretsStorageStatus = document.getElementById('secrets-storage-status');
+    const skipOllamaCheckCheckbox = document.getElementById('skip-ollama-check');
+    const ollamaStatus = document.getElementById('ollama-status');
+    const ollamaCopy = document.getElementById('ollama-copy');
+    const ollamaActionsRow = document.getElementById('ollama-actions-row');
+    const checkOllamaButton = document.getElementById('check-ollama-button');
+    const openOllamaSiteButton = document.getElementById('open-ollama-site-button');
+    const secretSection = document.getElementById('secret-section');
+    const secretPanel = document.getElementById('secret-panel');
+    const secretCopy = document.getElementById('secret-copy');
+    const addCustomSecretButton = document.getElementById('add-custom-secret-button');
+    let isSwitchingConfig = false;
+    let hasYamlErrors = false;
+    let secretValues = {};
+    let customSecretKeys = [];
+    let currentConfigs = [];
+
+    function getProviderLabel(providerType = 'ollama') {
+        if (providerType === 'openai') {
+            return 'OpenAI';
+        }
+        if (providerType === 'openai-compatible') {
+            return 'OpenAI-Compatible';
+        }
+        return 'Ollama';
+    }
+
+    const editor = ace.edit('yaml-editor');
+    editor.session.setMode('ace/mode/yaml');
+    editor.setTheme('ace/theme/textmate');
+    editor.session.setUseWorker(false);
+    editor.setOptions({
+        fontSize: '13px',
+        fontFamily: '"SF Mono", "Monaco", "Cascadia Code", "Consolas", monospace',
+        showPrintMargin: false,
+        tabSize: 2,
+        useSoftTabs: true,
+        wrap: true
+    });
+
+    function setStatus(message, isError = false) {
+        statusEl.textContent = message;
+        statusEl.classList.toggle('error', isError);
+    }
+
+    function setValidationStatus(message, tone = 'neutral') {
+        validationStatus.textContent = message;
+        validationStatus.classList.remove('error', 'ok');
+        if (tone === 'error' || tone === 'ok') {
+            validationStatus.classList.add(tone);
+        }
+    }
+
+    function setBusy(isBusy) {
+        saveButton.disabled = isBusy;
+        saveAsButton.disabled = isBusy;
+        resetButton.disabled = isBusy;
+        launchButton.disabled = isBusy;
+        exportButton.disabled = isBusy;
+        importButton.disabled = isBusy;
+        deleteButton.disabled = isBusy;
+        providerSelect.disabled = isBusy;
+        configSelect.disabled = isBusy;
+    }
+
+    function getYamlValue() {
+        return editor.getValue();
+    }
+
+    function getSavePayload() {
+        const customProperties = {};
+        for (const key of customSecretKeys) {
+            if (secretValues[key] != null && String(secretValues[key]).trim() !== '') {
+                customProperties[key] = secretValues[key];
+            }
+        }
+        return {
+            yamlText: getYamlValue(),
+            jvmOptionsText: jvmOptions.value,
+            appArgsText: appArgs.value,
+            secretValues: {
+                ...secretValues,
+                ...customProperties
+            },
+            preferences: {
+                skipOllamaCheck: skipOllamaCheckCheckbox.checked
+            }
+        };
+    }
+
+    function getSelectedProviderType() {
+        return providerSelect.value || 'ollama';
+    }
+
+    function getEffectiveEnvValue(keyName) {
+        const value = secretValues[keyName];
+        if (value != null && String(value).trim() !== '') {
+            return String(value).trim();
+        }
+        return '';
+    }
+
+    function getLaunchBlockingError() {
+        if (hasYamlErrors) {
+            return 'Fix YAML errors before launching.';
+        }
+        if (getSelectedProviderType() === 'openai' && !getEffectiveEnvValue('OPENAI_API_KEY')) {
+            return 'OPENAI_API_KEY is required for the OpenAI setting before launch.';
+        }
+        return '';
+    }
+
+    async function refreshOllamaStatus() {
+        if (ollamaCard.style.display === 'none') {
+            return;
+        }
+        ollamaStatus.innerHTML = 'Checking Ollama...';
+        try {
+            const info = await ipcRenderer.invoke('config:environment-info', getYamlValue());
+            const requiredText = info.ollamaRequired
+                ? 'This setting uses Ollama directly or for embeddings.'
+                : 'This setting does not require Ollama at startup.';
+            const installedText = info.ollamaInstalled
+                ? '<span class="status-good"><strong>Installed:</strong> yes</span>'
+                : '<span class="status-bad"><strong>Installed:</strong> no</span>';
+            const runningText = info.running
+                ? '<span class="status-good"><strong>Connection:</strong> responding</span>'
+                : '<span class="status-warn"><strong>Connection:</strong> not responding</span>';
+            const versionText = info.version ? `<div><strong>Version:</strong> ${info.version}</div>` : '';
+            const errorText = info.error ? `<div class="status-warn"><strong>Last check:</strong> ${info.error}</div>` : '';
+            ollamaStatus.innerHTML = `
+                <div><strong>Endpoint:</strong> ${info.baseUrl}</div>
+                <div>${requiredText}</div>
+                <div>${installedText}</div>
+                <div>${runningText}</div>
+                ${versionText}
+                ${errorText}
+            `;
+            const compact = info.running || !info.ollamaRequired;
+            ollamaCopy.style.display = compact ? 'none' : 'block';
+            ollamaActionsRow.style.display = compact ? 'none' : 'flex';
+        } catch (error) {
+            ollamaStatus.innerHTML = `<span class="status-bad">${error.message || String(error)}</span>`;
+            ollamaCopy.style.display = 'block';
+            ollamaActionsRow.style.display = 'flex';
+        }
+    }
+
+    function attachMaskedBehavior(input, revealButton) {
+        let revealTimer = null;
+        let fullyVisible = false;
+
+        function applyMode() {
+            input.type = fullyVisible ? 'text' : 'password';
+            revealButton.textContent = fullyVisible ? 'Hide' : 'Show';
+        }
+
+        input.addEventListener('input', () => {
+            if (fullyVisible) {
+                return;
+            }
+            input.type = 'text';
+            clearTimeout(revealTimer);
+            revealTimer = setTimeout(() => {
+                if (!fullyVisible) {
+                    input.type = 'password';
+                }
+            }, 700);
+        });
+
+        revealButton.addEventListener('click', () => {
+            fullyVisible = !fullyVisible;
+            clearTimeout(revealTimer);
+            applyMode();
+        });
+
+        applyMode();
+    }
+
+    function renderSecretCard({ keyName = '', suggestion = null, storedValue = '', isCustom = false }) {
+        const card = document.createElement('div');
+        card.className = 'secret-card';
+
+        if (isCustom) {
+            const customGrid = document.createElement('div');
+            customGrid.className = 'secret-custom-grid';
+
+            const keyInput = document.createElement('input');
+            keyInput.type = 'text';
+            keyInput.placeholder = 'PROPERTY_NAME';
+            keyInput.value = keyName;
+
+            const help = document.createElement('div');
+            help.className = 'secret-help';
+            help.textContent = 'Optional custom key/value pair exported as an environment variable only for this setting launch.';
+
+            const inputRow = document.createElement('div');
+            inputRow.className = 'secret-input-row';
+
+            const valueInput = document.createElement('input');
+            valueInput.placeholder = 'Enter value';
+            valueInput.value = storedValue;
+
+            const revealButton = document.createElement('button');
+            revealButton.type = 'button';
+            revealButton.className = 'tiny-button';
+
+            const removeButton = document.createElement('button');
+            removeButton.type = 'button';
+            removeButton.className = 'tiny-button';
+            removeButton.textContent = 'Remove';
+
+            inputRow.appendChild(valueInput);
+            inputRow.appendChild(revealButton);
+            inputRow.appendChild(removeButton);
+            customGrid.appendChild(keyInput);
+            customGrid.appendChild(help);
+            customGrid.appendChild(inputRow);
+            card.appendChild(customGrid);
+
+            attachMaskedBehavior(valueInput, revealButton);
+
+            function syncCustomKey(nextKey) {
+                const normalized = String(nextKey || '').trim().replace(/\s+/g, '_');
+                if (keyName && secretValues[keyName] != null && keyName !== normalized) {
+                    delete secretValues[keyName];
+                }
+                keyName = normalized;
+                if (normalized && !customSecretKeys.includes(normalized)) {
+                    customSecretKeys.push(normalized);
+                }
+                customSecretKeys = customSecretKeys.filter(item => item && item !== '');
+                if (normalized) {
+                    secretValues[normalized] = valueInput.value;
+                }
+            }
+
+            keyInput.addEventListener('input', () => {
+                syncCustomKey(keyInput.value);
+            });
+
+            valueInput.addEventListener('input', () => {
+                if (keyName) {
+                    secretValues[keyName] = valueInput.value;
+                }
+            });
+
+            removeButton.addEventListener('click', () => {
+                if (keyName) {
+                    delete secretValues[keyName];
+                }
+                customSecretKeys = customSecretKeys.filter(item => item !== keyName);
+                card.remove();
+            });
+
+            syncCustomKey(keyInput.value);
+            return card;
+        }
+
+        const key = document.createElement('div');
+        key.className = 'secret-key';
+        key.textContent = keyName;
+
+        const help = document.createElement('div');
+        help.className = 'secret-help';
+        help.textContent = suggestion.description;
+
+        const usage = document.createElement('div');
+        usage.className = 'secret-usage';
+        usage.textContent = suggestion.toolText || 'No built-in tool dependency detected.';
+
+        const scope = document.createElement('div');
+        scope.className = 'secret-scope';
+        scope.textContent = `${suggestion.whenText} Leave it blank unless you need it, and store it here instead of committing it into YAML.`;
+
+        const inputRow = document.createElement('div');
+        inputRow.className = 'secret-input-row';
+
+        const input = document.createElement('input');
+        input.placeholder = `Set ${keyName}`;
+        input.value = storedValue;
+
+        const revealButton = document.createElement('button');
+        revealButton.type = 'button';
+        revealButton.className = 'tiny-button';
+
+        attachMaskedBehavior(input, revealButton);
+
+        secretValues[keyName] = input.value;
+        input.addEventListener('input', () => {
+            secretValues[keyName] = input.value;
+        });
+
+        inputRow.appendChild(input);
+        inputRow.appendChild(revealButton);
+        card.appendChild(key);
+        card.appendChild(help);
+        card.appendChild(usage);
+        card.appendChild(scope);
+        card.appendChild(inputRow);
+        return card;
+    }
+
+    function renderSecretPanel(payload) {
+        secretPanel.innerHTML = '';
+        const secretSuggestions = payload.secretSuggestions || [];
+        const storedMap = payload.runtimeSettings?.envVariablesMap || {};
+        secretValues = {};
+        customSecretKeys = [];
+
+        if (secretSuggestions.length === 0) {
+            secretSection.classList.remove('open');
+            return;
+        }
+
+        secretSection.classList.add('open');
+        const providerType = payload.selectedConfig?.providerType || 'custom';
+        const providerCopy = providerType === 'openai'
+                ? 'This setting uses OpenAI chat and embedding. OPENAI_API_KEY is required before this setting can launch.'
+                : providerType === 'openai-compatible'
+                    ? 'This setting uses an OpenAI-compatible chat endpoint and may still use Ollama embeddings. Only enter the compatible API key if your server requires one.'
+                    : 'This setting defaults to local Ollama. Most keys below are optional and only needed when you enable OpenAI-backed tools or external integrations.';
+        secretCopy.innerHTML = `
+            <strong>Optional environment variables for this setting and tools</strong>
+            <div>${providerCopy}</div>
+            <div>The fields below are stored by the launcher and exported only for the launch process, for example <code>OPENAI_API_KEY=...</code>.</div>
+            <div>${providerType === 'openai'
+                ? 'For OpenAI settings, OPENAI_API_KEY must be set before launch. The rest stay optional unless a tool needs them.'
+                : 'These are not required for every launch. Fill them only when the selected backend or a built-in tool actually needs them.'}</div>
+        `;
+        const knownKeys = new Set(secretSuggestions.map(item => item.key));
+        for (const suggestion of secretSuggestions) {
+            secretPanel.appendChild(renderSecretCard({
+                keyName: suggestion.key,
+                suggestion,
+                storedValue: storedMap[suggestion.key] || '',
+                isCustom: false
+            }));
+        }
+
+        for (const [keyName, value] of Object.entries(storedMap)) {
+            if (knownKeys.has(keyName)) {
+                continue;
+            }
+            customSecretKeys.push(keyName);
+            secretPanel.appendChild(renderSecretCard({
+                keyName,
+                storedValue: value,
+                isCustom: true
+            }));
+        }
+    }
+
+    function refreshValidation() {
+        const yamlText = getYamlValue();
+        const separators = yamlText.match(/^---\s*$/gm) || [];
+        hasYamlErrors = false;
+
+        if (!yamlText.trim()) {
+            setValidationStatus('YAML is empty.', 'error');
+            hasYamlErrors = true;
+            return;
+        }
+
+        if (/\t/.test(yamlText)) {
+            setValidationStatus('YAML contains tab characters. Use spaces for indentation.', 'error');
+            hasYamlErrors = true;
+            return;
+        }
+
+        if (separators.length > 0) {
+            setValidationStatus(`Multi-document YAML detected (${separators.length + 1} documents). This is valid for Spring profiles.`, 'ok');
+            return;
+        }
+
+        setValidationStatus('YAML looks ready to save.', 'ok');
+    }
+
+    async function renderPayload(payload) {
+        const selectedConfig = payload.selectedConfig;
+        currentConfigs = payload.configs || [];
+        editor.session.setValue(selectedConfig.yaml);
+        configPath.textContent = selectedConfig.name;
+        jvmOptions.value = payload.runtimeSettings?.jvmOptionsText || '';
+        appArgs.value = payload.runtimeSettings?.appArgsText || '';
+        skipOllamaCheckCheckbox.checked = Boolean(payload.preferences?.skipOllamaCheck ?? false);
+        const storage = payload.secretsStorage || { encrypted: false, label: 'Unknown' };
+        secretsStorageStatus.style.borderColor = storage.encrypted ? 'var(--success-border)' : 'var(--warning-border)';
+        secretsStorageStatus.style.background = storage.encrypted ? 'var(--success-bg)' : 'var(--warning-bg)';
+        secretsStorageStatus.innerHTML = storage.encrypted
+            ? `<strong>Secrets storage</strong>${storage.label}. Secrets are stored encrypted at rest and only exported as environment variables during launch.`
+            : `<strong>Secrets storage</strong>${storage.label}. Secrets are still kept out of YAML, but this session cannot use OS-backed encryption.`;
+        renderSecretPanel(payload);
+
+        const selectedProvider = selectedConfig.providerType || 'ollama';
+        const providerConfigs = currentConfigs.filter(config => config.providerType === selectedProvider);
+        isSwitchingConfig = true;
+        providerSelect.value = selectedProvider;
+        configSelect.innerHTML = '';
+        for (const config of providerConfigs) {
+            const option = document.createElement('option');
+            option.value = config.id;
+            option.textContent = config.name;
+            configSelect.appendChild(option);
+        }
+        configSelect.value = payload.activeConfigId;
+        isSwitchingConfig = false;
+        deleteButton.disabled = providerConfigs.length <= 1;
+        saveAsName.value = '';
+        refreshValidation();
+        embeddingWarning.style.display = selectedConfig.embeddingConfigured ? 'block' : 'none';
+        const needsOllama = selectedProvider === 'ollama' || selectedProvider === 'openai-compatible';
+        ollamaCard.style.display = needsOllama ? 'grid' : 'none';
+        if (needsOllama) {
+            await refreshOllamaStatus();
+        }
+        setStatus(payload.isFirstLaunch
+            ? 'Initial setup loaded. Edit only the profile-specific overrides, then launch.'
+            : 'Configuration loaded. Only override values are shown here; bundled defaults stay hidden.');
+    }
+
+    async function loadConfig() {
+        setBusy(true);
+        try {
+            const payload = await ipcRenderer.invoke('config:load');
+            await renderPayload(payload);
+        } catch (error) {
+            setStatus(error.message || String(error), true);
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    saveButton.addEventListener('click', async () => {
+        if (hasYamlErrors) {
+            setStatus('Fix YAML errors before saving.', true);
+            return;
+        }
+        setBusy(true);
+        setStatus('Saving YAML and JVM settings...');
+        try {
+            const payload = await ipcRenderer.invoke('config:save', getSavePayload());
+            await renderPayload(payload);
+            setStatus(`Saved "${payload.selectedConfig.name}".`);
+        } catch (error) {
+            setStatus(error.message || String(error), true);
+        } finally {
+            setBusy(false);
+        }
+    });
+
+    checkOllamaButton.addEventListener('click', async () => {
+        setStatus('Checking Ollama connection...');
+        await refreshOllamaStatus();
+        setStatus('Ollama check finished.');
+    });
+
+    openOllamaSiteButton.addEventListener('click', async () => {
+        await ipcRenderer.invoke('config:open-ollama-download');
+    });
+
+    addCustomSecretButton.addEventListener('click', () => {
+        secretSection.classList.add('open');
+        secretPanel.appendChild(renderSecretCard({
+            keyName: '',
+            storedValue: '',
+            isCustom: true
+        }));
+    });
+
+    saveAsButton.addEventListener('click', async () => {
+        if (hasYamlErrors) {
+            setStatus('Fix YAML errors before saving as a new config.', true);
+            return;
+        }
+        setBusy(true);
+        setStatus('Saving current changes under a new setting name...');
+        try {
+            const payload = await ipcRenderer.invoke('config:save-as', saveAsName.value, getSavePayload());
+            await renderPayload(payload);
+            setStatus(`Saved as "${payload.selectedConfig.name}".`);
+        } catch (error) {
+            setStatus(error.message || String(error), true);
+        } finally {
+            setBusy(false);
+        }
+    });
+
+    exportButton.addEventListener('click', async () => {
+        setBusy(true);
+        setStatus('Exporting the current setting...');
+        try {
+            const result = await ipcRenderer.invoke('config:export', getSavePayload());
+            if (result?.canceled) {
+                setStatus('Export canceled.');
+            } else {
+                setStatus(`Exported "${result.name}" to ${result.path}.`);
+            }
+        } catch (error) {
+            setStatus(error.message || String(error), true);
+        } finally {
+            setBusy(false);
+        }
+    });
+
+    importButton.addEventListener('click', async () => {
+        setBusy(true);
+        setStatus('Importing a saved setting...');
+        try {
+            const payload = await ipcRenderer.invoke('config:import');
+            if (payload?.canceled) {
+                setStatus('Import canceled.');
+                return;
+            }
+            await renderPayload(payload);
+            setStatus(`Imported "${payload.selectedConfig.name}".`);
+        } catch (error) {
+            setStatus(error.message || String(error), true);
+        } finally {
+            setBusy(false);
+        }
+    });
+
+    configSelect.addEventListener('change', async () => {
+        if (isSwitchingConfig) return;
+        setBusy(true);
+        setStatus('Loading selected configuration...');
+        try {
+            const payload = await ipcRenderer.invoke('config:select', configSelect.value);
+            await renderPayload(payload);
+            setStatus(`Loaded "${payload.selectedConfig.name}".`);
+        } catch (error) {
+            setStatus(error.message || String(error), true);
+        } finally {
+            setBusy(false);
+        }
+    });
+
+    providerSelect.addEventListener('change', async () => {
+        if (isSwitchingConfig) return;
+        setBusy(true);
+        setStatus(`Loading ${getProviderLabel(providerSelect.value)} settings...`);
+        try {
+            const payload = await ipcRenderer.invoke('config:select-provider', providerSelect.value);
+            await renderPayload(payload);
+            setStatus(`${getProviderLabel(providerSelect.value)} settings loaded.`);
+        } catch (error) {
+            setStatus(error.message || String(error), true);
+        } finally {
+            setBusy(false);
+        }
+    });
+
+    deleteButton.addEventListener('click', async () => {
+        setBusy(true);
+        setStatus('Deleting the current setting...');
+        try {
+            const payload = await ipcRenderer.invoke('config:delete');
+            await renderPayload(payload);
+            setStatus(`Deleted the previous setting. Now using "${payload.selectedConfig.name}".`);
+        } catch (error) {
+            setStatus(error.message || String(error), true);
+        } finally {
+            setBusy(false);
+        }
+    });
+
+    resetButton.addEventListener('click', async () => {
+        setBusy(true);
+        setStatus('Restoring default configuration...');
+        try {
+            const payload = await ipcRenderer.invoke('config:reset');
+            await renderPayload(payload);
+            setStatus(`Reset "${payload.selectedConfig.name}" to the default template.`);
+        } catch (error) {
+            setStatus(error.message || String(error), true);
+        } finally {
+            setBusy(false);
+        }
+    });
+
+    launchButton.addEventListener('click', async () => {
+        const launchBlockingError = getLaunchBlockingError();
+        if (launchBlockingError) {
+            setStatus(launchBlockingError, true);
+            return;
+        }
+        setBusy(true);
+        setStatus('Saving settings and starting Spring AI Playground...');
+        try {
+            const payload = await ipcRenderer.invoke('config:launch', getSavePayload());
+            await renderPayload(payload);
+            setStatus(`Launching with "${payload.selectedConfig.name}"...`);
+        } catch (error) {
+            setStatus(error.message || String(error), true);
+            setBusy(false);
+        }
+    });
+
+    editor.session.on('changeAnnotation', refreshValidation);
+    editor.session.on('change', () => {
+        refreshValidation();
+        refreshOllamaStatus().catch(() => {});
+    });
+
+    loadConfig();
+</script>
+</body>
+</html>
