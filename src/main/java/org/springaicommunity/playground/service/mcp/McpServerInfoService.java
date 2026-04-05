@@ -23,10 +23,10 @@ import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.service.mcp.client.McpTransportType;
 import org.springframework.ai.mcp.client.common.autoconfigure.properties.McpStreamableHttpClientProperties;
 import org.springframework.ai.mcp.server.common.autoconfigure.properties.McpServerProperties;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.context.WebServerInitializedEvent;
 import org.springframework.context.ApplicationListener;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.util.Arrays;
@@ -42,15 +42,16 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
     private final ObjectMapper objectMapper;
     private final Map<McpTransportType, Map<String, McpServerInfo>> typeMcpServerInfosMap;
     private final McpClientService mcpClientService;
-    private final McpServerInfoPersistenceService mcpServerInfoPersistenceService;
+    private final ObjectProvider<McpServerInfoPersistenceService> mcpServerInfoPersistenceServiceProvider;
     private final McpServerInfo defaultMcpServerInfo;
 
     public McpServerInfoService(ObjectMapper objectMapper, McpClientPropertiesService<?>[] mcpClientPropertiesServices,
-            McpClientService mcpClientService, @Lazy McpServerInfoPersistenceService mcpServerInfoPersistenceService,
+            McpClientService mcpClientService,
+            ObjectProvider<McpServerInfoPersistenceService> mcpServerInfoPersistenceServiceProvider,
             @Value("${server.port:8080}") int serverPort, McpServerProperties mcpServerProperties) {
         this.objectMapper = objectMapper;
         this.mcpClientService = mcpClientService;
-        this.mcpServerInfoPersistenceService = mcpServerInfoPersistenceService;
+        this.mcpServerInfoPersistenceServiceProvider = mcpServerInfoPersistenceServiceProvider;
         this.typeMcpServerInfosMap = Arrays.stream(mcpClientPropertiesServices)
                 .collect(Collectors.toMap(McpClientPropertiesService::getTransportType,
                         mcpClientPropertiesService -> mcpClientPropertiesService.getDefaultConnections().entrySet()
@@ -107,7 +108,7 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
     public void deleteMcpServerInfo(McpTransportType transportType, String serverName) {
         McpServerInfo mcpServerInfo = this.typeMcpServerInfosMap.get(transportType).remove(serverName);
         if (mcpServerInfo != null)
-            this.mcpServerInfoPersistenceService.delete(mcpServerInfo);
+            this.mcpServerInfoPersistenceServiceProvider.getObject().delete(mcpServerInfo);
     }
 
     public McpServerInfo updateMcpServerInfo(McpTransportType transportType, String serverName,
