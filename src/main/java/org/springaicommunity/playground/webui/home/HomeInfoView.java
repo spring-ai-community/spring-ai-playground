@@ -178,14 +178,14 @@ public class HomeInfoView extends Div {
     private Div createPwaInstructions() {
         Div container = new Div();
         container.add(new H4("Chrome (Desktop)"));
-        Anchor chromeLink = new Anchor("http://localhost:8282", "http://localhost:8282");
+        Anchor chromeLink = new Anchor("/", "the current Spring AI Playground URL");
         chromeLink.setTarget("_blank");
         container.add(new UnorderedList(new ListItem(new Text("Open "), chromeLink), new ListItem(new Html(
                 "<span>Look for the <strong>Install icon</strong> in the address bar (a monitor with a download arrow).</span>")),
                 new ListItem("Click Install, then confirm to add the app.")));
 
         container.add(new H4("Edge (Desktop)"));
-        Anchor edgeLink = new Anchor("http://localhost:8282", "http://localhost:8282");
+        Anchor edgeLink = new Anchor("/", "the current Spring AI Playground URL");
         edgeLink.setTarget("_blank");
         container.add(new UnorderedList(new ListItem(new Text("Open "), edgeLink), new ListItem(
                 new Html("<span>Click the <strong>App available</strong> icon in the address bar or go to " +
@@ -193,7 +193,7 @@ public class HomeInfoView extends Div {
                 new ListItem("Confirm installation.")));
 
         container.add(new H4("Safari (Desktop)"));
-        Anchor safariLink = new Anchor("http://localhost:8282", "http://localhost:8282");
+        Anchor safariLink = new Anchor("/", "the current Spring AI Playground URL");
         safariLink.setTarget("_blank");
         container.add(new UnorderedList(new ListItem(new Text("Open "), safariLink), new ListItem(new Html(
                 "<span>Go to the <strong>File</strong> menu and choose <strong>Add to Dock</strong> " +
