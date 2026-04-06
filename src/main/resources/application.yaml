@@ -1,7 +1,7 @@
 vaadin:
   pushmode: automatic
 server:
-  port: 8282
+  port: ${SERVER_PORT:8282}
 spring:
   threads:
     virtual:
@@ -100,7 +100,7 @@ spring:
       api-key: ${OPENAI_API_KEY}
       chat:
         options:
-          model: gpt-4.1-nano
+          model: gpt-5-nano
           stream-options:
             include-usage: false
       embedding:

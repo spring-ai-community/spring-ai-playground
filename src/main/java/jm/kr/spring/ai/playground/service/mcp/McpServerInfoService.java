@@ -43,15 +43,17 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
     private final Map<McpTransportType, Map<String, McpServerInfo>> typeMcpServerInfosMap;
     private final McpClientService mcpClientService;
     private final ObjectProvider<McpServerInfoPersistenceService> mcpServerInfoPersistenceServiceProvider;
-    private final McpServerInfo defaultMcpServerInfo;
+    private final String defaultMcpServerName;
+    private McpServerInfo defaultMcpServerInfo;
 
     public McpServerInfoService(ObjectMapper objectMapper, McpClientPropertiesService<?>[] mcpClientPropertiesServices,
             McpClientService mcpClientService,
             ObjectProvider<McpServerInfoPersistenceService> mcpServerInfoPersistenceServiceProvider,
-            @Value("${server.port:8080}") int serverPort, McpServerProperties mcpServerProperties) {
+            @Value("${server.port:8282}") int serverPort, McpServerProperties mcpServerProperties) {
         this.objectMapper = objectMapper;
         this.mcpClientService = mcpClientService;
         this.mcpServerInfoPersistenceServiceProvider = mcpServerInfoPersistenceServiceProvider;
+        this.defaultMcpServerName = mcpServerProperties.getName();
         this.typeMcpServerInfosMap = Arrays.stream(mcpClientPropertiesServices)
                 .collect(Collectors.toMap(McpClientPropertiesService::getTransportType,
                         mcpClientPropertiesService -> mcpClientPropertiesService.getDefaultConnections().entrySet()
@@ -59,15 +61,13 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
                                         buildMcpServerInfo(mcpClientPropertiesService.getTransportType(),
                                                 entry.getKey(), entry.getValue())))
                                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))));
-        this.defaultMcpServerInfo =
-                buildMcpServerInfo(McpTransportType.STREAMABLE_HTTP, mcpServerProperties.getName(),
-                        new McpStreamableHttpClientProperties.ConnectionParameters("http://localhost:" + serverPort,
-                                "/mcp"));
+        this.defaultMcpServerInfo = buildDefaultMcpServerInfo(serverPort);
     }
 
     @Override
     public void onApplicationEvent(WebServerInitializedEvent event) {
         if (Objects.nonNull(this.defaultMcpServerInfo)) {
+            this.defaultMcpServerInfo = buildDefaultMcpServerInfo(event.getWebServer().getPort());
             updateMcpServerInfo(defaultMcpServerInfo.mcpTransportType(), defaultMcpServerInfo.serverName(),
                     defaultMcpServerInfo);
             updateDefaultMcpTool();
@@ -76,6 +76,12 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
 
     public McpServerInfo getDefaultMcpServerInfo() {
         return defaultMcpServerInfo;
+    }
+
+    private McpServerInfo buildDefaultMcpServerInfo(int serverPort) {
+        return buildMcpServerInfo(McpTransportType.STREAMABLE_HTTP, this.defaultMcpServerName,
+                new McpStreamableHttpClientProperties.ConnectionParameters("http://127.0.0.1:" + serverPort,
+                        "/mcp"));
     }
 
     private McpServerInfo buildMcpServerInfo(McpTransportType transportType, String serverName, Object connection) {
