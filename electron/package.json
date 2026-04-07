@@ -1,0 +1,130 @@
+{
+  "name": "spring-ai-playground-desktop",
+  "version": "1.0.0",
+  "description": "Desktop launcher for the Spring AI Community incubating project Spring AI Playground",
+  "author": "Spring AI Community",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "prepare:resources": "node scripts/prepare-resources.mjs",
+    "prepare:resources:native": "node scripts/prepare-resources.mjs",
+    "dist": "electron-builder",
+    "dist:mac:dir": "electron-builder --mac dir",
+    "dist:mac:dmg": "electron-builder --mac dmg",
+    "dist:win": "electron-builder --win nsis",
+    "dist:linux": "electron-builder --linux deb rpm"
+  },
+  "build": {
+    "appId": "com.springai.playground",
+    "productName": "Spring AI Playground",
+    "directories": {
+      "output": "dist",
+      "buildResources": "resources"
+    },
+    "files": [
+      "config-editor.html",
+      "main.js",
+      "preload.js",
+      "launcher-config.js",
+      "splash.html",
+      "server-splash.html",
+      "electron/build/**/*",
+      "resources/**/*",
+      "!resources/app.jar",
+      "!resources/jre-bundle{,/**}",
+      "!resources/default-application.yaml",
+      "!resources/default-tool-specs.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/app.jar",
+        "to": "app.jar"
+      },
+      {
+        "from": "resources/jre-bundle",
+        "to": "jre-bundle"
+      },
+      {
+        "from": "resources/default-application.yaml",
+        "to": "default-application.yaml"
+      },
+      {
+        "from": "resources/default-tool-specs.json",
+        "to": "default-tool-specs.json"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "artifactName": "Spring AI Playground.${ext}",
+      "icon": "electron/build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Spring AI Playground",
+      "installerIcon": "electron/build/icon.ico",
+      "uninstallerIcon": "electron/build/icon.ico",
+      "installerHeaderIcon": "electron/build/icon.ico",
+      "deleteAppDataOnUninstall": true
+    },
+    "mac": {
+      "target": "dmg",
+      "artifactName": "Spring AI Playground-${arch}.${ext}",
+      "category": "public.app-category.developer-tools",
+      "icon": "electron/build/icon.icns",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "identity": null,
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "This app needs access to your microphone for voice input."
+      }
+    },
+    "afterSign": "scripts/after-sign.js",
+    "dmg": {
+      "title": "Spring AI Playground",
+      "icon": "electron/build/icon.icns",
+      "iconSize": 128,
+      "window": {
+        "width": 560,
+        "height": 360
+      },
+      "contents": [
+        {
+          "x": 160,
+          "y": 170,
+          "type": "file"
+        },
+        {
+          "x": 400,
+          "y": 170,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "linux": {
+      "artifactName": "Spring AI Playground.${ext}",
+      "target": [
+        "deb",
+        "rpm"
+      ],
+      "category": "Development",
+      "icon": "electron/build/icon.png",
+      "synopsis": "Desktop launcher for Spring AI Playground",
+      "description": "Spring AI Playground, an incubating Spring AI Community project, packaged as an Electron desktop application with an OS-native backend."
+    }
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.1",
+    "tree-kill": "^1.2.2",
+    "sirv": "^3.0.0"
+  }
+}

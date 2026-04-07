@@ -1,6 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-52TGT1G9B3"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-52TGT1G9B3');
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Spring AI Playground Config</title>
@@ -738,12 +745,12 @@
         </div>
     </div>
 
-    <div class="card footer">
+        <div class="card footer">
         <div class="status" id="status">Loading configuration...</div>
         <div class="actions">
             <button class="secondary" id="export-button" type="button">Export</button>
             <button class="secondary" id="import-button" type="button">Import</button>
-            <button class="secondary" id="reset-button" type="button">Reset to Default</button>
+            <button class="secondary" id="reset-button" type="button">Factory Reset</button>
             <button class="secondary" id="save-button" type="button">Save</button>
             <button class="primary" id="launch-button" type="button">Save and Launch</button>
         </div>
@@ -755,8 +762,6 @@
 <script src="./resources/editor/theme-textmate.js"></script>
 <script src="./resources/editor/worker-yaml.js"></script>
 <script>
-    const { ipcRenderer } = require('electron');
-
     const configSelect = document.getElementById('config-select');
     const providerSelect = document.getElementById('provider-select');
     const saveAsName = document.getElementById('save-as-name');
@@ -787,6 +792,7 @@
     const secretPanel = document.getElementById('secret-panel');
     const secretCopy = document.getElementById('secret-copy');
     const addCustomSecretButton = document.getElementById('add-custom-secret-button');
+
     let isSwitchingConfig = false;
     let hasYamlErrors = false;
     let secretValues = {};
@@ -794,13 +800,9 @@
     let currentConfigs = [];
 
     function getProviderLabel(providerType = 'ollama') {
-        if (providerType === 'openai') {
-            return 'OpenAI';
-        }
-        if (providerType === 'openai-compatible') {
-            return 'OpenAI-Compatible';
-        }
-        return 'Ollama';
+      if (providerType === 'openai') return 'OpenAI';
+      if (providerType === 'openai-compatible') return 'OpenAI-Compatible';
+      return 'Ollama';
     }
 
     const editor = ace.edit('yaml-editor');
@@ -808,579 +810,503 @@
     editor.setTheme('ace/theme/textmate');
     editor.session.setUseWorker(false);
     editor.setOptions({
-        fontSize: '13px',
-        fontFamily: '"SF Mono", "Monaco", "Cascadia Code", "Consolas", monospace',
-        showPrintMargin: false,
-        tabSize: 2,
-        useSoftTabs: true,
-        wrap: true
+      fontSize: '13px',
+      fontFamily: 'SF Mono, Monaco, Cascadia Code, Consolas, monospace',
+      showPrintMargin: false,
+      tabSize: 2,
+      useSoftTabs: true,
+      wrap: true,
     });
 
     function setStatus(message, isError = false) {
-        statusEl.textContent = message;
-        statusEl.classList.toggle('error', isError);
+      statusEl.textContent = message;
+      statusEl.classList.toggle('error', isError);
     }
 
     function setValidationStatus(message, tone = 'neutral') {
-        validationStatus.textContent = message;
-        validationStatus.classList.remove('error', 'ok');
-        if (tone === 'error' || tone === 'ok') {
-            validationStatus.classList.add(tone);
-        }
+      validationStatus.textContent = message;
+      validationStatus.classList.remove('error', 'ok');
+      if (tone === 'error' || tone === 'ok') validationStatus.classList.add(tone);
     }
 
     function setBusy(isBusy) {
-        saveButton.disabled = isBusy;
-        saveAsButton.disabled = isBusy;
-        resetButton.disabled = isBusy;
-        launchButton.disabled = isBusy;
-        exportButton.disabled = isBusy;
-        importButton.disabled = isBusy;
-        deleteButton.disabled = isBusy;
-        providerSelect.disabled = isBusy;
-        configSelect.disabled = isBusy;
+      saveButton.disabled = isBusy;
+      saveAsButton.disabled = isBusy;
+      resetButton.disabled = isBusy;
+      launchButton.disabled = isBusy;
+      exportButton.disabled = isBusy;
+      importButton.disabled = isBusy;
+      deleteButton.disabled = isBusy;
+      providerSelect.disabled = isBusy;
+      configSelect.disabled = isBusy;
     }
 
     function getYamlValue() {
-        return editor.getValue();
+      return editor.getValue();
     }
 
     function getSavePayload() {
-        const customProperties = {};
-        for (const key of customSecretKeys) {
-            if (secretValues[key] != null && String(secretValues[key]).trim() !== '') {
-                customProperties[key] = secretValues[key];
-            }
+      const customProperties = {};
+      for (const key of customSecretKeys) {
+        if (secretValues[key] != null && String(secretValues[key]).trim() !== '') {
+          customProperties[key] = secretValues[key];
         }
-        return {
-            yamlText: getYamlValue(),
-            jvmOptionsText: jvmOptions.value,
-            appArgsText: appArgs.value,
-            secretValues: {
-                ...secretValues,
-                ...customProperties
-            },
-            preferences: {
-                skipOllamaCheck: skipOllamaCheckCheckbox.checked
-            }
-        };
+      }
+      return {
+        yamlText: getYamlValue(),
+        jvmOptionsText: jvmOptions.value,
+        appArgsText: appArgs.value,
+        secretValues: { ...secretValues, ...customProperties },
+        preferences: { skipOllamaCheck: skipOllamaCheckCheckbox.checked },
+      };
     }
 
     function getSelectedProviderType() {
-        return providerSelect.value || 'ollama';
+      return providerSelect.value || 'ollama';
     }
 
     function getEffectiveEnvValue(keyName) {
-        const value = secretValues[keyName];
-        if (value != null && String(value).trim() !== '') {
-            return String(value).trim();
-        }
-        return '';
+      const value = secretValues[keyName];
+      if (value != null && String(value).trim() !== '') return String(value).trim();
+      return '';
     }
 
     function getLaunchBlockingError() {
-        if (hasYamlErrors) {
-            return 'Fix YAML errors before launching.';
-        }
-        if (getSelectedProviderType() === 'openai' && !getEffectiveEnvValue('OPENAI_API_KEY')) {
-            return 'OPENAI_API_KEY is required for the OpenAI setting before launch.';
-        }
-        return '';
+      if (hasYamlErrors) return 'Fix YAML errors before launching.';
+      if (getSelectedProviderType() === 'openai' && !getEffectiveEnvValue('OPENAI_API_KEY')) {
+        return 'OPENAI_API_KEY is required for the OpenAI setting before launch.';
+      }
+      return null;
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = String(text || '');
+      return div.innerHTML;
     }
 
     async function refreshOllamaStatus() {
-        if (ollamaCard.style.display === 'none') {
-            return;
-        }
-        ollamaStatus.innerHTML = 'Checking Ollama...';
-        try {
-            const info = await ipcRenderer.invoke('config:environment-info', getYamlValue());
-            const requiredText = info.ollamaRequired
-                ? 'This setting uses Ollama directly or for embeddings.'
-                : 'This setting does not require Ollama at startup.';
-            const installedText = info.ollamaInstalled
-                ? '<span class="status-good"><strong>Installed:</strong> yes</span>'
-                : '<span class="status-bad"><strong>Installed:</strong> no</span>';
-            const runningText = info.running
-                ? '<span class="status-good"><strong>Connection:</strong> responding</span>'
-                : '<span class="status-warn"><strong>Connection:</strong> not responding</span>';
-            const versionText = info.version ? `<div><strong>Version:</strong> ${info.version}</div>` : '';
-            const errorText = info.error ? `<div class="status-warn"><strong>Last check:</strong> ${info.error}</div>` : '';
-            ollamaStatus.innerHTML = `
-                <div><strong>Endpoint:</strong> ${info.baseUrl}</div>
-                <div>${requiredText}</div>
-                <div>${installedText}</div>
-                <div>${runningText}</div>
-                ${versionText}
-                ${errorText}
-            `;
-            const compact = info.running || !info.ollamaRequired;
-            ollamaCopy.style.display = compact ? 'none' : 'block';
-            ollamaActionsRow.style.display = compact ? 'none' : 'flex';
-        } catch (error) {
-            ollamaStatus.innerHTML = `<span class="status-bad">${error.message || String(error)}</span>`;
-            ollamaCopy.style.display = 'block';
-            ollamaActionsRow.style.display = 'flex';
-        }
+      if (ollamaCard.style.display === 'none') return;
+      ollamaStatus.innerHTML = 'Checking Ollama...';
+      try {
+        const info = await window.electronAPI.invoke('config:environment-info', getYamlValue());
+        const requiredText = info.ollamaRequired
+          ? 'This setting uses Ollama directly or for embeddings.'
+          : 'This setting does not require Ollama at startup.';
+        const installedText = info.ollamaInstalled
+          ? '<span class="status-good"><strong>Installed</strong> yes</span>'
+          : '<span class="status-bad"><strong>Installed</strong> no</span>';
+        const runningText = info.running
+          ? '<span class="status-good"><strong>Connection</strong> responding</span>'
+          : '<span class="status-warn"><strong>Connection</strong> not responding</span>';
+        const versionText = info.version ? `<div><strong>Version</strong> ${escapeHtml(info.version)}</div>` : '';
+        const errorText = info.error ? `<div class="status-warn"><strong>Last check</strong> ${escapeHtml(info.error)}</div>` : '';
+        ollamaStatus.innerHTML = `
+          <div><strong>Endpoint</strong> ${escapeHtml(info.baseUrl)}</div>
+          <div>${requiredText}</div>
+          <div>${installedText}</div>
+          <div>${runningText}</div>
+          ${versionText}
+          ${errorText}
+        `;
+        const compact = info.running && !info.ollamaRequired;
+        ollamaCopy.style.display = compact ? 'none' : 'block';
+        ollamaActionsRow.style.display = compact ? 'none' : 'flex';
+      } catch (error) {
+        ollamaStatus.innerHTML = `<span class="status-bad">${escapeHtml(error.message || String(error))}</span>`;
+        ollamaCopy.style.display = 'block';
+        ollamaActionsRow.style.display = 'flex';
+      }
     }
 
     function attachMaskedBehavior(input, revealButton) {
-        let revealTimer = null;
-        let fullyVisible = false;
+      let revealTimer = null;
+      let fullyVisible = false;
 
-        function applyMode() {
-            input.type = fullyVisible ? 'text' : 'password';
-            revealButton.textContent = fullyVisible ? 'Hide' : 'Show';
-        }
+      function applyMode() {
+        input.type = fullyVisible ? 'text' : 'password';
+        revealButton.textContent = fullyVisible ? 'Hide' : 'Show';
+      }
 
-        input.addEventListener('input', () => {
-            if (fullyVisible) {
-                return;
-            }
-            input.type = 'text';
-            clearTimeout(revealTimer);
-            revealTimer = setTimeout(() => {
-                if (!fullyVisible) {
-                    input.type = 'password';
-                }
-            }, 700);
-        });
+      input.addEventListener('input', () => {
+        if (fullyVisible) return;
+        input.type = 'text';
+        clearTimeout(revealTimer);
+        revealTimer = setTimeout(() => {
+          if (!fullyVisible) input.type = 'password';
+        }, 700);
+      });
 
-        revealButton.addEventListener('click', () => {
-            fullyVisible = !fullyVisible;
-            clearTimeout(revealTimer);
-            applyMode();
-        });
-
+      revealButton.addEventListener('click', () => {
+        fullyVisible = !fullyVisible;
+        clearTimeout(revealTimer);
         applyMode();
+      });
+
+      applyMode();
     }
 
     function renderSecretCard({ keyName = '', suggestion = null, storedValue = '', isCustom = false }) {
-        const card = document.createElement('div');
-        card.className = 'secret-card';
+      const card = document.createElement('div');
+      card.className = 'secret-card';
 
-        if (isCustom) {
-            const customGrid = document.createElement('div');
-            customGrid.className = 'secret-custom-grid';
-
-            const keyInput = document.createElement('input');
-            keyInput.type = 'text';
-            keyInput.placeholder = 'PROPERTY_NAME';
-            keyInput.value = keyName;
-
-            const help = document.createElement('div');
-            help.className = 'secret-help';
-            help.textContent = 'Optional custom key/value pair exported as an environment variable only for this setting launch.';
-
-            const inputRow = document.createElement('div');
-            inputRow.className = 'secret-input-row';
-
-            const valueInput = document.createElement('input');
-            valueInput.placeholder = 'Enter value';
-            valueInput.value = storedValue;
-
-            const revealButton = document.createElement('button');
-            revealButton.type = 'button';
-            revealButton.className = 'tiny-button';
-
-            const removeButton = document.createElement('button');
-            removeButton.type = 'button';
-            removeButton.className = 'tiny-button';
-            removeButton.textContent = 'Remove';
-
-            inputRow.appendChild(valueInput);
-            inputRow.appendChild(revealButton);
-            inputRow.appendChild(removeButton);
-            customGrid.appendChild(keyInput);
-            customGrid.appendChild(help);
-            customGrid.appendChild(inputRow);
-            card.appendChild(customGrid);
-
-            attachMaskedBehavior(valueInput, revealButton);
-
-            function syncCustomKey(nextKey) {
-                const normalized = String(nextKey || '').trim().replace(/\s+/g, '_');
-                if (keyName && secretValues[keyName] != null && keyName !== normalized) {
-                    delete secretValues[keyName];
-                }
-                keyName = normalized;
-                if (normalized && !customSecretKeys.includes(normalized)) {
-                    customSecretKeys.push(normalized);
-                }
-                customSecretKeys = customSecretKeys.filter(item => item && item !== '');
-                if (normalized) {
-                    secretValues[normalized] = valueInput.value;
-                }
-            }
-
-            keyInput.addEventListener('input', () => {
-                syncCustomKey(keyInput.value);
-            });
-
-            valueInput.addEventListener('input', () => {
-                if (keyName) {
-                    secretValues[keyName] = valueInput.value;
-                }
-            });
-
-            removeButton.addEventListener('click', () => {
-                if (keyName) {
-                    delete secretValues[keyName];
-                }
-                customSecretKeys = customSecretKeys.filter(item => item !== keyName);
-                card.remove();
-            });
-
-            syncCustomKey(keyInput.value);
-            return card;
-        }
-
-        const key = document.createElement('div');
-        key.className = 'secret-key';
-        key.textContent = keyName;
-
+      if (isCustom) {
+        const customGrid = document.createElement('div');
+        customGrid.className = 'secret-custom-grid';
+        const keyInput = document.createElement('input');
+        keyInput.type = 'text';
+        keyInput.placeholder = 'PROPERTY_NAME';
+        keyInput.value = keyName;
         const help = document.createElement('div');
         help.className = 'secret-help';
-        help.textContent = suggestion.description;
-
-        const usage = document.createElement('div');
-        usage.className = 'secret-usage';
-        usage.textContent = suggestion.toolText || 'No built-in tool dependency detected.';
-
-        const scope = document.createElement('div');
-        scope.className = 'secret-scope';
-        scope.textContent = `${suggestion.whenText} Leave it blank unless you need it, and store it here instead of committing it into YAML.`;
-
+        help.textContent = 'Optional custom key–value pair exported as an environment variable only for this setting launch.';
         const inputRow = document.createElement('div');
         inputRow.className = 'secret-input-row';
-
-        const input = document.createElement('input');
-        input.placeholder = `Set ${keyName}`;
-        input.value = storedValue;
-
+        const valueInput = document.createElement('input');
+        valueInput.placeholder = 'Enter value';
+        valueInput.value = storedValue;
         const revealButton = document.createElement('button');
         revealButton.type = 'button';
         revealButton.className = 'tiny-button';
-
-        attachMaskedBehavior(input, revealButton);
-
-        secretValues[keyName] = input.value;
-        input.addEventListener('input', () => {
-            secretValues[keyName] = input.value;
-        });
-
-        inputRow.appendChild(input);
+        const removeButton = document.createElement('button');
+        removeButton.type = 'button';
+        removeButton.className = 'tiny-button';
+        removeButton.textContent = 'Remove';
+        inputRow.appendChild(valueInput);
         inputRow.appendChild(revealButton);
-        card.appendChild(key);
-        card.appendChild(help);
-        card.appendChild(usage);
-        card.appendChild(scope);
-        card.appendChild(inputRow);
+        inputRow.appendChild(removeButton);
+        customGrid.appendChild(keyInput);
+        customGrid.appendChild(help);
+        customGrid.appendChild(inputRow);
+        card.appendChild(customGrid);
+        attachMaskedBehavior(valueInput, revealButton);
+
+        function syncCustomKey(nextKey) {
+          const normalized = String(nextKey).trim().replace(/\s+/g, '_');
+          if (keyName && secretValues[keyName] != null && keyName !== normalized) {
+            delete secretValues[keyName];
+          }
+          keyName = normalized;
+          if (normalized && !customSecretKeys.includes(normalized)) customSecretKeys.push(normalized);
+          customSecretKeys = customSecretKeys.filter(item => item && item !== '');
+          if (normalized) secretValues[normalized] = valueInput.value;
+        }
+
+        keyInput.addEventListener('input', () => syncCustomKey(keyInput.value));
+        valueInput.addEventListener('input', () => { if (keyName) secretValues[keyName] = valueInput.value; });
+        removeButton.addEventListener('click', () => {
+          if (keyName) delete secretValues[keyName];
+          customSecretKeys = customSecretKeys.filter(item => item !== keyName);
+          card.remove();
+        });
         return card;
+      }
+
+      const key = document.createElement('div');
+      key.className = 'secret-key';
+      key.textContent = keyName;
+      const help = document.createElement('div');
+      help.className = 'secret-help';
+      help.textContent = suggestion.description;
+      const usage = document.createElement('div');
+      usage.className = 'secret-usage';
+      usage.textContent = suggestion.toolText || 'No built-in tool dependency detected.';
+      const scope = document.createElement('div');
+      scope.className = 'secret-scope';
+      scope.textContent = suggestion.whenText || 'Leave it blank unless you need it, and store it here instead of committing it into YAML.';
+      const inputRow = document.createElement('div');
+      inputRow.className = 'secret-input-row';
+      const input = document.createElement('input');
+      input.placeholder = `Set ${keyName}`;
+      input.value = storedValue;
+      const revealButton = document.createElement('button');
+      revealButton.type = 'button';
+      revealButton.className = 'tiny-button';
+      attachMaskedBehavior(input, revealButton);
+      secretValues[keyName] = input.value;
+      input.addEventListener('input', () => { secretValues[keyName] = input.value; });
+      inputRow.appendChild(input);
+      inputRow.appendChild(revealButton);
+      card.appendChild(key);
+      card.appendChild(help);
+      card.appendChild(usage);
+      card.appendChild(scope);
+      card.appendChild(inputRow);
+      return card;
     }
 
     function renderSecretPanel(payload) {
-        secretPanel.innerHTML = '';
-        const secretSuggestions = payload.secretSuggestions || [];
-        const storedMap = payload.runtimeSettings?.envVariablesMap || {};
-        secretValues = {};
-        customSecretKeys = [];
+      secretPanel.innerHTML = '';
+      const secretSuggestions = payload.secretSuggestions;
+      const storedMap = payload.runtimeSettings?.envVariablesMap;
+      secretValues = {};
+      customSecretKeys = [];
 
-        if (secretSuggestions.length === 0) {
-            secretSection.classList.remove('open');
-            return;
-        }
+      if (secretSuggestions.length === 0) {
+        secretSection.classList.remove('open');
+        return;
+      }
 
-        secretSection.classList.add('open');
-        const providerType = payload.selectedConfig?.providerType || 'custom';
-        const providerCopy = providerType === 'openai'
-                ? 'This setting uses OpenAI chat and embedding. OPENAI_API_KEY is required before this setting can launch.'
-                : providerType === 'openai-compatible'
-                    ? 'This setting uses an OpenAI-compatible chat endpoint and may still use Ollama embeddings. Only enter the compatible API key if your server requires one.'
-                    : 'This setting defaults to local Ollama. Most keys below are optional and only needed when you enable OpenAI-backed tools or external integrations.';
-        secretCopy.innerHTML = `
-            <strong>Optional environment variables for this setting and tools</strong>
-            <div>${providerCopy}</div>
-            <div>The fields below are stored by the launcher and exported only for the launch process, for example <code>OPENAI_API_KEY=...</code>.</div>
-            <div>${providerType === 'openai'
-                ? 'For OpenAI settings, OPENAI_API_KEY must be set before launch. The rest stay optional unless a tool needs them.'
-                : 'These are not required for every launch. Fill them only when the selected backend or a built-in tool actually needs them.'}</div>
-        `;
-        const knownKeys = new Set(secretSuggestions.map(item => item.key));
-        for (const suggestion of secretSuggestions) {
-            secretPanel.appendChild(renderSecretCard({
-                keyName: suggestion.key,
-                suggestion,
-                storedValue: storedMap[suggestion.key] || '',
-                isCustom: false
-            }));
-        }
+      secretSection.classList.add('open');
+      const providerType = payload.selectedConfig?.providerType || 'custom';
+      const providerCopy = providerType === 'openai'
+        ? 'This setting uses OpenAI chat and embedding. OPENAI_API_KEY is required before this setting can launch.'
+        : providerType === 'openai-compatible'
+          ? 'This setting uses an OpenAI-compatible chat endpoint and may still use Ollama embeddings. Only enter the compatible API key if your server requires one.'
+          : 'This setting defaults to local Ollama. Most keys below are optional and only needed when you enable OpenAI-backed tools or external integrations.';
 
-        for (const [keyName, value] of Object.entries(storedMap)) {
-            if (knownKeys.has(keyName)) {
-                continue;
-            }
-            customSecretKeys.push(keyName);
-            secretPanel.appendChild(renderSecretCard({
-                keyName,
-                storedValue: value,
-                isCustom: true
-            }));
-        }
+      secretCopy.innerHTML = `<strong>Optional environment variables for this setting and tools</strong>
+        <div>${providerCopy}</div>
+        <div>The fields below are stored by the launcher and exported only for the launch process, for example <code>OPENAI_API_KEY...</code>.</div>
+        <div>${providerType === 'openai'
+          ? 'For OpenAI settings, OPENAI_API_KEY must be set before launch. The rest stay optional unless a tool needs them.'
+          : 'These are not required for every launch. Fill them only when the selected backend or a built-in tool actually needs them.'}</div>`;
+
+      const knownKeys = new Set(secretSuggestions.map(item => item.key));
+      for (const suggestion of secretSuggestions) {
+        secretPanel.appendChild(renderSecretCard({
+          keyName: suggestion.key,
+          suggestion,
+          storedValue: storedMap?.[suggestion.key] || '',
+          isCustom: false,
+        }));
+      }
+      for (const [keyName, value] of Object.entries(storedMap || {})) {
+        if (knownKeys.has(keyName)) continue;
+        customSecretKeys.push(keyName);
+        secretPanel.appendChild(renderSecretCard({ keyName, storedValue: value, isCustom: true }));
+      }
     }
 
     function refreshValidation() {
-        const yamlText = getYamlValue();
-        const separators = yamlText.match(/^---\s*$/gm) || [];
-        hasYamlErrors = false;
+      const yamlText = getYamlValue();
+      const separators = yamlText.match(/---/gm);
+      hasYamlErrors = false;
 
-        if (!yamlText.trim()) {
-            setValidationStatus('YAML is empty.', 'error');
-            hasYamlErrors = true;
-            return;
-        }
-
-        if (/\t/.test(yamlText)) {
-            setValidationStatus('YAML contains tab characters. Use spaces for indentation.', 'error');
-            hasYamlErrors = true;
-            return;
-        }
-
-        if (separators.length > 0) {
-            setValidationStatus(`Multi-document YAML detected (${separators.length + 1} documents). This is valid for Spring profiles.`, 'ok');
-            return;
-        }
-
-        setValidationStatus('YAML looks ready to save.', 'ok');
+      if (!yamlText.trim()) {
+        setValidationStatus('YAML is empty.', 'error');
+        hasYamlErrors = true;
+        return;
+      }
+      if (/\t/.test(yamlText)) {
+        setValidationStatus('YAML contains tab characters. Use spaces for indentation.', 'error');
+        hasYamlErrors = true;
+        return;
+      }
+      if (separators && separators.length > 0) {
+        setValidationStatus(`Multi-document YAML detected (${separators.length + 1} documents). This is valid for Spring profiles.`, 'ok');
+        return;
+      }
+      setValidationStatus('YAML looks ready to save.', 'ok');
     }
 
     async function renderPayload(payload) {
-        const selectedConfig = payload.selectedConfig;
-        currentConfigs = payload.configs || [];
-        editor.session.setValue(selectedConfig.yaml);
-        configPath.textContent = selectedConfig.name;
-        jvmOptions.value = payload.runtimeSettings?.jvmOptionsText || '';
-        appArgs.value = payload.runtimeSettings?.appArgsText || '';
-        skipOllamaCheckCheckbox.checked = Boolean(payload.preferences?.skipOllamaCheck ?? false);
-        const storage = payload.secretsStorage || { encrypted: false, label: 'Unknown' };
-        secretsStorageStatus.style.borderColor = storage.encrypted ? 'var(--success-border)' : 'var(--warning-border)';
-        secretsStorageStatus.style.background = storage.encrypted ? 'var(--success-bg)' : 'var(--warning-bg)';
-        secretsStorageStatus.innerHTML = storage.encrypted
-            ? `<strong>Secrets storage</strong>${storage.label}. Secrets are stored encrypted at rest and only exported as environment variables during launch.`
-            : `<strong>Secrets storage</strong>${storage.label}. Secrets are still kept out of YAML, but this session cannot use OS-backed encryption.`;
-        renderSecretPanel(payload);
+      const selectedConfig = payload.selectedConfig;
+      currentConfigs = payload.configs;
+      editor.session.setValue(selectedConfig.yaml);
+      configPath.textContent = selectedConfig.name;
+      jvmOptions.value = payload.runtimeSettings?.jvmOptionsText || '';
+      appArgs.value = payload.runtimeSettings?.appArgsText || '';
+      skipOllamaCheckCheckbox.checked = Boolean(payload.preferences?.skipOllamaCheck ?? false);
 
-        const selectedProvider = selectedConfig.providerType || 'ollama';
-        const providerConfigs = currentConfigs.filter(config => config.providerType === selectedProvider);
-        isSwitchingConfig = true;
-        providerSelect.value = selectedProvider;
-        configSelect.innerHTML = '';
-        for (const config of providerConfigs) {
-            const option = document.createElement('option');
-            option.value = config.id;
-            option.textContent = config.name;
-            configSelect.appendChild(option);
-        }
-        configSelect.value = payload.activeConfigId;
-        isSwitchingConfig = false;
-        deleteButton.disabled = providerConfigs.length <= 1;
-        saveAsName.value = '';
-        refreshValidation();
-        embeddingWarning.style.display = selectedConfig.embeddingConfigured ? 'block' : 'none';
-        const needsOllama = selectedProvider === 'ollama' || selectedProvider === 'openai-compatible';
-        ollamaCard.style.display = needsOllama ? 'grid' : 'none';
-        if (needsOllama) {
-            await refreshOllamaStatus();
-        }
-        setStatus(payload.isFirstLaunch
-            ? 'Initial setup loaded. Edit only the profile-specific overrides, then launch.'
-            : 'Configuration loaded. Only override values are shown here; bundled defaults stay hidden.');
+      const storage = payload.secretsStorage || { encrypted: false, label: 'Unknown' };
+      secretsStorageStatus.style.borderColor = storage.encrypted ? 'var(--success-border)' : 'var(--warning-border)';
+      secretsStorageStatus.style.background = storage.encrypted ? 'var(--success-bg)' : 'var(--warning-bg)';
+      secretsStorageStatus.innerHTML = storage.encrypted
+        ? `<strong>Secrets storage</strong> ${escapeHtml(storage.label)}. Secrets are stored encrypted at rest and only exported as environment variables during launch.`
+        : `<strong>Secrets storage</strong> ${escapeHtml(storage.label)}. Secrets are still kept out of YAML, but this session cannot use OS-backed encryption.`;
+
+      renderSecretPanel(payload);
+
+      const selectedProvider = selectedConfig.providerType || 'ollama';
+      const providerConfigs = currentConfigs.filter(config => config.providerType === selectedProvider);
+      isSwitchingConfig = true;
+      providerSelect.value = selectedProvider;
+      configSelect.innerHTML = '';
+      for (const config of providerConfigs) {
+        const option = document.createElement('option');
+        option.value = config.id;
+        option.textContent = config.name;
+        configSelect.appendChild(option);
+      }
+      configSelect.value = payload.activeConfigId;
+      isSwitchingConfig = false;
+
+      deleteButton.disabled = providerConfigs.length <= 1;
+      saveAsName.value = '';
+      refreshValidation();
+
+      embeddingWarning.style.display = selectedConfig.embeddingConfigured ? 'block' : 'none';
+      const needsOllama = selectedProvider === 'ollama' || selectedProvider === 'openai-compatible';
+      ollamaCard.style.display = needsOllama ? 'grid' : 'none';
+      if (needsOllama) await refreshOllamaStatus();
+
+      setStatus(payload.isFirstLaunch
+        ? 'Initial setup loaded. Edit only the profile-specific overrides, then launch.'
+        : `Configuration loaded. Only override values are shown here — bundled defaults stay hidden.`);
     }
 
     async function loadConfig() {
-        setBusy(true);
-        try {
-            const payload = await ipcRenderer.invoke('config:load');
-            await renderPayload(payload);
-        } catch (error) {
-            setStatus(error.message || String(error), true);
-        } finally {
-            setBusy(false);
-        }
+      setBusy(true);
+      try {
+        const payload = await window.electronAPI.invoke('config:load');
+        await renderPayload(payload);
+      } catch (error) {
+        setStatus(error.message || String(error), true);
+      } finally {
+        setBusy(false);
+      }
     }
 
     saveButton.addEventListener('click', async () => {
-        if (hasYamlErrors) {
-            setStatus('Fix YAML errors before saving.', true);
-            return;
-        }
-        setBusy(true);
-        setStatus('Saving YAML and JVM settings...');
-        try {
-            const payload = await ipcRenderer.invoke('config:save', getSavePayload());
-            await renderPayload(payload);
-            setStatus(`Saved "${payload.selectedConfig.name}".`);
-        } catch (error) {
-            setStatus(error.message || String(error), true);
-        } finally {
-            setBusy(false);
-        }
+      if (hasYamlErrors) { setStatus('Fix YAML errors before saving.', true); return; }
+      setBusy(true);
+      setStatus('Saving YAML and JVM settings...');
+      try {
+        const payload = await window.electronAPI.invoke('config:save', getSavePayload());
+        await renderPayload(payload);
+        setStatus(`Saved ${payload.selectedConfig.name}.`);
+      } catch (error) {
+        setStatus(error.message || String(error), true);
+      } finally {
+        setBusy(false);
+      }
     });
 
     checkOllamaButton.addEventListener('click', async () => {
-        setStatus('Checking Ollama connection...');
-        await refreshOllamaStatus();
-        setStatus('Ollama check finished.');
+      setStatus('Checking Ollama connection...');
+      await refreshOllamaStatus();
+      setStatus('Ollama check finished.');
     });
 
     openOllamaSiteButton.addEventListener('click', async () => {
-        await ipcRenderer.invoke('config:open-ollama-download');
+      await window.electronAPI.invoke('config:open-ollama-download');
     });
 
     addCustomSecretButton.addEventListener('click', () => {
-        secretSection.classList.add('open');
-        secretPanel.appendChild(renderSecretCard({
-            keyName: '',
-            storedValue: '',
-            isCustom: true
-        }));
+      secretSection.classList.add('open');
+      secretPanel.appendChild(renderSecretCard({ keyName: '', storedValue: '', isCustom: true }));
     });
 
     saveAsButton.addEventListener('click', async () => {
-        if (hasYamlErrors) {
-            setStatus('Fix YAML errors before saving as a new config.', true);
-            return;
-        }
-        setBusy(true);
-        setStatus('Saving current changes under a new setting name...');
-        try {
-            const payload = await ipcRenderer.invoke('config:save-as', saveAsName.value, getSavePayload());
-            await renderPayload(payload);
-            setStatus(`Saved as "${payload.selectedConfig.name}".`);
-        } catch (error) {
-            setStatus(error.message || String(error), true);
-        } finally {
-            setBusy(false);
-        }
+      if (hasYamlErrors) { setStatus('Fix YAML errors before saving as a new config.', true); return; }
+      setBusy(true);
+      setStatus('Saving current changes under a new setting name...');
+      try {
+        const payload = await window.electronAPI.invoke('config:save-as', saveAsName.value, getSavePayload());
+        await renderPayload(payload);
+        setStatus(`Saved as ${payload.selectedConfig.name}.`);
+      } catch (error) {
+        setStatus(error.message || String(error), true);
+      } finally {
+        setBusy(false);
+      }
     });
 
     exportButton.addEventListener('click', async () => {
-        setBusy(true);
-        setStatus('Exporting the current setting...');
-        try {
-            const result = await ipcRenderer.invoke('config:export', getSavePayload());
-            if (result?.canceled) {
-                setStatus('Export canceled.');
-            } else {
-                setStatus(`Exported "${result.name}" to ${result.path}.`);
-            }
-        } catch (error) {
-            setStatus(error.message || String(error), true);
-        } finally {
-            setBusy(false);
-        }
+      setBusy(true);
+      setStatus('Exporting the current setting without environment variable values...');
+      try {
+        const result = await window.electronAPI.invoke('config:export', getSavePayload());
+        if (result?.canceled) setStatus('Export canceled.');
+        else setStatus(`Exported ${result.name} to ${result.path}. Environment variable values were excluded for safety.`);
+      } catch (error) {
+        setStatus(error.message || String(error), true);
+      } finally {
+        setBusy(false);
+      }
     });
 
     importButton.addEventListener('click', async () => {
-        setBusy(true);
-        setStatus('Importing a saved setting...');
-        try {
-            const payload = await ipcRenderer.invoke('config:import');
-            if (payload?.canceled) {
-                setStatus('Import canceled.');
-                return;
-            }
-            await renderPayload(payload);
-            setStatus(`Imported "${payload.selectedConfig.name}".`);
-        } catch (error) {
-            setStatus(error.message || String(error), true);
-        } finally {
-            setBusy(false);
-        }
+      setBusy(true);
+      setStatus('Importing a saved setting...');
+      try {
+        const payload = await window.electronAPI.invoke('config:import');
+        if (payload?.canceled) { setStatus('Import canceled.'); return; }
+        await renderPayload(payload);
+        setStatus(`Imported ${payload.selectedConfig.name}.`);
+      } catch (error) {
+        setStatus(error.message || String(error), true);
+      } finally {
+        setBusy(false);
+      }
     });
 
     configSelect.addEventListener('change', async () => {
-        if (isSwitchingConfig) return;
-        setBusy(true);
-        setStatus('Loading selected configuration...');
-        try {
-            const payload = await ipcRenderer.invoke('config:select', configSelect.value);
-            await renderPayload(payload);
-            setStatus(`Loaded "${payload.selectedConfig.name}".`);
-        } catch (error) {
-            setStatus(error.message || String(error), true);
-        } finally {
-            setBusy(false);
-        }
+      if (isSwitchingConfig) return;
+      setBusy(true);
+      setStatus('Loading selected configuration...');
+      try {
+        const payload = await window.electronAPI.invoke('config:select', configSelect.value);
+        await renderPayload(payload);
+        setStatus(`Loaded ${payload.selectedConfig.name}.`);
+      } catch (error) {
+        setStatus(error.message || String(error), true);
+      } finally {
+        setBusy(false);
+      }
     });
 
     providerSelect.addEventListener('change', async () => {
-        if (isSwitchingConfig) return;
-        setBusy(true);
-        setStatus(`Loading ${getProviderLabel(providerSelect.value)} settings...`);
-        try {
-            const payload = await ipcRenderer.invoke('config:select-provider', providerSelect.value);
-            await renderPayload(payload);
-            setStatus(`${getProviderLabel(providerSelect.value)} settings loaded.`);
-        } catch (error) {
-            setStatus(error.message || String(error), true);
-        } finally {
-            setBusy(false);
-        }
+      if (isSwitchingConfig) return;
+      setBusy(true);
+      setStatus(`Loading ${getProviderLabel(providerSelect.value)} settings...`);
+      try {
+        const payload = await window.electronAPI.invoke('config:select-provider', providerSelect.value);
+        await renderPayload(payload);
+        setStatus(`${getProviderLabel(providerSelect.value)} settings loaded.`);
+      } catch (error) {
+        setStatus(error.message || String(error), true);
+      } finally {
+        setBusy(false);
+      }
     });
 
     deleteButton.addEventListener('click', async () => {
-        setBusy(true);
-        setStatus('Deleting the current setting...');
-        try {
-            const payload = await ipcRenderer.invoke('config:delete');
-            await renderPayload(payload);
-            setStatus(`Deleted the previous setting. Now using "${payload.selectedConfig.name}".`);
-        } catch (error) {
-            setStatus(error.message || String(error), true);
-        } finally {
-            setBusy(false);
-        }
+      setBusy(true);
+      setStatus('Deleting the current setting...');
+      try {
+        const payload = await window.electronAPI.invoke('config:delete');
+        await renderPayload(payload);
+        setStatus(`Deleted the previous setting. Now using ${payload.selectedConfig.name}.`);
+      } catch (error) {
+        setStatus(error.message || String(error), true);
+      } finally {
+        setBusy(false);
+      }
     });
 
     resetButton.addEventListener('click', async () => {
+      if (confirm("This will delete all configurations, profiles, and API keys. The application will then restart. Are you sure you want to proceed?")) {
         setBusy(true);
-        setStatus('Restoring default configuration...');
+        setStatus("Performing factory reset...");
         try {
-            const payload = await ipcRenderer.invoke('config:reset');
-            await renderPayload(payload);
-            setStatus(`Reset "${payload.selectedConfig.name}" to the default template.`);
+          await window.electronAPI.invoke('config:reset');
         } catch (error) {
-            setStatus(error.message || String(error), true);
-        } finally {
-            setBusy(false);
+          setStatus(error.message || String(error), true);
+          setBusy(false);
         }
+      }
     });
 
     launchButton.addEventListener('click', async () => {
-        const launchBlockingError = getLaunchBlockingError();
-        if (launchBlockingError) {
-            setStatus(launchBlockingError, true);
-            return;
-        }
-        setBusy(true);
-        setStatus('Saving settings and starting Spring AI Playground...');
-        try {
-            const payload = await ipcRenderer.invoke('config:launch', getSavePayload());
-            await renderPayload(payload);
-            setStatus(`Launching with "${payload.selectedConfig.name}"...`);
-        } catch (error) {
-            setStatus(error.message || String(error), true);
-            setBusy(false);
-        }
+      const launchBlockingError = getLaunchBlockingError();
+      if (launchBlockingError) { setStatus(launchBlockingError, true); return; }
+      setBusy(true);
+      setStatus('Saving settings and starting Spring AI Playground...');
+      try {
+        const payload = await window.electronAPI.invoke('config:launch', getSavePayload());
+        await renderPayload(payload);
+        setStatus(`Launching with ${payload.selectedConfig.name}...`);
+      } catch (error) {
+        setStatus(error.message || String(error), true);
+        setBusy(false);
+      }
     });
 
     editor.session.on('changeAnnotation', refreshValidation);
-    editor.session.on('change', () => {
-        refreshValidation();
-        refreshOllamaStatus().catch(() => {});
-    });
-
+    editor.session.on('change', refreshValidation);
+    refreshOllamaStatus().catch(error => setStatus(error.message || String(error), true));
     loadConfig();
 </script>
 </body>

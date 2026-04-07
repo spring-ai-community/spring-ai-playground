@@ -1,0 +1,7 @@
+node_modules/
+dist/
+resources/app.jar
+resources/default-application.yaml
+resources/default-tool-specs.json
+resources/editor/
+resources/jre-bundle/
