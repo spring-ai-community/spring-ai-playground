@@ -33,6 +33,8 @@ let currentConfigId = null;
 let restartToConfigAfterStop = false;
 let currentLaunchToken = 0;
 let lastLaunchCommand = '';
+let secretsStoreCache = null;
+let secretsEncryptionAvailable = null;
 
 let serverReadyStartTime = 0;
 
@@ -209,7 +211,7 @@ function parseJavaPropertiesToMap(lines = []) {
 }
 
 function getWindowIconPath() {
-  return path.join(__dirname, 'electron', 'build', 'icon.png');
+  return path.join(__dirname, 'static', 'icons', 'icon.png');
 }
 
 function getDefaultConfigPath() {
@@ -244,20 +246,46 @@ function getSecretsStorePath() {
   return path.join(getConfigDirectory(), 'secrets.store');
 }
 
+function cloneSecretsStore(store) {
+  return JSON.parse(JSON.stringify(store || {}));
+}
+
+function clearSecretsStoreCache() {
+  secretsStoreCache = null;
+}
+
+function isSecretsEncryptionAvailable() {
+  if (secretsEncryptionAvailable == null) {
+    secretsEncryptionAvailable = safeStorage.isEncryptionAvailable();
+  }
+  return secretsEncryptionAvailable;
+}
+
 function readSecretsStore() {
+  if (secretsStoreCache) {
+    return cloneSecretsStore(secretsStoreCache);
+  }
   const legacyPath = path.join(getConfigDirectory(), 'secrets.json.enc');
   const storePath = getSecretsStorePath();
   if (fs.existsSync(legacyPath) && !fs.existsSync(storePath)) {
     try { fs.renameSync(legacyPath, storePath); } catch { }
   }
-  if (!fs.existsSync(storePath)) return {};
+  if (!fs.existsSync(storePath)) {
+    secretsStoreCache = {};
+    return {};
+  }
   try {
     const raw = fs.readFileSync(storePath);
-    if (safeStorage.isEncryptionAvailable()) {
-      return JSON.parse(safeStorage.decryptString(raw));
+    let parsed;
+    if (isSecretsEncryptionAvailable()) {
+      parsed = JSON.parse(safeStorage.decryptString(raw));
+    } else {
+      parsed = JSON.parse(raw.toString('utf8'));
     }
-    return JSON.parse(raw.toString('utf8'));
+    secretsStoreCache = parsed && typeof parsed === 'object' ? parsed : {};
+    return cloneSecretsStore(secretsStoreCache);
   } catch (error) {
+    secretsStoreCache = {};
     return {};
   }
 }
@@ -265,15 +293,16 @@ function readSecretsStore() {
 function writeSecretsStore(store) {
   const storePath = getSecretsStorePath();
   const payload = JSON.stringify(store, null, 2);
-  if (safeStorage.isEncryptionAvailable()) {
+  if (isSecretsEncryptionAvailable()) {
     fs.writeFileSync(storePath, safeStorage.encryptString(payload));
-    return;
+  } else {
+    fs.writeFileSync(storePath, payload, 'utf8');
   }
-  fs.writeFileSync(storePath, payload, 'utf8');
+  secretsStoreCache = cloneSecretsStore(store);
 }
 
 function getSecretsStorageStatus() {
-  const encrypted = safeStorage.isEncryptionAvailable();
+  const encrypted = isSecretsEncryptionAvailable();
   return {
     encrypted,
     label: encrypted
@@ -294,6 +323,9 @@ function saveSecretsForConfig(configId, secretValues = {}) {
     if (value != null && String(value).trim() !== '') {
       nextSecrets[key] = String(value).trim();
     }
+  }
+  if (JSON.stringify(store[configId] || {}) === JSON.stringify(nextSecrets)) {
+    return;
   }
   store[configId] = nextSecrets;
   writeSecretsStore(store);
@@ -1465,6 +1497,7 @@ ipcMain.handle('config:reset', async () => {
     if (fs.existsSync(configDir)) {
       fs.rmSync(configDir, { recursive: true, force: true });
     }
+    clearSecretsStoreCache();
   } catch (error) {
     console.error("Failed to delete config directory:", error);
   }
