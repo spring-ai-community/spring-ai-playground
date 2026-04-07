@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-52TGT1G9B3"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-52TGT1G9B3');
+    </script>
+    <style>
+        :root {
+            color-scheme: light;
+            --bg: #f6f1e7;
+            --panel: rgba(255, 253, 249, 0.95);
+            --border: #d8ccb9;
+            --accent: #1f7a5a;
+            --accent-2: #d2a147;
+            --text: #1f2723;
+            --muted: #6b726d;
+            --danger: #b84b4b;
+        }
+        body {
+            background:
+                radial-gradient(circle at top left, rgba(31, 122, 90, 0.12), transparent 30%),
+                radial-gradient(circle at top right, rgba(210, 161, 71, 0.16), transparent 24%),
+                linear-gradient(180deg, #fbf6ee 0%, #efe4d4 100%);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            margin: 0;
+            font-family: "Avenir Next", "Segoe UI", sans-serif;
+            overflow: hidden;
+            font-size: 13px;
+            padding: 18px;
+            box-sizing: border-box;
+        }
+        .shell {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            height: 100%;
+        }
+        .loader {
+            display: inline-block;
+            border: 3px solid rgba(31, 122, 90, 0.18);
+            border-top: 3px solid var(--accent);
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            animation: spin 1s linear infinite;
+            vertical-align: middle;
+            margin-right: 12px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            box-shadow: 0 18px 48px rgba(93, 78, 51, 0.12);
+        }
+        .log-card {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-height: 0;
+            overflow: hidden;
+        }
+        .log-header {
+            padding: 12px 18px;
+            border-bottom: 1px solid rgba(95, 106, 100, 0.12);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--muted);
+        }
+        .hero {
+            padding: 18px 22px 14px;
+        }
+        .brand-row {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .brand-mark {
+            width: 62px;
+            height: 62px;
+            border-radius: 18px;
+            background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+            border: 1px solid rgba(95, 106, 100, 0.12);
+            box-shadow: 0 10px 24px rgba(93, 78, 51, 0.12);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .brand-mark img {
+            width: 40px;
+            height: 40px;
+            object-fit: contain;
+        }
+        .title-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+        .subtitle {
+            margin: 8px 0 0;
+            color: var(--muted);
+            line-height: 1.55;
+        }
+        .meta {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+            padding: 0 22px 14px;
+        }
+        .meta-item {
+            background: rgba(255, 255, 255, 0.7);
+            border: 1px solid rgba(95, 106, 100, 0.12);
+            border-radius: 14px;
+            padding: 14px 16px;
+        }
+        .command-panel {
+            margin: 0 22px 16px;
+            background: rgba(255, 255, 255, 0.78);
+            border: 1px solid rgba(95, 106, 100, 0.12);
+            border-radius: 14px;
+            padding: 14px 16px;
+        }
+        .meta-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--muted);
+            margin-bottom: 6px;
+        }
+        .meta-value {
+            word-break: break-word;
+            line-height: 1.5;
+        }
+        .meta-value.command {
+            white-space: pre-wrap;
+            word-break: break-all;
+            font-family: 'SF Mono', 'Monaco', monospace;
+            font-size: 12px;
+            max-height: 110px;
+            overflow-y: auto;
+        }
+        .actions {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: center;
+            padding: 0 22px 18px;
+        }
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+        .checkbox-row {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--muted);
+            user-select: none;
+        }
+        .checkbox-row input {
+            width: 16px;
+            height: 16px;
+        }
+        button {
+            border: 0;
+            border-radius: 999px;
+            padding: 11px 18px;
+            font: inherit;
+            cursor: pointer;
+            background: #f3ece0;
+            color: var(--text);
+            border: 1px solid rgba(95, 106, 100, 0.12);
+        }
+        button:hover {
+            transform: translateY(-1px);
+        }
+        .primary {
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+            color: #fff;
+        }
+        .hint {
+            color: var(--muted);
+            line-height: 1.5;
+        }
+        #log-container {
+            flex: 1;
+            min-height: 0;
+            height: 100%;
+            padding: 18px 20px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-family: 'SF Mono', 'Monaco', monospace;
+            background: rgba(255, 253, 249, 0.86);
+            border-radius: 0 0 18px 18px;
+            min-height: 460px;
+        }
+        .log-line { margin: 2px 0; }
+        .error { color: var(--danger); }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-thumb { background: #cdbca4; border-radius: 4px; }
+        @media (max-width: 720px) {
+            .meta {
+                grid-template-columns: 1fr;
+            }
+            .actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="shell">
+    <div class="card">
+        <div class="hero">
+            <div class="brand-row">
+                <div class="brand-mark">
+                    <img src="./electron/build/icon.png" alt="Spring AI Playground logo">
+                </div>
+                <div>
+                    <div class="title-row">
+                        <div class="loader"></div>
+                        <span id="status-text">Starting Spring AI Playground</span>
+                    </div>
+                </div>
+            </div>
+            <p class="subtitle">Launching the Spring AI Community incubating project with your last selected config. If you want a different profile, stop this launch and go back to setup.</p>
+        </div>
+        <div class="meta">
+            <div class="meta-item">
+                <div class="meta-label">Current Config</div>
+                <div class="meta-value" id="config-name">Loading...</div>
+            </div>
+            <div class="meta-item">
+                <div class="meta-label">Config File</div>
+                <div class="meta-value" id="config-path">Loading...</div>
+            </div>
+        </div>
+        <div class="command-panel">
+            <div class="meta-label">Final Launch Command</div>
+            <div class="meta-value command" id="launch-command">Preparing launch command...</div>
+        </div>
+        <div class="actions">
+            <div class="hint" id="launch-hint">Spring Boot is starting with the selected YAML.</div>
+            <div class="controls">
+                <label class="checkbox-row" for="auto-copy-logs">
+                    <input id="auto-copy-logs" type="checkbox" checked>
+                    <span>Auto-copy launch logs to clipboard</span>
+                </label>
+                <button id="switch-config" type="button">Use Different Config</button>
+                <button id="quit-launcher" type="button">Quit</button>
+            </div>
+        </div>
+    </div>
+    <div class="card log-card">
+        <div class="log-header">Launch Log</div>
+        <div id="log-container"></div>
+    </div>
+</div>
+
+<script>
+    const logContainer = document.getElementById('log-container');
+    const configName = document.getElementById('config-name');
+    const configPath = document.getElementById('config-path');
+    const launchCommand = document.getElementById('launch-command');
+    const launchHint = document.getElementById('launch-hint');
+    const switchConfigButton = document.getElementById('switch-config');
+    const quitLauncherButton = document.getElementById('quit-launcher');
+    const statusText = document.getElementById('status-text');
+    const autoCopyLogsCheckbox = document.getElementById('auto-copy-logs');
+
+    const MAX_LOG_LINES = 500;
+
+    function appendLine(message, isError = false) {
+      const line = document.createElement('div');
+      line.className = isError ? 'log-line error' : 'log-line';
+      line.textContent = message;
+      logContainer.appendChild(line);
+      while (logContainer.childElementCount > MAX_LOG_LINES) {
+        logContainer.removeChild(logContainer.firstChild);
+      }
+      logContainer.scrollTop = logContainer.scrollHeight;
+    }
+
+    function renderLaunchState(payload) {
+      if (payload?.selectedConfig) {
+        configName.textContent = payload.selectedConfig.name;
+        configPath.textContent = payload.selectedConfig.path;
+      }
+      launchCommand.textContent = payload?.launchCommand || 'The final command will appear here when the server launch begins.';
+      if (payload?.preferences) {
+        autoCopyLogsCheckbox.checked = Boolean(payload.preferences.autoCopyLogs);
+      }
+      if (payload?.serverRunning && payload?.serverUrl) {
+        launchHint.textContent = `Launching from ${payload.serverUrl} — the local app URL.`;
+      } else if (payload?.serverRunning) {
+        launchHint.textContent = 'Server process started. Waiting for the local app URL...';
+      } else {
+        launchHint.textContent = 'Preparing the launch environment.';
+      }
+    }
+
+    window.electronAPI.on('server-log', (message) => appendLine(message, false));
+    window.electronAPI.on('server-error', (message) => appendLine(message, true));
+    window.electronAPI.on('launch-state', (payload) => renderLaunchState(payload));
+
+    switchConfigButton.addEventListener('click', async () => {
+      statusText.textContent = 'Stopping current launch and returning to config setup';
+      switchConfigButton.disabled = true;
+      try {
+        await window.electronAPI.invoke('app:restart-to-config');
+      } catch (error) {
+        appendLine(error.message || String(error), true);
+        switchConfigButton.disabled = false;
+      }
+    });
+
+    quitLauncherButton.addEventListener('click', async () => {
+      statusText.textContent = 'Stopping launch and quitting Spring AI Playground';
+      switchConfigButton.disabled = true;
+      quitLauncherButton.disabled = true;
+      try {
+        await window.electronAPI.invoke('app:quit-launcher');
+      } catch (error) {
+        appendLine(error.message || String(error), true);
+        switchConfigButton.disabled = false;
+        quitLauncherButton.disabled = false;
+      }
+    });
+
+    autoCopyLogsCheckbox.addEventListener('change', async () => {
+      try {
+        await window.electronAPI.invoke('app:set-auto-copy-logs', autoCopyLogsCheckbox.checked);
+      } catch (error) {
+        autoCopyLogsCheckbox.checked = !autoCopyLogsCheckbox.checked;
+        appendLine(error.message || String(error), true);
+      }
+    });
+
+    appendLine('Waiting for startup logs...');
+    window.electronAPI.invoke('app:launch-state')
+      .then(renderLaunchState)
+      .catch(error => appendLine(error.message || String(error), true));
+</script>
+</body>
+</html>

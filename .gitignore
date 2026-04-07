@@ -43,6 +43,8 @@ vite.generated.ts
 /src/main/frontend/*
 !/src/main/frontend/playground
 /node_modules/
+!/electron/package.json
+!/electron/package-lock.json
 /src/main/bundles/
 /log
 

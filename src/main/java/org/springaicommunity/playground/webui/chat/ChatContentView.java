@@ -45,6 +45,7 @@ import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.service.mcp.client.McpTransportType;
 import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentInfo;
 import org.springaicommunity.playground.webui.PersistentUiDataStorage;
+import org.springaicommunity.playground.webui.SttMicButton;
 import org.springaicommunity.playground.webui.VaadinUtils;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.MessageType;
@@ -145,17 +146,7 @@ public class ChatContentView extends VerticalLayout {
         CompletableFuture<ZoneId> zoneIdFuture = VaadinUtils.buildClientZoneIdFuture(new CompletableFuture<>());
         this.userPromptTextArea.setId("sttTextArea");
 
-        Icon micIcon = VaadinUtils.styledLargeIcon(VaadinIcon.MICROPHONE.create());
-        Button micButton = new Button(micIcon);
-        micButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
-        micButton.setTooltipText("Voice input");
-        micButton.setId("micButton");
-        micButton.addClickListener(e ->
-                micButton.getElement().executeJs("window.STTModule.toggle($0, $1)",
-                        this.userPromptTextArea.getId().get(),
-                        micButton.getId().get())
-        );
-
+        Button micButton = new SttMicButton(this.userPromptTextArea);
         Icon submitIcon = VaadinUtils.styledLargeIcon(VaadinIcon.ARROW_CIRCLE_UP.create());
         Button submitButton = new Button(submitIcon);
         submitButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
