@@ -606,7 +606,7 @@
     <div class="hero">
         <div class="brand">
             <div class="brand-mark">
-                <img src="./electron/build/icon.png" alt="Spring AI Playground logo">
+                <img src="./static/icons/icon.png" alt="Spring AI Playground logo">
             </div>
             <div>
             <h1 class="title">Configure Spring AI Playground</h1>
@@ -757,10 +757,6 @@
     </div>
 </div>
 
-<script src="./resources/editor/ace.js"></script>
-<script src="./resources/editor/mode-yaml.js"></script>
-<script src="./resources/editor/theme-textmate.js"></script>
-<script src="./resources/editor/worker-yaml.js"></script>
 <script>
     const configSelect = document.getElementById('config-select');
     const providerSelect = document.getElementById('provider-select');
@@ -798,6 +794,7 @@
     let secretValues = {};
     let customSecretKeys = [];
     let currentConfigs = [];
+    let editor = null;
 
     function getProviderLabel(providerType = 'ollama') {
       if (providerType === 'openai') return 'OpenAI';
@@ -805,18 +802,61 @@
       return 'Ollama';
     }
 
-    const editor = ace.edit('yaml-editor');
-    editor.session.setMode('ace/mode/yaml');
-    editor.setTheme('ace/theme/textmate');
-    editor.session.setUseWorker(false);
-    editor.setOptions({
-      fontSize: '13px',
-      fontFamily: 'SF Mono, Monaco, Cascadia Code, Consolas, monospace',
-      showPrintMargin: false,
-      tabSize: 2,
-      useSoftTabs: true,
-      wrap: true,
-    });
+    function loadScriptSource(source) {
+      return new Promise((resolve, reject) => {
+        const existing = document.querySelector(`script[data-source="${source}"]`);
+        if (existing) {
+          if (existing.dataset.loaded === 'true') {
+            resolve();
+            return;
+          }
+          existing.addEventListener('load', () => resolve(), { once: true });
+          existing.addEventListener('error', () => reject(new Error(`Failed to load ${source}`)), { once: true });
+          return;
+        }
+
+        const script = document.createElement('script');
+        script.src = source;
+        script.async = false;
+        script.dataset.source = source;
+        script.addEventListener('load', () => {
+          script.dataset.loaded = 'true';
+          resolve();
+        }, { once: true });
+        script.addEventListener('error', () => reject(new Error(`Failed to load ${source}`)), { once: true });
+        document.head.appendChild(script);
+      });
+    }
+
+    async function ensureAceAssets() {
+      if (window.ace) return;
+      const editorAssets = [
+        './resources/editor/ace.js',
+        './resources/editor/mode-yaml.js',
+        './resources/editor/theme-textmate.js',
+      ];
+      for (const asset of editorAssets) {
+        await loadScriptSource(asset);
+      }
+    }
+
+    async function initializeEditor() {
+      await ensureAceAssets();
+      editor = ace.edit('yaml-editor');
+      editor.session.setMode('ace/mode/yaml');
+      editor.setTheme('ace/theme/textmate');
+      editor.session.setUseWorker(false);
+      editor.setOptions({
+        fontSize: '13px',
+        fontFamily: 'SF Mono, Monaco, Cascadia Code, Consolas, monospace',
+        showPrintMargin: false,
+        tabSize: 2,
+        useSoftTabs: true,
+        wrap: true,
+      });
+      editor.session.on('changeAnnotation', refreshValidation);
+      editor.session.on('change', refreshValidation);
+    }
 
     function setStatus(message, isError = false) {
       statusEl.textContent = message;
@@ -1304,10 +1344,22 @@
       }
     });
 
-    editor.session.on('changeAnnotation', refreshValidation);
-    editor.session.on('change', refreshValidation);
-    refreshOllamaStatus().catch(error => setStatus(error.message || String(error), true));
-    loadConfig();
+    async function boot() {
+      try {
+        setStatus('Preparing configuration editor...');
+        setValidationStatus('Loading editor assets...');
+        await initializeEditor();
+        setValidationStatus('Editor ready. Loading configuration...');
+        await refreshOllamaStatus();
+        await loadConfig();
+      } catch (error) {
+        const message = error.message || String(error);
+        setStatus(message, true);
+        setValidationStatus(message, 'error');
+      }
+    }
+
+    boot();
 </script>
 </body>
 </html>

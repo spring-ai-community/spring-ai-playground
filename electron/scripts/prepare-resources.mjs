@@ -119,12 +119,20 @@ fs.copyFileSync(path.join(targetDir, jarFile), outputJar);
 console.log(`Copied executable JAR: ${jarFile} -> ${outputJar}`);
 
 for (const assetName of ['ace.js', 'mode-yaml.js', 'theme-textmate.js', 'worker-yaml.js']) {
-  const source = path.join(repoRoot, 'node_modules', 'ace-builds', 'src-noconflict', assetName);
+  const sourceCandidates = [
+    path.join(repoRoot, 'electron', 'node_modules', 'ace-builds', 'src-noconflict', assetName),
+    path.join(repoRoot, 'node_modules', 'ace-builds', 'src-noconflict', assetName),
+  ];
+  const source = sourceCandidates.find(candidate => fs.existsSync(candidate));
+  if (!source) {
+    throw new Error(`Ace editor asset not found: ${assetName}. Run npm install in electron/ or repo root first.`);
+  }
   const destination = path.join(editorOutputDir, assetName);
   fs.copyFileSync(source, destination);
   console.log(`Copied editor asset: ${source} -> ${destination}`);
 }
 
+fs.rmSync(path.join(electronResourcesDir, 'icons'), { recursive: true, force: true });
 fs.rmSync(path.join(electronResourcesDir, 'generated'), { recursive: true, force: true });
 fs.rmSync(jreOutputDir, { recursive: true, force: true });
 
@@ -166,6 +174,11 @@ execFileSync(
 
 console.log(`Created runtime image: ${jreOutputDir}`);
 
+if (process.platform === 'darwin') {
+  clearQuarantineAttribute(jreOutputDir);
+  clearQuarantineAttribute(outputJar);
+}
+
 function parseMajorJavaVersion(releaseText) {
   const match = releaseText.match(/^JAVA_VERSION="?(\d+)/m);
   if (match) return parseInt(match[1], 10);
@@ -175,4 +188,14 @@ function parseMajorJavaVersion(releaseText) {
 function isGraalVmRuntime(releaseText, javaVersionOutput) {
   const combined = `${releaseText}\n${javaVersionOutput}`.toLowerCase();
   return combined.includes('graalvm');
+}
+
+function clearQuarantineAttribute(targetPath) {
+  try {
+    execFileSync('xattr', ['-dr', 'com.apple.quarantine', targetPath], { stdio: 'ignore' });
+    console.log(`Cleared quarantine attribute: ${targetPath}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`Skipping quarantine cleanup for ${targetPath}: ${message}`);
+  }
 }

@@ -2,7 +2,11 @@
   "name": "spring-ai-playground-desktop",
   "version": "1.0.0",
   "description": "Desktop launcher for the Spring AI Community incubating project Spring AI Playground",
-  "author": "Spring AI Community",
+  "homepage": "https://github.com/spring-ai-community/spring-ai-playground",
+  "author": {
+    "name": "Jemin Huh",
+    "email": "hjm1980@gmail.com"
+  },
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -28,7 +32,7 @@
       "launcher-config.js",
       "splash.html",
       "server-splash.html",
-      "electron/build/**/*",
+      "static/**/*",
       "resources/**/*",
       "!resources/app.jar",
       "!resources/jre-bundle{,/**}",
@@ -56,7 +60,7 @@
     "win": {
       "target": "nsis",
       "artifactName": "Spring AI Playground.${ext}",
-      "icon": "electron/build/icon.ico"
+      "icon": "static/icons/icon.ico"
     },
     "nsis": {
       "oneClick": false,
@@ -64,29 +68,28 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Spring AI Playground",
-      "installerIcon": "electron/build/icon.ico",
-      "uninstallerIcon": "electron/build/icon.ico",
-      "installerHeaderIcon": "electron/build/icon.ico",
+      "installerIcon": "static/icons/icon.ico",
+      "uninstallerIcon": "static/icons/icon.ico",
+      "installerHeaderIcon": "static/icons/icon.ico",
       "deleteAppDataOnUninstall": true
     },
     "mac": {
       "target": "dmg",
       "artifactName": "Spring AI Playground-${arch}.${ext}",
       "category": "public.app-category.developer-tools",
-      "icon": "electron/build/icon.icns",
-      "hardenedRuntime": true,
+      "icon": "static/icons/icon.icns",
+      "hardenedRuntime": false,
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
-      "identity": null,
+      "identity": "-",
       "extendInfo": {
         "NSMicrophoneUsageDescription": "This app needs access to your microphone for voice input."
       }
     },
-    "afterSign": "scripts/after-sign.js",
     "dmg": {
       "title": "Spring AI Playground",
-      "icon": "electron/build/icon.icns",
+      "icon": "static/icons/icon.icns",
       "iconSize": 128,
       "window": {
         "width": 560,
@@ -113,16 +116,18 @@
         "rpm"
       ],
       "category": "Development",
-      "icon": "electron/build/icon.png",
+      "maintainer": "Jemin Huh <hjm1980@gmail.com>",
+      "icon": "static/icons/icon.png",
       "synopsis": "Desktop launcher for Spring AI Playground",
       "description": "Spring AI Playground, an incubating Spring AI Community project, packaged as an Electron desktop application with an OS-native backend."
     }
   },
   "devDependencies": {
     "electron": "^28.0.0",
-    "electron-builder": "^24.9.1"
+    "electron-builder": "^26.3.3"
   },
   "dependencies": {
+    "ace-builds": "^1.43.2",
     "js-yaml": "^4.1.1",
     "tree-kill": "^1.2.2",
     "sirv": "^3.0.0"
