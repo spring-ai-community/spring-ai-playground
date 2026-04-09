@@ -61,6 +61,13 @@ public class SpringAiPlaygroundApplication implements AppShellConfigurator {
     @Override
     public void configurePage(AppShellSettings settings) {
         String gtmContainerId = "GTM-PVX8227Q";
+        String gtmDataLayerInit = """
+                window.dataLayer = window.dataLayer || [];
+                window.dataLayer.push({
+                  app_surface: 'web-app',
+                  app_name: 'spring-ai-playground'
+                });
+                """;
         String gtmScript = String.format(
                 "(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':"
                         + "new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],"
@@ -69,6 +76,7 @@ public class SpringAiPlaygroundApplication implements AppShellConfigurator {
                         + "f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','%s');",
                 gtmContainerId
         );
+        settings.addInlineWithContents(Inline.Position.PREPEND, gtmDataLayerInit, Inline.Wrapping.JAVASCRIPT);
         settings.addInlineWithContents(Inline.Position.PREPEND, gtmScript, Inline.Wrapping.JAVASCRIPT);
 
         String gtmNoscript = String.format(
