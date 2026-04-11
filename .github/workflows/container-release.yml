@@ -11,6 +11,12 @@ on:
     branches: [ "**" ]
     tags:
       - "v*"
+    paths-ignore:
+      - "docs/**"
+      - "docs-overrides/**"
+      - "mkdocs.yml"
+      - "docs/requirements.txt"
+      - "README.md"
 
 env:
   IMAGE_NAME: ghcr.io/${{ github.repository }}
