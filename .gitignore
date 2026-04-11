@@ -49,7 +49,3 @@ vite.generated.ts
 /src/main/bundles/
 /log
 site/
-
-### Claude Code ###
-CLAUDE.md
-plans/

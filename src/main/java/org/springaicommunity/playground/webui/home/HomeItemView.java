@@ -29,7 +29,6 @@ import com.vaadin.flow.theme.lumo.LumoUtility;
 import java.util.List;
 import java.util.function.Consumer;
 
-import static org.springaicommunity.playground.webui.home.HomeItemView.ActionType.EXTERNAL_PAGE;
 import static org.springaicommunity.playground.webui.home.HomeItemView.ActionType.EXTERNAL_URL;
 import static org.springaicommunity.playground.webui.home.HomeItemView.ActionType.MARKDOWN;
 import static org.springaicommunity.playground.webui.home.HomeItemView.ActionType.UI_COMPONENT;

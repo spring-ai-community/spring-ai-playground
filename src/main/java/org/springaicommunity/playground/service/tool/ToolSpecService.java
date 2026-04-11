@@ -235,8 +235,6 @@ public class ToolSpecService implements SmartLifecycle {
         }
     }
 
-}
-
     @Override
     public boolean isRunning() {
         return true;

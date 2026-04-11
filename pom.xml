@@ -25,11 +25,11 @@
         <version>3.5.8</version>
         <relativePath/>
     </parent>
-    <groupId>org.springaicommunity</groupId>
+    <groupId>jm.kr</groupId>
     <artifactId>spring-ai-playground</artifactId>
-    <version>0.2.0-M1</version>
+    <version>0.2.0-M2</version>
     <name>Spring AI Playground</name>
-    <description>A self-hosted web UI for AI experimentation with Spring AI</description>
+    <description>Incubating project from the Spring AI Community</description>
     <url>https://github.com/spring-ai-community/spring-ai-playground</url>
     <licenses>
         <license>
@@ -140,7 +140,7 @@
 
         <dependency>
             <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-starter-model-openai</artifactId>
+            <artifactId>spring-ai-starter-model-ollama</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.ai</groupId>

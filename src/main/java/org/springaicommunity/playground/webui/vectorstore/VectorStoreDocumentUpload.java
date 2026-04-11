@@ -25,7 +25,6 @@ import com.vaadin.flow.server.streams.TransferProgressListener;
 import com.vaadin.flow.server.streams.UploadHandler;
 import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentService;
 import org.springaicommunity.playground.webui.VaadinUtils;
-import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
 import java.io.IOException;

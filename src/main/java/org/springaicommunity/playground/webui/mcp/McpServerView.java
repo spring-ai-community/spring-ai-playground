@@ -17,7 +17,6 @@ package org.springaicommunity.playground.webui.mcp;
 
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.button.Button;
-import com.vaadin.flow.component.dependency.CssImport;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H4;
 import com.vaadin.flow.component.icon.Icon;
@@ -48,7 +47,6 @@ import static org.springaicommunity.playground.webui.VaadinUtils.styledIcon;
 
 @SpringComponent
 @UIScope
-@CssImport("./playground/mcp-inspector-styles.css")
 @PageTitle("MCP Server")
 @Route(value = "mcp-server", layout = SpringAiPlaygroundAppLayout.class)
 public class McpServerView extends Div {

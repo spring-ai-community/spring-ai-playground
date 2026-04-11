@@ -229,7 +229,6 @@ public class ToolStudioView extends Div {
         horizontalLayout.add(toolMcpServerSettingMenuBar);
         return horizontalLayout;
     }
-}
 
     private void openToolSpecDialog(String exportToolSpecificationTitle, String toolSpecJson) {
         Dialog dialog = VaadinUtils.headerDialog(exportToolSpecificationTitle);
