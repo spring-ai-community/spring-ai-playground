@@ -42,7 +42,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 
-import static org.springaicommunity.playground.webui.mcp.McpView.MCP_CONNECTION_CHANGE_EVENT;
+import static org.springaicommunity.playground.webui.mcp.McpServerView.MCP_CONNECTION_CHANGE_EVENT;
 
 @NpmPackage(value = "jsoneditor", version = "10.2.0")
 @NpmPackage(value = "ace-builds", version = "1.43.2")
@@ -113,19 +113,19 @@ public class McpServerConfigView extends VerticalLayout {
 
         addEditor(McpTransportType.STREAMABLE_HTTP, """
                 {
-                   "url": "http://localhost:8080",
+                   "url": "http://127.0.0.1:<server-port>",
                    "endpoint": "/mcp"
                  }""");
         addEditor(McpTransportType.SSE, """
                 {
-                   "url": "http://localhost:8080",
+                   "url": "http://127.0.0.1:<server-port>",
                    "sse-endpoint": "/sse"
                  }""");
         addEditor(McpTransportType.STDIO, """
                 {
                    "command": "/path/to/server",
                    "args": [
-                     "--port=8080",
+                     "--port=<server-port>",
                      "--mode=production"
                    ],
                    "env": {

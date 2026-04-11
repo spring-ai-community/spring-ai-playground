@@ -25,7 +25,6 @@ import com.vaadin.flow.server.streams.TransferProgressListener;
 import com.vaadin.flow.server.streams.UploadHandler;
 import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentService;
 import org.springaicommunity.playground.webui.VaadinUtils;
-import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
 import java.io.IOException;
@@ -108,8 +107,7 @@ public class VectorStoreDocumentUpload extends VerticalLayout {
 
         upload.getElement().addEventListener("file-remove",
                 event -> {
-                    String string = event.getEventData().getString("event.detail.file.name");
-                    Optional.ofNullable(string)
+                    Optional.ofNullable(event.getEventData().get("event.detail.file.name")).map(Object::toString)
                             .ifPresent(fileName -> {
                                 try {
                                     this.vectorStoreDocumentService.removeUploadedDocumentFile(fileName);
@@ -157,7 +155,7 @@ public class VectorStoreDocumentUpload extends VerticalLayout {
         return i18n;
     }
 
-    private static @NotNull Uploading buildUploading() {
+    private static Uploading buildUploading() {
         Uploading uploading = new Uploading();
 
         Uploading.Status status = new Uploading.Status();

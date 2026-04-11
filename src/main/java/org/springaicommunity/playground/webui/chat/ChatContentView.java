@@ -16,10 +16,10 @@
 package org.springaicommunity.playground.webui.chat;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.rometools.utils.Strings;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.Key;
 import com.vaadin.flow.component.KeyModifier;
+import com.vaadin.flow.component.ScrollOptions;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -40,11 +40,11 @@ import com.vaadin.flow.internal.Pair;
 import org.springaicommunity.playground.service.chat.ChatHistory;
 import org.springaicommunity.playground.service.chat.ChatService;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
-import org.springaicommunity.playground.service.mcp.McpToolCallingManager.McpToolResult;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.service.mcp.client.McpTransportType;
 import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentInfo;
 import org.springaicommunity.playground.webui.PersistentUiDataStorage;
+import org.springaicommunity.playground.webui.SttMicButton;
 import org.springaicommunity.playground.webui.VaadinUtils;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.MessageType;
@@ -70,8 +70,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.springaicommunity.playground.service.chat.ChatHistory.TIMESTAMP;
@@ -82,6 +80,13 @@ import static org.springframework.ai.chat.messages.MessageType.USER;
 public class ChatContentView extends VerticalLayout {
     private static final String LAST_SELECTED_RAG_DOC_INFO_IDS = "lastSelectedRagDocInfoIds";
     private static final String LAST_SELECTED_MCP_CONNECTION_INFOS = "lastSelectedMcpConnectionInfos";
+
+    private static final ScrollOptions DefaultScrollOptions = new ScrollOptions();
+    static {
+        DefaultScrollOptions.setBlock(ScrollOptions.Alignment.END);
+        DefaultScrollOptions.setInline(ScrollOptions.Alignment.NEAREST);
+    }
+
     private final VerticalLayout messageListLayout;
     private final Scroller messageScroller;
     private final TextArea userPromptTextArea;
@@ -140,17 +145,7 @@ public class ChatContentView extends VerticalLayout {
         CompletableFuture<ZoneId> zoneIdFuture = VaadinUtils.buildClientZoneIdFuture(new CompletableFuture<>());
         this.userPromptTextArea.setId("sttTextArea");
 
-        Icon micIcon = VaadinUtils.styledLargeIcon(VaadinIcon.MICROPHONE.create());
-        Button micButton = new Button(micIcon);
-        micButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
-        micButton.setTooltipText("Voice input");
-        micButton.setId("micButton");
-        micButton.addClickListener(e ->
-                micButton.getElement().executeJs("window.STTModule.toggle($0, $1)",
-                        this.userPromptTextArea.getId().get(),
-                        micButton.getId().get())
-        );
-
+        Button micButton = new SttMicButton(this.userPromptTextArea);
         Icon submitIcon = VaadinUtils.styledLargeIcon(VaadinIcon.ARROW_CIRCLE_UP.create());
         Button submitButton = new Button(submitIcon);
         submitButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
@@ -230,7 +225,7 @@ public class ChatContentView extends VerticalLayout {
         messages.forEach(message -> chatContentManager.initMarkdownMessage(this.messageListLayout, message,
                 message.getMessageType()));
 
-        this.messageListLayout.getChildren().toList().getLast().scrollIntoView();
+        this.messageListLayout.getChildren().toList().getLast().scrollIntoView(DefaultScrollOptions);
         this.persistentUiDataStorage.loadData(LAST_SELECTED_RAG_DOC_INFO_IDS, new TypeReference<Set<String>>() {},
                 docInfoIds -> {
                     if (docInfoIds != null && !docInfoIds.isEmpty()) {
@@ -256,7 +251,7 @@ public class ChatContentView extends VerticalLayout {
     private Disposable inputEvent(CompletableFuture<ZoneId> zoneIdFuture, String userPrompt) {
         ChatContentManager chatContentManager = new ChatContentManager(this.messageListLayout, userPrompt, zoneIdFuture,
                 this.chatHistory);
-        this.messageListLayout.add(chatContentManager.getBotResponse());
+        this.messageListLayout.add(chatContentManager.botResponse);
 
         List<String> selectedDocInfoIds =
                 this.documentsComboBox.getSelectedItems().stream().map(VectorStoreDocumentInfo::docInfoId).toList();
@@ -271,7 +266,8 @@ public class ChatContentView extends VerticalLayout {
         UI ui = VaadinUtils.getUi(this);
         return this.chatService.stream(this.chatHistory, userPrompt,
                         this.chatService.buildFilterExpression(selectedDocInfoIds), this.completeChatHistoryConsumer,
-                        toolCallbacks, o -> ui.access(() -> chatContentManager.appendMcpToolProcessMessage(o)))
+                        toolCallbacks, o -> ui.access(() -> chatContentManager.appendMcpToolProcessMessage(o)),
+                        o -> ui.access(() -> chatContentManager.appendBotThinkProcessMessage(o)))
                 .doFinally(signalType -> ui.access(() -> doFinally(chatContentManager)))
                 .doOnError(throwable -> ui.access(() -> {
                     VaadinUtils.showErrorNotification(throwable.getMessage());
@@ -301,14 +297,15 @@ public class ChatContentView extends VerticalLayout {
     }
 
     private class ChatContentManager {
-        private static final Pattern ThinkPattern = Pattern.compile("<think>(.*?)</think>", Pattern.DOTALL);
-        private static final String THINK_TIMESTAMP = "thinkTimestamp";
         private static final String THINK_PROCESS = "THINK";
+        private static final String THINK_PROCESS_TIMESTAMP = "thinkProcessTimestamp";
+        private static final String THINK_PROCESS_MESSAGES = "thinkProcessMessages";
         private static final String MCP_TOOL_PROCESS = "MCP TOOL";
         private static final String MCP_TOOL_PROCESS_TIMESTAMP = "mcpToolProcessTimestamp";
         private static final String MCP_TOOL_PROCESS_MESSAGES = "mcpToolProcessMessages";
         private static final DateTimeFormatter DATE_TIME_FORMATTER =
                 DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
+
         private final CompletableFuture<ZoneId> zoneIdFuture;
         private final Supplier<List<Message>> messagesSupplier;
         private VerticalLayout messageListLayout;
@@ -316,10 +313,10 @@ public class ChatContentView extends VerticalLayout {
         private long responseTimestamp;
         private MarkdownMessage botResponse;
         private boolean isFirstAssistantResponse;
-        private boolean isThinking;
         private MarkdownMessage botThinkResponse;
         private long botThinkTimestamp;
         private Details thinkDetails;
+        private StringBuilder thinkProcessMessageBuilder;
         private MarkdownMessage mcpToolProcessMessage;
         private long mcpToolProcessTimestamp;
         private Details mcpToolProcessDetails;
@@ -336,11 +333,10 @@ public class ChatContentView extends VerticalLayout {
             chatHistory.updateLastMessageTimestamp(startTimestamp);
             MarkdownMessage userMarkdownMessage = buildMarkdownMessage(userPrompt, USER, startTimestamp);
             this.messageListLayout.add(userMarkdownMessage);
-            userMarkdownMessage.scrollIntoView();
+            userMarkdownMessage.scrollIntoView(DefaultScrollOptions);
             this.botResponse = buildMarkdownMessage(null, MessageType.ASSISTANT, System.currentTimeMillis());
             this.botResponse.addClassName("blink");
             this.isFirstAssistantResponse = true;
-            this.isThinking = false;
         }
 
         public void appendMcpToolProcessMessage(Object content) {
@@ -350,16 +346,13 @@ public class ChatContentView extends VerticalLayout {
             if (Objects.isNull(this.mcpToolProcessMessagesBuilder))
                 this.mcpToolProcessMessagesBuilder = new StringBuilder();
             this.mcpToolProcessMessagesBuilder.append(markdownSnippet);
-            this.mcpToolProcessMessage.scrollIntoView();
-            if (content instanceof McpToolResult)
-                this.mcpToolProcessDetails.setOpened(false);
+            this.mcpToolProcessMessage.scrollIntoView(DefaultScrollOptions);
         }
 
         private MarkdownMessage getMcpToolProcessMessage(VerticalLayout messageListLayout, long timestamp) {
             if (Objects.isNull(this.mcpToolProcessMessage)) {
                 this.mcpToolProcessTimestamp = timestamp;
                 this.mcpToolProcessMessage = buildMarkdownMessage(null, MCP_TOOL_PROCESS, this.mcpToolProcessTimestamp);
-                this.botResponse.addClassName("blink");
                 this.botResponse.removeFromParent();
                 messageListLayout.add(
                         buildProcessDetails(MCP_TOOL_PROCESS, getMcpToolProcessDetails(), this.mcpToolProcessMessage),
@@ -368,8 +361,29 @@ public class ChatContentView extends VerticalLayout {
             return this.mcpToolProcessMessage;
         }
 
-        private static Details buildProcessDetails(String title, Details details,
-                MarkdownMessage markdownMessage) {
+        public void appendBotThinkProcessMessage(Object content) {
+            long timestamp = System.currentTimeMillis();
+            String markdownSnippet = content.toString();
+            getBotThinkResponse(this.messageListLayout, timestamp).appendMarkdown(markdownSnippet);
+            if (Objects.isNull(this.thinkProcessMessageBuilder))
+                this.thinkProcessMessageBuilder = new StringBuilder();
+            this.thinkProcessMessageBuilder.append(markdownSnippet);
+            this.botThinkResponse.scrollIntoView(DefaultScrollOptions);
+        }
+
+        private MarkdownMessage getBotThinkResponse(VerticalLayout messageListLayout, long timestamp) {
+            if (Objects.isNull(this.botThinkResponse)) {
+                this.botThinkTimestamp = timestamp;
+                this.botThinkResponse = buildMarkdownMessage(null, THINK_PROCESS, this.botThinkTimestamp);
+                this.botResponse.removeFromParent();
+                messageListLayout.add(
+                        buildProcessDetails(THINK_PROCESS, getThinkDetails(), this.botThinkResponse),
+                        this.botResponse);
+            }
+            return this.botThinkResponse;
+        }
+
+        private static Details buildProcessDetails(String title, Details details, MarkdownMessage markdownMessage) {
             details.setSummary(buildDetailsSummary(title));
             details.add(markdownMessage);
             details.addThemeVariants(DetailsVariant.FILLED);
@@ -395,28 +409,20 @@ public class ChatContentView extends VerticalLayout {
 
             List<Pair<Long, Component>> components = new ArrayList<>();
 
-            Long thinkTimestamp = (Long) metadata.get(THINK_TIMESTAMP);
-            if (Objects.nonNull(thinkTimestamp)) {
-                Matcher matcher = ThinkPattern.matcher(text);
-                StringBuilder thinkBuilder = new StringBuilder();
-                while (matcher.find())
-                    thinkBuilder.append(matcher.group(1));
-
-                if (!thinkBuilder.isEmpty()) {
-                    Details details = ChatContentManager.buildProcessDetails(THINK_PROCESS, new Details(),
-                            buildMarkdownMessage(thinkBuilder.toString(), THINK_PROCESS, thinkTimestamp));
-                    details.setOpened(false);
-                    text = matcher.replaceAll("");
-                    components.add(new Pair<>(thinkTimestamp, details));
-                }
+            String thinkProcessMessages = (String) metadata.get(THINK_PROCESS_MESSAGES);
+            if (Objects.nonNull(thinkProcessMessages)) {
+                Long thinkProcessTimestamp = (Long) metadata.get(THINK_PROCESS_TIMESTAMP);
+                Details details = ChatContentManager.buildProcessDetails(THINK_PROCESS, new Details(),
+                        buildMarkdownMessage(thinkProcessMessages, THINK_PROCESS, thinkProcessTimestamp));
+                details.setOpened(false);
+                components.add(new Pair<>(thinkProcessTimestamp, details));
             }
+
             String mcpToolProcessMessages = (String) metadata.get(MCP_TOOL_PROCESS_MESSAGES);
             if (Objects.nonNull(mcpToolProcessMessages)) {
                 Long mcpToolProcessTimestamp = (Long) metadata.get(MCP_TOOL_PROCESS_TIMESTAMP);
-                Details details =
-                        ChatContentManager.buildProcessDetails(MCP_TOOL_PROCESS, new Details(),
-                                buildMarkdownMessage(mcpToolProcessMessages, MCP_TOOL_PROCESS,
-                                        mcpToolProcessTimestamp));
+                Details details = ChatContentManager.buildProcessDetails(MCP_TOOL_PROCESS, new Details(),
+                        buildMarkdownMessage(mcpToolProcessMessages, MCP_TOOL_PROCESS, mcpToolProcessTimestamp));
                 details.setOpened(false);
                 components.add(new Pair<>(mcpToolProcessTimestamp, details));
             }
@@ -462,44 +468,11 @@ public class ChatContentView extends VerticalLayout {
         }
 
         public void append(String content) {
-            if (content.startsWith("<think>")) {
-                this.isThinking = true;
-                return;
-            }
-            if (content.endsWith("</think>")) {
-                this.isThinking = false;
-                if (Objects.nonNull(this.thinkDetails))
-                    this.thinkDetails.setOpened(false);
-                return;
-            }
-            if (this.isThinking && Strings.isBlank(content) && Objects.isNull(this.botThinkResponse))
-                return;
-
-            MarkdownMessage botResponse = getBotResponse();
-            botResponse.appendMarkdown(content);
-            botResponse.scrollIntoView();
-
-            if (!this.isThinking && this.isFirstAssistantResponse)
+            if (this.isFirstAssistantResponse)
                 initBotResponse(System.currentTimeMillis());
-
-            if (botResponse == this.botResponse)
-                this.botResponse.removeClassName("blink");
-
-        }
-
-        private MarkdownMessage getBotResponse() {
-            return this.isThinking ? getBotThinkResponse() : this.botResponse;
-        }
-
-        private MarkdownMessage getBotThinkResponse() {
-            if (Objects.isNull(this.botThinkResponse)) {
-                this.botThinkTimestamp = System.currentTimeMillis();
-                this.botThinkResponse = buildMarkdownMessage(null, THINK_PROCESS, this.botThinkTimestamp);
-                buildProcessDetails(THINK_PROCESS, getThinkDetails(), this.botThinkResponse);
-                this.botResponse.removeFromParent();
-                this.messageListLayout.add(this.thinkDetails, this.botResponse);
-            }
-            return this.botThinkResponse;
+            this.botResponse.removeClassName("blink");
+            this.botResponse.appendMarkdown(content);
+            this.botResponse.getElement().scrollIntoView(DefaultScrollOptions);
         }
 
         private void initBotResponse(long epochMillis) {
@@ -516,16 +489,17 @@ public class ChatContentView extends VerticalLayout {
             messageList.map(List::getFirst).filter(message -> USER.equals(message.getMessageType()))
                     .map(Message::getMetadata).ifPresent(metadata -> updateMetadata(metadata, this.startTimestamp));
             Optional<Map<String, Object>> metadataAsOpt = messageList.map(List::getLast).map(Message::getMetadata);
-            if (Objects.nonNull(this.botThinkResponse)) {
-                this.thinkDetails.removeFromParent();
-                metadataAsOpt.ifPresent(metadata -> metadata.put(THINK_TIMESTAMP, this.botThinkTimestamp));
-                this.botThinkResponse.getElement().setProperty("userName", THINK_PROCESS);
-                initBotResponse(this.botThinkTimestamp);
+
+            if (Objects.nonNull(this.thinkProcessMessageBuilder)) {
+                metadataAsOpt.ifPresent(metadata -> {
+                    metadata.put(THINK_PROCESS_TIMESTAMP, this.botThinkTimestamp);
+                    metadata.put(THINK_PROCESS_MESSAGES, this.thinkProcessMessageBuilder.toString());
+                });
                 this.thinkDetails = null;
                 this.botThinkResponse = null;
+                this.thinkProcessMessageBuilder = null;
             }
             if (Objects.nonNull(this.mcpToolProcessMessagesBuilder)) {
-                this.mcpToolProcessDetails.removeFromParent();
                 metadataAsOpt.ifPresent(metadata -> {
                     metadata.put(MCP_TOOL_PROCESS_TIMESTAMP, this.mcpToolProcessTimestamp);
                     metadata.put(MCP_TOOL_PROCESS_MESSAGES, this.mcpToolProcessMessagesBuilder.toString());

@@ -1,0 +1,146 @@
+name: Desktop Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag to create when running manually (example: v0.2.0-M2)"
+        required: false
+        type: string
+  push:
+    branches: [ "**" ]
+    tags:
+      - "v*"
+    paths-ignore:
+      - "docs/**"
+      - "docs-overrides/**"
+      - "mkdocs.yml"
+      - "docs/requirements.txt"
+      - "README.md"
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runs_on }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS DMG (Apple Silicon)
+            runs_on: macos-14
+            dist_command: npm run dist:mac:dmg
+            artifact_name: spring-ai-playground-macos-arm64-dmg
+            artifact_paths: |
+              electron/dist/*arm64*.dmg
+
+          - name: macOS DMG (Intel)
+            runs_on: macos-15-intel
+            dist_command: npm run dist:mac:dmg
+            artifact_name: spring-ai-playground-macos-x64-dmg
+            artifact_paths: |
+              electron/dist/*x64*.dmg
+
+          - name: Windows NSIS
+            runs_on: windows-latest
+            dist_command: npm run dist:win
+            artifact_name: spring-ai-playground-windows-nsis
+            artifact_paths: |
+              electron/dist/*.exe
+
+          - name: Linux DEB/RPM
+            runs_on: ubuntu-latest
+            dist_command: npm run dist:linux
+            artifact_name: spring-ai-playground-linux-installers
+            artifact_paths: |
+              electron/dist/*.deb
+              electron/dist/*.rpm
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up GraalVM JDK 21
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: "21"
+          distribution: "graalvm"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          cache: "maven"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: |
+            package-lock.json
+            electron/package-lock.json
+
+      - name: Install Linux packaging tools
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm
+
+      - name: Build Spring Boot production JAR
+        if: runner.os != 'Windows'
+        run: ./mvnw -q -DskipTests -Pproduction package
+
+      - name: Build Spring Boot production JAR (Windows)
+        if: runner.os == 'Windows'
+        run: .\mvnw.cmd -q -DskipTests -Pproduction package
+
+      - name: Install Electron dependencies
+        working-directory: electron
+        run: npm ci
+
+      - name: Install frontend dependencies
+        if: hashFiles('package.json') != ''
+        run: npm install --no-audit --no-fund
+
+      - name: Prepare bundled resources
+        working-directory: electron
+        run: npm run prepare:resources
+
+      - name: Build desktop installer
+        working-directory: electron
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: ${{ matrix.dist_command }}
+
+      - name: Upload installer artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_paths }}
+          if-no-files-found: error
+
+  publish-release:
+    if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/heads/v') || (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '')
+    needs: build-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download installer artifacts
+        uses: actions/download-artifact@v6
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Upload assets to GitHub Release
+        uses: softprops/action-gh-release@v2.5.0
+        with:
+          draft: true
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag || github.ref_name }}
+          target_commitish: ${{ github.sha }}
+          files: |
+            release-assets/*.dmg
+            release-assets/*.exe
+            release-assets/*.deb
+            release-assets/*.rpm
+          generate_release_notes: true

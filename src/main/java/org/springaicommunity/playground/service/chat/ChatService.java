@@ -16,6 +16,8 @@
 package org.springaicommunity.playground.service.chat;
 
 
+import com.openai.core.JsonValue;
+import com.openai.models.chat.completions.ChatCompletionChunk;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
 import org.springaicommunity.playground.service.SharedDataReader;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
@@ -45,6 +47,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -58,6 +61,8 @@ import static org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor.DO
 @Service
 public class ChatService {
     private static final Logger logger = LoggerFactory.getLogger(ChatService.class);
+    private static final Set<String> REASONING_KEYS = Set.of("reasoning", "reasoning_content", "reasoningContent",
+            "thinking");
 
     public static final String CHAT_META = "chatMeta";
     public static final String RAG_FILTER_EXPRESSION = "ragFilterExpression";
@@ -87,8 +92,9 @@ public class ChatService {
 
     public Flux<String> stream(ChatHistory chatHistory, String prompt, String filterExpression,
             Consumer<ChatHistory> completeChatHistoryConsumer, List<ToolCallback> toolCallbacks,
-            Consumer<Object> mcpToolProcessMessageConsumer) {
-        return streamWithRaw(chatHistory, prompt, filterExpression, toolCallbacks, mcpToolProcessMessageConsumer).map(
+            Consumer<Object> mcpToolProcessMessageConsumer, Consumer<Object> thinkProcessMessageConsumer) {
+        return streamWithRaw(chatHistory, prompt, filterExpression, toolCallbacks, mcpToolProcessMessageConsumer,
+                thinkProcessMessageConsumer).map(
                         Generation::getOutput)
                 .map(assistantMessage -> Optional.ofNullable(assistantMessage.getText()).orElse(""))
                 .doFinally(signalType -> {
@@ -99,18 +105,28 @@ public class ChatService {
     }
 
     public Flux<Generation> streamWithRaw(ChatHistory chatHistory, String prompt, String filterExpression,
-            List<ToolCallback> toolCallbacks, Consumer<Object> mcpToolProcessMessageConsumer) {
+            List<ToolCallback> toolCallbacks, Consumer<Object> mcpToolProcessMessageConsumer,
+            Consumer<Object> thinkProcessMessageConsumer) {
         AtomicReference<ChatClientResponse> lastChatResponse = new AtomicReference<>();
         return getChatClientRequestSpec(chatHistory, prompt, filterExpression, toolCallbacks,
                 mcpToolProcessMessageConsumer).stream().chatClientResponse().map(chatClientResponse -> {
-            Generation generation = chatClientResponse.chatResponse().getResult();
-            if (Objects.nonNull(generation.getOutput().getText()))
-                lastChatResponse.set(chatClientResponse);
-            return generation;
-        }).doFinally(signalType -> {
-            if (SignalType.ON_COMPLETE.equals(signalType))
-                applyChatResponseMetadataToLastUserMessage(chatHistory, lastChatResponse.get());
-        });
+                    if (Objects.nonNull(thinkProcessMessageConsumer)) {
+                        Generation generation = chatClientResponse.chatResponse().getResult();
+                        extractThinking(generation).ifPresent(thinkProcessMessageConsumer);
+                    }
+                    return chatClientResponse;
+                }).filter(chatClientResponse -> {
+                    String text = chatClientResponse.chatResponse().getResult().getOutput().getText();
+                    if (Objects.nonNull(text)) {
+                        lastChatResponse.set(chatClientResponse);
+                        return true;
+                    }
+                    return false;
+                }).map(chatClientResponse -> chatClientResponse.chatResponse().getResult())
+                .doFinally(signalType -> {
+                    if (SignalType.ON_COMPLETE.equals(signalType))
+                        applyChatResponseMetadataToLastUserMessage(chatHistory, lastChatResponse.get());
+                });
     }
 
     private ChatClient.ChatClientRequestSpec getChatClientRequestSpec(ChatHistory chatHistory, String prompt,
@@ -127,7 +143,8 @@ public class ChatService {
                     if (StringUtils.hasText(filterExpression))
                         advisor.param(RAG_FILTER_EXPRESSION, filterExpression);
                 });
-        if (toolCallbacks != null && !toolCallbacks.isEmpty())
+        if (Objects.nonNull(mcpToolProcessMessageConsumer) && Objects.nonNull(toolCallbacks) &&
+                !toolCallbacks.isEmpty())
             chatClientRequestSpec.toolCallbacks(toolCallbacks)
                     .toolContext(Map.of(MCP_PROCESS_MESSAGE_CONSUMER, mcpToolProcessMessageConsumer));
         return Optional.ofNullable(chatHistory.systemPrompt()).filter(Predicate.not(String::isBlank))
@@ -191,5 +208,73 @@ public class ChatService {
 
     public List<McpServerInfo> getLiveMcpServerInfos() {
         return this.mcpServerInfosReader.read();
+    }
+
+    private Optional<String> extractThinking(Generation generation) {
+        return Optional.ofNullable(generation)
+                .map(Generation::getOutput)
+                .map(assistantMessage -> {
+                    Map<String, Object> metadata = assistantMessage.getMetadata();
+                    String directReasoning = Optional.ofNullable(metadata.get("reasoningContent"))
+                            .map(Object::toString)
+                            .filter(StringUtils::hasText)
+                            .orElseGet(() -> Optional.ofNullable(generation.getMetadata().get("thinking"))
+                                    .map(Object::toString)
+                                    .filter(StringUtils::hasText)
+                                    .orElse(null));
+                    if (StringUtils.hasText(directReasoning)) {
+                        return directReasoning;
+                    }
+                    return extractThinkingFromChunkChoice(metadata.get("chunkChoice")).orElse(null);
+                })
+                .filter(StringUtils::hasText);
+    }
+
+    private Optional<String> extractThinkingFromChunkChoice(Object chunkChoice) {
+        if (!(chunkChoice instanceof ChatCompletionChunk.Choice choice)) {
+            return Optional.empty();
+        }
+        return extractThinkingFromJsonMap(choice._additionalProperties())
+                .or(() -> extractThinkingFromJsonMap(choice.delta()._additionalProperties()));
+    }
+
+    private Optional<String> extractThinkingFromJsonMap(Map<String, JsonValue> properties) {
+        if (properties == null || properties.isEmpty()) {
+            return Optional.empty();
+        }
+        return properties.entrySet().stream()
+                .filter(entry -> REASONING_KEYS.contains(entry.getKey()))
+                .map(Map.Entry::getValue)
+                .map(this::extractTextFromJsonValue)
+                .filter(StringUtils::hasText)
+                .findFirst();
+    }
+
+    private String extractTextFromJsonValue(JsonValue jsonValue) {
+        if (jsonValue == null) {
+            return null;
+        }
+        Optional<?> rawStringValue = jsonValue.asString();
+        if (rawStringValue.isPresent()) {
+            String stringValue = Objects.toString(rawStringValue.get(), null);
+            if (StringUtils.hasText(stringValue)) {
+                return stringValue;
+            }
+        }
+
+        Optional<List<JsonValue>> arrayValue = jsonValue.asArray();
+        if (arrayValue.isPresent()) {
+            String joined = arrayValue.get().stream()
+                    .map(this::extractTextFromJsonValue)
+                    .filter(StringUtils::hasText)
+                    .collect(Collectors.joining("\n"));
+            if (StringUtils.hasText(joined)) {
+                return joined;
+            }
+        }
+
+        Optional<Map<String, JsonValue>> objectValue = jsonValue.asObject();
+        return objectValue.flatMap(this::extractThinkingFromJsonMap)
+                .orElse(null);
     }
 }

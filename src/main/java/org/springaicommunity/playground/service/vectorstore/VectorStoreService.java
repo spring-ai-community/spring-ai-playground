@@ -23,8 +23,8 @@ import org.springframework.ai.embedding.EmbeddingOptions;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationContext;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.util.Arrays;
@@ -59,7 +59,7 @@ public class VectorStoreService {
     }
 
     private final ApplicationContext applicationContext;
-    private final VectorStoreDocumentPersistenceService vectorStoreDocumentPersistenceService;
+    private final ObjectProvider<VectorStoreDocumentPersistenceService> vectorStoreDocumentPersistenceServiceProvider;
 
     private final AbstractEmbeddingModel embeddingModel;
     private final VectorStore vectorStore;
@@ -67,13 +67,13 @@ public class VectorStoreService {
     private EmbeddingOptions embeddingOptions;
 
     public VectorStoreService(EmbeddingModel embeddingModel, VectorStore vectorStore,
-            @Lazy ApplicationContext applicationContext,
-            @Lazy VectorStoreDocumentPersistenceService vectorStoreDocumentPersistenceService) {
+            ApplicationContext applicationContext,
+            ObjectProvider<VectorStoreDocumentPersistenceService> vectorStoreDocumentPersistenceServiceProvider) {
         this.embeddingModel = (AbstractEmbeddingModel) embeddingModel;
         this.vectorStore = vectorStore;
         this.searchRequestOption = new SearchRequestOption(0.6, DEFAULT_TOP_K);
         this.applicationContext = applicationContext;
-        this.vectorStoreDocumentPersistenceService = vectorStoreDocumentPersistenceService;
+        this.vectorStoreDocumentPersistenceServiceProvider = vectorStoreDocumentPersistenceServiceProvider;
     }
 
     public SearchRequestOption getSearchRequestOption() {
@@ -121,7 +121,7 @@ public class VectorStoreService {
 
     public void delete(List<String> documentIds) {
         this.vectorStore.delete(documentIds);
-        this.vectorStoreDocumentPersistenceService.delete(documentIds);
+        this.vectorStoreDocumentPersistenceServiceProvider.getObject().delete(documentIds);
     }
 
     public String getEmbeddingModelServiceName() {

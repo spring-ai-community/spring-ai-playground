@@ -1,0 +1,382 @@
+/*
+ * Copyright © 2025 Jemin Huh (hjm1980@gmail.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.springaicommunity.playground.webui.tool;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hilerio.ace.AceEditor;
+import com.hilerio.ace.AceMode;
+import com.hilerio.ace.AceTheme;
+import com.vaadin.flow.component.AttachEvent;
+import com.vaadin.flow.component.UI;
+import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.dependency.JavaScript;
+import com.vaadin.flow.component.html.H4;
+import com.vaadin.flow.component.html.H5;
+import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.icon.VaadinIcon;
+import com.vaadin.flow.component.orderedlayout.FlexLayout;
+import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
+import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.page.PendingJavaScriptResult;
+import com.vaadin.flow.component.textfield.TextArea;
+import org.springaicommunity.playground.service.tool.JsToolExecutor.JsExecutionResult;
+import org.springaicommunity.playground.service.tool.ToolSpec.JsonSchemaType;
+import org.springaicommunity.playground.service.tool.ToolSpec.ToolParamSpec;
+import org.springaicommunity.playground.service.tool.ToolSpecService;
+import org.springaicommunity.playground.webui.VaadinUtils;
+
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.Supplier;
+
+@JavaScript("./prettier-standalone.js")
+@JavaScript("./prettier-plugin-babel.js")
+@JavaScript("./prettier-plugin-estree.js")
+public class JavascriptToolPlaygroundView extends VerticalLayout {
+
+    @Override
+    protected void onAttach(AttachEvent attachEvent) {
+        attachEvent.getUI().getPage().executeJs("""
+                window.PRETTIER_DEFAULT_OPTIONS = {
+                  parser: "babel",
+                  printWidth: 200,
+                  tabWidth: 2,
+                  semi: true,
+                  singleQuote: true,
+                  trailingComma: "es5",
+                  proseWrap: "never"
+                };
+                """);
+    }
+
+    private final FlexLayout staticVariableContainer;
+    private final List<StaticVariableForm> staticVariableForms;
+    private final AceEditor ace;
+    private final TextArea consoleTextArea;
+    private final Button testRunButton;
+    private final Button formatButton;
+    private final ObjectMapper objectMapper;
+    private final ToolSpecService toolSpecService;
+    private final Supplier<List<ToolParamSpec>> currentToolParamsSupplier;
+
+    public JavascriptToolPlaygroundView(ObjectMapper objectMapper, ToolSpecService toolSpecService,
+            Supplier<List<ToolParamSpec>> currentToolParamsSupplier) {
+        this.objectMapper = objectMapper;
+        this.toolSpecService = toolSpecService;
+        this.currentToolParamsSupplier = currentToolParamsSupplier;
+        this.staticVariableForms = new ArrayList<>();
+
+        setSizeFull();
+        setPadding(false);
+        setSpacing(true);
+
+        ace = new AceEditor();
+        ace.setMinlines(35);
+        ace.setSizeFull();
+        ace.setTheme(AceTheme.monokai);
+        ace.setMode(AceMode.javascript);
+        ace.setAutoComplete(true);
+        ace.setLiveAutocompletion(true);
+        ace.setUseWorker(true);
+        ace.setShowInvisibles(true);
+        ace.setTabSize(2);
+        ace.setWrap(true);
+        ace.setShowPrintMargin(false);
+        ace.setPlaceholder("Type JavaScript code here…");
+        String exampleJs = """
+                /**
+                 * NOTE TO DEVELOPERS:
+                 * This code runs on JavaScript (ECMAScript 2023) inside the JVM using GraalJS.
+                 * It is NOT a browser or Node.js environment.
+                 *
+                 * Unavailable APIs:
+                 * - Browser APIs: fetch, XMLHttpRequest, DOM (window/document), timers, etc.
+                 * - Node.js APIs: require(), modules, process, built-in modules, etc.
+                 *
+                 * Available features:
+                 * - Java interop via Java.type() is restricted to a safe allowlist (see application.yml)
+                 * - Common utilities and HTTP client classes are allowed (e.g. java.util.*, java.net.http.HttpClient, ...)
+                 * - Dangerous operations (file I/O, system commands, reflection, etc.) are completely blocked
+                 * - console.log output is captured and displayed in the Debug Console below
+                 *
+                 * Execution model:
+                 * - Your script is executed in a sandboxed environment with strict security restrictions
+                 * - The script runs fresh on every call (stateless)
+                 * - You MUST return a value — this becomes the tool result returned to the agent
+                 */
+                
+                /* ===== Example: Hello World — delete and replace ===== */
+                const Instant = Java.type('java.time.Instant');
+                
+                return {
+                  message: 'Hello World from Spring AI Playground 👋',
+                  timestamp: new Date().toISOString(),
+                  epochMilli: Instant.now().toEpochMilli(),
+                  note: 'You can access allow Java classes, configured safely in application.yml!',
+                };
+                """;
+        ace.setValue(exampleJs);
+        ace.getElement().getStyle()
+                .set("min-height", "400px")
+                .set("font-size", "1rem");
+
+        consoleTextArea = new TextArea();
+        consoleTextArea.setReadOnly(true);
+        consoleTextArea.setWidthFull();
+        consoleTextArea.getStyle()
+                .set("font-family", "var(--lumo-font-family-monospace)")
+                .set("font-size", "var(--lumo-font-size-s)")
+                .set("border", "none")
+                .set("background-color", "var(--lumo-contrast-5pct)")
+                .set("flex-grow", "1");
+        consoleTextArea.getElement().getStyle().set("min-height", "300px");
+
+        VerticalLayout bottomContainer = new VerticalLayout();
+        bottomContainer.setPadding(false);
+        bottomContainer.setSpacing(true);
+        bottomContainer.setWidthFull();
+        bottomContainer.add(new H5("Debug Console"), consoleTextArea);
+        bottomContainer.getStyle().set("display", "flex").set("flex-direction", "column");
+
+        this.testRunButton = new Button("Test Run", VaadinIcon.PLAY.create(), e -> runTestJavascript());
+        Button clearButton = new Button("Clear", VaadinIcon.ERASER.create(), e -> ace.clear());
+        this.formatButton = new Button("Format", VaadinIcon.MAGIC.create(), e -> formatCodeWithPrettier());
+        getElement().executeJs("""
+                window.waitForPrettier = new Promise((resolve) => {
+                    const check = setInterval(() => {
+                        if (window.prettier && window.prettierPlugins) {
+                            clearInterval(check);
+                            resolve();
+                        }
+                    }, 50);
+                });
+                """);
+
+        Span staticHint = new Span(
+                "Optional key–value pairs available in your code as global variables, injected into the action context");
+        staticHint.getElement().getStyle().set("font-size", "0.85em").set("color", "var(--lumo-secondary-text-color)");
+
+        HorizontalLayout staticVarsHeader =
+                new HorizontalLayout(new H5("Static Variables"), staticHint);
+        staticVarsHeader.setAlignItems(Alignment.BASELINE);
+
+        this.staticVariableContainer = new FlexLayout();
+        staticVariableContainer.setFlexDirection(FlexLayout.FlexDirection.COLUMN);
+        staticVariableContainer.setWidthFull();
+
+        VerticalLayout staticVarsSection = new VerticalLayout(staticVarsHeader, staticVariableContainer);
+        staticVarsSection.setPadding(false);
+        staticVarsSection.setSpacing(true);
+        staticVarsSection.setWidthFull();
+        HorizontalLayout actionBar = new HorizontalLayout(testRunButton, clearButton, formatButton);
+
+        actionBar.setPadding(false);
+        actionBar.setSpacing(false);
+        actionBar.getStyle().set("gap", "var(--lumo-space-s)");
+        actionBar.setWidthFull();
+
+        add(new H4("Tool Action"), staticVarsSection, new H5("JS Code Editor"), ace, actionBar, bottomContainer);
+        setFlexGrow(1, ace);
+        setFlexGrow(1, bottomContainer);
+        addDefaultStaticVariableForm();
+    }
+
+    private void addDefaultStaticVariableForm() {
+        addStaticVariableForm(1);
+    }
+
+    private StaticVariableForm addStaticVariableForm(int index) {
+        StaticVariableForm staticVariableForm = new StaticVariableForm(index, this::removeStaticVariableForm,
+                () -> addStaticVariableForm(staticVariableForms.size() + 1));
+        staticVariableForms.add(staticVariableForm);
+        staticVariableContainer.add(staticVariableForm);
+        updateStaticVariableButtons();
+        return staticVariableForm;
+    }
+
+    private void removeStaticVariableForm(StaticVariableForm form) {
+        if (staticVariableForms.size() <= 1) {
+            return;
+        }
+
+        staticVariableContainer.remove(form);
+        staticVariableForms.remove(form);
+
+        for (int i = 0; i < staticVariableForms.size(); i++) {
+            staticVariableForms.get(i).updateIndex(i + 1);
+        }
+
+        updateStaticVariableButtons();
+    }
+
+    private void updateStaticVariableButtons() {
+        int size = staticVariableForms.size();
+        boolean hasMultiple = size > 1;
+        for (int i = 0; i < size; i++) {
+            StaticVariableForm form = staticVariableForms.get(i);
+            boolean isLast = (i == size - 1);
+            form.setAddButtonVisible(isLast);
+            form.setDeleteButtonVisible(hasMultiple);
+        }
+    }
+
+    public List<Map.Entry<String, String>> getStaticVariables() {
+        return staticVariableForms.stream().map(staticVariableForm -> {
+            String key = staticVariableForm.getKey().trim();
+            return !key.isBlank() ? Map.entry(key, staticVariableForm.getValue()) : null;
+        }).filter(Objects::nonNull).toList();
+    }
+
+    private void formatCodeWithPrettier() {
+        formatButton.setEnabled(false);
+        String code = ace.getValue();
+
+        PendingJavaScriptResult result = ace.getElement().executeJs("""
+                return (async () => {
+                    try {
+                        const formatted = await prettier.format($0, {
+                            parser: "babel",
+                            plugins: prettierPlugins,
+                            semi: true,
+                            trailingComma: "es5",
+                            singleQuote: true,
+                            printWidth: 80,
+                            tabWidth: 2,
+                            bracketSpacing: true
+                        });
+                        return formatted;
+                    } catch (err) {
+                        return "ERROR: " + err.message;
+                    }
+                })();
+                """, code);
+
+        result.then(String.class,
+                formatted -> UI.getCurrent().access(() -> {
+                    if (formatted.startsWith("ERROR:")) {
+                        VaadinUtils.showErrorNotification("Formatting Failure: " + formatted);
+                    } else {
+                        ace.setValue(formatted);
+                        ace.focus();
+                    }
+                    formatButton.setEnabled(true);
+                }),
+                error -> UI.getCurrent().access(() -> {
+                    VaadinUtils.showErrorNotification("JS Error: " + error);
+                    formatButton.setEnabled(true);
+                })
+        );
+    }
+
+    private Object convertValueForType(Object testValue, JsonSchemaType type) throws JsonProcessingException {
+        if (Objects.nonNull(testValue) && testValue instanceof String strValue && !strValue.isBlank()) {
+            return switch (type) {
+                case STRING -> strValue;
+                case NUMBER -> Double.parseDouble(strValue);
+                case INTEGER -> Long.parseLong(strValue);
+                case BOOLEAN -> Boolean.parseBoolean(strValue);
+                case ARRAY -> this.objectMapper.readValue(strValue,
+                        new TypeReference<List<Object>>() {});
+                case OBJECT -> this.objectMapper.readValue(strValue,
+                        new TypeReference<Map<String, Object>>() {});
+            };
+        }
+        return testValue;
+    }
+
+    public boolean runTest() {
+        return this.testRunButton.isEnabled() && runTestJavascript();
+    }
+
+    private boolean runTestJavascript() {
+        this.testRunButton.setEnabled(false);
+        consoleTextArea.clear();
+        long start = System.currentTimeMillis();
+
+        try {
+            LinkedHashMap<String, Object> toolParams = new LinkedHashMap<>();
+            for (ToolParamSpec spec : this.currentToolParamsSupplier.get()) {
+                toolParams.put(spec.name(), convertValueForType(spec.testValue(), spec.type()));
+            }
+            JsExecutionResult jsExecutionResult =
+                    toolSpecService.executeTool("", getStaticVariables(), getCurrentJsCode(), toolParams);
+            VaadinUtils.getUi(this).access(() -> {
+                long end = System.currentTimeMillis();
+                String formattedResult = buildResultString(start, end, jsExecutionResult);
+                consoleTextArea.setValue(formattedResult);
+            });
+            return jsExecutionResult.isOk();
+        } catch (Exception ex) {
+            VaadinUtils.showErrorNotification("Exception: " + ex.getMessage());
+            return false;
+        } finally {
+            this.testRunButton.setEnabled(true);
+        }
+    }
+
+    private String buildResultString(long start, long end, JsExecutionResult result) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(result.debugInfo()).append("\n\n");
+        sb.append("Status: ").append(result.isOk() ? "Success" : "Error").append("\n");
+        sb.append("----------------------------------------\n");
+        sb.append("Start Time:    ").append(formatTs(start)).append("\n");
+        sb.append("End Time:      ").append(formatTs(end)).append("\n");
+        sb.append("Elapsed Time:  ").append(formatDuration(end - start)).append("\n");
+        sb.append("----------------------------------------\n\n");
+
+        if (result.isOk()) {
+            sb.append("Result:\n").append(result.result());
+        } else {
+            String errorMessage = "Error Details:\n" + result.error();
+            sb.append(errorMessage);
+            VaadinUtils.getUi(this).access(() -> VaadinUtils.showErrorNotification(errorMessage));
+        }
+        return sb.toString();
+    }
+
+    private String formatTs(long ts) {
+        return Instant.ofEpochMilli(ts).atZone(ZoneId.systemDefault())
+                .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS"));
+    }
+
+    private String formatDuration(long ms) {
+        return ms + " ms";
+    }
+
+    public String getCurrentJsCode() {
+        return ace.getValue();
+    }
+
+    public void updateContents(List<Map.Entry<String, String>> staticVariables, String code) {
+        this.staticVariableForms.clear();
+        this.staticVariableContainer.removeAll();
+        if (!staticVariables.isEmpty()) {
+            for (int i = 0; i < staticVariables.size(); i++)
+                addStaticVariableForm(i).update(staticVariables.get(i));
+        } else {
+            addDefaultStaticVariableForm();
+        }
+        this.ace.setValue(code);
+    }
+}

@@ -1,0 +1,6 @@
+========================================
+           Spring AI Playground
+========================================
+Spring AI Community Incubating Project
+Crafted by Jemin Huh
+Project: https://github.com/spring-ai-community/spring-ai-playground

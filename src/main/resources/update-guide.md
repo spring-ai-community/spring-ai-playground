@@ -38,10 +38,10 @@ If you run Spring AI Playground directly on your machine (not in Docker), follow
 ./mvnw spring-boot:run
 ```
 Notes:
-- If an existing Spring AI Playground process is running, please stop it first (e.g., using Ctrl+C or terminating the process) to avoid port conflicts on `8282`.
+- If an existing Spring AI Playground process is running, please stop it first (e.g., using Ctrl+C or terminating the process) to avoid port conflicts on the configured HTTP port (default: `8282`).
 - Data persistence: Data saved locally (e.g., in ~/.spring-ai-playground, or as configured in application.yaml) will persist.
 
 ## 3) Post-Upgrade Verification
-   Check the application at http://localhost:8282 to ensure the new version is running.
+   Check the application at the configured local URL (default: http://localhost:8282) to ensure the new version is running.
    
 ----

@@ -1,396 +1,186 @@
 # Spring AI Playground
 
-📖 **[Documentation](https://springaicommunity.mintlify.app/projects/incubating/spring-ai-playground)**
+**Safe Local Execution Layer for AI Agent Tools**
 
-**Spring AI Playground** is a self-hosted web UI that simplifies AI experimentation and testing. It provides Java developers with an intuitive interface for working with **large language models (LLMs)**, **vector databases**, **prompt engineering**, and **Model Context Protocol (MCP)** integrations.
+Spring AI Playground is a cross-platform desktop app for building, testing, validating, and executing MCP tools in a controlled local environment. It helps you create reusable MCP tools once and use them across macOS, Windows, and Linux through a self-contained runtime. Unlike platforms that focus primarily on generating agents or authoring tools, Spring AI Playground focuses on making the tools it manages inside the app safer and easier to inspect before reuse.
 
-Built on **Spring AI**, it supports leading model providers and includes comprehensive tools for testing **retrieval-augmented generation (RAG)** workflows and MCP integrations. The goal is to make AI more accessible to developers, helping them quickly prototype **Spring AI-based applications** with enhanced contextual awareness and external tool capabilities.
+> **No pass, no run.**
 
-## Table of Contents
-- [Quick Start](#quick-start)
-   - [Prerequisites](#prerequisites)
-   - [Getting Started](#getting-started)
-   - [Running the Application](#running-the-application)
-      - [Running with Docker (Recommended)](#running-with-docker-recommended)
-      - [Cleaning Up Docker](#cleaning-up-docker)
-      - [Running Locally (Optional)](#running-locally-optional)
-   - [PWA Installation](#pwa-installation)
-- [Auto-configuration](#auto-configuration)
-- [AI Models](#ai-models)
-   - [Support for Major AI Model Providers](#support-for-major-ai-model-providers)
-   - [Selecting and Configuring Ollama Models](#selecting-and-configuring-ollama-models)
-   - [Switching to OpenAI](#switching-to-openai)
-     - [Switching to OpenAI-Compatible Servers](#switching-to-openai-compatible-servers)
-- [MCP (Model Context Protocol) Playground](#mcp-model-context-protocol-playground)
-   - [Key Features](#key-features)
-   - [Getting Started with MCP](#getting-started-with-mcp)
-- [Chat Using MCP](#chat-using-mcp)
-   - [Ollama Tool-Enabled Models](#ollama-tool-enabled-models)
-- [Vector Database](#vector-database)
-   - [Support for Major Vector Database Providers](#support-for-major-vector-database-providers)
-   - [Vector Database Playground Features](#vector-database-playground-features)
-- [Chat Using RAG](#chat-using-rag)
-- [Upcoming Features](#upcoming-features)
-   - [Spring AI Agent](#spring-ai-agent)
-   - [Observability](#observability)
-   - [Authentication](#authentication)
-   - [Multimodal Support](#multimodal-support)
+In Tool Studio, new or updated built-in tools are test-run before they are published to the built-in MCP server. You do not need to know Java, Spring, or JVM internals to use it. If you can install a desktop app and write a small JavaScript function, you can build tools here and connect them to hosts and clients such as Claude Desktop, Claude Code, Cursor, IDEs, and other MCP-compatible environments.
+
+## The Problem
+
+AI agents can generate tools quickly, but generated tools are not inherently safe to execute.
+
+- It is often unclear what actually runs at execution time
+- Failures are difficult to predict before real usage
+- Execution is not easily traceable or inspectable
+
+Most platforms focus on creation.
+
+Very few make verification part of the default workflow for built-in tool publication.
+
+## Who is this for?
+
+- Developers building MCP tools who want validation built into the default workflow
+- Teams connecting MCP tools into Python, Node.js, or mixed-stack agent environments
+- Users of Claude Desktop, Claude Code, Cursor, and other MCP-compatible environments
 
 ## Quick Start
-### Prerequisites
-- Java 21 or later installed (required for building the project).
-- Ollama running on your machine (refer to AI Models).
-- Docker installed and running on your machine. (only if you choose to run the application using Docker)
 
-### Getting Started
-First, clone the Spring AI Playground project from GitHub:
-```
-git clone https://github.com/spring-ai-community/spring-ai-playground.git
-cd spring-ai-playground
-```
+The fastest path is the desktop app distributed through GitHub Releases.
 
-### Running the Application
-#### Running with Docker (Recommended)
-1. Build the Docker Image:
-   ```
-   ./mvnw spring-boot:build-image -Pproduction -DskipTests=true \
-   -Dspring-boot.build-image.imageName=jmlab/spring-ai-playground:latest
-   ```
-2. Run the Docker Container:
-   ```
-   docker run -d -p 8282:8282 --name spring-ai-playground \
-   -e SPRING_AI_OLLAMA_BASE_URL=http://host.docker.internal:11434 \
-   -v spring-ai-playground:/home \
-   --restart unless-stopped \
-   jmlab/spring-ai-playground:latest
-   ```
-3. Access the Application:
-   Open http://localhost:8282 in your browser.
+Spring AI Playground is a standalone desktop app, so you can install it and start building MCP tools without setting up a Java project, Docker environment, or source build first.
 
-> ***Notes:***
->- Data Persistence: Application data is stored in the spring-ai-playground Docker volume, ensuring data persists even if the container is removed.
->- Ollama Connection: The environment variable SPRING_AI_OLLAMA_BASE_URL is set to http://host.docker.internal:11434. Adjust the URL if Ollama runs on a different host or port.
->- Automatic Restart: The --restart unless-stopped option ensures the container restarts automatically unless manually stopped with docker stop.
-> - ***For Linux Users:*** The `host.docker.internal` DNS name may not be available on all Linux distributions. If you encounter connection issues, you may need to use `--network="host"` in your `docker run` command or replace `host.docker.internal` with your host machine's IP address on the Docker bridge network (e.g., `172.17.0.1`).
+### 1. Download the Desktop App
 
-> ⚠️ **MCP STDIO Transport Limitation**  
-> While Docker is recommended for most scenarios, it is not suitable for testing MCP STDIO transport. MCP STDIO transport requires direct process-to-process communication, which containerized environments cannot provide reliably.  
+Choose the installer for your platform from the latest release:
+
+[![Windows](https://img.shields.io/badge/Windows-NSIS%20Installer-0078D6?logo=windows&logoColor=white)](https://github.com/spring-ai-community/spring-ai-playground/releases/latest/download/Spring.AI.Playground.exe)
+[![macOS Apple Silicon](https://img.shields.io/badge/macOS-Apple%20Silicon%20arm64-000000?logo=apple&logoColor=white)](https://github.com/spring-ai-community/spring-ai-playground/releases/latest/download/Spring.AI.Playground-arm64.dmg)
+[![macOS Intel](https://img.shields.io/badge/macOS-Intel%20x64-555555?logo=apple&logoColor=white)](https://github.com/spring-ai-community/spring-ai-playground/releases/latest/download/Spring.AI.Playground-x64.dmg)
+[![Linux DEB](https://img.shields.io/badge/Linux-DEB-A81D33?logo=debian&logoColor=white)](https://github.com/spring-ai-community/spring-ai-playground/releases/latest/download/Spring.AI.Playground.deb)
+[![Linux RPM](https://img.shields.io/badge/Linux-RPM-EE0000?logo=redhat&logoColor=white)](https://github.com/spring-ai-community/spring-ai-playground/releases/latest/download/Spring.AI.Playground.rpm)
+
+Or browse all available assets on the [Releases page](https://github.com/spring-ai-community/spring-ai-playground/releases).
+
+### 2. Install and Launch
+
+Install the app like a normal desktop application, then launch **Spring AI Playground** from your applications menu.
+
+The desktop app bundles the backend runtime together with a launcher that provides provider starter templates, YAML override editing, environment-variable based secret handling, and one-click launch.
+
+If you install the app, you can run Spring AI Playground immediately without setting up Docker or running the source manually.
+
+> **macOS note**  
+> For macOS-specific install notes, Gatekeeper guidance, and quarantine troubleshooting, see the [Getting Started guide](https://spring-ai-community.github.io/spring-ai-playground/getting-started/).
 >
-> If you plan to test the MCP STDIO transport, please use the [Running Locally (Optional)](#running-locally-optional) instead.
-
-#### Cleaning Up Docker
-- To stop and remove the Docker container, image, and volume:
-   ```
-   docker stop spring-ai-playground
-   docker rm spring-ai-playground
-   docker rmi jmlab/spring-ai-playground:latest
-   docker volume rm spring-ai-playground
-   ```
-
-#### Running Locally (Optional)
-1. **Build and Run the Application**:
-   ```
-   ./mvnw clean install -Pproduction -DskipTests=true
-   ./mvnw spring-boot:run
-   ```
-2. **Access the Application**:
-   Open `http://localhost:8282` in your browser.
-
-### PWA Installation
-
-> **Note**: Complete either the Docker or Local installation steps above before proceeding with PWA installation.
-
-**Spring AI Playground** comes with Progressive Web App (PWA) capabilities, allowing you to install it as a standalone application on your device for a native app-like experience.
-
-#### Installing as PWA
-
-1. Open the application in your web browser at `http://localhost:8282`
-2. Install using one of the following methods:
-    - Browser PWA Install Popup: Most modern browsers will automatically show a PWA installation popup or prompt in the address bar
-    - Install PWA Button: Look for the "Install PWA" button on the application's home page and click it
-3. Follow the installation wizard to complete the setup and add the app to your device
-
-## Auto-configuration
-
-Spring AI Playground uses Ollama by default for local LLM and embedding models. No API keys are 
-required, which makes it easy to get started.
-
-## AI Models
-To enable Ollama, ensure it is installed and running on your system. Refer to the [Spring AI Ollama Chat Prerequisites](https://docs.spring.io/spring-ai/reference/api/chat/ollama-chat.html#_prerequisites) for setup details.
-
-### Support for Major AI Model Providers
-Spring AI Playground supports all major AI model providers, including Anthropic, OpenAI, Microsoft, Amazon, Google, and Ollama. For more details on the available implementations, visit the [Spring AI Chat Models Reference Documentation](https://docs.spring.io/spring-ai/reference/api/chatmodel.html#_available_implementations).
-
-### Selecting and Configuring Ollama Models
-When running Spring AI Playground with the **`ollama`** profile, you can configure the default chat and embedding models, as well as the list of available models in the playground UI, by updating your configuration file (`application.yaml`).
-> **Notes:**
->- `pull-model-strategy: when_missing` ensures that the configured models are automatically pulled from Ollama if they are not already available locally.
->- `playground.chat.models` controls which models appear in the model selection dropdown in the web UI.
->- Changing the `chat.options.model` or `embedding.options.model` here updates the defaults used by the application.
-
-> **Pre‑pull Recommended Ollama Models** to avoid delays when first using a model, pre-pull it with Ollama before starting Spring AI Playground.
-
-### Switching to OpenAI
-
-Switching to **OpenAI** is a primary example of how you can use a different AI model with Spring AI Playground. To explore other models supported by Spring AI, learn more in the [Spring AI Documentation](https://spring.io/projects/spring-ai).
-
-To switch to OpenAI, follow these steps:
-
-- **Modify the [`pom.xml`](./pom.xml) file**:
-   
-   - Remove the Ollama dependency:
-     ```xml
-     <dependency>
-        <groupId>org.springframework.ai</groupId>
-        <artifactId>spring-ai-starter-model-ollama</artifactId>
-     </dependency>
-     ```
-
-   - Add the OpenAI dependency:
-     ```xml
-     <dependency>
-        <groupId>org.springframework.ai</groupId>
-        <artifactId>spring-ai-starter-model-openai</artifactId>
-     </dependency>
-     ```
-
-- **Update [`application.yaml`](./src/main/resources/application.yaml)**:  
-
-   - Update the following configuration to set OpenAI as the default profile:
-     ```yaml 
-     spring:
-       profiles:
-         default: openai
-       ai:
-         openai:
-           api-key: your-openai-api-key
-     ```
-
-#### Switching to OpenAI-Compatible Servers
-You can connect Spring AI to OpenAI-compatible servers such as `llama.cpp`, `TabbyAPI`, or `LM Studio` by adding the following configuration to `application.yml`:
-
-```yaml
-spring:
-  ai:
-    openai:
-      # Set your actual API key here.
-      # If your server does not require authentication, use a placeholder string (e.g., "not-used").
-      api-key: "not-used"
-      # Base URL including scheme, host, and port only. Do NOT append /v1, as Spring AI will automatically add the path.
-      # Ensure the port matches your server’s configuration, as defaults may vary.
-      base-url: "http://localhost:8080"
-      chat:
-        options:
-          # Specify the model ID exposed by your server (e.g., "mistral" for LM Studio). Check your server’s documentation or /models endpoint for available models.
-          model: "your-model-name"
-        # Optional: Override the completions endpoint if your server uses a custom path (default: "/v1/chat/completions").
-        # completions-path: "/custom/chat/completions"
-```
-
-**Configuration Details:**
-- `api-key`: Required by Spring AI. Use your real API key or a placeholder string if authentication is not required.
-- `base-url`: The server URL up to host and port, without trailing version/path segments.
-- `model`: Must match the model name exposed by your server (e.g., mistral, gpt2).
-- `completions-path`: Override only if your server uses a non-standard endpoint path for chat completions (default: `/v1/chat/completions`).
-
-**Server-Specific Examples:**
-
-**llama.cpp server:**
-```yaml
-spring:
-  ai:
-    openai:
-      api-key: "not-used"
-      base-url: "http://localhost:8080"
-      chat:
-        options:
-          model: "your-model-name"
-```
-
-**TabbyAPI:**
-```yaml
-spring:
-  ai:
-    openai:
-      api-key: "not-used"  # Replace with an actual key if authentication is enabled in TabbyAPI settings
-      base-url: "http://localhost:5000"
-      chat:
-        options:
-          model: "your-exllama-model"
-```
-
-**LM Studio:**
-```yaml
-spring:
-  ai:
-    openai:
-      api-key: "not-used"
-      base-url: "http://localhost:1234"
-      chat:
-        options:
-          model: "your-loaded-model"
-```
-
-> **Note**:  
-> Ensure your server fully adheres to OpenAI’s API specification for best compatibility.
-Streaming support works automatically if your server supports Server-Sent Events. Verify your server’s capabilities.
-Check your server’s documentation or /models endpoint to find the correct model name.
-
-## MCP (Model Context Protocol) Playground
-
-![Spring AI MCP Playground Demo](spring-ai-playground-mcp.png)
-
-Spring AI Playground now includes a comprehensive **MCP (Model Context Protocol) Playground** that provides a visual 
-interface for managing connections to external tools through AI models. This feature leverages Spring AI's Model Context Protocol implementation to offer client-side capabilities.
-
-### Key Features
-
-- **Connection Management**: Configure and manage MCP connections with multiple transport types including STREAMABLE HTTP, STDIO, and SSE (Server-Sent Events).
-- **Server Configuration**: Configure connections to MCP servers with customizable names, descriptions, and connection parameters.
-- **MCP Inspector**: Explore available tools and their capabilities with detailed information including:
-    - Tool names and descriptions
-    - Required arguments and parameters
-    - Action definitions and specifications
-- **Interactive Tool Testing**: Execute MCP tools directly from the playground with real-time results and execution history.
-
-> **Note**: **STREAMABLE HTTP** officially introduced in the MCP v2025‑03‑26 specification (March 26, 2025) — is a 
-> single-endpoint HTTP transport that replaces the former HTTP+SSE setup. Clients send JSON‑RPC via POST to /mcp, while responses may optionally use an SSE-style stream, with session‑ID tracking and resumable connections.
-
-### Getting Started with MCP
-
-1. **Configure MCP Server Connection**:
-    - Access the MCP Playground from the main interface
-    - Set up your MCP server connection with the appropriate transport type and connection details
-
-2. **Explore Available Tools**:
-    - Use the MCP Inspector to browse available tools and their specifications
-    - Review tool descriptions, required arguments, and expected parameters
-    - Understand the capabilities of your MCP server connection setup
+> If macOS still blocks launch because the app is quarantined, and you trust the app, one practical workaround is:
+>
+> ```
+> xattr -dr com.apple.quarantine "/Applications/Spring AI Playground.app"
+> ```
 
-3. **Test Tool Execution**:
-    - Select tools from the inspector and execute them with appropriate arguments
-    - Monitor execution results and review the execution history
-    - Debug and refine your MCP integration based on real-time feedback
+## Documentation
 
-This MCP Playground provides developers with a powerful visual tool for prototyping, testing, and debugging Model Context Protocol integrations, making it easier to build sophisticated AI applications with contextual awareness.
+Detailed installation, configuration, features, and tutorials live in the documentation site:
 
-## Chat Using MCP
+- Documentation site: https://spring-ai-community.github.io/spring-ai-playground/
+- Getting Started: https://spring-ai-community.github.io/spring-ai-playground/getting-started/
+- Features: https://spring-ai-community.github.io/spring-ai-playground/features/
+- Tutorials: https://spring-ai-community.github.io/spring-ai-playground/tutorials/
 
-![Spring AI Chat Using MCP Demo](spring-ai-playground-chat-mcp.gif)
+Alternative runtimes are still supported:
 
-Spring AI Playground now provides seamless integration with MCP (Model Context Protocol) tools directly within the chat interface, enabling you to enhance AI conversations with external tools. Here's how you can leverage this powerful feature:
+- Docker for server-style deployment
+- local source execution for development workflows and MCP STDIO testing
 
-1. **Set Up Your MCP Connections**:
-- First, configure your MCP servers through the MCP Playground interface.
-- Define your MCP connections with appropriate transport types (STREAMABLE HTTP, STDIO, or SSE).
-- Set up server configurations including names, descriptions, and connection parameters.
-- Test your tools in the MCP Inspector to ensure they're working correctly.
+<p align="center">
+  <b>Agentic Chat Demo</b><br/>
+  Tool-enabled agentic AI built with Spring AI and MCP
+</p>
 
-2. **Select MCP Connections in the Chat Page**:
-- Choose one or more MCP connections from the dropdown menu to enable tool access for your conversations.
-- Only the selected MCP connections are available for the AI to use during the chat session. If no connections are selected, MCP tools will not be accessible.
+<p align="center">
+  <a href="docs/assets/images/agentic-chat-demo.gif">
+    <img src="docs/assets/images/agentic-chat-demo.gif" width="800" alt="Spring AI Playground Agentic Chat Demo"/>
+  </a>
+</p>
 
-3. **Send a Message**:
-- Enter your prompts in the chat input, and request actions that require external tools or capabilities.
-- The AI model will automatically determine when to use available MCP tools based on your conversation context and requirements.
-- Tools will be executed automatically, and their results will be integrated into the AI's responses.
+## Why Spring AI Playground?
 
-4. **Review and Refine**:
-- Examine the generated responses, which now incorporate information and actions from your MCP tools.
-- Adjust your MCP connection selection or refine your tool configurations to further improve the functionality and relevance of the responses.
-- Monitor tool execution and results to optimize your MCP integration.
+- **Built-In MCP Server**: Publish tools directly from the app and expose them immediately through the built-in MCP server instead of wiring ad-hoc local scripts by hand.
+- **No Pass, No Run Workflow**: In Tool Studio, built-in tools are test-run before they are published, making validation part of the default product flow instead of an optional afterthought.
+- **Executable Tool Validation**: Test tools with real inputs, outputs, and runtime constraints before you reuse them from other MCP-compatible hosts and clients.
+- **Secure Secret Management**: Keep API keys and sensitive configuration out of YAML and manage them through the desktop app's secret storage and launcher-backed environment settings. When OS-backed secure storage is unavailable, the app clearly warns before falling back to plain-text local storage.
+- **Tool-to-Agent Workflow**: Create tools in Tool Studio, inspect them through MCP, and use them in Agentic Chat in one continuous workflow.
+- **Provider Agnostic**: Switch between Ollama, OpenAI, and other OpenAI-compatible APIs without changing the overall workflow.
+- **OS-Independent Tool Runtime**: Tools are authored once as JavaScript and run through the same bundled runtime, so the same tool definition works consistently across macOS, Windows, and Linux.
+- **Single-Agent Execution**: Use validated built-in tools together with grounded context (RAG) in Agentic Chat to handle focused, practical workflows without needing a larger orchestration layer. Agentic Chat can also call tools exposed by MCP servers that you explicitly connect and trust.
 
-### Ollama Tool-Enabled Models
+The intended workflow is practical and composable:
 
-> **⚠️ Important for Ollama Users**  
-> When using Ollama as your AI provider, ensure you're using a **tool-enabled model** that supports external function calling. Not all Ollama models support MCP tool integration.
+- create or adapt tools in Tool Studio
+- test them before publishing
+- expose them through the built-in MCP server
+- inspect them through MCP Inspector
+- index knowledge in Vector Database
+- combine tools and documents in Agentic Chat
 
-#### How to Verify Tool Support
+## Why Not Just Use Agent Builders?
 
-1. **Check Model Compatibility**: Visit the [Ollama Models page](https://ollama.com/search?c=tools) and filter by "Tools" category
-2. **Pull the Model**: Ensure you have the latest version using `ollama pull <model-name>`
-3. **Test in MCP Playground**: Use the MCP Inspector to verify tool functionality before chat integration
+Agent builders focus on generating tools and composing workflows.
 
-> **Tip**  
-> Models like **OpenAI GPT-OSS**, **Qwen 3**, and **DeepSeek-R1** offer advanced reasoning capabilities with visible thought processes, making them particularly effective for complex MCP tool workflows.
+Spring AI Playground focuses on validating tools and controlling execution.
 
-This integration enables developers to quickly prototype and test tool-enhanced AI interactions, bringing the power of external systems and capabilities directly into your Spring AI conversations through the Model Context Protocol.
+It complements agent builders by providing a reliable execution layer.
 
-## Vector Database
+## Project Scope & Positioning
 
-![Spring AI Vector Database Playground Demo](spring-ai-playground-vectordb.gif)
+Spring AI Playground is a **tool-first environment** for building, testing, validating, and operationalizing MCP tools in a practical workflow.
 
-**Spring AI Playground** offers a comprehensive vector database playground with advanced retrieval capabilities powered by Spring AI's VectorStore API integration.
+It is best understood as a **safe local execution layer for AI agent tools**.
 
-- **Multi-Provider Testing**: Switch between vector database providers without code changes
-- **Syntax Standardization**: Query different databases using Spring AI's unified interface
+> **Note:** This project is intentionally focused in its current stage.  
+> The goal is to make MCP tool building, validation, inspection, and runtime exposure simple and reliable, so the tools you create here can be reused from MCP-compatible hosts and clients such as Claude Code, Claude Desktop, IDEs, and other agent environments.
 
-### Support for Major Vector Database Providers
-[Vector Database providers](https://docs.spring.io/spring-ai/reference/api/vectordbs.html#_vectorstore_implementations) including Apache Cassandra, Azure Cosmos DB, Azure Vector Search, Chroma, Elasticsearch, GemFire, MariaDB, Milvus, MongoDB Atlas, Neo4j, OpenSearch, Oracle, PostgreSQL/PGVector, Pinecone, Qdrant, Redis, SAP Hana, Typesense and Weaviate.
+Current focus:
 
-### Vector Database Playground Features
+- providing a UI-driven environment for building, testing, and validating MCP tools in a practical workflow
+- making test-before-publish the default path for built-in local tool exposure
+- testing tool execution flows, environment-backed tool configuration, and RAG integration in one place
+- making tools easier to inspect, easier to test, and easier to operationalize before they are reused elsewhere
+- supporting practical single-agent workflows through Agentic Chat with tools and grounded context. See [Agentic Chat Architecture Overview](https://spring-ai-community.github.io/spring-ai-playground/features/#agentic-chat-architecture-overview).
+- promoting validated built-in tools into reusable MCP-hosted runtimes that can be shared across multiple MCP-compatible hosts and clients
 
-- **Custom Chunk Input**: Directly input and chunk custom text for embedding, allowing detailed RAG pipeline testing.
-- **Document Uploads**: Upload files such as **PDFs, Word documents, and PowerPoint presentations**, and benefit from an end-to-end process of **text extraction → chunking → embedding**.
-- **Search and Scoring**: Perform vector similarity searches and visualize results with **similarity scores (0-1)** for easy evaluation.
-- **Spring AI Filter Expressions**: Utilize metadata-based filtering (e.g., `author == 'John' && year >= 2023`) to narrow search scopes and refine query results.
+It is not trying to replace the tools where agents actually run. It is designed to give you a clearer path from local tool prototype to inspectable, reusable MCP server.
 
-These features, combined with Spring AI's flexibility, provide a comprehensive playground for vector database testing and advanced integration into your applications.
+## Contributing & Scope
 
-## Chat Using RAG
+Please read this section before opening issues or submitting contributions.
 
-Spring AI Playground now offers a fully integrated RAG (Retrieval-Augmented Generation) feature, allowing you to enhance AI responses with knowledge from your own documents. Here’s how you can make the most of this capability:
+### Current Scope
 
-1. **Set Up Your Vector Database**:
-    - First, upload your documents (PDFs, Word, PowerPoint, etc.) through the Vector Database Playground.
-    - The system extracts text, splits it into chunks, and generates vector embeddings for semantic search.
-    - You have full control over your data and can add, remove, or modify individual chunks to improve retrieval results.
-    - Additionally, you can configure search options such as similarity thresholds and the Top K value (the number of top matching chunks to retrieve), allowing you to further tailor how relevant information is selected during retrieval.
+- bug reports with reproducible steps
+- documentation improvements
+- usage examples
+- focused improvements to existing tool, MCP, RAG, and Agentic Chat workflows
 
-2. **Select Documents in the Chat Page**:
-    - Choose one or more documents from the vector database to define the knowledge base for responses.
-    - Only the selected documents are filtered and used as the knowledge source for RAG. If no documents are selected, RAG will not be performed.
+### Out of Scope For Now
 
-3. **Send a Message**:
-    - Enter your prompts in the chat input
-    - The system retrieves the most relevant content from your selected documents and uses it to generate a contextual, knowledge-grounded response.
+- broad feature requests that significantly expand project scope
+- experimental model integrations outside the current supported provider list (currently: Ollama, OpenAI, and OpenAI-compatible APIs)
+- high-level multi-agent orchestration layers
+- platform-level marketplace or governance features
 
-4. **Review and Refine**:
-    - Examine the generated responses, which now incorporate information from your vector database
-    - Adjust your document selection or refine your queries to further improve the quality and relevance of the responses
+### Reporting Issues
 
-This seamless integration enables developers to quickly prototype and optimize knowledge-enhanced AI interactions within a single, intuitive interface-bringing the power of Retrieval-Augmented Generation to your Spring AI applications.
+Before opening an issue:
 
-## Upcoming Features
+- use the Bug Report template for reproducible failures
+- submit a documentation PR for documentation fixes or improvements
+- read the project scope above before requesting broader changes
 
-Here are some features we are planning to develop for future releases of Spring AI Playground:
+We triage issues regularly, and issues outside the current scope may be closed with guidance.
 
-### Spring AI Agent
+If you believe you have a contribution that fits the current scope, submit a PR or a targeted issue.
 
-Build production-ready AI Agents by combining Model Context Protocol (MCP) for external tool integration, Retrieval-Augmented Generation (RAG) for knowledge retrieval, and Chat for natural interaction — all inside a single, unified workflow.
+## Upcoming Improvements
 
-Inspired by the [Effective Agents patterns from Spring AI](https://docs.spring.io/spring-ai/reference/api/effective-agents.html#_best_practices_and_recommendations), developers can:
-
-1. **Prototype** agents in Spring AI Playground with MCP tools, vector DBs, and RAG-enhanced chat
-2. **Refine** agent logic, contextual memory, and tool orchestration
-3. **Export** configurations directly to Spring AI Agent YAML/Java settings
-4. **Build & Package** as Docker-ready Spring AI Agent applications
-5. **Deploy** seamlessly from local experimentation to production environments
-6. **Test** deployed Spring AI Agents directly from the Playground UI using interactive Chat
-
-This streamlined approach enables going from concept to tested, cloud-ready deployment with minimal friction.
+These are the near-term areas we plan to improve while keeping the project focused on practical, reusable tool execution.
 
 ### Observability
 
-Introducing tools to track and monitor AI performance, usage, and errors for better management and debugging.
+- **Execution Visibility**: improve tracing and inspection for tool execution, MCP calls, failures, and runtime behavior
+- **Operational Insight**: make it easier to understand what ran, why it failed, and how a published tool behaves in practice
 
-### Authentication
+### Hardening Existing Capabilities
 
-Implementing login and security features to control access to the Spring AI Playground.
+- **Tool Runtime Improvements**: strengthen the current workflow for building, validating, and publishing tools
+- **Secret Handling**: continue improving how tool configuration and environment-backed values are stored, managed, and used at runtime
+- **Validation and Reuse**: make validated tools easier to inspect, reuse, and operationalize as MCP-hosted runtimes
+- **Agentic Chat Usability**: improve practical workflows that combine tools and grounded context in one focused runtime
 
-### Multimodal Support
+### Platform Support
 
-Supporting embedding, image, audio, and moderation models from Spring AI.
-
-
-These features will help make Spring AI Playground even better for testing and building AI projects.
+- **Authentication**: improve access control where it fits the current product boundary
+- **Multimodal Support**: image and audio input/output with supported multimodal-capable models

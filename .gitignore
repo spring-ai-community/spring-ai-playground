@@ -1,4 +1,6 @@
 HELP.md
+.DS_Store
+.venv/
 target/
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
@@ -42,9 +44,8 @@ vite.generated.ts
 /src/main/frontend/*
 !/src/main/frontend/playground
 /node_modules/
+!/electron/package.json
+!/electron/package-lock.json
 /src/main/bundles/
 /log
-
-### Claude Code ###
-CLAUDE.md
-plans/
+site/

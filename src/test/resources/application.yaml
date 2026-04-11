@@ -3,98 +3,64 @@ logging:
     org.springframework.ai.chat.client.advisor.*: DEBUG
     org.springaicommunity.playground.service.*: DEBUG
     org.springframework.ai.mcp: DEBUG
-
+vaadin:
+  launch-browser: false
+  devmode:
+    enabled: false
 spring:
+  devtools:
+    restart:
+      enabled: false
+    livereload:
+      enabled: false
   threads:
     virtual:
       enabled: true
-  application:
-    name: spring-ai-playground-test
-  profiles:
-    default: openai, ollama, mcp
-  ai:
-    playground:
-      persistence: false
-      user-home:
-      chat:
-        system:
-          prompt:
   servlet:
     multipart:
       max-file-size: 20MB
       max-request-size: 20MB
----
-spring:
-  config:
-    activate:
-      on-profile: ollama
+  application:
+    name: spring-ai-playground-test
+  profiles:
+    default: ollama, openai, mcp
   ai:
-    ollama:
-      init:
-        pull-model-strategy: when_missing
-      chat:
-        options:
-          model: mistral
-      embedding:
-        options:
-          model: qwen3-embedding:0.6b
+    model:
+      chat: ollama
+      embedding: ollama
+      image: none
+      moderation: none
+      audio:
+        speech: none
+        transcription: none
     playground:
-      chat:
-        models:
-          - deepseek-r1:8b
-          - mistral-small
-          - llama3.2
-          - llama3.2-vision
-          - llama3.1
-          - qwq
-          - mistral
-          - qwen2
-          - qwen2.5
-          - mixtral
----
-spring:
-  config:
-    activate:
-      on-profile: openai
-  ai:
-    openai:
-      api-key: ${OPENAI_API_KEY}
-      chat:
-        enabled: true
-        options:
-          model: gpt-4
-          base-url: https://models.github.ai/inference
-          completions-path: /chat/completions
-    playground:
-      chat:
-        systemPrompt: |-
-          systemPromptText
-          you are a helpful assistant
-        models:
-          - o1-mini
-          - o1
-          - gpt-4o
-          - o1-preview
-          - gpt-4o-mini
-          - gpt-3.5-turbo
-          - gpt-3.5-turbo-16k
-          - gpt-4
-          - gpt-4-32k
-          - gpt-4-turbo
-        chatOptions:
-          model: "gpt-4"
-          temperature: 0.7
-          maxTokens: 1000
-          topP: 0.9
-          frequencyPenalty: 0.0
-          presencePenalty: 0.6
+      tool-studio:
+        js-sandbox:
+          allow-network-io: true
+          allow-file-io: false
+          allow-native-access: false
+          allow-create-thread: false
+          max-statements: 500000
+          allow-classes:
+            # Completely safe core packages — strongly recommended to allow entirely
+            - java.lang.*                  # String, StringBuilder, System.getProperty, etc. (basic utilities)
+            - java.math.*                  # BigDecimal, BigInteger, etc. (mathematical calculations)
+            - java.time.*                  # Instant, Duration, ZonedDateTime, etc. (date/time handling)
+            - java.util.*                  # List, Map, Set, UUID, Base64, Collections, etc. (collections and utilities)
+            - java.text.*                  # DateFormat, NumberFormat, etc. (formatting utilities)
 
----
-spring:
-  config:
-    activate:
-      on-profile: mcp
-  ai:
+            # Networking — core functionality of Tool Studio
+            - java.net.*                   # URL, HttpURLConnection, URI, URLEncoder, etc.
+
+            # I/O streams — used for handling network responses (safe because allowIO(false) blocks file access)
+            - java.io.*
+
+            # HTML parsing library — currently used in examples
+            - org.jsoup.*
+      persistence: false
+      user-home:
+      chat:
+        system-prompt:
     mcp:
       client:
         enabled: true
@@ -106,12 +72,73 @@ spring:
               args:
                 - -m
                 - mcp_weather_server
-#            local-mcp-server:
-#              command: /usr/bin/java
-#              args:
-#                - -jar
-#                - /Users/jm/git/spring-ai-fast-campus-course/fast-campus-course-mcp-server/target/fast-campus-course-mcp-server-0.0.1-SNAPSHOT.jar
-#                - --spring.main.banner-mode=off
-#                - --logging.pattern.console=
-#                - --spring.ai.mcp.server.stdio=true
-#                - --spring.main.web-application-type=none
+      #            local-mcp-server:
+      #              command: /usr/bin/java
+      #              args:
+      #                - -jar
+      #                - /Users/jm/git/spring-ai-fast-campus-course/fast-campus-course-mcp-server/target/fast-campus-course-mcp-server-0.0.1-SNAPSHOT.jar
+      #                - --spring.main.banner-mode=off
+      #                - --logging.pattern.console=
+      #                - --spring.ai.mcp.server.stdio=true
+      #                - --spring.main.web-application-type=none
+      server:
+        protocol: STREAMABLE
+        type: SYNC
+        request-timeout: 30
+---
+spring:
+  config:
+    activate:
+      on-profile: ollama
+  ai:
+    ollama:
+      init:
+        pull-model-strategy: when_missing
+      chat:
+        options:
+          model: qwen3
+      embedding:
+        options:
+          model: qwen3-embedding:0.6b
+    playground:
+      chat:
+        models:
+          - gpt-oss
+          - llama3.2
+          - mistral
+          - qwen3
+          - deepseek-r1
+          - hf.co/rippertnt/HyperCLOVAX-SEED-Text-Instruct-1.5B-Q4_K_M-GGUF
+---
+spring:
+  config:
+    activate:
+      on-profile: openai
+  ai:
+    model:
+    openai-sdk:
+      api-key: ${OPENAI_API_KEY}
+      base-url: https://models.github.ai/inference
+      chat:
+        options:
+          model: gpt-5-nano
+          stream-options:
+            include-usage: false
+    playground:
+      chat:
+        systemPrompt: |-
+          systemPromptText
+          you are a helpful assistant
+        models:
+          - gpt-5.2
+          - gpt-5-mini
+          - gpt-5-nano
+          - gpt-4.1
+          - gpt-4o
+        chatOptions:
+          model: "gpt-4"
+          temperature: 0.7
+          maxTokens: 1000
+          topP: 0.9
+          frequencyPenalty: 0.0
+          presencePenalty: 0.6

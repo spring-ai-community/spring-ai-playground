@@ -25,7 +25,7 @@ import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.ToolResponseMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.DefaultChatOptions;
-import org.springframework.context.annotation.Lazy;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -42,12 +42,12 @@ public class ChatHistoryPersistenceService implements PersistenceServiceInterfac
     private static final String MESSAGE_LIST = "messageList";
 
     private final Path saveDir;
-    private final ChatHistoryService chatHistoryService;
+    private final ObjectProvider<ChatHistoryService> chatHistoryServiceProvider;
 
     public ChatHistoryPersistenceService(Path springAiPlaygroundHomeDir,
-            @Lazy ChatHistoryService chatHistoryService) throws
+            ObjectProvider<ChatHistoryService> chatHistoryServiceProvider) throws
             IOException {
-        this.chatHistoryService = chatHistoryService;
+        this.chatHistoryServiceProvider = chatHistoryServiceProvider;
         this.saveDir = springAiPlaygroundHomeDir.resolve("chat").resolve("save");
         Files.createDirectories(this.saveDir);
     }
@@ -93,19 +93,21 @@ public class ChatHistoryPersistenceService implements PersistenceServiceInterfac
                 (Map<String, Object>) saveObjectMap.computeIfAbsent("metadata", key -> Map.of());
         return switch (messageType) {
             case USER -> UserMessage.builder().text(content).metadata(metadata).build();
-            case ASSISTANT -> new AssistantMessage(content, metadata);
+            case ASSISTANT -> AssistantMessage.builder().content(content).properties(metadata).build();
             case SYSTEM -> SystemMessage.builder().text(content).metadata(metadata).build();
-            case TOOL -> new ToolResponseMessage(List.of()); // todo check TOOL response
+            case TOOL -> ToolResponseMessage.builder().build(); // todo check TOOL response
         };
     }
 
     @Override
     public void onStart() throws IOException {
+        ChatHistoryService chatHistoryService = this.chatHistoryServiceProvider.getObject();
         this.loads().forEach(chatHistoryService::putIfAbsentChatHistory);
     }
 
     @Override
     public void onShutdown() throws IOException {
+        ChatHistoryService chatHistoryService = this.chatHistoryServiceProvider.getObject();
         for (ChatHistory chatHistory : chatHistoryService.getChatHistoryList())
             save(chatHistory);
     }
