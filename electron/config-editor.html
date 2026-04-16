@@ -252,8 +252,9 @@
 
         #yaml-editor {
             width: 100%;
-            min-height: 520px;
-            flex: 1;
+            min-height: calc(20 * 1.45em + 28px);
+            max-height: calc(25 * 1.45em + 28px);
+            flex: 0 0 auto;
             border: 1px solid var(--border);
             border-radius: var(--lumo-border-radius-m);
             overflow: hidden;
@@ -278,6 +279,9 @@
             border: 1px solid var(--border);
             border-radius: var(--lumo-border-radius-m);
             background: #fffdf8;
+            max-height: 30rem;
+            overflow-y: auto;
+            align-content: start;
         }
 
         .secret-section {
@@ -598,7 +602,8 @@
             }
 
             #yaml-editor {
-                min-height: 420px;
+                min-height: calc(20 * 1.45em + 28px);
+                max-height: calc(25 * 1.45em + 28px);
             }
 
             .editor-help {
@@ -859,6 +864,8 @@
         tabSize: 2,
         useSoftTabs: true,
         wrap: true,
+        minLines: 20,
+        maxLines: 25,
       });
       editor.session.on('changeAnnotation', refreshValidation);
       editor.session.on('change', refreshValidation);

@@ -7,6 +7,7 @@ const ALLOWED_INVOKE = new Set([
   'config:delete', 'config:apply-template', 'config:launch',
   'config:environment-info', 'config:open-ollama-download', 'config:install-ollama',
   'app:launch-state', 'app:restart-to-config', 'app:quit-launcher', 'app:set-auto-copy-logs',
+  'app:retry-launch-readiness',
   'app:mic-permission-status', 'app:request-mic-permission', 'app:open-mic-settings',
 ]);
 

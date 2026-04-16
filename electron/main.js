@@ -37,6 +37,12 @@ let secretsStoreCache = null;
 let secretsEncryptionAvailable = null;
 
 let serverReadyStartTime = 0;
+let launchReadinessState = {
+  phase: 'idle',
+  timedOut: false,
+  timeoutMs: null,
+  message: 'Preparing the launch environment.',
+};
 
 const providerTypeCache = new Map();
 
@@ -976,7 +982,9 @@ function getJarPath() {
 function createConfigWindow() {
   configWindow = new BrowserWindow({
     width: 1080,
-    height: 760,
+    height: 920,
+    minWidth: 980,
+    minHeight: 860,
     show: false,
     autoHideMenuBar: true,
     icon: getWindowIconPath(),
@@ -999,12 +1007,22 @@ function createConfigWindow() {
 }
 
 function createServerSplashWindow() {
+  const { workAreaSize } = screen.getPrimaryDisplay();
+  const width = Math.min(1040, Math.max(760, workAreaSize.width - 48), workAreaSize.width);
+  const height = Math.min(820, Math.max(620, workAreaSize.height - 48), workAreaSize.height);
+
   serverSplashWindow = new BrowserWindow({
-    width: 1040,
-    height: 820,
+    width,
+    height,
     frame: false,
     alwaysOnTop: true,
     transparent: false,
+    resizable: true,
+    minimizable: true,
+    closable: true,
+    movable: true,
+    minWidth: 760,
+    minHeight: 620,
     icon: getWindowIconPath(),
     webPreferences: {
       nodeIntegration: false,
@@ -1148,6 +1166,7 @@ function sendServerSplashState() {
       skipOllamaCheck: index.preferences?.skipOllamaCheck ?? false,
     },
     launchCommand: lastLaunchCommand,
+    readiness: launchReadinessState,
   });
 }
 
@@ -1251,6 +1270,12 @@ function handleFatalError(errorMessage) {
 function startSpringServer() {
   serverReadyStartTime = Date.now();
   const launchToken = ++currentLaunchToken;
+  launchReadinessState = {
+    phase: 'starting',
+    timedOut: false,
+    timeoutMs: null,
+    message: 'Preparing the launch environment.',
+  };
 
   const jarPath = getJarPath();
   if (!jarPath) {
@@ -1293,6 +1318,13 @@ function startSpringServer() {
   serverProcess.on('error', (error) => {
     serverProcess = null;
     if (isQuitting || restartToConfigAfterStop) return;
+    launchReadinessState = {
+      phase: 'failed',
+      timedOut: false,
+      timeoutMs: null,
+      message: 'Server process failed to start.',
+    };
+    sendServerSplashState();
     handleFatalError(`Failed to start server process:\n${error.message || String(error)}`);
   });
 
@@ -1313,6 +1345,12 @@ function startSpringServer() {
     serverProcess = null;
     dynamicServerPort = null;
     dynamicServerUrl = null;
+    launchReadinessState = {
+      phase: code === 0 || code === null ? 'stopped' : 'failed',
+      timedOut: false,
+      timeoutMs: null,
+      message: code === 0 || code === null ? 'Server stopped.' : 'Server exited unexpectedly.',
+    };
     sendServerSplashState();
 
     if (code !== 0 && code !== null && !isQuitting && !shouldReturnToConfig) {
@@ -1336,12 +1374,29 @@ function checkServerReady(launchToken) {
   const elapsed = Date.now() - serverReadyStartTime;
   const timeoutMs = dynamicServerUrl ? UI_READY_GRACE_TIMEOUT_MS : SERVER_READY_TIMEOUT_MS;
   if (elapsed > timeoutMs) {
-    appendLog(`Server startup timed out after ${timeoutMs / 1000}s.`, true);
-    handleFatalError(`Server did not become ready within ${timeoutMs / 1000} seconds. Check logs for details.`);
+    if (!launchReadinessState.timedOut) {
+      launchReadinessState = {
+        phase: dynamicServerUrl ? 'waiting-for-ui' : 'waiting-for-server',
+        timedOut: true,
+        timeoutMs,
+        message: 'Startup is taking longer than expected. The app may still be downloading models or warming up.',
+      };
+      appendLog(`Server startup timed out after ${timeoutMs / 1000}s, but the launcher will stay open and keep streaming logs.`, true);
+      appendLog('You can keep waiting, retry the readiness check, switch config, or quit from the launcher.');
+      sendServerSplashState();
+    }
+    setTimeout(() => checkServerReady(launchToken), 2000);
     return;
   }
 
   if (!dynamicServerUrl) {
+    launchReadinessState = {
+      phase: 'waiting-for-server',
+      timedOut: false,
+      timeoutMs: null,
+      message: 'Waiting for the local app URL...',
+    };
+    sendServerSplashState();
     setTimeout(() => checkServerReady(launchToken), 500);
     return;
   }
@@ -1357,6 +1412,13 @@ function checkServerReady(launchToken) {
       }
 
       if (statusCode === 200 && healthStatus === 'UP') {
+        launchReadinessState = {
+          phase: 'ready',
+          timedOut: false,
+          timeoutMs: null,
+          message: 'Actuator reports the server is ready. Opening the UI...',
+        };
+        sendServerSplashState();
         appendLog('Actuator reports server is UP. Launching UI...');
         setTimeout(() => {
           if (launchToken !== currentLaunchToken || restartToConfigAfterStop) return;
@@ -1366,6 +1428,13 @@ function checkServerReady(launchToken) {
         return;
       }
 
+      launchReadinessState = {
+        phase: 'waiting-for-health',
+        timedOut: false,
+        timeoutMs: null,
+        message: 'Server is running. Waiting for health checks to turn green...',
+      };
+      sendServerSplashState();
       appendLog(`Waiting for actuator health... status=${statusCode}, health=${healthStatus || 'unknown'}`);
       setTimeout(() => checkServerReady(launchToken), 1000);
     })
@@ -1380,6 +1449,13 @@ function checkServerReady(launchToken) {
           const hasUsefulBody = Boolean((body || '').trim());
           const canOpenUi = (statusCode >= 200 && statusCode < 400) && (isHtmlResponse || looksLikeApp || hasUsefulBody);
           if (canOpenUi) {
+            launchReadinessState = {
+              phase: 'ready',
+              timedOut: false,
+              timeoutMs: null,
+              message: 'App UI responded. Opening the window...',
+            };
+            sendServerSplashState();
             appendLog(`Server responded with status=${statusCode}. Launching UI...`);
             setTimeout(() => {
               if (launchToken !== currentLaunchToken || restartToConfigAfterStop) return;
@@ -1388,11 +1464,25 @@ function checkServerReady(launchToken) {
             }, 500);
             return;
           }
+          launchReadinessState = {
+            phase: 'waiting-for-ui',
+            timedOut: false,
+            timeoutMs: null,
+            message: 'Server is reachable. Waiting for the UI to finish rendering...',
+          };
+          sendServerSplashState();
           appendLog(`Waiting for app UI... status=${statusCode}, html=${isHtmlResponse}, app=${looksLikeApp}`);
           setTimeout(() => checkServerReady(launchToken), 1000);
         })
         .catch((rootError) => {
           if (launchToken !== currentLaunchToken || restartToConfigAfterStop) return;
+          launchReadinessState = {
+            phase: 'waiting-for-ui',
+            timedOut: false,
+            timeoutMs: null,
+            message: 'Server port is open. Waiting for the app UI...',
+          };
+          sendServerSplashState();
           appendLog(`Root URL not reachable yet: ${rootError.message || rootError}`);
           setTimeout(() => checkServerReady(launchToken), 1000);
         });
@@ -1573,6 +1663,7 @@ ipcMain.handle('app:launch-state', async () => {
     serverUrl: dynamicServerUrl,
     preferences: { autoCopyLogs: index.preferences?.autoCopyLogs ?? true, skipOllamaCheck: index.preferences?.skipOllamaCheck ?? false },
     launchCommand: lastLaunchCommand,
+    readiness: launchReadinessState,
   };
 });
 
@@ -1582,6 +1673,24 @@ ipcMain.handle('app:set-auto-copy-logs', async (event, enabled) => {
   index.preferences.autoCopyLogs = Boolean(enabled);
   saveConfigIndex(index);
   return { autoCopyLogs: index.preferences.autoCopyLogs };
+});
+
+ipcMain.handle('app:retry-launch-readiness', async () => {
+  if (!serverProcess) {
+    throw new Error('There is no running launch to retry.');
+  }
+
+  serverReadyStartTime = Date.now();
+  launchReadinessState = {
+    phase: dynamicServerUrl ? 'waiting-for-ui' : 'waiting-for-server',
+    timedOut: false,
+    timeoutMs: null,
+    message: 'Retrying readiness checks while keeping the current launch running...',
+  };
+  appendLog('Retrying readiness checks from the launcher.');
+  sendServerSplashState();
+  checkServerReady(currentLaunchToken);
+  return { ok: true };
 });
 
 ipcMain.handle('app:mic-permission-status', async () => {
