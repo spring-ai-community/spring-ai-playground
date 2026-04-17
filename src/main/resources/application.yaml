@@ -2,7 +2,10 @@ vaadin:
   pushmode: automatic
 server:
   port: ${SERVER_PORT:8282}
+  shutdown: graceful
 spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 90s
   threads:
     virtual:
       enabled: true

@@ -3,7 +3,7 @@ const { app, BrowserWindow, ipcMain, dialog, clipboard, screen, shell, safeStora
 require
 ('electron');
 const path = require('path');
-const { spawn } = require('child_process');
+const { spawn, execFile } = require('child_process');
 const http = require('http');
 const treeKill = require('tree-kill');
 const fs = require('fs');
@@ -27,12 +27,15 @@ let dynamicServerPort = null;
 let dynamicServerUrl = null;
 const isDev = !app.isPackaged;
 let isQuitting = false;
+let allowAppExit = false;
+let shutdownPromise = null;
 let fullLogBuffer = "";
 let activeConfigPath = null;
 let currentConfigId = null;
 let restartToConfigAfterStop = false;
 let currentLaunchToken = 0;
 let lastLaunchCommand = '';
+let autoCopyLaunchLogsPending = false;
 let secretsStoreCache = null;
 let secretsEncryptionAvailable = null;
 
@@ -426,6 +429,52 @@ function getTemplateList() {
 
 function getYamlObj(yamlText) {
   try { return yaml.load(yamlText) || {}; } catch (e) { return {}; }
+}
+
+function parseDurationToMs(value) {
+  if (value == null) return null;
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+
+  const text = String(value).trim();
+  if (!text) return null;
+  if (/^\d+$/.test(text)) return Number(text);
+
+  const simpleMatch = text.match(/^(\d+(?:\.\d+)?)(ms|s|m|h)$/i);
+  if (simpleMatch) {
+    const amount = Number(simpleMatch[1]);
+    const unit = simpleMatch[2].toLowerCase();
+    if (unit === 'ms') return Math.round(amount);
+    if (unit === 's') return Math.round(amount * 1000);
+    if (unit === 'm') return Math.round(amount * 60_000);
+    if (unit === 'h') return Math.round(amount * 3_600_000);
+  }
+
+  const isoMatch = text.match(/^PT(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)S)?$/i);
+  if (isoMatch) {
+    const hours = Number(isoMatch[1] || 0);
+    const minutes = Number(isoMatch[2] || 0);
+    const seconds = Number(isoMatch[3] || 0);
+    return Math.round((hours * 3600 + minutes * 60 + seconds) * 1000);
+  }
+
+  return null;
+}
+
+function extractShutdownTimeoutMs(yamlText = '') {
+  const match = String(yamlText).match(/^\s*timeout-per-shutdown-phase\s*:\s*([^\s#]+)\s*$/m);
+  return match ? parseDurationToMs(match[1]) : null;
+}
+
+function getShutdownWaitMs(configPath = null) {
+  const defaultTimeoutMs = fs.existsSync(getDefaultConfigPath())
+    ? extractShutdownTimeoutMs(fs.readFileSync(getDefaultConfigPath(), 'utf8'))
+    : null;
+  const overrideTimeoutMs = configPath && fs.existsSync(configPath)
+    ? extractShutdownTimeoutMs(fs.readFileSync(configPath, 'utf8'))
+    : null;
+  const springTimeoutMs = overrideTimeoutMs ?? defaultTimeoutMs ?? 90_000;
+  const electronBufferMs = 10_000;
+  return springTimeoutMs + electronBufferMs;
 }
 
 function isOfficialOpenAiBaseUrl(baseUrl) {
@@ -1096,6 +1145,7 @@ function createMainWindow() {
       return;
     }
     if (serverSplashWindow && !serverSplashWindow.isDestroyed()) serverSplashWindow.close();
+    copyLaunchLogsToClipboardIfEnabled();
     if (!mainWindow.isDestroyed()) { mainWindow.show(); mainWindow.focus(); }
   });
   mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
@@ -1127,16 +1177,21 @@ function createNamedConfig(name, yamlText) {
 
 function appendLog(message, isError = false) {
   fullLogBuffer += message + '\n';
-  try {
-    const index = readConfigIndex();
-    if (index.preferences?.autoCopyLogs) clipboard.writeText(fullLogBuffer);
-  } catch {
-  }
   if (serverSplashWindow && !serverSplashWindow.isDestroyed()) {
     serverSplashWindow.webContents.send(isError ? 'server-error' : 'server-log', message);
   }
   if (isError) console.error(message);
   else console.log(message);
+}
+
+function copyLaunchLogsToClipboardIfEnabled() {
+  if (!autoCopyLaunchLogsPending) return;
+  autoCopyLaunchLogsPending = false;
+  try {
+    const index = readConfigIndex();
+    if (index.preferences?.autoCopyLogs) clipboard.writeText(fullLogBuffer);
+  } catch {
+  }
 }
 
 function detectDynamicServerUrl(output) {
@@ -1170,69 +1225,180 @@ function sendServerSplashState() {
   });
 }
 
-async function stopSpringServer() {
-  if (!serverProcess) return;
-
-  appendLog('Stopping Spring server gracefully... (waiting up to 90 seconds)');
-
-  if (dynamicServerUrl) {
-    try {
-      appendLog('Sending shutdown request to /actuator/shutdown...');
-      await new Promise((resolve, reject) => {
-        const req = http.request(`${dynamicServerUrl}/actuator/shutdown`, { method: 'POST' }, (res) => {
-          res.on('data', () => {});
-          resolve();
-        });
-        req.on('error', reject);
-        req.setTimeout(4000, () => reject(new Error('Actuator timeout')));
-        req.end();
-      });
-      await new Promise(r => setTimeout(r, 1200));
-    } catch (err) {
-      appendLog(`Actuator shutdown failed: ${err.message}. Proceeding with SIGTERM.`, true);
-    }
-  }
-
-  try {
-    treeKill(serverProcess.pid, 'SIGTERM');
-    appendLog('SIGTERM sent to Spring process.');
-  } catch (e) {}
-
-  const MAX_WAIT_MS = 90000;
-  const start = Date.now();
-
+function killProcess(pid, signal = 'SIGTERM') {
   return new Promise((resolve) => {
-    const checkClosed = () => {
-      if (!serverProcess) {
-        appendLog('Spring server stopped completely (graceful).');
+    const normalizedPid = parseInt(pid, 10);
+    if (Number.isNaN(normalizedPid)) {
+      resolve();
+      return;
+    }
+
+    if (process.platform === 'win32') {
+      const args = ['/pid', String(normalizedPid), '/T'];
+      if (signal === 'SIGKILL') args.push('/F');
+      execFile('taskkill', args, (error) => {
+        if (error && error.code !== 128 && !/not found|no running instance/i.test(error.message || '')) {
+          appendLog(`Kill error (${signal}): ${error.message}`, true);
+        }
         resolve();
-        return;
+      });
+      return;
+    }
+
+    treeKill(normalizedPid, signal, (error) => {
+      if (error && error.code !== 'ESRCH') {
+        appendLog(`Kill error (${signal}): ${error.message}`, true);
       }
-
-      const elapsed = Date.now() - start;
-      if (elapsed > MAX_WAIT_MS) {
-        appendLog(`Graceful shutdown timeout after ${Math.round(elapsed/1000)}s → forcing SIGKILL`, true);
-        treeKill(serverProcess.pid, 'SIGKILL');
-        serverProcess = null;
-        dynamicServerPort = null;
-        dynamicServerUrl = null;
-        resolve();
-        return;
-      }
-
-      setTimeout(checkClosed, 300);
-    };
-
-    serverProcess.once('close', () => {
-      serverProcess = null;
-      dynamicServerPort = null;
-      dynamicServerUrl = null;
-      appendLog(`Spring server closed cleanly after ${Math.round((Date.now() - start)/1000)}s.`);
       resolve();
     });
-
-    checkClosed();
   });
+}
+
+async function tryActuatorShutdown() {
+  if (!dynamicServerUrl) return false;
+
+  try {
+    appendLog('Trying actuator shutdown...');
+    await new Promise((resolve, reject) => {
+      const req = http.request(`${dynamicServerUrl}/actuator/shutdown`, { method: 'POST' }, (res) => {
+        res.resume();
+        resolve();
+      });
+      req.on('error', reject);
+      req.setTimeout(4000, () => reject(new Error('Actuator timeout')));
+      req.end();
+    });
+    appendLog('Actuator shutdown request sent.');
+    return true;
+  } catch (error) {
+    appendLog(`Actuator failed: ${error.message}`, true);
+    return false;
+  }
+}
+
+async function stopSpringServer() {
+  if (!serverProcess) return;
+  const targetProcess = serverProcess;
+  const pid = targetProcess.pid;
+  const start = Date.now();
+  const MAX_WAIT_MS = getShutdownWaitMs(activeConfigPath || getConfigFilePath(currentConfigId || readConfigIndex().activeConfigId));
+  const ACTUATOR_WAIT_MS = 5000;
+  const maxWaitSeconds = Math.round(MAX_WAIT_MS / 1000);
+
+  appendLog(`Stopping Spring server gracefully... (waiting up to ${maxWaitSeconds} seconds)`);
+
+  let resolved = false;
+  let closeListener = null;
+
+  const cleanup = () => {
+    if (serverProcess === targetProcess) {
+      serverProcess = null;
+    }
+    dynamicServerPort = null;
+    dynamicServerUrl = null;
+  };
+
+  const finish = (resolve) => {
+    if (resolved) return;
+    resolved = true;
+    if (closeListener) targetProcess.off('close', closeListener);
+    cleanup();
+    resolve();
+  };
+
+  return new Promise(async (resolve) => {
+    closeListener = () => {
+      appendLog(`Spring server closed cleanly after ${Math.round((Date.now() - start) / 1000)}s.`);
+      finish(resolve);
+    };
+    targetProcess.once('close', closeListener);
+
+    const actuatorOk = await tryActuatorShutdown();
+    const actuatorDeadline = Date.now() + ACTUATOR_WAIT_MS;
+
+    const waitForClose = (deadline, callback) => {
+      const checkClosed = () => {
+        if (resolved) {
+          return;
+        }
+        if (!serverProcess) {
+          appendLog('Spring server stopped completely.');
+          finish(resolve);
+          return;
+        }
+        if (Date.now() >= deadline) {
+          callback();
+          return;
+        }
+        setTimeout(checkClosed, 300);
+      };
+      checkClosed();
+    };
+
+    if (actuatorOk) {
+      appendLog('Waiting for graceful shutdown via actuator...');
+      waitForClose(actuatorDeadline, async () => {
+        if (resolved) return;
+        appendLog('Actuator shutdown is taking longer than expected. Sending SIGTERM...');
+        await killProcess(pid, 'SIGTERM');
+      });
+    } else {
+      appendLog('Sending SIGTERM...');
+      await killProcess(pid, 'SIGTERM');
+    }
+
+    const forceDeadline = start + MAX_WAIT_MS;
+    const waitForForcedKill = () => {
+      if (resolved) {
+        return;
+      }
+      if (!serverProcess) {
+        appendLog('Spring server stopped completely.');
+        finish(resolve);
+        return;
+      }
+      if (Date.now() >= forceDeadline) {
+        appendLog(`Graceful shutdown timeout after ${Math.round((Date.now() - start) / 1000)}s -> forcing SIGKILL`, true);
+        killProcess(pid, 'SIGKILL').finally(() => {
+          setTimeout(() => {
+            if (!resolved) {
+              appendLog('Force cleanup fallback', true);
+              finish(resolve);
+            }
+          }, 2000);
+        });
+        return;
+      }
+      setTimeout(waitForForcedKill, 300);
+    };
+
+    setTimeout(waitForForcedKill, actuatorOk ? ACTUATOR_WAIT_MS : 0);
+  });
+}
+
+async function shutdownApplication({ exitCode = 0, logMessage = null } = {}) {
+  if (shutdownPromise) return shutdownPromise;
+  shutdownPromise = (async () => {
+    isQuitting = true;
+    const shutdownWaitMs = getShutdownWaitMs(activeConfigPath || getConfigFilePath(currentConfigId || readConfigIndex().activeConfigId));
+    const shutdownWaitSeconds = Math.round(shutdownWaitMs / 1000);
+
+    if (tempServer) {
+      tempServer.stop();
+      tempServer = null;
+    }
+
+    if (serverProcess) {
+      appendLog(logMessage || `App is quitting. Waiting up to ${shutdownWaitSeconds} seconds for Spring server to shut down...`);
+      await stopSpringServer();
+    }
+
+    appendLog('All processes stopped. Exiting app now.');
+    allowAppExit = true;
+    if (exitCode === 0) app.quit();
+    else app.exit(exitCode);
+  })();
+  return shutdownPromise;
 }
 
 function handleFatalError(errorMessage) {
@@ -1270,6 +1436,7 @@ function handleFatalError(errorMessage) {
 function startSpringServer() {
   serverReadyStartTime = Date.now();
   const launchToken = ++currentLaunchToken;
+  autoCopyLaunchLogsPending = true;
   launchReadinessState = {
     phase: 'starting',
     timedOut: false,
@@ -1317,6 +1484,7 @@ function startSpringServer() {
 
   serverProcess.on('error', (error) => {
     serverProcess = null;
+    autoCopyLaunchLogsPending = false;
     if (isQuitting || restartToConfigAfterStop) return;
     launchReadinessState = {
       phase: 'failed',
@@ -1343,6 +1511,7 @@ function startSpringServer() {
   serverProcess.on('close', (code) => {
     const shouldReturnToConfig = restartToConfigAfterStop;
     serverProcess = null;
+    autoCopyLaunchLogsPending = false;
     dynamicServerPort = null;
     dynamicServerUrl = null;
     launchReadinessState = {
@@ -1577,10 +1746,7 @@ ipcMain.handle('config:reset', async () => {
   const configDir = getConfigDirectory();
 
   if (serverProcess) {
-    try {
-      treeKill(serverProcess.pid, 'SIGKILL');
-      serverProcess = null;
-    } catch (e) {}
+    await stopSpringServer();
   }
 
   try {
@@ -1726,11 +1892,7 @@ ipcMain.handle('app:open-mic-settings', async () => {
 });
 
 ipcMain.handle('app:quit-launcher', async () => {
-  isQuitting = true;
-  if (serverProcess) {
-    await stopSpringServer();
-  }
-  app.quit();
+  await shutdownApplication({ exitCode: 0 });
   return { ok: true };
 });
 
@@ -1739,7 +1901,12 @@ ipcMain.handle('app:restart-to-config', async () => {
   if (mainWindow && !mainWindow.isDestroyed()) { mainWindow.close(); mainWindow = null; }
   if (serverProcess) {
     appendLog('Stopping current server to return to config selection...');
-    treeKill(serverProcess.pid, 'SIGTERM');
+    await stopSpringServer();
+    if (restartToConfigAfterStop) {
+      restartToConfigAfterStop = false;
+      if (serverSplashWindow && !serverSplashWindow.isDestroyed()) serverSplashWindow.close();
+      createConfigWindow();
+    }
   } else {
     restartToConfigAfterStop = false;
     if (serverSplashWindow && !serverSplashWindow.isDestroyed()) serverSplashWindow.close();
@@ -1802,22 +1969,9 @@ app.whenReady().then(async () => {
 });
 
 app.on('before-quit', async (event) => {
-  if (tempServer) {
-    tempServer.stop();
-    tempServer = null;
-  }
-
-  if (isQuitting) return;
+  if (allowAppExit) return;
   event.preventDefault();
-  isQuitting = true;
-
-  if (serverProcess) {
-    appendLog('App is quitting. Waiting up to 90 seconds for Spring server to shut down...');
-    await stopSpringServer();
-  }
-
-  appendLog('All processes stopped. Exiting app now.');
-  app.exit(0);
+  await shutdownApplication();
 });
 
 app.on('window-all-closed', () => app.quit());
