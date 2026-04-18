@@ -6,8 +6,10 @@ const SERVER_READY_TIMEOUT_MS = 2 * 60 * 1000;
 const UI_READY_GRACE_TIMEOUT_MS = 3 * 60 * 1000;
 
 const PRELOAD_PATH = path.join(__dirname, 'preload.js');
+const OLLAMA_MANAGER_PRELOAD_PATH = path.join(__dirname, 'ollama-manager-preload.js');
 const SPLASH_PATH = path.join(__dirname, 'splash.html');
 const CONFIG_EDITOR_PATH = path.join(__dirname, 'config-editor.html');
+const OLLAMA_MANAGER_PATH = path.join(__dirname, 'ollama-manager.html');
 const SERVER_SPLASH_PATH = path.join(__dirname, 'server-splash.html');
 
 const CONFIG_TEMPLATES = {
@@ -260,8 +262,10 @@ module.exports = {
   SERVER_READY_TIMEOUT_MS,
   UI_READY_GRACE_TIMEOUT_MS,
   PRELOAD_PATH,
+  OLLAMA_MANAGER_PRELOAD_PATH,
   SPLASH_PATH,
   CONFIG_EDITOR_PATH,
+  OLLAMA_MANAGER_PATH,
   SERVER_SPLASH_PATH,
   CONFIG_TEMPLATES,
   DEFAULT_STARTER_TEMPLATE_IDS,
