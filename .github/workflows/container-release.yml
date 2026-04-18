@@ -8,7 +8,7 @@ on:
         required: false
         type: string
   push:
-    branches: [ "**" ]
+    branches: [ "main" ]
     tags:
       - "v*"
     paths-ignore:
