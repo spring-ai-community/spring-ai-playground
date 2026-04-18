@@ -1,4 +1,4 @@
-Description: Cross-platform desktop app and safe local execution layer for AI agent tools with Tool Studio, MCP, Agentic Chat, RAG, and No pass, no run validation.
+Description: Spring AI Playground is a cross-platform desktop app for AI agent tools with a desktop launcher, Tool Studio, MCP, Agentic Chat, RAG, and safe local execution.
 
 # Spring AI Playground
 
@@ -33,6 +33,8 @@ Unlike many playgrounds that stop at prompt testing, this project connects AI co
 
 The recommended default is the desktop app distributed from GitHub Releases.
 
+Spring AI Playground is a standalone desktop app, so you can install it and start building MCP tools without setting up a Java project, Docker environment, or source build first.
+
 ### 1. Download the Desktop App
 
 Choose the installer for your platform from the latest release:
@@ -51,7 +53,57 @@ Install the package the same way you would for a normal desktop application, the
 
 The desktop app bundles the backend runtime together with a launcher that provides provider starter templates, YAML override editing, environment-variable based secret handling, and one-click launch.
 
-For macOS-specific install notes, Gatekeeper guidance, and quarantine troubleshooting, see [Getting Started](getting-started.md).
+If you install the app, you can run Spring AI Playground immediately without setting up Docker or running the server manually.
+
+> **macOS**
+>
+> Gatekeeper may block the install flow in two places:
+>
+> - When you open the downloaded DMG, macOS may show a warning such as “cannot be opened because the developer cannot be verified.” If you trust the release source, go to **System Settings > Privacy & Security** and click **Open Anyway**.
+> - After copying the app into **Applications**, macOS may block the first app launch again. If that happens, open the app once, then return to **System Settings > Privacy & Security** and click **Open Anyway**.
+>
+> If the app still doesn’t open because it remains quarantined, and you trust the app, one practical workaround is:
+>
+> ```bash
+> xattr -dr com.apple.quarantine "/Applications/Spring AI Playground.app"
+> ```
+>
+> **Windows**
+>
+> The most common warning appears when you run the downloaded installer (`.exe`).
+>
+> If Microsoft Defender SmartScreen shows a warning such as “Windows protected your PC” or says the app is unrecognized:
+>
+> - Click **More info**
+> - Then click **Run anyway**
+>
+> **Linux**
+>
+> Separate Gatekeeper- or SmartScreen-style reputation warnings are uncommon. When installing the `.deb` or `.rpm` package, you usually only need to complete the normal package-install confirmation steps.
+>
+> For more detailed platform guidance and first-launch configuration screens, see [Getting Started](getting-started.md).
+
+<div style="text-align: center;">
+  <b>First-Launch Configuration Screen</b><br/>
+  Desktop launcher overview with the built-in config editor
+</div>
+
+<div style="text-align: center;">
+  <a href="assets/images/launcher-openai.png">
+    <img src="assets/images/launcher-openai.png" width="760" alt="Spring AI Playground first-launch configuration screen"/>
+  </a>
+</div>
+
+<div style="text-align: center;">
+  <b>Ollama Model Manager</b><br/>
+  Review recommended models, search exact Ollama names, and manage downloaded models
+</div>
+
+<div style="text-align: center;">
+  <a href="assets/images/lancher-ollama-config.png">
+    <img src="assets/images/lancher-ollama-config.png" width="760" alt="Spring AI Playground Ollama model manager"/>
+  </a>
+</div>
 
 ### 3. Start with the Built-in Desktop Runtime
 
