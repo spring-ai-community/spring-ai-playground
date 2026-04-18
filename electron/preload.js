@@ -4,11 +4,11 @@ const { contextBridge, ipcRenderer } = require('electron');
 const ALLOWED_INVOKE = new Set([
   'config:load', 'config:save', 'config:save-as', 'config:select',
   'config:select-provider', 'config:export', 'config:import', 'config:reset',
-  'config:delete', 'config:apply-template', 'config:launch',
-  'config:environment-info', 'config:open-ollama-download', 'config:install-ollama',
+  'config:delete', 'config:launch',
+  'config:environment-info', 'config:open-ollama-download', 'config:fit-window',
+  'ollama-manager:open',
   'app:launch-state', 'app:restart-to-config', 'app:quit-launcher', 'app:set-auto-copy-logs',
   'app:retry-launch-readiness',
-  'app:mic-permission-status', 'app:request-mic-permission', 'app:open-mic-settings',
 ]);
 
 const ALLOWED_ON = new Set([
