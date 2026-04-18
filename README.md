@@ -52,14 +52,42 @@ The desktop app bundles the backend runtime together with a launcher that provid
 
 If you install the app, you can run Spring AI Playground immediately without setting up Docker or running the source manually.
 
-> **macOS note**  
-> For macOS-specific install notes, Gatekeeper guidance, and quarantine troubleshooting, see the [Getting Started guide](https://spring-ai-community.github.io/spring-ai-playground/getting-started/).
+> **Install notes by platform**  
+> Depending on your platform, the first install may include an OS security prompt for unsigned or not-yet-reputation-established builds.
+>
+> - macOS: copy the app into **Applications**, then use **System Settings > Privacy & Security > Open Anyway** if Gatekeeper blocks launch.
+> - Windows: if Microsoft Defender SmartScreen warns that the app is unrecognized, click **More info** and then **Run anyway** only if you trust the release source.
+> - Linux: the `.deb` and `.rpm` packages usually install without a separate unsigned-app override flow, but your distribution may still ask for normal package-install confirmation.
+>
+> For more detailed macOS Gatekeeper guidance, Windows SmartScreen notes, and Linux package-install details, see the [Getting Started guide](https://spring-ai-community.github.io/spring-ai-playground/getting-started/).
 >
 > If macOS still blocks launch because the app is quarantined, and you trust the app, one practical workaround is:
 >
 > ```
 > xattr -dr com.apple.quarantine "/Applications/Spring AI Playground.app"
 > ```
+
+<p align="center">
+  <b>First-Launch Configuration Screen</b><br/>
+  Desktop launcher overview with the built-in config editor
+</p>
+
+<p align="center">
+  <a href="docs/assets/images/launcher-openai.png">
+    <img src="docs/assets/images/launcher-openai.png" width="760" alt="Spring AI Playground first-launch configuration screen"/>
+  </a>
+</p>
+
+<p align="center">
+  <b>Ollama Model Manager</b><br/>
+  Review recommended models, search exact Ollama names, and manage downloaded models
+</p>
+
+<p align="center">
+  <a href="docs/assets/images/lancher-ollama-config.png">
+    <img src="docs/assets/images/lancher-ollama-config.png" width="760" alt="Spring AI Playground Ollama model manager"/>
+  </a>
+</p>
 
 ## Documentation
 

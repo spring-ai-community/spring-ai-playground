@@ -1,4 +1,4 @@
-Description: Install Spring AI Playground, configure Ollama or OpenAI, manage secrets safely, and launch the desktop app, Docker image, or local source build.
+Description: Install Spring AI Playground, use the desktop launcher, configure Ollama or OpenAI, manage Ollama models and secrets, and launch the app, Docker image, or local source build.
 
 # Getting Started
 
@@ -24,13 +24,38 @@ Or browse all available assets on the [Releases page](https://github.com/spring-
 
 The desktop package wraps the launcher and the backend runtime together, so this is the simplest way to get started without manually running Docker or Maven.
 
-On macOS, if you install from a DMG, drag the app into **Applications** before launching it. Do not run it directly from the mounted DMG, and eject the DMG after copying.
+### Platform-specific install notes
+
+#### macOS
+
+If you install from a DMG, drag the app into **Applications** before launching it. Do not run it directly from the mounted DMG, and eject the DMG after copying.
+
+Because open-source desktop distributions are sometimes not notarized the same way as App Store software, macOS Gatekeeper may block the first launch. If you trust the release source, open **System Settings > Privacy & Security**, scroll to the Security section, and click **Open Anyway** after the first blocked launch attempt.
 
 If macOS still blocks launch because the app is quarantined, and you trust the app, one practical open-source distribution workaround is:
 
 ```bash
 xattr -dr com.apple.quarantine "/Applications/Spring AI Playground.app"
 ```
+
+#### Windows
+
+On Windows, the downloaded `.exe` may show a Microsoft Defender SmartScreen warning that the app is unrecognized. That usually means the installer does not yet have enough reputation with SmartScreen, not necessarily that the release is unsafe.
+
+If you trust the release source, open the installer, click **More info**, and then click **Run anyway** to continue.
+
+If Windows keeps blocking the file before the installer opens, open the file's **Properties** dialog in Explorer and look for an **Unblock** option on the **General** tab, then run the installer again.
+
+#### Linux
+
+Linux installs usually do not require a separate "open anyway" flow like macOS Gatekeeper or Windows SmartScreen.
+
+Install the package using the format that matches your distribution:
+
+- `.deb` for Debian or Ubuntu-based systems
+- `.rpm` for Fedora, RHEL, Rocky Linux, AlmaLinux, openSUSE, and similar RPM-based systems
+
+Your desktop environment or package manager may still ask for the usual package-install confirmation or administrator password.
 
 ### What the Desktop App Gives You
 
@@ -57,11 +82,226 @@ That behavior is reflected in the desktop UI:
 
 This makes it much easier to keep multiple clean launch profiles without hand-managing full runtime configuration files.
 
-## Prerequisites
+## Desktop Configuration Walkthrough
 
-To fully experience the local-first capabilities of Spring AI Playground, the following are required:
+The first desktop launch opens **Configure Spring AI Playground**. Later launches reuse the selected saved setting automatically.
 
-### Ollama
+### 1. Read the Setup Notes First
+
+The first card is **Current Config and Setup Notes**. It explains the active setting before you edit the YAML below.
+
+![Current config and setup notes](assets/images/launcher/launcher-setup-notes.png)
+
+- `Selected Config`: the active saved setting name
+- `Base Setup`: the launcher hides bundled defaults and only lets you edit overrides
+- `How It Runs`: the selected YAML is applied on top of the built-in default configuration at launch
+
+If the selected setting includes an embedding model, the launcher also shows an **Embedding model warning**. That warning matters because changing the embedding model after documents were already indexed can leave existing vector data inconsistent until you re-import or rebuild the vector database.
+
+### 2. Choose a Config Type
+
+The main editor card is **Spring AI Playground Config**.
+
+![Spring AI Playground config card](assets/images/launcher/launcher-config-card.png)
+
+Within that card, `Config Type` chooses the backend family for the current setting:
+
+- `Ollama`
+- `OpenAI`
+- `OpenAI-Compatible`
+
+This selector changes the kind of starter setting you are working with. It does not expose the full bundled configuration. It switches the saved-setting list and the override YAML editor to the selected backend family.
+
+### 3. Choose a Saved Setting
+
+`Setting Name` selects a saved launcher profile for the chosen config type.
+
+![OpenAI-Compatible starter profiles](assets/images/launcher/launcher-openai-compatible-card.png)
+
+In the current desktop build:
+
+- `Ollama` starts with the built-in `Ollama` setting
+- `OpenAI` starts with the built-in `OpenAI` setting
+- `OpenAI-Compatible` starts with built-in compatible profiles such as `OpenAI Compatible - Ollama`, `OpenAI Compatible - llama.cpp`, `OpenAI Compatible - TabbyAPI`, `OpenAI Compatible - LM Studio`, and `OpenAI Compatible - vLLM`
+
+`OpenAI-Compatible` is intended for servers that expose an OpenAI-style API but are not the official OpenAI endpoint.
+
+### 4. Save, Clone, Delete, or Reset Settings
+
+The launcher lets you manage settings without editing the bundled base configuration directly.
+
+- `Save As` creates a new saved setting from the current YAML and launcher state
+- `Delete` removes the current saved setting
+- `Export` writes a portable config bundle
+- `Import` loads a previously exported bundle
+- `Factory Reset` deletes all saved configs, profiles, and stored API keys, then restarts the launcher
+- `Save` stores the current launcher state without starting the app
+- `Save and Launch` saves first, then starts Spring AI Playground
+
+Config export intentionally leaves out local environment-variable values for safety.
+
+### 5. Edit Only the Override YAML
+
+The YAML editor is intentionally scoped to override content, not the full base file. At launch, the selected YAML is merged on top of the bundled default configuration.
+
+That design keeps the common configuration flow simpler:
+
+- keep a stable bundled default
+- store only what differs for this setting
+- switch between clean launch profiles quickly
+
+### 6. Understand the Ollama Startup Card
+
+When `Config Type` is set to `Ollama`, the launcher shows an additional **Ollama Startup** section.
+
+![Ollama startup section](assets/images/launcher/launcher-ollama-startup.png)
+
+That section shows:
+
+- the Ollama endpoint, install status, connection status, and detected version
+- the configured default chat model and default embedding model
+- installed chat and embedding models, with the currently configured defaults highlighted
+- whether a configured model appears to be installed, not installed, or unknown because Ollama is unreachable
+
+The action area also includes:
+
+- `Check Connection`
+- `Open Ollama Download Page`
+- `Download and Manage Ollama Models`: opens the separate [Download and Manage Ollama Models](#11-download-and-manage-ollama-models) guide below
+- `Do not check Ollama at startup`
+
+This section is currently shown for the `Ollama` config type. Even if an `OpenAI-Compatible` profile still uses Ollama for embeddings, the dedicated Ollama startup card is not shown automatically in this first-page flow.
+
+### 7. Use Environment Variables for Keys and Secrets
+
+When the selected setting or bundled tools need secrets, the launcher shows an **Environment Variables** section. This is where you keep API keys and tool secrets out of YAML.
+
+![Environment variables card](assets/images/launcher/launcher-env-card.png)
+
+Typical entries include:
+
+- `OPENAI_API_KEY`
+- `GOOGLE_API_KEY`
+- `PSE_ID`
+- `SLACK_WEBHOOK_URL`
+- custom variables added with `Add Environment Variable`
+
+The launcher behavior is important here:
+
+- values are stored per saved setting
+- values are exported only for the app launch process
+- values are not meant to be written into the YAML override
+- the UI can list both backend-required keys and optional tool-related keys
+
+The card also shows the current secret-storage mode. When Electron `safeStorage` is available, the launcher stores secrets encrypted at rest and exports them only as environment variables during launch.
+
+For the current desktop behavior:
+
+- `OpenAI` requires `OPENAI_API_KEY` before launch
+- `OpenAI-Compatible` can show an API key field, but it is only needed when that compatible server expects one
+- `Ollama` usually does not require an API key for the backend itself, but optional tool integrations may still use environment variables
+
+### 8. Set JVM and App Args Only When Needed
+
+The desktop editor also includes a **JVM Settings** section for launch-time runtime options.
+
+![JVM settings and launch actions](assets/images/launcher/launcher-jvm-footer.png)
+
+That section includes:
+
+- JVM options such as `-Xmx2g`
+- application args such as `--logging.level.root=INFO`
+
+These are launch-time settings, not provider secrets.
+
+### 9. Recommended First-Launch Flow
+
+For a clean first launch:
+
+1. choose `Ollama`, `OpenAI`, or `OpenAI-Compatible`
+2. review the generated YAML override instead of trying to recreate the full application config
+3. fill only the environment variables required by that backend or by the tools you actually plan to use
+4. for `Ollama`, make sure Ollama is installed, running, and has the models you selected
+5. click `Save and Launch`
+
+### 10. What You See After Save and Launch
+
+After you click `Save and Launch`, the launcher opens a separate startup window while Spring AI Playground boots in the background.
+
+![Spring AI Playground launcher startup screen](assets/images/lancher-springai.png)
+
+That startup window shows:
+
+- `Current Config`: the saved setting being launched
+- `Config File`: the resolved YAML file path used for this launch
+- `Final Launch Command`: the full Java command the launcher built for Spring AI Playground
+- `Launch Log`: live startup output, including Ollama checks, config resolution, and server readiness messages
+
+The action row also includes:
+
+- `Back to Settings`: stops the current launch and returns to the configuration screen
+- `Auto-copy launch logs to clipboard`: keeps launch logs copied automatically while the app starts
+- `Retry Check`: reruns readiness checks if startup is taking longer than expected
+- `Quit`: stops the launch and closes the launcher
+
+If startup takes longer than expected, the launcher stays open and keeps streaming logs instead of failing immediately. This is especially helpful when local models are still warming up or downloads are still completing.
+
+### 11. Download and Manage Ollama Models
+
+From the `Ollama Startup` card, `Download and Manage Ollama Models` opens a separate model manager window.
+
+The manager starts with profile context at the top, including the selected config name, Ollama install status, endpoint, and current connection state.
+
+![Ollama model manager header](assets/images/launcher/ollama-manager-top.png)
+
+Below that, the `Download by model name` area is for manual downloads.
+
+- enter an exact Ollama model identifier as `model` or `model:tag`
+- use the download button to queue that exact model for download
+- use `Find on Ollama` to open the Ollama search page and look up the correct model name first
+
+The recommended flow is:
+
+1. click `Find on Ollama`
+2. search the Ollama model page for the model you want
+3. copy the exact model name and tag shown there
+4. paste it into `Download by model name`
+5. click the download button to queue that model for download
+
+The download button next to the input means `Queue download`. It adds the requested model to the manager's download queue rather than changing the current YAML profile by itself.
+
+The default tab is `Recommended`.
+
+![Ollama model manager recommended tab](assets/images/launcher/ollama-manager-recommended-wide.png)
+
+That tab shows:
+
+- the embedding model configured for the current profile first
+- additional chat models from the active YAML profile
+- whether each recommended model is already downloaded
+- badges such as `Embedding`, `Chat`, `Default embedding`, and `Current chat model`
+- a per-model download button that queues that exact recommended model when it is not already available locally
+
+The `Downloaded` tab focuses on models that already exist in the local Ollama store.
+
+![Ollama model manager downloaded tab](assets/images/launcher/ollama-manager-downloaded-wide.png)
+
+In that tab, the UI groups downloaded models by type and lets you manage them directly.
+
+- `Copy model as...` duplicates a model under a new Ollama name
+- `Delete model` removes the selected model from the local Ollama store
+
+This makes the model manager useful both for first-time setup and for cleaning up or cloning downloaded models later.
+
+## Additional Setup for Specific Backends and Runtimes
+
+The desktop app already bundles the launcher and application runtime, so you do not need extra setup just to install and open Spring AI Playground.
+
+The items below apply only when you choose a specific backend or an alternative runtime path.
+
+### If You Use Ollama
+
+Use this setup when you want the default local-first chat and embedding flow.
 
 - Download and install [Ollama](https://ollama.com/) on your machine.
 - Run `ollama serve` or ensure the Ollama app is running.
@@ -74,108 +314,21 @@ ollama pull qwen3.5
 ollama pull qwen3-embedding:0.6b
 ```
 
-### Docker
-
-- Install Docker and make sure it is running if you plan to use the container runtime.
-
-### Optional: Java 21+ and Git
-
-- Only required if you plan to build from source.
-
-### If You Do Not Want to Use Ollama
+### If You Use OpenAI Instead of Ollama
 
 If you switch to the `OpenAI` setting, Ollama is not required at startup.
 
 In that case, provide `OPENAI_API_KEY` in the desktop app Environment Variables section and launch with the OpenAI setting.
 
-For OpenAI-compatible settings, whether Ollama is still required depends on the selected backend and whether embeddings still use Ollama.
+For `OpenAI-Compatible` settings, whether Ollama is still required depends on the selected backend and whether embeddings still use Ollama.
 
-## Desktop Configuration Walkthrough
+### If You Run the Docker Image
 
-The desktop configuration editor is one of the most important parts of the product experience.
+- Install Docker and make sure it is running if you plan to use the container runtime.
 
-### 1. Choose a Config Type
+### If You Build from Source
 
-The launcher offers starter templates for:
-
-- `Ollama`
-- `OpenAI`
-- `OpenAI Compatible - Ollama`
-- `OpenAI Compatible - llama.cpp`
-- `OpenAI Compatible - TabbyAPI`
-- `OpenAI Compatible - LM Studio`
-- `OpenAI Compatible - vLLM`
-
-### 2. Select or Clone a Saved Setting
-
-The config editor supports:
-
-- choosing a saved setting
-- creating a variation with `Save As`
-- deleting a setting you no longer need
-- importing and exporting reusable launcher settings
-- resetting to factory defaults
-
-### 3. Edit Only the Override YAML
-
-The YAML editor is intentionally scoped to override content, not the full base file. The selected YAML is merged on top of the built-in default configuration at launch.
-
-That design keeps the common configuration flow simpler:
-
-- keep a stable bundled default
-- store only what differs for this setting
-- switch between clean launch profiles quickly
-
-### 4. Add Environment Variables Instead of Hardcoding Secrets
-
-The desktop launcher is designed so API keys and runtime secrets stay out of YAML whenever possible.
-
-The Environment Variables section is where you enter values such as:
-
-- `OPENAI_API_KEY`
-- tool-related variables like `GOOGLE_API_KEY`, `PSE_ID`, `SLACK_WEBHOOK_URL`
-- any custom environment variable needed by a backend or tool
-
-The launcher behavior is important here:
-
-- variables are stored by the launcher per saved setting
-- they are exported only for the app launch process
-- they are not meant to be written into the YAML override
-- config export intentionally excludes local secret values for safety
-
-### 5. Understand Secret Storage
-
-The desktop app uses Electron `safeStorage` when OS-backed secure encryption is available.
-
-That means:
-
-- secrets are encrypted at rest when the operating system secure storage is available
-- the UI tells the user whether encrypted storage is active
-- if OS-backed encryption is unavailable, the launcher falls back to plain-text local storage and indicates that status in the UI
-
-So the practical behavior is:
-
-- on supported systems, desktop secrets are encrypted by the OS-integrated secure storage layer
-- on unsupported systems, the launcher clearly warns before using plain-text local storage
-- regardless of encryption mode, the launcher exports them only into the app launch process instead of asking you to hardcode them in YAML
-
-### 6. Set JVM and App Args Only When Needed
-
-The desktop editor also includes:
-
-- JVM options such as `-Xmx2g`
-- application args such as `--logging.level.root=INFO`
-
-These are launch-time settings, not provider secrets.
-
-### 7. Save and Launch
-
-Once the selected setting looks right:
-
-1. save the setting
-2. verify the required environment variables
-3. make sure Ollama is running when the setting requires it
-4. click `Save and Launch`
+- Install Java 21+ and Git.
 
 ## Running the Application
 

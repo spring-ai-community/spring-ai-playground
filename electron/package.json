@@ -28,6 +28,9 @@
     "files": [
       "config-editor.html",
       "main.js",
+      "ollama-manager.html",
+      "ollama-manager.js",
+      "ollama-manager-preload.js",
       "preload.js",
       "launcher-config.js",
       "splash.html",
@@ -129,7 +132,7 @@
   "dependencies": {
     "ace-builds": "^1.43.2",
     "js-yaml": "^4.1.1",
-    "tree-kill": "^1.2.2",
-    "sirv": "^3.0.0"
+    "ollama": "^0.6.3",
+    "tree-kill": "^1.2.2"
   }
 }
