@@ -21,19 +21,19 @@ const CONFIG_TEMPLATES = {
     model:
       chat: ollama
       embedding: ollama
-  ollama:
-    chat:
-      options:
-        model: qwen3.5
-    embedding:
-      options:
-        model: qwen3-embedding:0.6b
-  playground:
-    chat:
-      models:
-        - gpt-oss
-        - qwen3.5
-        - qwen3
+    ollama:
+      chat:
+        options:
+          model: qwen3.5
+      embedding:
+        options:
+          model: qwen3-embedding:0.6b
+    playground:
+      chat:
+        models:
+          - gpt-oss
+          - qwen3.5
+          - qwen3
 `,
   },
   openai: {
@@ -46,24 +46,24 @@ const CONFIG_TEMPLATES = {
     model:
       chat: openai-sdk
       embedding: openai-sdk
-  openai-sdk:
-    api-key: \${OPENAI_API_KEY}
-    chat:
-      options:
-        model: gpt-5-nano
-        stream-options:
-          include-usage: false
-    embedding:
-      options:
-        model: text-embedding-3-small
-  playground:
-    chat:
-      models:
-        - gpt-5.2
-        - gpt-5-mini
-        - gpt-5-nano
-        - gpt-4.1
-        - gpt-4o
+    openai-sdk:
+      api-key: \${OPENAI_API_KEY}
+      chat:
+        options:
+          model: gpt-5-nano
+          stream-options:
+            include-usage: false
+      embedding:
+        options:
+          model: text-embedding-3-small
+    playground:
+      chat:
+        models:
+          - gpt-5.2
+          - gpt-5-mini
+          - gpt-5-nano
+          - gpt-4.1
+          - gpt-4o
 `,
   },
   openaiCompatibleOllama: {
@@ -76,20 +76,20 @@ const CONFIG_TEMPLATES = {
     model:
       chat: openai-sdk
       embedding: ollama
-  openai-sdk:
-    api-key: not-used
-    base-url: http://localhost:11434/v1
-    chat:
-      options:
-        model: llama3.2
-  ollama:
-    embedding:
-      options:
-        model: qwen3-embedding:0.6b
-  playground:
-    chat:
-      models:
-        - llama3.2
+    openai-sdk:
+      api-key: not-used
+      base-url: http://localhost:11434/v1
+      chat:
+        options:
+          model: llama3.2
+    ollama:
+      embedding:
+        options:
+          model: qwen3-embedding:0.6b
+    playground:
+      chat:
+        models:
+          - llama3.2
 `,
   },
   openaiCompatibleLlamaCpp: {
@@ -102,23 +102,23 @@ const CONFIG_TEMPLATES = {
     model:
       chat: openai-sdk
       embedding: ollama
-  openai-sdk:
-    api-key: not-used
-    base-url: http://localhost:8080/v1
-    chat:
-      options:
-        model: your-model-name
-        extra-body:
-          top_k: 40
-          repetition_penalty: 1.1
-  ollama:
-    embedding:
-      options:
-        model: qwen3-embedding:0.6b
-  playground:
-    chat:
-      models:
-        - your-model-name
+    openai-sdk:
+      api-key: not-used
+      base-url: http://localhost:8080/v1
+      chat:
+        options:
+          model: your-model-name
+          extra-body:
+            top_k: 40
+            repetition_penalty: 1.1
+    ollama:
+      embedding:
+        options:
+          model: qwen3-embedding:0.6b
+    playground:
+      chat:
+        models:
+          - your-model-name
 `,
   },
   openaiCompatibleTabbyApi: {
@@ -131,22 +131,22 @@ const CONFIG_TEMPLATES = {
     model:
       chat: openai-sdk
       embedding: ollama
-  openai-sdk:
-    api-key: your-tabby-key
-    base-url: http://localhost:5000/v1
-    chat:
-      options:
-        model: your-exllama-model
-        extra-body:
-          top_p: 0.95
-  ollama:
-    embedding:
-      options:
-        model: qwen3-embedding:0.6b
-  playground:
-    chat:
-      models:
-        - your-exllama-model
+    openai-sdk:
+      api-key: your-tabby-key
+      base-url: http://localhost:5000/v1
+      chat:
+        options:
+          model: your-exllama-model
+          extra-body:
+            top_p: 0.95
+    ollama:
+      embedding:
+        options:
+          model: qwen3-embedding:0.6b
+    playground:
+      chat:
+        models:
+          - your-exllama-model
 `,
   },
   openaiCompatibleLmStudio: {
@@ -159,22 +159,22 @@ const CONFIG_TEMPLATES = {
     model:
       chat: openai-sdk
       embedding: ollama
-  openai-sdk:
-    api-key: not-used
-    base-url: http://localhost:1234/v1
-    chat:
-      options:
-        model: your-loaded-model
-        extra-body:
-          num_predict: 100
-  ollama:
-    embedding:
-      options:
-        model: qwen3-embedding:0.6b
-  playground:
-    chat:
-      models:
-        - your-loaded-model
+    openai-sdk:
+      api-key: not-used
+      base-url: http://localhost:1234/v1
+      chat:
+        options:
+          model: your-loaded-model
+          extra-body:
+            num_predict: 100
+    ollama:
+      embedding:
+        options:
+          model: qwen3-embedding:0.6b
+    playground:
+      chat:
+        models:
+          - your-loaded-model
 `,
   },
   openaiCompatibleVllm: {
@@ -187,22 +187,22 @@ const CONFIG_TEMPLATES = {
     model:
       chat: openai-sdk
       embedding: ollama
-  openai-sdk:
-    api-key: not-used
-    base-url: http://localhost:8000/v1
-    chat:
-      options:
-        model: meta-llama/Llama-3-8B-Instruct
-        extra-body:
-          top_k: 50
-  ollama:
-    embedding:
-      options:
-        model: qwen3-embedding:0.6b
-  playground:
-    chat:
-      models:
-        - meta-llama/Llama-3-8B-Instruct
+    openai-sdk:
+      api-key: not-used
+      base-url: http://localhost:8000/v1
+      chat:
+        options:
+          model: meta-llama/Llama-3-8B-Instruct
+          extra-body:
+            top_k: 50
+    ollama:
+      embedding:
+        options:
+          model: qwen3-embedding:0.6b
+    playground:
+      chat:
+        models:
+          - meta-llama/Llama-3-8B-Instruct
 `,
   },
 };
