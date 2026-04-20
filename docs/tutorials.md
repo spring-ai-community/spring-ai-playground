@@ -385,4 +385,5 @@ This final tutorial is where that architecture becomes visible to the user. It s
 
 - [Overview](index.md): return to the main product overview and documentation map
 - [Getting Started](getting-started.md): review installation, runtime options, and provider configuration
-- [Features](features.md): understand the architecture and the main product areas in more detail
+- [Architecture](architecture.md): runtime layers, data flows, and extension points
+- [Features](features.md): the main product areas in more detail

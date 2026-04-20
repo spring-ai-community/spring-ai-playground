@@ -2,6 +2,10 @@ site_name: Spring AI Playground
 site_description: Cross-platform desktop app and safe local execution layer for AI agent tools with Tool Studio, MCP, Agentic Chat, RAG, and No pass, no run validation.
 site_url: https://spring-ai-community.github.io/spring-ai-playground/
 repo_url: https://github.com/spring-ai-community/spring-ai-playground
+copyright: Copyright &copy; 2025 Spring AI Community · <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>
+
+extra:
+  generator: false
 theme:
   name: material
   custom_dir: docs-overrides
@@ -15,6 +19,7 @@ theme:
 nav:
   - Home: index.md
   - "Getting Started": getting-started.md
+  - "Architecture": architecture.md
   - "Features": features.md
   - "Tutorials": tutorials.md
 
@@ -23,6 +28,10 @@ docs_dir: docs
 extra_css:
   - assets/stylesheets/extra.css
 
+extra_javascript:
+  - https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js
+  - assets/javascripts/mermaid-pan-zoom.js
+
 markdown_extensions:
   - meta
   - attr_list
@@ -30,3 +39,8 @@ markdown_extensions:
   - pymdownx.emoji:
       emoji_index: !!python/name:material.extensions.emoji.twemoji
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format

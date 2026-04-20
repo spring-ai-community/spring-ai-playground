@@ -7,3 +7,22 @@
     margin-left: 0;
   }
 }
+
+/* Mermaid: allow labels to wrap and prevent tight clipping */
+.mermaid .nodeLabel,
+.mermaid .edgeLabel,
+.mermaid .actor text,
+.mermaid .messageText {
+  white-space: normal !important;
+  word-wrap: break-word;
+}
+
+.mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Pan/zoom control icons */
+#svg-pan-zoom-controls {
+  transform: translate(10px, 10px);
+}

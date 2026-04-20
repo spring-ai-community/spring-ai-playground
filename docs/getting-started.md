@@ -621,5 +621,6 @@ After the app is running and the model backend is configured:
 ## Further Reading
 
 - [Overview](index.md): see the product positioning, quick start path, and documentation map
-- [Features](features.md): understand the architecture and the main product areas
+- [Architecture](architecture.md): runtime layers, data flows, and extension points
+- [Features](features.md): the main product areas and what they do
 - [Tutorials](tutorials.md): follow end-to-end workflows for tools, MCP, vector search, and agentic chat
