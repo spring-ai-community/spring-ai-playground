@@ -249,7 +249,7 @@ For a clean first launch:
 
 After you click `Save and Launch`, the launcher opens a separate startup window while Spring AI Playground boots in the background.
 
-![Spring AI Playground launcher startup screen](assets/images/lancher-springai.png)
+![Spring AI Playground launcher startup screen](assets/images/launcher-springai.png)
 
 That startup window shows:
 

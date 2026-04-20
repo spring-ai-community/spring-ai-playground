@@ -97,8 +97,8 @@ If you install the app, you can run Spring AI Playground immediately without set
 </p>
 
 <p align="center">
-  <a href="docs/assets/images/lancher-ollama-config.png">
-    <img src="docs/assets/images/lancher-ollama-config.png" width="760" alt="Spring AI Playground Ollama model manager"/>
+  <a href="docs/assets/images/launcher-ollama-config.png">
+    <img src="docs/assets/images/launcher-ollama-config.png" width="760" alt="Spring AI Playground Ollama model manager"/>
   </a>
 </p>
 
