@@ -16,15 +16,12 @@
 package org.springaicommunity.playground.webui.home;
 
 import com.vaadin.flow.component.Component;
-import com.vaadin.flow.component.html.Header;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.listbox.ListBox;
-import com.vaadin.flow.component.orderedlayout.Scroller;
-import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
-import com.vaadin.flow.theme.lumo.LumoUtility;
+import org.springaicommunity.playground.webui.common.WorkspaceSidebar;
 
 import java.util.List;
 import java.util.function.Consumer;
@@ -33,7 +30,7 @@ import static org.springaicommunity.playground.webui.home.HomeItemView.ActionTyp
 import static org.springaicommunity.playground.webui.home.HomeItemView.ActionType.MARKDOWN;
 import static org.springaicommunity.playground.webui.home.HomeItemView.ActionType.UI_COMPONENT;
 
-public class HomeItemView extends VerticalLayout {
+public class HomeItemView extends WorkspaceSidebar {
 
     public record HomeItem(String displayName, Icon icon, ActionType actionType, Object actionData) {
         public Component createComponent() {
@@ -53,9 +50,7 @@ public class HomeItemView extends VerticalLayout {
     }
 
     public HomeItemView(Consumer<HomeItem> selectedHomeItemConsumer) {
-        setSpacing(false);
-        setMargin(false);
-        getStyle().set("overflow", "hidden");
+        super("Home Contents");
 
         List<HomeItem> homeItems = List.of(buildDefaultHomeItem(),
                 new HomeItem("Spring AI Playground Document", VaadinIcon.FILE_TEXT_O.create(),
@@ -78,40 +73,16 @@ public class HomeItemView extends VerticalLayout {
 
         ListBox<HomeItem> homeItemListBox = new ListBox<>();
         homeItemListBox.setItems(homeItems);
-
-
         homeItemListBox.setRenderer(new ComponentRenderer<>(HomeItem::createComponent));
-
         homeItemListBox.addValueChangeListener(event -> {
             selectedHomeItemConsumer.accept(event.getValue());
             homeItemListBox.clear();
         });
 
-        VerticalLayout contentLayout = new VerticalLayout();
-        contentLayout.setPadding(false);
-        contentLayout.setSpacing(false);
-        contentLayout.setWidthFull();
-        contentLayout.add(homeItemListBox);
-
-        Scroller scroller = new Scroller(contentLayout);
-        scroller.setSizeFull();
-        scroller.setScrollDirection(Scroller.ScrollDirection.VERTICAL);
-
-        removeAll();
-        add(initHomeItemHeader(), scroller);
+        setSidebarContent(verticalScroller(homeItemListBox));
     }
 
     public HomeItem buildDefaultHomeItem() {
         return new HomeItem("Welcome", VaadinIcon.HOME.create(), UI_COMPONENT, new HomeInfoView());
-    }
-
-    private Header initHomeItemHeader() {
-        Span appName = new Span("Home Contents");
-        appName.addClassNames(LumoUtility.FontWeight.SEMIBOLD, LumoUtility.FontSize.LARGE);
-
-        Header header = new Header(appName);
-        header.getStyle().set("white-space", "nowrap").set("height", "auto").set("width", "100%").set("display", "flex")
-                .set("box-sizing", "border-box").set("align-items", "center");
-        return header;
     }
 }

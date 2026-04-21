@@ -104,7 +104,7 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
                         .map(Map.Entry::getValue).toList()));
     }
 
-    public McpServerInfo createDefaultMcpServerInfo() {
+    public McpServerInfo createBlankMcpServerInfo() {
         String defaultDescription = "Please edit the description of the MCP Server.";
         long timestamp = System.currentTimeMillis();
         return new McpServerInfo(McpTransportType.STDIO, "New MCP Server", defaultDescription, timestamp, timestamp,
