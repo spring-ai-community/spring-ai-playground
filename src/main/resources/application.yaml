@@ -54,7 +54,7 @@ spring:
             # HTML parsing library — currently used in examples
             - org.jsoup.*
 
-      user-home:
+      user-home: ${user.home}
       chat:
         system-prompt:
     mcp:
