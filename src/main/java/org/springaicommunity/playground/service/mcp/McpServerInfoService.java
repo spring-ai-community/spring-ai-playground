@@ -44,6 +44,7 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
     private final McpClientService mcpClientService;
     private final ObjectProvider<McpServerInfoPersistenceService> mcpServerInfoPersistenceServiceProvider;
     private final String defaultMcpServerName;
+    private final ThreadLocal<Boolean> skipPersist = ThreadLocal.withInitial(() -> Boolean.FALSE);
     private McpServerInfo defaultMcpServerInfo;
 
     public McpServerInfoService(ObjectMapper objectMapper, McpClientPropertiesService<?>[] mcpClientPropertiesServices,
@@ -114,7 +115,16 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
     public void deleteMcpServerInfo(McpTransportType transportType, String serverName) {
         McpServerInfo mcpServerInfo = this.typeMcpServerInfosMap.get(transportType).remove(serverName);
         if (mcpServerInfo != null)
-            this.mcpServerInfoPersistenceServiceProvider.getObject().delete(mcpServerInfo);
+            this.mcpServerInfoPersistenceServiceProvider.getObject().deleteAsync(mcpServerInfo);
+    }
+
+    public void loadAll(Runnable loadAction) {
+        this.skipPersist.set(Boolean.TRUE);
+        try {
+            loadAction.run();
+        } finally {
+            this.skipPersist.remove();
+        }
     }
 
     public McpServerInfo updateMcpServerInfo(McpTransportType transportType, String serverName,
@@ -126,6 +136,9 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
             deleteMcpServerInfo(transportType, serverName);
         this.typeMcpServerInfosMap.get(updateMcpServerInfo.mcpTransportType())
                 .put(updateMcpServerInfo.serverName(), updateMcpServerInfo);
+        if (!Boolean.TRUE.equals(this.skipPersist.get()) &&
+                !updateMcpServerInfo.equals(this.defaultMcpServerInfo))
+            this.mcpServerInfoPersistenceServiceProvider.getObject().saveAsync(updateMcpServerInfo);
         return updateMcpServerInfo;
     }
 

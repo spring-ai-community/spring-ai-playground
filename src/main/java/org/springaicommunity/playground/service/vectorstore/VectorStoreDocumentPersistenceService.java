@@ -15,6 +15,7 @@
  */
 package org.springaicommunity.playground.service.vectorstore;
 
+import org.springaicommunity.playground.service.PersistenceExecutor;
 import org.springaicommunity.playground.service.PersistenceServiceInterface;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,9 +45,11 @@ public class VectorStoreDocumentPersistenceService implements PersistenceService
     private final Path simpleVectorstoreSaveDir;
     private final VectorStore vectorStore;
     private final VectorStoreDocumentService vectorStoreDocumentService;
+    private final PersistenceExecutor persistenceExecutor;
 
     public VectorStoreDocumentPersistenceService(Path springAiPlaygroundHomeDir, VectorStore vectorStore,
-            VectorStoreDocumentService vectorStoreDocumentService) throws IOException {
+            VectorStoreDocumentService vectorStoreDocumentService, PersistenceExecutor persistenceExecutor)
+            throws IOException {
         this.saveDir = springAiPlaygroundHomeDir.resolve("vectorstore").resolve("save").resolve(
                 Optional.ofNullable(vectorStore.getName()).filter(Predicate.not(String::isBlank))
                         .orElse("VectorStore"));
@@ -55,6 +58,21 @@ public class VectorStoreDocumentPersistenceService implements PersistenceService
         Files.createDirectories(this.simpleVectorstoreSaveDir);
         this.vectorStore = vectorStore;
         this.vectorStoreDocumentService = vectorStoreDocumentService;
+        this.persistenceExecutor = persistenceExecutor;
+    }
+
+    public void saveAsync(VectorStoreDocumentInfo vectorStoreDocumentInfo) {
+        this.persistenceExecutor.submit(() -> {
+            try {
+                save(vectorStoreDocumentInfo);
+            } catch (IOException e) {
+                logger.error("Async save failed for document {}", vectorStoreDocumentInfo.docInfoId(), e);
+            }
+        });
+    }
+
+    public void deleteAsync(VectorStoreDocumentInfo vectorStoreDocumentInfo) {
+        this.persistenceExecutor.submit(() -> delete(vectorStoreDocumentInfo));
     }
 
     @Override
@@ -100,7 +118,7 @@ public class VectorStoreDocumentPersistenceService implements PersistenceService
         try {
             Files.deleteIfExists(this.simpleVectorstoreSaveDir.resolve(SIMPLE_VECTOR_STORE_JSON));
         } catch (IOException e) {
-            logger.warn("Failed to delete SimpleVectorStore dump: {}", e.getMessage());
+            logger.error("Failed to delete SimpleVectorStore dump", e);
         }
     }
 
@@ -116,19 +134,20 @@ public class VectorStoreDocumentPersistenceService implements PersistenceService
                 this.vectorStore instanceof SimpleVectorStore simpleVectorStore) {
             simpleVectorStore.load(this.simpleVectorstoreSaveDir.resolve(SIMPLE_VECTOR_STORE_JSON).toFile());
         }
-        loads().forEach(vectorStoreDocumentInfo -> {
+        List<VectorStoreDocumentInfo> loaded = loads();
+        vectorStoreDocumentService.loadAll(() -> loaded.forEach(vectorStoreDocumentInfo -> {
             vectorStoreDocumentService.updateDocumentInfo(vectorStoreDocumentInfo,
                     vectorStoreDocumentInfo.title());
             vectorStoreDocumentInfo.changeDocumentListSupplier(() -> this.vectorStore.similaritySearch(
                     SEARCH_ALL_REQUEST_WITH_DOC_INFO_IDS_FUNCTION.apply(
                             List.of(vectorStoreDocumentInfo.docInfoId()))));
-        });
+        }));
     }
 
     @Override
     public void onShutdown() throws IOException {
-        for (VectorStoreDocumentInfo vectorStoreDocumentInfo : vectorStoreDocumentService.getDocumentList())
-            save(vectorStoreDocumentInfo);
+        // DocumentInfos are persisted on change via saveAsync.
+        // SimpleVectorStore dump is expensive, so snapshot it once at shutdown.
         if (!vectorStoreDocumentService.getDocumentList().isEmpty() &&
                 this.vectorStore instanceof SimpleVectorStore simpleVectorStore)
             simpleVectorStore.save(this.simpleVectorstoreSaveDir.resolve(SIMPLE_VECTOR_STORE_JSON).toFile());

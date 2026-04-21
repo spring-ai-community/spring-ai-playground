@@ -23,8 +23,10 @@ import org.slf4j.Logger;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -40,7 +42,8 @@ public interface PersistenceServiceInterface<T> {
 
     Logger getLogger();
 
-    void buildSaveData(T saveObject, Map<String, Object> saveObjectMap);
+    default void buildSaveData(T saveObject, Map<String, Object> saveObjectMap) {
+    }
 
     String buildSaveFileName(T saveObject);
 
@@ -48,7 +51,8 @@ public interface PersistenceServiceInterface<T> {
 
     void onStart() throws IOException;
 
-    void onShutdown() throws IOException;
+    default void onShutdown() throws IOException {
+    }
 
     default void save(T saveObject) throws IOException {
         Path saveDir = getSaveDir();
@@ -56,10 +60,17 @@ public interface PersistenceServiceInterface<T> {
         Files.createDirectories(saveDir);
         Map<String, Object> saveObjectMap = OBJECT_MAPPER.convertValue(saveObject, MAP_TYPE_REFERENCE);
         buildSaveData(saveObject, saveObjectMap);
-        File file = saveDir.resolve(buildFileName(saveObject)).toFile();
+        String fileName = buildFileName(saveObject);
+        Path target = saveDir.resolve(fileName);
+        Path tmp = saveDir.resolve(fileName + ".tmp");
 
-        getLogger().info("Saving {} to file: {}", simpleName, file.getAbsolutePath());
-        OBJECT_MAPPER.writeValue(file, saveObjectMap);
+        getLogger().info("Saving {} to file: {}", simpleName, target);
+        OBJECT_MAPPER.writeValue(tmp.toFile(), saveObjectMap);
+        try {
+            Files.move(tmp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        } catch (AtomicMoveNotSupportedException e) {
+            Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
+        }
     }
 
     private String buildFileName(T saveObject) {
@@ -82,7 +93,7 @@ public interface PersistenceServiceInterface<T> {
         try {
             Files.deleteIfExists(file);
         } catch (IOException e) {
-            getLogger().warn("Failed to delete save file {}: {}", file, e.getMessage());
+            getLogger().error("Failed to delete save file {}", file, e);
         }
     }
 
@@ -97,7 +108,7 @@ public interface PersistenceServiceInterface<T> {
                 }
             });
         } catch (IOException | UncheckedIOException e) {
-            getLogger().warn("Failed to clear save dir {}: {}", dir, e.getMessage());
+            getLogger().error("Failed to clear save dir {}", dir, e);
         }
     }
 }

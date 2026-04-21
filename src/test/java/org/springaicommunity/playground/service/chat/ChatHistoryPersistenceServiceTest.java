@@ -15,7 +15,9 @@
  */
 package org.springaicommunity.playground.service.chat;
 
+import org.springaicommunity.playground.service.PersistenceExecutor;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
@@ -28,7 +30,11 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.TimeoutException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -39,9 +45,23 @@ class ChatHistoryPersistenceServiceTest {
     @Autowired
     private ChatHistoryPersistenceService chatHistoryPersistenceService;
 
+    @Autowired
+    private PersistenceExecutor persistenceExecutor;
+
+    @BeforeEach
+    void setUp() {
+        chatHistoryPersistenceService.clear();
+    }
+
     @AfterEach
     void tearDown() {
         chatHistoryPersistenceService.clear();
+    }
+
+    private ChatHistory buildHistory(String id) {
+        long now = System.currentTimeMillis();
+        return new ChatHistory(id, "T", now, now, "sys", new DefaultChatOptions(),
+                () -> List.of(new UserMessage("Hi")));
     }
 
     @Test
@@ -92,5 +112,40 @@ class ChatHistoryPersistenceServiceTest {
         assertThat(systemMessage.getText()).isEqualTo("System initialized.");
         assertThat(systemMessage.getMessageType()).isEqualTo(MessageType.SYSTEM);
         assertThat(systemMessage.getMetadata()).containsEntry("messageType", MessageType.SYSTEM);
+    }
+
+    @Test
+    void testSaveAsync_writesFileAfterFlush() throws InterruptedException, TimeoutException {
+        ChatHistory history = buildHistory("chat-async-save");
+
+        chatHistoryPersistenceService.saveAsync(history);
+        persistenceExecutor.awaitCompletion(Duration.ofSeconds(2));
+
+        Path expected = chatHistoryPersistenceService.getSaveDir().resolve("chat-async-save.json");
+        assertThat(Files.exists(expected)).isTrue();
+        assertThat(chatHistoryPersistenceService.getSaveDir().toFile().listFiles()).hasSize(1);
+    }
+
+    @Test
+    void testDeleteAsync_removesFileAfterFlush() throws IOException, InterruptedException, TimeoutException {
+        ChatHistory history = buildHistory("chat-async-delete");
+        chatHistoryPersistenceService.save(history);
+        Path expected = chatHistoryPersistenceService.getSaveDir().resolve("chat-async-delete.json");
+        assertThat(Files.exists(expected)).isTrue();
+
+        chatHistoryPersistenceService.deleteAsync(history);
+        persistenceExecutor.awaitCompletion(Duration.ofSeconds(2));
+
+        assertThat(Files.exists(expected)).isFalse();
+    }
+
+    @Test
+    void testSave_leavesNoTempFile() throws IOException {
+        ChatHistory history = buildHistory("chat-atomic");
+        chatHistoryPersistenceService.save(history);
+
+        assertThat(chatHistoryPersistenceService.getSaveDir().toFile().listFiles())
+                .extracting(java.io.File::getName)
+                .allMatch(name -> name.endsWith(".json") && !name.endsWith(".tmp"));
     }
 }

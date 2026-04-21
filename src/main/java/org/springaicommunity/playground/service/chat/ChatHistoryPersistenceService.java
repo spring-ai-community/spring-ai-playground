@@ -15,6 +15,7 @@
  */
 package org.springaicommunity.playground.service.chat;
 
+import org.springaicommunity.playground.service.PersistenceExecutor;
 import org.springaicommunity.playground.service.PersistenceServiceInterface;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,13 +44,29 @@ public class ChatHistoryPersistenceService implements PersistenceServiceInterfac
 
     private final Path saveDir;
     private final ObjectProvider<ChatHistoryService> chatHistoryServiceProvider;
+    private final PersistenceExecutor persistenceExecutor;
 
     public ChatHistoryPersistenceService(Path springAiPlaygroundHomeDir,
-            ObjectProvider<ChatHistoryService> chatHistoryServiceProvider) throws
-            IOException {
+            ObjectProvider<ChatHistoryService> chatHistoryServiceProvider,
+            PersistenceExecutor persistenceExecutor) throws IOException {
         this.chatHistoryServiceProvider = chatHistoryServiceProvider;
+        this.persistenceExecutor = persistenceExecutor;
         this.saveDir = springAiPlaygroundHomeDir.resolve("chat").resolve("save");
         Files.createDirectories(this.saveDir);
+    }
+
+    public void saveAsync(ChatHistory chatHistory) {
+        this.persistenceExecutor.submit(() -> {
+            try {
+                save(chatHistory);
+            } catch (IOException e) {
+                logger.error("Async save failed for chat history {}", chatHistory.conversationId(), e);
+            }
+        });
+    }
+
+    public void deleteAsync(ChatHistory chatHistory) {
+        this.persistenceExecutor.submit(() -> delete(chatHistory));
     }
 
     @Override
@@ -103,12 +120,5 @@ public class ChatHistoryPersistenceService implements PersistenceServiceInterfac
     public void onStart() throws IOException {
         ChatHistoryService chatHistoryService = this.chatHistoryServiceProvider.getObject();
         this.loads().forEach(chatHistoryService::putIfAbsentChatHistory);
-    }
-
-    @Override
-    public void onShutdown() throws IOException {
-        ChatHistoryService chatHistoryService = this.chatHistoryServiceProvider.getObject();
-        for (ChatHistory chatHistory : chatHistoryService.getChatHistoryList())
-            save(chatHistory);
     }
 }
