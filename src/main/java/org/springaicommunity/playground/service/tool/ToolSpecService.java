@@ -242,7 +242,7 @@ public class ToolSpecService implements SmartLifecycle {
 
     @Override
     public int getPhase() {
-        return Integer.MIN_VALUE;
+        return Integer.MAX_VALUE;
     }
 
     @Override

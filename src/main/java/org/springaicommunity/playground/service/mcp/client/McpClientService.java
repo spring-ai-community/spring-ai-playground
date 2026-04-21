@@ -23,7 +23,6 @@ import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.Implementation;
 import io.modelcontextprotocol.spec.McpSchema.ServerCapabilities;
 import jakarta.annotation.Nullable;
-import jakarta.annotation.PreDestroy;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,6 +32,8 @@ import org.springframework.ai.mcp.client.common.autoconfigure.configurer.McpSync
 import org.springframework.ai.mcp.client.common.autoconfigure.properties.McpClientCommonProperties;
 import org.springframework.ai.mcp.client.common.autoconfigure.properties.McpClientCommonProperties.ClientType;
 import org.springframework.ai.tool.ToolCallbackProvider;
+import org.springframework.context.event.ContextClosedEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
 import java.util.Arrays;
@@ -158,8 +159,8 @@ public class McpClientService {
                         .buildClientTransport(this.objectMapper, mcpServerInfo.connectionAsJson()));
     }
 
-    @PreDestroy
-    private void shutdownAllMcpClients() {
+    @EventListener(ContextClosedEvent.class)
+    public void shutdownAllMcpClients() {
         logger.info("Shutting down all MCP clients. currentActiveClientCount={}", connectingMcpClientOpsMap.size());
         this.connectingMcpClientOpsMap.values().parallelStream().forEach(McpClientOps::close);
     }
