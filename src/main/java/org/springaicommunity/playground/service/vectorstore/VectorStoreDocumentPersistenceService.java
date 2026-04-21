@@ -94,8 +94,14 @@ public class VectorStoreDocumentPersistenceService implements PersistenceService
                 documentPath, () -> documentList);
     }
 
+    @Override
     public void clear() {
-        this.saveDir.toFile().deleteOnExit();
+        PersistenceServiceInterface.super.clear();
+        try {
+            Files.deleteIfExists(this.simpleVectorstoreSaveDir.resolve(SIMPLE_VECTOR_STORE_JSON));
+        } catch (IOException e) {
+            logger.warn("Failed to delete SimpleVectorStore dump: {}", e.getMessage());
+        }
     }
 
     private Document convertToDocument(Map<String, Object> documentMap) {
@@ -127,7 +133,7 @@ public class VectorStoreDocumentPersistenceService implements PersistenceService
                 this.vectorStore instanceof SimpleVectorStore simpleVectorStore)
             simpleVectorStore.save(this.simpleVectorstoreSaveDir.resolve(SIMPLE_VECTOR_STORE_JSON).toFile());
         else
-            this.simpleVectorstoreSaveDir.resolve(SIMPLE_VECTOR_STORE_JSON).toFile().deleteOnExit();
+            Files.deleteIfExists(this.simpleVectorstoreSaveDir.resolve(SIMPLE_VECTOR_STORE_JSON));
     }
 
     @Override

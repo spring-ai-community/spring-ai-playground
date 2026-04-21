@@ -22,6 +22,7 @@ import org.slf4j.Logger;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -77,10 +78,26 @@ public interface PersistenceServiceInterface<T> {
     }
 
     default void delete(T saveObject) {
-        getSaveDir().resolve(buildFileName(saveObject)).toFile().deleteOnExit();
+        Path file = getSaveDir().resolve(buildFileName(saveObject));
+        try {
+            Files.deleteIfExists(file);
+        } catch (IOException e) {
+            getLogger().warn("Failed to delete save file {}: {}", file, e.getMessage());
+        }
     }
 
     default void clear() {
-        getSaveDir().toFile().deleteOnExit();
+        Path dir = getSaveDir();
+        try (Stream<Path> paths = Files.list(dir)) {
+            paths.forEach(path -> {
+                try {
+                    Files.deleteIfExists(path);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            });
+        } catch (IOException | UncheckedIOException e) {
+            getLogger().warn("Failed to clear save dir {}: {}", dir, e.getMessage());
+        }
     }
 }
