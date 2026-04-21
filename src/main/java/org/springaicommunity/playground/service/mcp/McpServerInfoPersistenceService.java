@@ -106,7 +106,14 @@ public class McpServerInfoPersistenceService implements PersistenceServiceInterf
 
     @Override
     public void onApplicationEvent(WebServerInitializedEvent event) {
-        this.mcpServerInfos.parallelStream().forEach(mcpClientService::startMcpClient);
+        this.mcpServerInfos.forEach(mcpServerInfo -> {
+            try {
+                mcpClientService.startMcpClient(mcpServerInfo);
+            } catch (RuntimeException e) {
+                logger.error("Failed to start MCP client: serverName={}, transportType={}",
+                        mcpServerInfo.serverName(), mcpServerInfo.mcpTransportType(), e);
+            }
+        });
     }
 
 }

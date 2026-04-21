@@ -22,15 +22,21 @@ import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SimpleVectorStore;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -46,9 +52,18 @@ public class VectorStoreDocumentPersistenceService implements PersistenceService
     private final VectorStore vectorStore;
     private final VectorStoreDocumentService vectorStoreDocumentService;
     private final PersistenceExecutor persistenceExecutor;
+    private final Duration dumpDebounceDelay;
+    private final ScheduledExecutorService dumpScheduler =
+            Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "simplevectorstore-dump-debounce");
+                t.setDaemon(false);
+                return t;
+            });
+    private final AtomicReference<ScheduledFuture<?>> pendingDump = new AtomicReference<>();
 
     public VectorStoreDocumentPersistenceService(Path springAiPlaygroundHomeDir, VectorStore vectorStore,
-            VectorStoreDocumentService vectorStoreDocumentService, PersistenceExecutor persistenceExecutor)
+            VectorStoreDocumentService vectorStoreDocumentService, PersistenceExecutor persistenceExecutor,
+            @Value("${spring.ai.playground.vectorstore.simple-dump-debounce-ms:5000}") long dumpDebounceDelayMs)
             throws IOException {
         this.saveDir = springAiPlaygroundHomeDir.resolve("vectorstore").resolve("save").resolve(
                 Optional.ofNullable(vectorStore.getName()).filter(Predicate.not(String::isBlank))
@@ -59,6 +74,7 @@ public class VectorStoreDocumentPersistenceService implements PersistenceService
         this.vectorStore = vectorStore;
         this.vectorStoreDocumentService = vectorStoreDocumentService;
         this.persistenceExecutor = persistenceExecutor;
+        this.dumpDebounceDelay = Duration.ofMillis(dumpDebounceDelayMs);
     }
 
     public void saveAsync(VectorStoreDocumentInfo vectorStoreDocumentInfo) {
@@ -73,6 +89,37 @@ public class VectorStoreDocumentPersistenceService implements PersistenceService
 
     public void deleteAsync(VectorStoreDocumentInfo vectorStoreDocumentInfo) {
         this.persistenceExecutor.submit(() -> delete(vectorStoreDocumentInfo));
+    }
+
+    public void scheduleSimpleVectorStoreDump() {
+        if (asSimpleVectorStore().isEmpty() || this.dumpScheduler.isShutdown()) return;
+        ScheduledFuture<?> next = this.dumpScheduler.schedule(
+                () -> this.persistenceExecutor.submit(this::flushSimpleVectorStoreDumpAndLog),
+                this.dumpDebounceDelay.toMillis(), TimeUnit.MILLISECONDS);
+        ScheduledFuture<?> previous = this.pendingDump.getAndSet(next);
+        if (previous != null) previous.cancel(false);
+    }
+
+    private void flushSimpleVectorStoreDumpAndLog() {
+        try {
+            flushSimpleVectorStoreDump();
+        } catch (IOException e) {
+            logger.error("Failed to dump SimpleVectorStore", e);
+        }
+    }
+
+    private void flushSimpleVectorStoreDump() throws IOException {
+        Optional<SimpleVectorStore> svs = asSimpleVectorStore();
+        if (svs.isEmpty()) return;
+        Path dumpPath = this.simpleVectorstoreSaveDir.resolve(SIMPLE_VECTOR_STORE_JSON);
+        if (this.vectorStoreDocumentService.getDocumentList().isEmpty())
+            Files.deleteIfExists(dumpPath);
+        else
+            svs.get().save(dumpPath.toFile());
+    }
+
+    private Optional<SimpleVectorStore> asSimpleVectorStore() {
+        return this.vectorStore instanceof SimpleVectorStore svs ? Optional.of(svs) : Optional.empty();
     }
 
     @Override
@@ -129,11 +176,9 @@ public class VectorStoreDocumentPersistenceService implements PersistenceService
 
     @Override
     public void onStart() throws IOException {
-        File savedSimpleVectorStoreDataFile = this.simpleVectorstoreSaveDir.resolve(SIMPLE_VECTOR_STORE_JSON).toFile();
-        if (savedSimpleVectorStoreDataFile.exists() &&
-                this.vectorStore instanceof SimpleVectorStore simpleVectorStore) {
-            simpleVectorStore.load(this.simpleVectorstoreSaveDir.resolve(SIMPLE_VECTOR_STORE_JSON).toFile());
-        }
+        Path dumpPath = this.simpleVectorstoreSaveDir.resolve(SIMPLE_VECTOR_STORE_JSON);
+        if (Files.exists(dumpPath))
+            asSimpleVectorStore().ifPresent(svs -> svs.load(dumpPath.toFile()));
         List<VectorStoreDocumentInfo> loaded = loads();
         vectorStoreDocumentService.loadAll(() -> loaded.forEach(vectorStoreDocumentInfo -> {
             vectorStoreDocumentService.updateDocumentInfo(vectorStoreDocumentInfo,
@@ -146,13 +191,13 @@ public class VectorStoreDocumentPersistenceService implements PersistenceService
 
     @Override
     public void onShutdown() throws IOException {
-        // DocumentInfos are persisted on change via saveAsync.
-        // SimpleVectorStore dump is expensive, so snapshot it once at shutdown.
-        if (!vectorStoreDocumentService.getDocumentList().isEmpty() &&
-                this.vectorStore instanceof SimpleVectorStore simpleVectorStore)
-            simpleVectorStore.save(this.simpleVectorstoreSaveDir.resolve(SIMPLE_VECTOR_STORE_JSON).toFile());
-        else
-            Files.deleteIfExists(this.simpleVectorstoreSaveDir.resolve(SIMPLE_VECTOR_STORE_JSON));
+        // DocumentInfos are persisted on change via saveAsync; SimpleVectorStore dumps
+        // are debounced on mutation. Cancel any pending debounced dump and flush a final
+        // snapshot synchronously since the persistence executor is already shut down.
+        ScheduledFuture<?> pending = this.pendingDump.getAndSet(null);
+        if (pending != null) pending.cancel(false);
+        this.dumpScheduler.shutdownNow();
+        flushSimpleVectorStoreDump();
     }
 
     @Override
