@@ -39,6 +39,8 @@ import com.vaadin.flow.component.markdown.Markdown;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.Scroller;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springaicommunity.playground.webui.VaadinUtils;
 
 import java.io.IOException;
@@ -53,6 +55,8 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 
 public class HomeInfoView extends Div {
+
+    private static final Logger logger = LoggerFactory.getLogger(HomeInfoView.class);
 
     public static final String UPDATE_GUIDE;
 
@@ -242,9 +246,13 @@ public class HomeInfoView extends Div {
             } else {
                 latestCommitSpan.setText("Failed to fetch recent update, status: " + response.statusCode());
             }
+        } catch (InterruptedException e) {
+            latestCommitSpan.setText("Error fetching recent update");
+            logger.error("Interrupted while fetching latest commit from GitHub", e);
+            Thread.currentThread().interrupt();
         } catch (Exception e) {
             latestCommitSpan.setText("Error fetching recent update");
-            e.printStackTrace();
+            logger.error("Failed to fetch latest commit from GitHub", e);
         }
     }
 

@@ -162,7 +162,13 @@ public class McpClientService {
     @EventListener(ContextClosedEvent.class)
     public void shutdownAllMcpClients() {
         logger.info("Shutting down all MCP clients. currentActiveClientCount={}", connectingMcpClientOpsMap.size());
-        this.connectingMcpClientOpsMap.values().parallelStream().forEach(McpClientOps::close);
+        this.connectingMcpClientOpsMap.forEach((mcpServerInfo, mcpClientOps) -> {
+            try {
+                mcpClientOps.close();
+            } catch (RuntimeException e) {
+                logger.error("Error closing MCP client: serverName={}", mcpServerInfo.serverName(), e);
+            }
+        });
     }
 
 }

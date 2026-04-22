@@ -91,7 +91,8 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
             return new McpServerInfo(transportType, serverName, "[Default Connection] " + serverName,
                     timestamp, timestamp, transformAsJson(connection));
         } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
+            throw new IllegalStateException(
+                    "Failed to serialize default MCP server connection for " + serverName, e);
         }
     }
 

@@ -26,6 +26,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -206,7 +207,8 @@ public class VectorStoreDocumentPersistenceService implements PersistenceService
         try {
             this.vectorStoreDocumentService.removeUploadedDocumentFile(saveObject.getDocumentFileName());
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new UncheckedIOException(
+                    "Failed to remove uploaded file for document " + saveObject.docInfoId(), e);
         }
     }
 

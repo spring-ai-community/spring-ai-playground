@@ -126,8 +126,9 @@ public class SpringAiPlaygroundApplication implements AppShellConfigurator {
                 .map(applicationContext::getBean).map(o -> {
                     try {
                         return o.getClass().getMethod("getOptions").invoke(o);
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
+                    } catch (ReflectiveOperationException e) {
+                        throw new IllegalStateException(
+                                "Failed to invoke getOptions() on " + o.getClass().getName(), e);
                     }
                 }).map(o -> (EmbeddingOptions) o);
     }
