@@ -61,8 +61,8 @@ public interface PersistenceServiceInterface<T> {
         Map<String, Object> saveObjectMap = OBJECT_MAPPER.convertValue(saveObject, MAP_TYPE_REFERENCE);
         buildSaveData(saveObject, saveObjectMap);
         String fileName = buildFileName(saveObject);
-        Path target = saveDir.resolve(fileName);
-        Path tmp = saveDir.resolve(fileName + ".tmp");
+        Path target = resolveWithinSaveDir(saveDir, fileName);
+        Path tmp = resolveWithinSaveDir(saveDir, fileName + ".tmp");
 
         getLogger().info("Saving {} to file: {}", simpleName, target);
         OBJECT_MAPPER.writeValue(tmp.toFile(), saveObjectMap);
@@ -77,6 +77,21 @@ public interface PersistenceServiceInterface<T> {
         return buildSaveFileName(saveObject) + ".json";
     }
 
+    /**
+     * Resolves {@code fileName} under {@code saveDir} and refuses any path that escapes the
+     * directory (e.g. names containing {@code ..} or absolute paths). This guards against
+     * path-traversal when {@link #buildSaveFileName} pulls user-controlled data into the file name.
+     */
+    private Path resolveWithinSaveDir(Path saveDir, String fileName) {
+        Path normalizedSaveDir = saveDir.toAbsolutePath().normalize();
+        Path resolved = normalizedSaveDir.resolve(fileName).normalize();
+        if (!resolved.startsWith(normalizedSaveDir))
+            throw new SecurityException(
+                    "Refusing to access path outside save directory: " + resolved + " (saveDir=" + normalizedSaveDir +
+                            ")");
+        return resolved;
+    }
+
     default List<T> loads() throws IOException {
         List<T> saveObjectList = new ArrayList<>();
         try (Stream<Path> paths = Files.list(getSaveDir())) {
@@ -89,7 +104,13 @@ public interface PersistenceServiceInterface<T> {
     }
 
     default void delete(T saveObject) {
-        Path file = getSaveDir().resolve(buildFileName(saveObject));
+        Path file;
+        try {
+            file = resolveWithinSaveDir(getSaveDir(), buildFileName(saveObject));
+        } catch (SecurityException e) {
+            getLogger().error("Refusing to delete file outside save directory", e);
+            return;
+        }
         try {
             Files.deleteIfExists(file);
         } catch (IOException e) {
