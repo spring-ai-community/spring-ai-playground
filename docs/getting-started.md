@@ -618,6 +618,22 @@ After the app is running and the model backend is configured:
 1. read [Features](features.md) to understand the product structure
 2. follow [Tutorials](tutorials.md) to create tools, connect MCP servers, register knowledge, and run Agentic Chat with tools and RAG
 
+## Anonymous Usage Telemetry
+
+The official build sends anonymous usage data (page views, app surface, device/browser
+info) to help prioritize features. IPs are anonymized by Google. The same opt-out switch
+applies to both the web app and every desktop launcher window (splash, server-splash,
+config editor, Ollama manager).
+
+To opt out, set `SPRING_AI_PLAYGROUND_TELEMETRY_ENABLED=false` before launching:
+
+- **Server / Docker / `mvn`**: export the env var in your shell
+- **Desktop launcher**: set it in your OS environment or launcher env config before starting
+  the app — the launcher forwards it to every window and to the bundled Spring process
+- **From source / IDE**: pass `-Dspring.ai.playground.telemetry.enabled=false` as a JVM arg
+
+For more details, see the [README](https://github.com/spring-ai-community/spring-ai-playground#anonymous-usage-telemetry).
+
 ## Further Reading
 
 - [Overview](index.md): see the product positioning, quick start path, and documentation map

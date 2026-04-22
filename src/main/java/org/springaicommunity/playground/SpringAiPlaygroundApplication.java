@@ -60,6 +60,7 @@ public class SpringAiPlaygroundApplication implements AppShellConfigurator {
 
     @Override
     public void configurePage(AppShellSettings settings) {
+        if (!isTelemetryEnabled()) return;
         String gtmContainerId = "GTM-PVX8227Q";
         String gtmDataLayerInit = """
                 window.dataLayer = window.dataLayer || [];
@@ -83,6 +84,12 @@ public class SpringAiPlaygroundApplication implements AppShellConfigurator {
                 "<noscript><iframe src=\"https://www.googletagmanager.com/ns.html?id=%s\" height=\"0\" width=\"0\" style=\"display:none;visibility:hidden\"></iframe></noscript>",
                 gtmContainerId);
         settings.addInlineWithContents(TargetElement.BODY, Inline.Position.PREPEND, gtmNoscript, Inline.Wrapping.NONE);
+    }
+
+    private static boolean isTelemetryEnabled() {
+        String value = System.getenv("SPRING_AI_PLAYGROUND_TELEMETRY_ENABLED");
+        if (value == null) value = System.getProperty("spring.ai.playground.telemetry.enabled");
+        return value == null || !"false".equalsIgnoreCase(value.trim());
     }
 
     @Bean

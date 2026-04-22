@@ -35,6 +35,7 @@
       "launcher-config.js",
       "splash.html",
       "server-splash.html",
+      "telemetry.js",
       "static/**/*",
       "resources/**/*",
       "!resources/app.jar",

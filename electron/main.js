@@ -28,6 +28,9 @@ let tempServer = null;
 let mainWindow, splashWindow, serverSplashWindow, configWindow, serverProcess, ollamaManagerWindow;
 let dynamicServerPort = null;
 let dynamicServerUrl = null;
+
+const TELEMETRY_DISABLED = process.env.SPRING_AI_PLAYGROUND_TELEMETRY_ENABLED === 'false';
+const TELEMETRY_QUERY_STRING = TELEMETRY_DISABLED ? '?telemetry=0' : '';
 const isDev = !app.isPackaged;
 let isQuitting = false;
 let allowAppExit = false;
@@ -1335,7 +1338,7 @@ function createConfigWindow() {
     fitConfigWindowToContent();
   });
 
-  configWindow.loadURL(tempServer.getUrl(CONFIG_EDITOR_PATH));
+  configWindow.loadURL(tempServer.getUrl(CONFIG_EDITOR_PATH) + TELEMETRY_QUERY_STRING);
   configWindow.once('ready-to-show', () => configWindow.show());
 }
 
@@ -1504,7 +1507,7 @@ function createOllamaManagerWindow() {
   ollamaManagerWindow.webContents.on('did-finish-load', () => {
     fitOllamaManagerWindowToContent();
   });
-  ollamaManagerWindow.loadURL(tempServer.getUrl(OLLAMA_MANAGER_PATH));
+  ollamaManagerWindow.loadURL(tempServer.getUrl(OLLAMA_MANAGER_PATH) + TELEMETRY_QUERY_STRING);
   ollamaManagerWindow.once('ready-to-show', async () => {
     await fitOllamaManagerWindowToContent();
     ollamaManagerWindow.show();
@@ -1718,7 +1721,7 @@ function createServerSplashWindow() {
     appendLog(`Splash window failed to load (${errorCode}): ${errorDescription} - ${validatedURL || SERVER_SPLASH_PATH}`, true);
   });
 
-  serverSplashWindow.loadURL(tempServer.getUrl(SERVER_SPLASH_PATH));
+  serverSplashWindow.loadURL(tempServer.getUrl(SERVER_SPLASH_PATH) + TELEMETRY_QUERY_STRING);
 }
 
 function createMainWindow() {
@@ -2658,7 +2661,7 @@ app.whenReady().then(async () => {
       contextIsolation: true,
     },
   });
-  splashWindow.loadFile(SPLASH_PATH);
+  splashWindow.loadFile(SPLASH_PATH, TELEMETRY_DISABLED ? { query: { telemetry: '0' } } : undefined);
   splashWindow.show();
 
   tempServer = await startTempServer();

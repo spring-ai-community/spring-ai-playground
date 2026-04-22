@@ -205,6 +205,23 @@ We triage issues regularly, and issues outside the current scope may be closed w
 
 If you believe you have a contribution that fits the current scope, submit a PR or a targeted issue.
 
+## Anonymous Usage Telemetry
+
+The official build sends anonymous usage data (page views, app surface, device/browser
+info) to the maintainer's Google Tag Manager / Google Analytics account so the most-used
+features can be prioritized. IPs are anonymized by Google. The same opt-out switch applies
+to both the web app and every desktop launcher window (splash, server-splash, config
+editor, Ollama manager):
+
+- **Server / Docker / `mvn`**: `SPRING_AI_PLAYGROUND_TELEMETRY_ENABLED=false`
+- **Desktop launcher**: set `SPRING_AI_PLAYGROUND_TELEMETRY_ENABLED=false` before launching
+  the app (the launcher forwards this env var to every window and to the bundled Spring
+  process)
+- **From source / IDE**: pass `-Dspring.ai.playground.telemetry.enabled=false` as a JVM arg
+
+If you self-host this project for EU users, adding cookie consent on top is the
+operator's responsibility under GDPR.
+
 ## Upcoming Improvements
 
 These are the near-term areas we plan to improve while keeping the project focused on practical, reusable tool execution.
