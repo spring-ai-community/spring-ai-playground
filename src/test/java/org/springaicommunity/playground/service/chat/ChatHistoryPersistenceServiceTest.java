@@ -23,6 +23,7 @@ import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.messages.SystemMessage;
+import org.springframework.ai.chat.messages.ToolResponseMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.DefaultChatOptions;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -147,5 +148,43 @@ class ChatHistoryPersistenceServiceTest {
         assertThat(chatHistoryPersistenceService.getSaveDir().toFile().listFiles())
                 .extracting(java.io.File::getName)
                 .allMatch(name -> name.endsWith(".json") && !name.endsWith(".tmp"));
+    }
+
+    @Test
+    void testSaveAndLoad_preservesAssistantToolCalls() throws IOException {
+        AssistantMessage.ToolCall toolCall =
+                new AssistantMessage.ToolCall("call_1", "function", "weather", "{\"city\":\"Seoul\"}");
+        AssistantMessage assistantWithToolCalls = AssistantMessage.builder()
+                .content("")
+                .toolCalls(List.of(toolCall))
+                .build();
+        ChatHistory history = new ChatHistory("chat-toolcalls", "T", 1L, 1L, "", new DefaultChatOptions(),
+                () -> List.of(assistantWithToolCalls));
+
+        chatHistoryPersistenceService.save(history);
+        ChatHistory loaded = chatHistoryPersistenceService.loads().getFirst();
+
+        Message reloaded = loaded.messagesSupplier().get().getFirst();
+        assertThat(reloaded).isInstanceOf(AssistantMessage.class);
+        assertThat(((AssistantMessage) reloaded).getToolCalls()).containsExactly(toolCall);
+    }
+
+    @Test
+    void testSaveAndLoad_preservesToolResponseMessage() throws IOException {
+        ToolResponseMessage.ToolResponse response =
+                new ToolResponseMessage.ToolResponse("call_1", "weather", "{\"temp\":15,\"sky\":\"clear\"}");
+        ToolResponseMessage toolMessage = ToolResponseMessage.builder()
+                .responses(List.of(response))
+                .build();
+        ChatHistory history = new ChatHistory("chat-toolresponse", "T", 1L, 1L, "", new DefaultChatOptions(),
+                () -> List.of(toolMessage));
+
+        chatHistoryPersistenceService.save(history);
+        ChatHistory loaded = chatHistoryPersistenceService.loads().getFirst();
+
+        Message reloaded = loaded.messagesSupplier().get().getFirst();
+        assertThat(reloaded).isInstanceOf(ToolResponseMessage.class);
+        assertThat(reloaded.getMessageType()).isEqualTo(MessageType.TOOL);
+        assertThat(((ToolResponseMessage) reloaded).getResponses()).containsExactly(response);
     }
 }
