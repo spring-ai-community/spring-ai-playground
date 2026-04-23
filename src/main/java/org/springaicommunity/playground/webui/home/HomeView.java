@@ -17,44 +17,42 @@ package org.springaicommunity.playground.webui.home;
 
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
+import com.vaadin.flow.spring.annotation.SpringComponent;
+import com.vaadin.flow.spring.annotation.UIScope;
+import org.springaicommunity.playground.service.chat.ChatHistoryService;
+import org.springaicommunity.playground.service.mcp.McpServerInfoService;
+import org.springaicommunity.playground.service.tool.ToolSpecPersistenceService;
+import org.springaicommunity.playground.service.tool.ToolSpecService;
+import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentService;
 import org.springaicommunity.playground.webui.SpringAiPlaygroundAppLayout;
-import org.springaicommunity.playground.webui.VaadinUtils;
 import org.springaicommunity.playground.webui.common.ContentWorkspaceView;
-import org.springaicommunity.playground.webui.home.HomeItemView.HomeItem;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.embedding.EmbeddingModel;
+import org.springframework.ai.embedding.EmbeddingOptions;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.core.env.Environment;
 
-import java.util.Objects;
+import java.util.Optional;
 
+@SpringComponent
+@UIScope
 @PageTitle("Home")
 @Route(value = "", layout = SpringAiPlaygroundAppLayout.class)
 public class HomeView extends ContentWorkspaceView {
 
-    private final HomeItemView homeItemView;
-    private HomeContentView homeContentView;
-
-    public HomeView() {
-        this.homeItemView = new HomeItemView(this::selectHomeItem);
-        this.homeContentView = new HomeContentView();
-
-        configureSidebar(this.homeItemView, "Home Contents");
-
-        selectHomeItem(homeItemView.buildDefaultHomeItem());
-    }
-
-    private void selectHomeItem(HomeItem homeItem) {
-        if (Objects.isNull(homeItem))
-            return;
-
-        if (homeItem.actionType().equals(HomeItemView.ActionType.EXTERNAL_URL)) {
-            this.homeContentView.setContent(homeItem);
-            return;
-        }
-
-        this.homeContentView = new HomeContentView();
-        this.homeContentView.setContent(homeItem);
-
-        VaadinUtils.getUi(this).access(() -> {
-            setHeaderLabel(homeItem.displayName());
-            setContent(this.homeContentView);
-        });
+    public HomeView(ToolSpecService toolSpecService,
+            McpServerInfoService mcpServerInfoService,
+            VectorStoreDocumentService vectorStoreDocumentService,
+            ChatHistoryService chatHistoryService,
+            ToolSpecPersistenceService toolSpecPersistenceService,
+            ObjectProvider<ChatModel> chatModelProvider,
+            ObjectProvider<EmbeddingModel> embeddingModelProvider,
+            Optional<EmbeddingOptions> embeddingOptions,
+            Environment environment) {
+        configureSidebar(new HomeItemView(), "Links");
+        setHeaderLabel("Welcome");
+        setContent(new HomeInfoView(toolSpecService, mcpServerInfoService, vectorStoreDocumentService,
+                chatHistoryService, toolSpecPersistenceService, chatModelProvider, embeddingModelProvider,
+                embeddingOptions, environment));
     }
 }

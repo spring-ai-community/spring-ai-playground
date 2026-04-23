@@ -82,6 +82,10 @@ public class ToolSpecPersistenceService implements
         });
     }
 
+    public Set<String> getDefaultToolIds() {
+        return this.defaultToolSpecs.stream().map(ToolSpec::toolId).collect(Collectors.toSet());
+    }
+
     @Override
     public Path getSaveDir() {
         return this.saveDir;
