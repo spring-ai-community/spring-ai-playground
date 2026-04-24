@@ -16,6 +16,7 @@
 package org.springaicommunity.playground.service.chat;
 
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
+import org.springaicommunity.playground.service.SpringAiPlaygroundRagAdvisor;
 import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentService;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
@@ -32,10 +33,13 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import reactor.core.publisher.Flux;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -64,11 +68,23 @@ class ChatServiceTest {
         when(chatModel.stream(any(Prompt.class))).thenReturn(
                 Flux.just(new ChatResponse(List.of(new Generation(new AssistantMessage(prompt))))));
 
-        assertEquals(prompt, chatService.stream(chatHistory, "Test Chat", null, null, null, null, null).toStream()
+        assertEquals(prompt, chatService.stream(chatHistory, "Test Chat", null, null, null, null, null,
+                        null).toStream()
                 .collect(Collectors.joining()));
+        List<Object> ragProcessMessages = new ArrayList<>();
+        String filterExpression = FILTER_EXPRESSION + " in ['a', 'b']";
         assertEquals(prompt,
-                chatService.stream(chatHistory, "Test Chat", FILTER_EXPRESSION + " in ['a', 'b']", null, null, null,
-                        null).toStream().collect(Collectors.joining()));
+                chatService.stream(chatHistory, "Test Chat", filterExpression, null, null, null,
+                        ragProcessMessages::add, null).toStream().collect(Collectors.joining()));
+        assertFalse(ragProcessMessages.isEmpty());
+        String firstRagMessage = ragProcessMessages.get(0).toString();
+        assertTrue(firstRagMessage.startsWith("Searching VectorDB documents..."));
+        assertTrue(firstRagMessage.contains("- Query: `Test Chat`"));
+        assertTrue(firstRagMessage.contains("- Filter: `" + filterExpression + "`"));
+        assertTrue(firstRagMessage.contains("- Top K:"));
+        assertTrue(firstRagMessage.contains("- Similarity Threshold:"));
+        assertEquals(SpringAiPlaygroundRagAdvisor.RAG_SEARCH_COMPLETED_MESSAGE,
+                ragProcessMessages.get(ragProcessMessages.size() - 1));
     }
 
     @Test

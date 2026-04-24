@@ -53,6 +53,7 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.springaicommunity.playground.service.SpringAiPlaygroundRagAdvisor.RAG_PROCESS_MESSAGE_CONSUMER;
 import static org.springaicommunity.playground.service.mcp.McpToolCallingManager.MCP_PROCESS_MESSAGE_CONSUMER;
 import static org.springaicommunity.playground.service.vectorstore.VectorStoreService.DOC_INFO_ID;
 import static org.springframework.ai.chat.memory.ChatMemory.CONVERSATION_ID;
@@ -92,9 +93,10 @@ public class ChatService {
 
     public Flux<String> stream(ChatHistory chatHistory, String prompt, String filterExpression,
             Consumer<ChatHistory> completeChatHistoryConsumer, List<ToolCallback> toolCallbacks,
-            Consumer<Object> mcpToolProcessMessageConsumer, Consumer<Object> thinkProcessMessageConsumer) {
+            Consumer<Object> mcpToolProcessMessageConsumer, Consumer<Object> ragProcessMessageConsumer,
+            Consumer<Object> thinkProcessMessageConsumer) {
         return streamWithRaw(chatHistory, prompt, filterExpression, toolCallbacks, mcpToolProcessMessageConsumer,
-                thinkProcessMessageConsumer).map(
+                ragProcessMessageConsumer, thinkProcessMessageConsumer).map(
                         Generation::getOutput)
                 .map(assistantMessage -> Optional.ofNullable(assistantMessage.getText()).orElse(""))
                 .doFinally(signalType -> {
@@ -106,10 +108,11 @@ public class ChatService {
 
     public Flux<Generation> streamWithRaw(ChatHistory chatHistory, String prompt, String filterExpression,
             List<ToolCallback> toolCallbacks, Consumer<Object> mcpToolProcessMessageConsumer,
-            Consumer<Object> thinkProcessMessageConsumer) {
+            Consumer<Object> ragProcessMessageConsumer, Consumer<Object> thinkProcessMessageConsumer) {
         AtomicReference<ChatClientResponse> lastChatResponse = new AtomicReference<>();
         return getChatClientRequestSpec(chatHistory, prompt, filterExpression, toolCallbacks,
-                mcpToolProcessMessageConsumer).stream().chatClientResponse().map(chatClientResponse -> {
+                mcpToolProcessMessageConsumer, ragProcessMessageConsumer).stream().chatClientResponse().map(
+                        chatClientResponse -> {
                     if (Objects.nonNull(thinkProcessMessageConsumer)) {
                         Generation generation = chatClientResponse.chatResponse().getResult();
                         extractThinking(generation).ifPresent(thinkProcessMessageConsumer);
@@ -130,7 +133,8 @@ public class ChatService {
     }
 
     private ChatClient.ChatClientRequestSpec getChatClientRequestSpec(ChatHistory chatHistory, String prompt,
-            String filterExpression, List<ToolCallback> toolCallbacks, Consumer<Object> mcpToolProcessMessageConsumer) {
+            String filterExpression, List<ToolCallback> toolCallbacks, Consumer<Object> mcpToolProcessMessageConsumer,
+            Consumer<Object> ragProcessMessageConsumer) {
         DefaultChatOptions chatOptions = chatHistory.chatOptions();
         ChatClient.ChatClientRequestSpec chatClientRequestSpec = this.chatClient.prompt().user(prompt).options(
                         DefaultToolCallingChatOptions.builder().frequencyPenalty(chatOptions.getFrequencyPenalty())
@@ -140,8 +144,11 @@ public class ChatService {
                                 .topP(chatOptions.getTopP()).build())
                 .advisors(advisor -> {
                     advisor.param(CONVERSATION_ID, chatHistory.conversationId());
-                    if (StringUtils.hasText(filterExpression))
+                    if (StringUtils.hasText(filterExpression)) {
                         advisor.param(RAG_FILTER_EXPRESSION, filterExpression);
+                        if (Objects.nonNull(ragProcessMessageConsumer))
+                            advisor.param(RAG_PROCESS_MESSAGE_CONSUMER, ragProcessMessageConsumer);
+                    }
                 });
         if (Objects.nonNull(mcpToolProcessMessageConsumer) && Objects.nonNull(toolCallbacks) &&
                 !toolCallbacks.isEmpty())
@@ -162,7 +169,7 @@ public class ChatService {
             List<ToolCallback> toolCallbacks, Consumer<Object> mcpToolProcessMessageConsumer) {
         return applyChatResponseMetadataToLastUserMessage(chatHistory,
                 getChatClientRequestSpec(chatHistory, prompt, filterExpression, toolCallbacks,
-                        mcpToolProcessMessageConsumer).call()
+                        mcpToolProcessMessageConsumer, null).call()
                         .chatClientResponse()).getResult();
     }
 

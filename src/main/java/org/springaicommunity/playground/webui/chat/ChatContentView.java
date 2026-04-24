@@ -37,9 +37,11 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextArea;
 import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.internal.Pair;
+import org.springaicommunity.playground.service.SpringAiPlaygroundRagAdvisor;
 import org.springaicommunity.playground.service.chat.ChatHistory;
 import org.springaicommunity.playground.service.chat.ChatService;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
+import org.springaicommunity.playground.service.mcp.McpToolCallingManager;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.service.mcp.client.McpTransportType;
 import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentInfo;
@@ -251,7 +253,6 @@ public class ChatContentView extends VerticalLayout {
     private Disposable inputEvent(CompletableFuture<ZoneId> zoneIdFuture, String userPrompt) {
         ChatContentManager chatContentManager = new ChatContentManager(this.messageListLayout, userPrompt, zoneIdFuture,
                 this.chatHistory);
-        this.messageListLayout.add(chatContentManager.botResponse);
 
         List<String> selectedDocInfoIds =
                 this.documentsComboBox.getSelectedItems().stream().map(VectorStoreDocumentInfo::docInfoId).toList();
@@ -267,6 +268,7 @@ public class ChatContentView extends VerticalLayout {
         return this.chatService.stream(this.chatHistory, userPrompt,
                         this.chatService.buildFilterExpression(selectedDocInfoIds), this.completeChatHistoryConsumer,
                         toolCallbacks, o -> ui.access(() -> chatContentManager.appendMcpToolProcessMessage(o)),
+                        o -> ui.access(() -> chatContentManager.appendRagProcessMessage(o)),
                         o -> ui.access(() -> chatContentManager.appendBotThinkProcessMessage(o)))
                 .doFinally(signalType -> ui.access(() -> doFinally(chatContentManager)))
                 .doOnError(throwable -> ui.access(() -> {
@@ -282,8 +284,10 @@ public class ChatContentView extends VerticalLayout {
         this.userPromptTextArea.setReadOnly(false);
         this.userPromptTextArea.setEnabled(true);
         this.userPromptTextArea.focus();
-        this.currentStream.dispose();
-        this.currentStream = null;
+        if (this.currentStream != null) {
+            this.currentStream.dispose();
+            this.currentStream = null;
+        }
     }
 
     public ChatOptions getChatOption() {
@@ -297,6 +301,9 @@ public class ChatContentView extends VerticalLayout {
     }
 
     private class ChatContentManager {
+        private static final String RAG_PROCESS = "RAG SEARCH";
+        private static final String RAG_PROCESS_TIMESTAMP = "ragProcessTimestamp";
+        private static final String RAG_PROCESS_MESSAGES = "ragProcessMessages";
         private static final String THINK_PROCESS = "THINK";
         private static final String THINK_PROCESS_TIMESTAMP = "thinkProcessTimestamp";
         private static final String THINK_PROCESS_MESSAGES = "thinkProcessMessages";
@@ -309,10 +316,15 @@ public class ChatContentView extends VerticalLayout {
         private final CompletableFuture<ZoneId> zoneIdFuture;
         private final Supplier<List<Message>> messagesSupplier;
         private VerticalLayout messageListLayout;
+        private VerticalLayout processListLayout;
         private long startTimestamp;
         private long responseTimestamp;
         private MarkdownMessage botResponse;
         private boolean isFirstAssistantResponse;
+        private MarkdownMessage ragProcessMessage;
+        private long ragProcessTimestamp;
+        private Details ragProcessDetails;
+        private StringBuilder ragProcessMessageBuilder;
         private MarkdownMessage botThinkResponse;
         private long botThinkTimestamp;
         private Details thinkDetails;
@@ -332,31 +344,65 @@ public class ChatContentView extends VerticalLayout {
             this.startTimestamp = System.currentTimeMillis();
             chatHistory.updateLastMessageTimestamp(startTimestamp);
             MarkdownMessage userMarkdownMessage = buildMarkdownMessage(userPrompt, USER, startTimestamp);
-            this.messageListLayout.add(userMarkdownMessage);
-            userMarkdownMessage.scrollIntoView(DefaultScrollOptions);
+            this.processListLayout = buildProcessListLayout();
             this.botResponse = buildMarkdownMessage(null, MessageType.ASSISTANT, System.currentTimeMillis());
             this.botResponse.addClassName("blink");
             this.isFirstAssistantResponse = true;
+            this.messageListLayout.add(userMarkdownMessage, this.processListLayout, this.botResponse);
+            scrollMessageAreaToBottom();
+        }
+
+        private VerticalLayout buildProcessListLayout() {
+            VerticalLayout layout = new VerticalLayout();
+            layout.setMargin(false);
+            layout.setSpacing(false);
+            layout.setPadding(false);
+            layout.setWidthFull();
+            return layout;
+        }
+
+        public void appendRagProcessMessage(Object content) {
+            long timestamp = System.currentTimeMillis();
+            String markdownSnippet = getLocalDateTime(timestamp) + " : " + content + "\n\n";
+            getRagProcessMessage(timestamp).appendMarkdown(markdownSnippet);
+            if (Objects.isNull(this.ragProcessMessageBuilder))
+                this.ragProcessMessageBuilder = new StringBuilder();
+            this.ragProcessMessageBuilder.append(markdownSnippet);
+            if (SpringAiPlaygroundRagAdvisor.RAG_SEARCH_COMPLETED_MESSAGE.equals(content.toString()))
+                collapseProcessDetails(this.ragProcessDetails);
+            scrollMessageAreaToBottom();
+        }
+
+        private MarkdownMessage getRagProcessMessage(long timestamp) {
+            if (Objects.isNull(this.ragProcessMessage)) {
+                this.ragProcessTimestamp = timestamp;
+                this.ragProcessMessage = buildMarkdownMessage(null, RAG_PROCESS, this.ragProcessTimestamp);
+                this.processListLayout.add(buildProcessDetails(RAG_PROCESS, getRagProcessDetails(),
+                        this.ragProcessMessage));
+            }
+            return this.ragProcessMessage;
         }
 
         public void appendMcpToolProcessMessage(Object content) {
             long timestamp = System.currentTimeMillis();
             String markdownSnippet = getLocalDateTime(timestamp) + " : " + content.toString() + "\n\n";
-            getMcpToolProcessMessage(this.messageListLayout, timestamp).appendMarkdown(markdownSnippet);
+            getMcpToolProcessMessage(timestamp).appendMarkdown(markdownSnippet);
             if (Objects.isNull(this.mcpToolProcessMessagesBuilder))
                 this.mcpToolProcessMessagesBuilder = new StringBuilder();
             this.mcpToolProcessMessagesBuilder.append(markdownSnippet);
-            this.mcpToolProcessMessage.scrollIntoView(DefaultScrollOptions);
+            if (McpToolCallingManager.MCP_TOOL_EXECUTION_COMPLETED_MESSAGE.equals(content.toString()))
+                collapseProcessDetails(this.mcpToolProcessDetails);
+            else if (Objects.nonNull(this.mcpToolProcessDetails))
+                this.mcpToolProcessDetails.setOpened(true);
+            scrollMessageAreaToBottom();
         }
 
-        private MarkdownMessage getMcpToolProcessMessage(VerticalLayout messageListLayout, long timestamp) {
+        private MarkdownMessage getMcpToolProcessMessage(long timestamp) {
             if (Objects.isNull(this.mcpToolProcessMessage)) {
                 this.mcpToolProcessTimestamp = timestamp;
                 this.mcpToolProcessMessage = buildMarkdownMessage(null, MCP_TOOL_PROCESS, this.mcpToolProcessTimestamp);
-                this.botResponse.removeFromParent();
-                messageListLayout.add(
-                        buildProcessDetails(MCP_TOOL_PROCESS, getMcpToolProcessDetails(), this.mcpToolProcessMessage),
-                        this.botResponse);
+                this.processListLayout.add(buildProcessDetails(MCP_TOOL_PROCESS, getMcpToolProcessDetails(),
+                        this.mcpToolProcessMessage));
             }
             return this.mcpToolProcessMessage;
         }
@@ -364,21 +410,18 @@ public class ChatContentView extends VerticalLayout {
         public void appendBotThinkProcessMessage(Object content) {
             long timestamp = System.currentTimeMillis();
             String markdownSnippet = content.toString();
-            getBotThinkResponse(this.messageListLayout, timestamp).appendMarkdown(markdownSnippet);
+            getBotThinkResponse(timestamp).appendMarkdown(markdownSnippet);
             if (Objects.isNull(this.thinkProcessMessageBuilder))
                 this.thinkProcessMessageBuilder = new StringBuilder();
             this.thinkProcessMessageBuilder.append(markdownSnippet);
-            this.botThinkResponse.scrollIntoView(DefaultScrollOptions);
+            scrollMessageAreaToBottom();
         }
 
-        private MarkdownMessage getBotThinkResponse(VerticalLayout messageListLayout, long timestamp) {
+        private MarkdownMessage getBotThinkResponse(long timestamp) {
             if (Objects.isNull(this.botThinkResponse)) {
                 this.botThinkTimestamp = timestamp;
                 this.botThinkResponse = buildMarkdownMessage(null, THINK_PROCESS, this.botThinkTimestamp);
-                this.botResponse.removeFromParent();
-                messageListLayout.add(
-                        buildProcessDetails(THINK_PROCESS, getThinkDetails(), this.botThinkResponse),
-                        this.botResponse);
+                this.processListLayout.add(buildProcessDetails(THINK_PROCESS, getThinkDetails(), this.botThinkResponse));
             }
             return this.botThinkResponse;
         }
@@ -395,6 +438,14 @@ public class ChatContentView extends VerticalLayout {
             return new Span(title);
         }
 
+        private Details getRagProcessDetails() {
+            if (Objects.isNull(this.ragProcessDetails)) {
+                this.ragProcessDetails = new Details();
+                this.ragProcessDetails.setOpened(true);
+            }
+            return this.ragProcessDetails;
+        }
+
         private Details getMcpToolProcessDetails() {
             if (Objects.isNull(this.mcpToolProcessDetails)) {
                 this.mcpToolProcessDetails = new Details();
@@ -408,6 +459,15 @@ public class ChatContentView extends VerticalLayout {
             Map<String, Object> metadata = message.getMetadata();
 
             List<Pair<Long, Component>> components = new ArrayList<>();
+
+            String ragProcessMessages = (String) metadata.get(RAG_PROCESS_MESSAGES);
+            if (Objects.nonNull(ragProcessMessages)) {
+                Long ragProcessTimestamp = (Long) metadata.get(RAG_PROCESS_TIMESTAMP);
+                Details details = ChatContentManager.buildProcessDetails(RAG_PROCESS, new Details(),
+                        buildMarkdownMessage(ragProcessMessages, RAG_PROCESS, ragProcessTimestamp));
+                details.setOpened(false);
+                components.add(new Pair<>(ragProcessTimestamp, details));
+            }
 
             String thinkProcessMessages = (String) metadata.get(THINK_PROCESS_MESSAGES);
             if (Objects.nonNull(thinkProcessMessages)) {
@@ -468,11 +528,14 @@ public class ChatContentView extends VerticalLayout {
         }
 
         public void append(String content) {
-            if (this.isFirstAssistantResponse)
+            if (this.isFirstAssistantResponse) {
                 initBotResponse(System.currentTimeMillis());
+                collapseProcessDetails(this.ragProcessDetails);
+                collapseProcessDetails(this.thinkDetails);
+            }
             this.botResponse.removeClassName("blink");
             this.botResponse.appendMarkdown(content);
-            this.botResponse.getElement().scrollIntoView(DefaultScrollOptions);
+            scrollMessageAreaToBottom();
         }
 
         private void initBotResponse(long epochMillis) {
@@ -490,6 +553,19 @@ public class ChatContentView extends VerticalLayout {
                     .map(Message::getMetadata).ifPresent(metadata -> updateMetadata(metadata, this.startTimestamp));
             Optional<Map<String, Object>> metadataAsOpt = messageList.map(List::getLast).map(Message::getMetadata);
 
+            collapseProcessDetails(this.ragProcessDetails);
+            collapseProcessDetails(this.thinkDetails);
+            collapseProcessDetails(this.mcpToolProcessDetails);
+
+            if (Objects.nonNull(this.ragProcessMessageBuilder)) {
+                metadataAsOpt.ifPresent(metadata -> {
+                    metadata.put(RAG_PROCESS_TIMESTAMP, this.ragProcessTimestamp);
+                    metadata.put(RAG_PROCESS_MESSAGES, this.ragProcessMessageBuilder.toString());
+                });
+                this.ragProcessDetails = null;
+                this.ragProcessMessage = null;
+                this.ragProcessMessageBuilder = null;
+            }
             if (Objects.nonNull(this.thinkProcessMessageBuilder)) {
                 metadataAsOpt.ifPresent(metadata -> {
                     metadata.put(THINK_PROCESS_TIMESTAMP, this.botThinkTimestamp);
@@ -508,9 +584,19 @@ public class ChatContentView extends VerticalLayout {
                 this.mcpToolProcessMessage = null;
                 this.mcpToolProcessMessagesBuilder = null;
             }
-            metadataAsOpt.ifPresent(metadata -> updateMetadata(metadata, this.responseTimestamp));
+            long completedTimestamp = this.responseTimestamp > 0 ? this.responseTimestamp : System.currentTimeMillis();
+            metadataAsOpt.ifPresent(metadata -> updateMetadata(metadata, completedTimestamp));
             this.botResponse.removeClassName("blink");
-            this.botResponse.scrollIntoView();
+            scrollMessageAreaToBottom();
+        }
+
+        private void collapseProcessDetails(Details details) {
+            if (Objects.nonNull(details))
+                details.setOpened(false);
+        }
+
+        private void scrollMessageAreaToBottom() {
+            ChatContentView.this.messageScroller.scrollToBottom();
         }
 
         private void updateMetadata(Map<String, Object> metadata, long timestamp) {
