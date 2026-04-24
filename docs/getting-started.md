@@ -634,6 +634,20 @@ To opt out, set `SPRING_AI_PLAYGROUND_TELEMETRY_ENABLED=false` before launching:
 
 For more details, see the [README](https://github.com/spring-ai-community/spring-ai-playground#anonymous-usage-telemetry).
 
+## Your First Five Tasks
+
+Once the app is running, the **Home** screen shows a live checklist that mirrors the path below. Each item self-checks based on workspace state, so you can walk through them at your own pace.
+
+![Getting started checklist on the Home screen](assets/images/home-getting-started.png)
+
+1. **Configure a model provider** — Pick Ollama (default, local) or OpenAI. The provider pill on Home shows a green dot and "Ready" once the base URL is reachable (Ollama) or an API key is set (OpenAI). A red dot means the app cannot reach your provider — recheck the launcher config or env vars.
+2. **Start a chat** — Agentic Chat is ready the moment a provider is connected. The app ships with seven built-in tools (`getWeather`, `sendSlackMessage`, `googlePseSearch`, `buildGoogleCalendarCreateLink`, `extractPageContent`, `getCurrentTime`, `openaiResponseGenerator`), so you can test end-to-end without writing any code.
+3. **Upload a document for RAG** — Drop a PDF or text file into the Vector Database surface. The file is chunked, embedded, and indexed on the spot; retrieval becomes available inside chat immediately.
+4. **Create your first tool** — Open Tool Studio, write a small JavaScript function, and define its sample arguments. Run it locally: if it passes, it earns its **Local Pass** and is added live to the built-in MCP server the same moment. No restart, no redeploy. Agentic Chat picks it up immediately.
+5. **Try an agentic workflow** — Ask the assistant: *"Get today's weather and send it to Slack."* This exercises two built-in tools in sequence and shows the full agentic path (plan → call tool → read result → call next tool → reply).
+
+> Verifying your provider: the Home provider pill is the fastest sanity check. If it is stuck on "Checking…" or flips to red, open the desktop launcher startup card or run `curl $OLLAMA_BASE_URL` before proceeding.
+
 ## Further Reading
 
 - [Overview](index.md): see the product positioning, quick start path, and documentation map

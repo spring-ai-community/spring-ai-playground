@@ -6,6 +6,8 @@ Spring AI Playground is a cross-platform desktop app for building, testing, vali
 
 > **No pass, no run.**
 
+Every tool you build earns a **Local Pass** — a local test-run with your sample arguments. Only passing tools are added live to the built-in MCP server and become callable from Agentic Chat. A tool that has not passed is never exposed to an agent.
+
 In Tool Studio, new or updated built-in tools are test-run before they are published to the built-in MCP server. You do not need to know Java, Spring, or JVM internals to use it. If you can install a desktop app and write a small JavaScript function, you can build tools here and connect them to hosts and clients such as Claude Desktop, Claude Code, Cursor, IDEs, and other MCP-compatible environments.
 
 ## The Problem

@@ -24,6 +24,17 @@ Tool Studio lets you:
 - test tool execution immediately
 - publish tools to the built-in MCP server without restart or redeploy
 
+### Local Pass: Test Before Publish
+
+Spring AI Playground treats the local test-run as a gate, not a polish step. This is the rule surfaced on the Home screen as **No pass, no run.**
+
+- every tool has at least one sample input (the static variables you define) used for its test-run
+- the tool must **pass its test locally** before Tool Studio publishes it
+- when the test passes, the tool earns a **Local Pass** and is **added live to the built-in MCP server** the same moment — no restart, no redeploy
+- a tool that has not passed is **not added to the built-in MCP server** and is **not callable from Agentic Chat**
+
+In practice this means the act of publishing is the act of testing. You never produce a tool whose first execution happens in front of an agent.
+
 ### Built-in MCP Server
 
 Tool Studio is tightly integrated with the built-in MCP server.
@@ -188,7 +199,7 @@ That combination is one of the strongest product-specific ideas in the Playgroun
 
 ### Pre-built Example Tools
 
-Tool Studio includes pre-built tools you can use as references and templates:
+The app ships with **seven built-in tools** pre-loaded into Tool Studio. They are ready to call from chat the moment a model provider is connected — you do not need to author anything yourself to see agentic workflows work end-to-end. They also serve as editable references when you start writing your own.
 
 - `googlePseSearch`: search the web using Google Programmable Search Engine
 - `extractPageContent`: fetch and clean the main text from a web page

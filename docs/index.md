@@ -8,15 +8,18 @@ Spring AI Playground is a cross-platform desktop app for building, testing, vali
 
 > **No pass, no run.**
 
+Every tool you build earns a **Local Pass** — a local test-run with sample arguments. Only tools that pass are added live to the built-in MCP server and become callable from Agentic Chat. Nothing you author reaches an agent until you have seen it work on your own machine.
+
 The desktop app is the recommended default experience, but Docker and local source execution are still supported when you want a server-style deployment or a development workflow.
 
 Unlike many playgrounds that stop at prompt testing, this project connects AI conversations to real actions while making the tools it manages inside the app safer and easier to inspect before reuse:
 
 - build JavaScript tools directly in the app
-- test-run new or updated built-in tools before publishing them
-- expose them immediately through MCP without restart or redeploy
+- earn a **Local Pass** by test-running each tool against sample arguments you define
+- **add tools live to the built-in MCP server** the moment each passes — no restart, no redeploy
+- start immediately with seven pre-loaded built-in tools (`getWeather`, `sendSlackMessage`, `googlePseSearch`, and more)
 - validate retrieval pipelines against your own documents
-- run agentic chat that combines tool use and grounded context
+- run agentic chat that combines tool use and grounded context (e.g. *"Get today's weather and send it to Slack"*)
 
 <div style="text-align: center;">
   <b>Agentic Chat Demo</b><br/>
