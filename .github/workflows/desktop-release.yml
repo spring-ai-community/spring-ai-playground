@@ -62,22 +62,37 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Resolve installer version from ref
+      - name: Resolve installer version
         id: ver
         shell: bash
         run: |
+          INPUT="${{ github.event.inputs.release_tag }}"
           REF="${{ github.ref_name }}"
-          if [[ "$REF" =~ ^v?([0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9]+)*)$ ]]; then
+          # Priority: workflow_dispatch input > ref name > pom.xml fallback.
+          CANDIDATE="${INPUT:-$REF}"
+          VERSION=""
+          if [[ "$CANDIDATE" =~ ^v?([0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9]+)*)$ ]]; then
             VERSION="${BASH_REMATCH[1]}"
-          elif [[ "$REF" =~ ^([0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9]+)*) ]]; then
+            SOURCE="ref/input ($CANDIDATE)"
+          elif [[ "$CANDIDATE" =~ ^([0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9]+)*) ]]; then
             VERSION="${BASH_REMATCH[1]}"
-          else
-            VERSION="${REF}"
+            SOURCE="ref/input ($CANDIDATE)"
           fi
-          # Normalize milestone marker case (e.g., -m4 -> -M4)
+          if [ -z "$VERSION" ]; then
+            # Fallback: read project version from pom.xml (skip parent's <version>).
+            VERSION=$(grep -A1 '<artifactId>spring-ai-playground</artifactId>' pom.xml \
+              | grep '<version>' | head -1 \
+              | sed -E 's@.*<version>([^<]+)</version>.*@\1@')
+            SOURCE="pom.xml (ref=$REF)"
+          fi
+          # Normalize milestone marker case (e.g., -m4 -> -M4).
           VERSION=$(echo "$VERSION" | sed -E 's/-m([0-9]+)/-M\1/')
+          if [ -z "$VERSION" ]; then
+            echo "::error::Could not resolve installer version from ref or pom.xml"
+            exit 1
+          fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Resolved installer version: $VERSION"
+          echo "Resolved installer version: $VERSION (source: $SOURCE)"
 
       - name: Set up GraalVM JDK 21
         uses: graalvm/setup-graalvm@v1
