@@ -146,6 +146,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write       # required for Sigstore OIDC token used by build provenance
+      attestations: write   # required to write the attestation back to the repo
 
     steps:
       - name: Download installer artifacts
@@ -153,6 +155,24 @@ jobs:
         with:
           path: release-assets
           merge-multiple: true
+
+      - name: Generate SHA-256 checksums
+        working-directory: release-assets
+        run: |
+          shopt -s nullglob
+          for f in *.dmg *.exe *.deb *.rpm; do
+            sha256sum "$f" > "$f.sha256"
+          done
+          ls -la
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            release-assets/*.dmg
+            release-assets/*.exe
+            release-assets/*.deb
+            release-assets/*.rpm
 
       - name: Upload assets to GitHub Release
         uses: softprops/action-gh-release@v2.5.0
@@ -165,4 +185,5 @@ jobs:
             release-assets/*.exe
             release-assets/*.deb
             release-assets/*.rpm
+            release-assets/*.sha256
           generate_release_notes: true
