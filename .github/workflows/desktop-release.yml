@@ -62,6 +62,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Resolve installer version from ref
+        id: ver
+        shell: bash
+        run: |
+          REF="${{ github.ref_name }}"
+          if [[ "$REF" =~ ^v?([0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9]+)*)$ ]]; then
+            VERSION="${BASH_REMATCH[1]}"
+          elif [[ "$REF" =~ ^([0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9]+)*) ]]; then
+            VERSION="${BASH_REMATCH[1]}"
+          else
+            VERSION="${REF}"
+          fi
+          # Normalize milestone marker case (e.g., -m4 -> -M4)
+          VERSION=$(echo "$VERSION" | sed -E 's/-m([0-9]+)/-M\1/')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Resolved installer version: $VERSION"
+
       - name: Set up GraalVM JDK 21
         uses: graalvm/setup-graalvm@v1
         with:
@@ -97,6 +114,11 @@ jobs:
         working-directory: electron
         run: npm ci
 
+      - name: Set installer version on electron/package.json
+        working-directory: electron
+        shell: bash
+        run: npm version "${{ steps.ver.outputs.version }}" --no-git-tag-version --allow-same-version
+
       - name: Install frontend dependencies
         if: hashFiles('package.json') != ''
         run: npm install --no-audit --no-fund
@@ -124,6 +146,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write       # required for Sigstore OIDC token used by build provenance
+      attestations: write   # required to write the attestation back to the repo
 
     steps:
       - name: Download installer artifacts
@@ -131,6 +155,24 @@ jobs:
         with:
           path: release-assets
           merge-multiple: true
+
+      - name: Generate SHA-256 checksums
+        working-directory: release-assets
+        run: |
+          shopt -s nullglob
+          for f in *.dmg *.exe *.deb *.rpm; do
+            sha256sum "$f" > "$f.sha256"
+          done
+          ls -la
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            release-assets/*.dmg
+            release-assets/*.exe
+            release-assets/*.deb
+            release-assets/*.rpm
 
       - name: Upload assets to GitHub Release
         uses: softprops/action-gh-release@v2.5.0
@@ -143,4 +185,5 @@ jobs:
             release-assets/*.exe
             release-assets/*.deb
             release-assets/*.rpm
+            release-assets/*.sha256
           generate_release_notes: true

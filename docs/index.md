@@ -8,15 +8,18 @@ Spring AI Playground is a cross-platform desktop app for building, testing, vali
 
 > **No pass, no run.**
 
+Every tool you build earns a **Local Pass** — a local test-run with sample arguments. Only tools that pass are added live to the built-in MCP server and become callable from Agentic Chat. Nothing you author reaches an agent until you have seen it work on your own machine.
+
 The desktop app is the recommended default experience, but Docker and local source execution are still supported when you want a server-style deployment or a development workflow.
 
 Unlike many playgrounds that stop at prompt testing, this project connects AI conversations to real actions while making the tools it manages inside the app safer and easier to inspect before reuse:
 
 - build JavaScript tools directly in the app
-- test-run new or updated built-in tools before publishing them
-- expose them immediately through MCP without restart or redeploy
+- earn a **Local Pass** by test-running each tool against sample arguments you define
+- **add tools live to the built-in MCP server** the moment each passes — no restart, no redeploy
+- start immediately with seven pre-loaded built-in tools (`getWeather`, `sendSlackMessage`, `googlePseSearch`, and more)
 - validate retrieval pipelines against your own documents
-- run agentic chat that combines tool use and grounded context
+- run agentic chat that combines tool use and grounded context (e.g. *"Get today's weather and send it to Slack"*)
 
 <div style="text-align: center;">
   <b>Agentic Chat Demo</b><br/>
@@ -39,11 +42,11 @@ Spring AI Playground is a standalone desktop app, so you can install it and star
 
 Choose the installer for your platform from the latest release:
 
-[![Windows](https://img.shields.io/badge/Windows-NSIS%20Installer-0078D6?logo=windows&logoColor=white)](https://github.com/spring-ai-community/spring-ai-playground/releases/latest/download/Spring.AI.Playground.exe)
-[![macOS Apple Silicon](https://img.shields.io/badge/macOS-Apple%20Silicon%20arm64-000000?logo=apple&logoColor=white)](https://github.com/spring-ai-community/spring-ai-playground/releases/latest/download/Spring.AI.Playground-arm64.dmg)
-[![macOS Intel](https://img.shields.io/badge/macOS-Intel%20x64-555555?logo=apple&logoColor=white)](https://github.com/spring-ai-community/spring-ai-playground/releases/latest/download/Spring.AI.Playground-x64.dmg)
-[![Linux DEB](https://img.shields.io/badge/Linux-DEB-A81D33?logo=debian&logoColor=white)](https://github.com/spring-ai-community/spring-ai-playground/releases/latest/download/Spring.AI.Playground.deb)
-[![Linux RPM](https://img.shields.io/badge/Linux-RPM-EE0000?logo=redhat&logoColor=white)](https://github.com/spring-ai-community/spring-ai-playground/releases/latest/download/Spring.AI.Playground.rpm)
+[![Windows](https://img.shields.io/badge/Windows-NSIS%20Installer-0078D6?logo=windows&logoColor=white)](getting-started.md#win-x64)
+[![macOS Apple Silicon](https://img.shields.io/badge/macOS-Apple%20Silicon%20arm64-000000?logo=apple&logoColor=white)](getting-started.md#mac-arm64)
+[![macOS Intel](https://img.shields.io/badge/macOS-Intel%20x64-555555?logo=apple&logoColor=white)](getting-started.md#mac-x64)
+[![Linux DEB](https://img.shields.io/badge/Linux-DEB-A81D33?logo=debian&logoColor=white)](getting-started.md#linux-deb)
+[![Linux RPM](https://img.shields.io/badge/Linux-RPM-EE0000?logo=redhat&logoColor=white)](getting-started.md#linux-rpm)
 
 Or browse all available assets on the [Releases page](https://github.com/spring-ai-community/spring-ai-playground/releases).
 
@@ -100,8 +103,8 @@ If you install the app, you can run Spring AI Playground immediately without set
 </div>
 
 <div style="text-align: center;">
-  <a href="assets/images/lancher-ollama-config.png">
-    <img src="assets/images/lancher-ollama-config.png" width="760" alt="Spring AI Playground Ollama model manager"/>
+  <a href="assets/images/launcher-ollama-config.png">
+    <img src="assets/images/launcher-ollama-config.png" width="760" alt="Spring AI Playground Ollama model manager"/>
   </a>
 </div>
 
@@ -149,11 +152,13 @@ It is intentionally opinionated and scope-limited in its current stage. The goal
 ## :material-book-open-page-variant: Documentation Flow
 
 - Getting Started: install the desktop app first, configure models, and understand alternative runtimes
-- Features: understand the architecture and the main product areas
+- Architecture: runtime layers, data flows, and extension points
+- Features: the main product areas and what they do
 - Tutorials: follow real workflows for tools, MCP, vector search, and agentic chat
 
 ## Further Reading
 
 - [Getting Started](getting-started.md): install the desktop app, configure models, and understand alternative runtimes
-- [Features](features.md): understand the architecture and the main product areas
+- [Architecture](architecture.md): runtime layers, data flows, and extension points
+- [Features](features.md): the main product areas and what they do
 - [Tutorials](tutorials.md): follow end-to-end workflows for tools, MCP, vector search, and agentic chat

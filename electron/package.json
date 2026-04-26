@@ -1,6 +1,6 @@
 {
-  "name": "spring-ai-playground-desktop",
-  "version": "1.0.0",
+  "name": "spring-ai-playground",
+  "version": "0.2.0-M4",
   "description": "Desktop launcher for the Spring AI Community incubating project Spring AI Playground",
   "homepage": "https://github.com/spring-ai-community/spring-ai-playground",
   "author": {
@@ -35,6 +35,7 @@
       "launcher-config.js",
       "splash.html",
       "server-splash.html",
+      "telemetry.js",
       "static/**/*",
       "resources/**/*",
       "!resources/app.jar",
@@ -62,7 +63,7 @@
     ],
     "win": {
       "target": "nsis",
-      "artifactName": "Spring AI Playground.${ext}",
+      "artifactName": "spring-ai-playground-${version}-win-${arch}.${ext}",
       "icon": "static/icons/icon.ico"
     },
     "nsis": {
@@ -78,7 +79,7 @@
     },
     "mac": {
       "target": "dmg",
-      "artifactName": "Spring AI Playground-${arch}.${ext}",
+      "artifactName": "spring-ai-playground-${version}-mac-${arch}.${ext}",
       "category": "public.app-category.developer-tools",
       "icon": "static/icons/icon.icns",
       "hardenedRuntime": false,
@@ -113,7 +114,8 @@
       ]
     },
     "linux": {
-      "artifactName": "Spring AI Playground.${ext}",
+      "artifactName": "spring-ai-playground-${version}-linux-${arch}.${ext}",
+      "executableName": "spring-ai-playground",
       "target": [
         "deb",
         "rpm"

@@ -5,7 +5,7 @@ server:
   shutdown: graceful
 spring:
   lifecycle:
-    timeout-per-shutdown-phase: 90s
+    timeout-per-shutdown-phase: 30s
   threads:
     virtual:
       enabled: true
@@ -54,7 +54,7 @@ spring:
             # HTML parsing library — currently used in examples
             - org.jsoup.*
 
-      user-home:
+      user-home: ${user.home}
       chat:
         system-prompt:
     mcp:

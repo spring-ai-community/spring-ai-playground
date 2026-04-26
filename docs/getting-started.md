@@ -12,17 +12,242 @@ The recommended default is the desktop build published through GitHub Releases.
 
 ### Download the Desktop Installer
 
-Choose the installer for your platform from the latest release:
+Pick the installer for your platform. Each link resolves to the latest published release automatically; the downloaded file keeps the version in its name (e.g. `spring-ai-playground-0.2.0-M4-mac-arm64.dmg`).
 
-[![Windows](https://img.shields.io/badge/Windows-NSIS%20Installer-0078D6?logo=windows&logoColor=white)](https://github.com/spring-ai-community/spring-ai-playground/releases/latest/download/Spring.AI.Playground.exe)
-[![macOS Apple Silicon](https://img.shields.io/badge/macOS-Apple%20Silicon%20arm64-000000?logo=apple&logoColor=white)](https://github.com/spring-ai-community/spring-ai-playground/releases/latest/download/Spring.AI.Playground-arm64.dmg)
-[![macOS Intel](https://img.shields.io/badge/macOS-Intel%20x64-555555?logo=apple&logoColor=white)](https://github.com/spring-ai-community/spring-ai-playground/releases/latest/download/Spring.AI.Playground-x64.dmg)
-[![Linux DEB](https://img.shields.io/badge/Linux-DEB-A81D33?logo=debian&logoColor=white)](https://github.com/spring-ai-community/spring-ai-playground/releases/latest/download/Spring.AI.Playground.deb)
-[![Linux RPM](https://img.shields.io/badge/Linux-RPM-EE0000?logo=redhat&logoColor=white)](https://github.com/spring-ai-community/spring-ai-playground/releases/latest/download/Spring.AI.Playground.rpm)
+<p class="download-badges">
+  <a id="win-x64" class="download-badge" href="https://github.com/spring-ai-community/spring-ai-playground/releases/latest" data-pattern="win-x64.exe" data-label="Windows (NSIS, x64)" rel="noopener"><img src="https://img.shields.io/badge/Windows-NSIS%20Installer-0078D6?logo=windows&logoColor=white" alt="Windows NSIS Installer"/></a>
+  <a id="mac-arm64" class="download-badge" href="https://github.com/spring-ai-community/spring-ai-playground/releases/latest" data-pattern="mac-arm64.dmg" data-label="macOS (Apple Silicon)" rel="noopener"><img src="https://img.shields.io/badge/macOS-Apple%20Silicon%20arm64-000000?logo=apple&logoColor=white" alt="macOS Apple Silicon arm64"/></a>
+  <a id="mac-x64" class="download-badge" href="https://github.com/spring-ai-community/spring-ai-playground/releases/latest" data-pattern="mac-x64.dmg" data-label="macOS (Intel)" rel="noopener"><img src="https://img.shields.io/badge/macOS-Intel%20x64-555555?logo=apple&logoColor=white" alt="macOS Intel x64"/></a>
+  <a id="linux-deb" class="download-badge" href="https://github.com/spring-ai-community/spring-ai-playground/releases/latest" data-pattern="linux-x64.deb" data-label="Linux (DEB, x64)" rel="noopener"><img src="https://img.shields.io/badge/Linux-DEB-A81D33?logo=debian&logoColor=white" alt="Linux DEB"/></a>
+  <a id="linux-rpm" class="download-badge" href="https://github.com/spring-ai-community/spring-ai-playground/releases/latest" data-pattern="linux-x64.rpm" data-label="Linux (RPM, x64)" rel="noopener"><img src="https://img.shields.io/badge/Linux-RPM-EE0000?logo=redhat&logoColor=white" alt="Linux RPM"/></a>
+</p>
+
+<p id="dl-resolved" class="dl-resolved-version" hidden></p>
+
+<div id="dl-confirm" class="dl-confirm-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="dl-confirm-title">
+  <div class="dl-confirm-modal" role="document">
+    <button id="dl-confirm-close" class="dl-confirm__close" type="button" aria-label="Close">&times;</button>
+    <div class="dl-confirm__header">
+      <span class="dl-confirm__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m6 11 6 6 6-6"/><path d="M5 21h14"/></svg>
+      </span>
+      <div class="dl-confirm__heading">
+        <h4 id="dl-confirm-title" class="dl-confirm__title">Confirm download</h4>
+        <p class="dl-confirm__platform"><span id="dl-confirm-label"></span></p>
+      </div>
+    </div>
+    <dl class="dl-confirm__body">
+      <div class="dl-confirm__row">
+        <dt class="dl-confirm__row-label">File</dt>
+        <dd class="dl-confirm__row-value">
+          <code id="dl-confirm-filename"></code>
+          <span id="dl-confirm-message" class="dl-confirm__message" hidden></span>
+        </dd>
+      </div>
+      <div class="dl-confirm__row">
+        <dt class="dl-confirm__row-label">Size</dt>
+        <dd class="dl-confirm__row-value" id="dl-confirm-size">&mdash;</dd>
+      </div>
+      <div class="dl-confirm__row">
+        <dt class="dl-confirm__row-label">Save to</dt>
+        <dd class="dl-confirm__row-value dl-confirm__saveto">
+          <span id="dl-confirm-saveto-path" class="dl-confirm__saveto-path">Downloads folder</span>
+          <span class="dl-confirm__saveto-hint">(set by your browser)</span>
+        </dd>
+      </div>
+    </dl>
+    <div class="dl-confirm__actions">
+      <a id="dl-confirm-go" class="download-button download-button--primary" href="#" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>
+        <span id="dl-confirm-go-label">Download</span>
+      </a>
+      <button id="dl-confirm-cancel" class="download-button download-button--ghost" type="button">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<noscript>
+
+JavaScript is disabled in your browser, so the buttons above link to the
+[latest release page](https://github.com/spring-ai-community/spring-ai-playground/releases/latest).
+Pick the asset that matches your platform.
+
+</noscript>
+
+<script>
+(function () {
+  const REPO = 'spring-ai-community/spring-ai-playground';
+  const FALLBACK = `https://github.com/${REPO}/releases/latest`;
+  const buttons = Array.from(document.querySelectorAll('a[data-pattern]'));
+  if (buttons.length === 0) return;
+
+  const confirmEl = document.getElementById('dl-confirm');
+  const confirmLabel = document.getElementById('dl-confirm-label');
+  const confirmFilename = document.getElementById('dl-confirm-filename');
+  const confirmMessage = document.getElementById('dl-confirm-message');
+  const confirmSize = document.getElementById('dl-confirm-size');
+  const confirmSavetoPath = document.getElementById('dl-confirm-saveto-path');
+  const confirmGo = document.getElementById('dl-confirm-go');
+  const confirmGoLabel = document.getElementById('dl-confirm-go-label');
+  const confirmGoSvg = confirmGo ? confirmGo.querySelector('svg') : null;
+  const confirmCancel = document.getElementById('dl-confirm-cancel');
+  const confirmClose = document.getElementById('dl-confirm-close');
+  let lastTrigger = null;
+
+  // Show the typical default download path for this OS (informational only).
+  if (confirmSavetoPath) {
+    const ua = navigator.userAgent || '';
+    if (/Mac/i.test(ua)) confirmSavetoPath.textContent = '~/Downloads';
+    else if (/Win/i.test(ua)) confirmSavetoPath.textContent = '%USERPROFILE%\\Downloads';
+    else if (/Linux/i.test(ua)) confirmSavetoPath.textContent = '~/Downloads';
+  }
+
+  function formatBytes(bytes) {
+    if (!bytes || bytes <= 0) return null;
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let i = 0;
+    let n = bytes;
+    while (n >= 1024 && i < units.length - 1) {
+      n /= 1024;
+      i++;
+    }
+    return `${n.toFixed(n >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
+  }
+
+  function showConfirm(button) {
+    if (!confirmEl) return;
+    const isUnresolved = button.classList.contains('download-badge--unresolved');
+    confirmLabel.textContent = button.dataset.label || button.textContent.trim();
+    if (isUnresolved) {
+      confirmFilename.hidden = true;
+      confirmFilename.textContent = '';
+      confirmMessage.hidden = false;
+      confirmMessage.textContent = 'No matching asset in the latest release.';
+    } else {
+      confirmMessage.hidden = true;
+      confirmFilename.hidden = false;
+      confirmFilename.textContent = button.dataset.resolved || '';
+    }
+    confirmSize.textContent = (!isUnresolved && button.dataset.size) ? button.dataset.size : '—';
+    confirmGo.href = button.href;
+    if (confirmGoLabel) {
+      confirmGoLabel.textContent = isUnresolved ? 'Open Releases page' : 'Download';
+    }
+    if (confirmGoSvg) {
+      confirmGoSvg.style.display = isUnresolved ? 'none' : '';
+    }
+    if (!isUnresolved && button.dataset.resolved) {
+      confirmGo.setAttribute('download', button.dataset.resolved);
+    } else {
+      confirmGo.removeAttribute('download');
+    }
+    lastTrigger = button;
+    confirmEl.hidden = false;
+    document.body.classList.add('dl-confirm-open');
+    requestAnimationFrame(() => {
+      if (confirmClose && typeof confirmClose.focus === 'function') confirmClose.focus();
+    });
+  }
+
+  function hideConfirm() {
+    if (!confirmEl || confirmEl.hidden) return;
+    confirmEl.hidden = true;
+    document.body.classList.remove('dl-confirm-open');
+    if (lastTrigger && typeof lastTrigger.focus === 'function') {
+      try { lastTrigger.focus(); } catch (_) {}
+    }
+    lastTrigger = null;
+  }
+
+  function attachClickHandlers() {
+    buttons.forEach((button) => {
+      button.addEventListener('click', (event) => {
+        // Always intercept: resolved → confirm filename + size,
+        // unresolved → friendly message with "Open Releases page".
+        event.preventDefault();
+        showConfirm(button);
+      });
+    });
+  }
+
+  if (confirmCancel) {
+    confirmCancel.addEventListener('click', hideConfirm);
+  }
+  if (confirmClose) {
+    confirmClose.addEventListener('click', hideConfirm);
+  }
+  if (confirmGo) {
+    // Let the browser proceed with the link, then dismiss the modal
+    confirmGo.addEventListener('click', () => setTimeout(hideConfirm, 0));
+  }
+  // Click on the overlay (outside the modal box) closes the modal
+  if (confirmEl) {
+    confirmEl.addEventListener('click', (event) => {
+      if (event.target === confirmEl) hideConfirm();
+    });
+  }
+  // Escape key closes the modal
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && confirmEl && !confirmEl.hidden) {
+      hideConfirm();
+    }
+  });
+
+  fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
+    headers: { Accept: 'application/vnd.github+json' }
+  })
+    .then((response) => response.ok ? response.json() : Promise.reject(new Error(`HTTP ${response.status}`)))
+    .then((release) => {
+      const assets = release.assets || [];
+      buttons.forEach((button) => {
+        const pattern = button.dataset.pattern;
+        const asset = assets.find((a) => a.name && a.name.endsWith(pattern));
+        if (asset) {
+          button.href = asset.browser_download_url;
+          button.dataset.resolved = asset.name;
+          const formatted = formatBytes(asset.size);
+          if (formatted) button.dataset.size = formatted;
+        } else {
+          button.href = FALLBACK;
+          button.classList.add('download-badge--unresolved');
+        }
+      });
+      const tag = release.tag_name || release.name;
+      if (tag) {
+        const note = document.getElementById('dl-resolved');
+        if (note) {
+          note.textContent = `Latest release: ${tag}`;
+          note.hidden = false;
+        }
+      }
+      attachClickHandlers();
+      autoOpenFromHash();
+    })
+    .catch(() => {
+      buttons.forEach((button) => {
+        button.href = FALLBACK;
+        button.classList.add('download-badge--unresolved');
+      });
+      attachClickHandlers();
+      autoOpenFromHash();
+    });
+
+  function autoOpenFromHash() {
+    const hash = (window.location.hash || '').replace(/^#/, '');
+    if (!hash) return;
+    const target = buttons.find((b) => b.id === hash);
+    if (!target) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    showConfirm(target);
+  }
+})();
+</script>
 
 Or browse all available assets on the [Releases page](https://github.com/spring-ai-community/spring-ai-playground/releases).
 
 The desktop package wraps the launcher and the backend runtime together, so this is the simplest way to get started without manually running Docker or Maven.
+
+Want to confirm the file you downloaded is genuine? See [Verify Your Download](#verify-your-download) below.
 
 ### Platform-specific install notes
 
@@ -249,7 +474,7 @@ For a clean first launch:
 
 After you click `Save and Launch`, the launcher opens a separate startup window while Spring AI Playground boots in the background.
 
-![Spring AI Playground launcher startup screen](assets/images/lancher-springai.png)
+![Spring AI Playground launcher startup screen](assets/images/launcher-springai.png)
 
 That startup window shows:
 
@@ -313,6 +538,38 @@ In that tab, the UI groups downloaded models by type and lets you manage them di
 - `Delete model` removes the selected model from the local Ollama store
 
 This makes the model manager useful both for first-time setup and for cleaning up or cloning downloaded models later.
+
+## Verify Your Download
+
+Each release ships with two integrity guarantees. Verifying is optional, but recommended for production use.
+
+### 1. SHA-256 checksum
+
+Every installer has a matching `.sha256` file in the release assets. Compare the hash of your downloaded file with the contents of that file.
+
+macOS / Linux:
+
+```bash
+shasum -a 256 -c spring-ai-playground-0.2.0-M4-mac-arm64.dmg.sha256
+```
+
+Windows (PowerShell):
+
+```powershell
+Get-FileHash spring-ai-playground-0.2.0-M4-win-x64.exe -Algorithm SHA256
+# then compare the value with the one inside the .sha256 file
+```
+
+### 2. Sigstore build provenance (SLSA)
+
+Every installer is signed at build time by the official GitHub Actions release workflow using a short-lived Sigstore key, and the attestation is recorded in the public transparency log. The [GitHub CLI](https://cli.github.com/) can verify the file came from this repo's release workflow:
+
+```bash
+gh attestation verify spring-ai-playground-0.2.0-M4-mac-arm64.dmg \
+  --owner spring-ai-community
+```
+
+A successful verification proves the file was produced by this project's release workflow and was not modified after build.
 
 ## Additional Setup for Specific Backends and Runtimes
 
@@ -618,8 +875,39 @@ After the app is running and the model backend is configured:
 1. read [Features](features.md) to understand the product structure
 2. follow [Tutorials](tutorials.md) to create tools, connect MCP servers, register knowledge, and run Agentic Chat with tools and RAG
 
+## Anonymous Usage Telemetry
+
+The official build sends anonymous usage data (page views, app surface, device/browser
+info) to help prioritize features. IPs are anonymized by Google. The same opt-out switch
+applies to both the web app and every desktop launcher window (splash, server-splash,
+config editor, Ollama manager).
+
+To opt out, set `SPRING_AI_PLAYGROUND_TELEMETRY_ENABLED=false` before launching:
+
+- **Server / Docker / `mvn`**: export the env var in your shell
+- **Desktop launcher**: set it in your OS environment or launcher env config before starting
+  the app — the launcher forwards it to every window and to the bundled Spring process
+- **From source / IDE**: pass `-Dspring.ai.playground.telemetry.enabled=false` as a JVM arg
+
+For more details, see the [README](https://github.com/spring-ai-community/spring-ai-playground#anonymous-usage-telemetry).
+
+## Your First Five Tasks
+
+Once the app is running, the **Home** screen shows a live checklist that mirrors the path below. Each item self-checks based on workspace state, so you can walk through them at your own pace.
+
+![Getting started checklist on the Home screen](assets/images/home-getting-started.png)
+
+1. **Configure a model provider** — Pick Ollama (default, local) or OpenAI. The provider pill on Home shows a green dot and "Ready" once the base URL is reachable (Ollama) or an API key is set (OpenAI). A red dot means the app cannot reach your provider — recheck the launcher config or env vars.
+2. **Start a chat** — Agentic Chat is ready the moment a provider is connected. The app ships with seven built-in tools (`getWeather`, `sendSlackMessage`, `googlePseSearch`, `buildGoogleCalendarCreateLink`, `extractPageContent`, `getCurrentTime`, `openaiResponseGenerator`), so you can test end-to-end without writing any code.
+3. **Upload a document for RAG** — Drop a PDF or text file into the Vector Database surface. The file is chunked, embedded, and indexed on the spot; retrieval becomes available inside chat immediately.
+4. **Create your first tool** — Open Tool Studio, write a small JavaScript function, and define its sample arguments. Run it locally: if it passes, it earns its **Local Pass** and is added live to the built-in MCP server the same moment. No restart, no redeploy. Agentic Chat picks it up immediately.
+5. **Try an agentic workflow** — Ask the assistant: *"Get today's weather and send it to Slack."* This exercises two built-in tools in sequence and shows the full agentic path (plan → call tool → read result → call next tool → reply).
+
+> Verifying your provider: the Home provider pill is the fastest sanity check. If it is stuck on "Checking…" or flips to red, open the desktop launcher startup card or run `curl $OLLAMA_BASE_URL` before proceeding.
+
 ## Further Reading
 
 - [Overview](index.md): see the product positioning, quick start path, and documentation map
-- [Features](features.md): understand the architecture and the main product areas
+- [Architecture](architecture.md): runtime layers, data flows, and extension points
+- [Features](features.md): the main product areas and what they do
 - [Tutorials](tutorials.md): follow end-to-end workflows for tools, MCP, vector search, and agentic chat
