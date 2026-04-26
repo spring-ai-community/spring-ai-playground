@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
@@ -62,7 +63,7 @@ class ChatServiceTest {
     void testStream() {
         long timestamp = System.currentTimeMillis();
         ChatHistory chatHistory = new ChatHistory("test-chat", "Test Chat", timestamp, timestamp, "System prompt",
-                new DefaultChatOptions(), List::of);
+                new DefaultChatOptions(), () -> List.of(new UserMessage("Test Chat")));
         String prompt = "Hello World";
 
         when(chatModel.stream(any(Prompt.class))).thenReturn(
@@ -90,9 +91,9 @@ class ChatServiceTest {
     @Test
     void testCall() {
         long timestamp = System.currentTimeMillis();
-        ChatHistory chatHistory = new ChatHistory("test-chat", "Test Chat", timestamp, timestamp, "System prompt",
-                new DefaultChatOptions(), List::of);
         String prompt = "Hello World";
+        ChatHistory chatHistory = new ChatHistory("test-chat", "Test Chat", timestamp, timestamp, "System prompt",
+                new DefaultChatOptions(), () -> List.of(new UserMessage(prompt)));
 
         when(chatModel.call(any(Prompt.class))).thenReturn(
                 new ChatResponse(List.of(new Generation(new AssistantMessage(prompt)))));
@@ -132,8 +133,8 @@ class ChatServiceTest {
                 new SpringAiPlaygroundOptions(null, true, "", new SpringAiPlaygroundOptions.Chat("systemPrompt",
                         List.of("MockLlmProvider"), (DefaultChatOptions) chatService.getDefaultOptions()));
         ChatMemory chatMemory = mock(ChatMemory.class);
-        ChatService service = new ChatService(chatModel, chatClient, playgroundOptions, vectorStoreDocumentService,
-                null);
+        ChatService service = new ChatService(chatModel, chatClient, chatMemory, playgroundOptions,
+                vectorStoreDocumentService, null);
         assertEquals("MockLlmProvider", service.getChatModelProvider());
     }
 

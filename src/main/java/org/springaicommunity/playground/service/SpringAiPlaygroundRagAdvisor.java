@@ -47,6 +47,8 @@ public class SpringAiPlaygroundRagAdvisor implements BaseAdvisor {
     public static final String RAG_PROCESS_MESSAGE_CONSUMER = "ragProcessMessageConsumer";
     public static final String RAG_SEARCH_COMPLETED_MESSAGE = "VectorDB document search completed.";
 
+    public record RagRetrievedDocumentsInfo(List<String> titles, int count) {}
+
     private static final Logger logger = LoggerFactory.getLogger(SpringAiPlaygroundRagAdvisor.class);
 
     private final VectorStoreService vectorStoreService;
@@ -64,15 +66,23 @@ public class SpringAiPlaygroundRagAdvisor implements BaseAdvisor {
             return chatClientRequest;
         Optional<Consumer<Object>> ragProcessMessageConsumer = getRagProcessMessageConsumer(chatClientRequest);
         ragProcessMessageConsumer.ifPresent(consumer -> consumer.accept(formatSearchStart(chatClientRequest)));
-        ChatClientRequest requestWithDocuments =
-                buildRetrievalAugmentationAdvisor(chatClientRequest).before(chatClientRequest, advisorChain);
-        List<Document> retrievedDocuments = getRetrievedDocuments(requestWithDocuments);
+        String query = extractUserQuery(chatClientRequest);
+        String filterExpression = chatClientRequest.context().get(RAG_FILTER_EXPRESSION).toString();
+        List<Document> retrievedDocuments = vectorStoreService.search(query, filterExpression);
         printSearchResults(retrievedDocuments);
+        Map<String, String> docInfoTitles = this.vectorStoreDocumentsReader.read().stream()
+                .collect(Collectors.toMap(VectorStoreDocumentInfo::docInfoId, VectorStoreDocumentInfo::title,
+                        (current, ignored) -> current));
+        List<String> titles = retrievedDocuments.stream()
+                .map(doc -> resolveDocumentTitle(doc, docInfoTitles)).distinct().toList();
         ragProcessMessageConsumer.ifPresent(consumer -> {
+            consumer.accept(new RagRetrievedDocumentsInfo(titles, retrievedDocuments.size()));
             consumer.accept(formatRetrievedDocuments(retrievedDocuments));
             consumer.accept(RAG_SEARCH_COMPLETED_MESSAGE);
         });
-        return requestWithDocuments;
+        if (retrievedDocuments.isEmpty())
+            return chatClientRequest.mutate().context(DOCUMENT_CONTEXT, retrievedDocuments).build();
+        return buildRetrievalAugmentationAdvisor(retrievedDocuments).before(chatClientRequest, advisorChain);
     }
 
     @Override
@@ -92,14 +102,14 @@ public class SpringAiPlaygroundRagAdvisor implements BaseAdvisor {
         return isMissing;
     }
 
-    private RetrievalAugmentationAdvisor buildRetrievalAugmentationAdvisor(ChatClientRequest chatClientRequest) {
-        return RetrievalAugmentationAdvisor.builder().documentRetriever(query -> vectorStoreService.search(query.text(),
-                chatClientRequest.context().get(RAG_FILTER_EXPRESSION).toString())).build();
+    private RetrievalAugmentationAdvisor buildRetrievalAugmentationAdvisor(List<Document> preSearchedDocuments) {
+        return RetrievalAugmentationAdvisor.builder().documentRetriever(query -> preSearchedDocuments).build();
     }
 
-    private List<Document> getRetrievedDocuments(ChatClientRequest chatClientRequest) {
-        return Optional.ofNullable(chatClientRequest.context().get(DOCUMENT_CONTEXT))
-                .stream().map(documents -> (List<Document>) documents).flatMap(List::stream).toList();
+    private String extractUserQuery(ChatClientRequest chatClientRequest) {
+        return chatClientRequest.prompt().getInstructions().stream()
+                .filter(m -> m instanceof UserMessage).reduce((first, second) -> second)
+                .map(m -> ((UserMessage) m).getText()).filter(StringUtils::hasText).orElse("");
     }
 
     private Optional<Consumer<Object>> getRagProcessMessageConsumer(ChatClientRequest chatClientRequest) {

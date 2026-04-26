@@ -26,6 +26,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.ChatClientResponse;
+import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.metadata.ChatResponseMetadata;
@@ -75,10 +77,12 @@ public class ChatService {
     private final ChatModel chatModel;
     private final ChatOptions chatOptions;
     private final ChatClient chatClient;
+    private final ChatMemory chatMemory;
     private final SharedDataReader<List<VectorStoreDocumentInfo>> vectorStoreDocumentsReader;
     private final SharedDataReader<List<McpServerInfo>> mcpServerInfosReader;
 
-    public ChatService(ChatModel chatModel, ChatClient chatClient, SpringAiPlaygroundOptions playgroundOptions,
+    public ChatService(ChatModel chatModel, ChatClient chatClient, ChatMemory chatMemory,
+            SpringAiPlaygroundOptions playgroundOptions,
             SharedDataReader<List<VectorStoreDocumentInfo>> vectorStoreDocumentsReader,
             SharedDataReader<List<McpServerInfo>> mcpServerInfosReader) {
         this.systemPrompt = playgroundOptions.chat().systemPrompt();
@@ -87,6 +91,7 @@ public class ChatService {
         this.chatOptions = Optional.ofNullable((ChatOptions) playgroundOptions.chat().chatOptions())
                 .orElseGet(chatModel::getDefaultOptions);
         this.chatClient = chatClient;
+        this.chatMemory = chatMemory;
         this.vectorStoreDocumentsReader = vectorStoreDocumentsReader;
         this.mcpServerInfosReader = mcpServerInfosReader;
     }
@@ -95,14 +100,24 @@ public class ChatService {
             Consumer<ChatHistory> completeChatHistoryConsumer, List<ToolCallback> toolCallbacks,
             Consumer<Object> mcpToolProcessMessageConsumer, Consumer<Object> ragProcessMessageConsumer,
             Consumer<Object> thinkProcessMessageConsumer) {
+        return stream(chatHistory, prompt, filterExpression, completeChatHistoryConsumer, toolCallbacks,
+                mcpToolProcessMessageConsumer, ragProcessMessageConsumer, thinkProcessMessageConsumer, null);
+    }
+
+    public Flux<String> stream(ChatHistory chatHistory, String prompt, String filterExpression,
+            Consumer<ChatHistory> completeChatHistoryConsumer, List<ToolCallback> toolCallbacks,
+            Consumer<Object> mcpToolProcessMessageConsumer, Consumer<Object> ragProcessMessageConsumer,
+            Consumer<Object> thinkProcessMessageConsumer, Consumer<SignalType> beforeHistoryCommit) {
         return streamWithRaw(chatHistory, prompt, filterExpression, toolCallbacks, mcpToolProcessMessageConsumer,
                 ragProcessMessageConsumer, thinkProcessMessageConsumer).map(
                         Generation::getOutput)
                 .map(assistantMessage -> Optional.ofNullable(assistantMessage.getText()).orElse(""))
                 .doFinally(signalType -> {
-                    if (Objects.nonNull(completeChatHistoryConsumer) &&
-                            (SignalType.ON_COMPLETE.equals(signalType) || SignalType.CANCEL.equals(signalType)))
-                        completeChatHistoryConsumer.accept(chatHistory);
+                    if (SignalType.ON_COMPLETE.equals(signalType) || SignalType.CANCEL.equals(signalType)) {
+                        if (Objects.nonNull(beforeHistoryCommit)) beforeHistoryCommit.accept(signalType);
+                        if (Objects.nonNull(completeChatHistoryConsumer))
+                            completeChatHistoryConsumer.accept(chatHistory);
+                    }
                 });
     }
 
@@ -110,6 +125,7 @@ public class ChatService {
             List<ToolCallback> toolCallbacks, Consumer<Object> mcpToolProcessMessageConsumer,
             Consumer<Object> ragProcessMessageConsumer, Consumer<Object> thinkProcessMessageConsumer) {
         AtomicReference<ChatClientResponse> lastChatResponse = new AtomicReference<>();
+        StringBuilder accumulatedText = new StringBuilder();
         return getChatClientRequestSpec(chatHistory, prompt, filterExpression, toolCallbacks,
                 mcpToolProcessMessageConsumer, ragProcessMessageConsumer).stream().chatClientResponse().map(
                         chatClientResponse -> {
@@ -122,14 +138,25 @@ public class ChatService {
                     String text = chatClientResponse.chatResponse().getResult().getOutput().getText();
                     if (Objects.nonNull(text)) {
                         lastChatResponse.set(chatClientResponse);
+                        accumulatedText.append(text);
                         return true;
                     }
                     return false;
                 }).map(chatClientResponse -> chatClientResponse.chatResponse().getResult())
                 .doFinally(signalType -> {
-                    if (SignalType.ON_COMPLETE.equals(signalType))
+                    if ((SignalType.ON_COMPLETE.equals(signalType) || SignalType.CANCEL.equals(signalType)) &&
+                            Objects.nonNull(lastChatResponse.get()))
                         applyChatResponseMetadataToLastUserMessage(chatHistory, lastChatResponse.get());
+                    if (SignalType.CANCEL.equals(signalType) && accumulatedText.length() > 0)
+                        commitPartialAssistantMessage(chatHistory, accumulatedText.toString());
                 });
+    }
+
+    private void commitPartialAssistantMessage(ChatHistory chatHistory, String text) {
+        List<Message> messages = chatHistory.messagesSupplier().get();
+        if (!messages.isEmpty() && MessageType.ASSISTANT.equals(messages.getLast().getMessageType()))
+            return;
+        this.chatMemory.add(chatHistory.conversationId(), new AssistantMessage(text));
     }
 
     private ChatClient.ChatClientRequestSpec getChatClientRequestSpec(ChatHistory chatHistory, String prompt,
