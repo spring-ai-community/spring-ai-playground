@@ -39,6 +39,11 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install system libraries for social card rendering
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcairo2-dev libfreetype6-dev libffi-dev libjpeg-dev libpng-dev libz-dev pkg-config
+
       - name: Install docs dependencies
         run: pip install -r docs/requirements.txt
 

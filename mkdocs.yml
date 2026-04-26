@@ -6,6 +6,17 @@ copyright: Copyright &copy; 2025 Spring AI Community · <a href="https://www.apa
 
 extra:
   generator: false
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/spring-ai-community/spring-ai-playground
+      name: Spring AI Playground on GitHub
+
+plugins:
+  - search
+  - social:
+      cards_layout_options:
+        background_color: "#3F51B5"
+        color: "#FFFFFF"
 theme:
   name: material
   custom_dir: docs-overrides
@@ -24,6 +35,11 @@ nav:
   - "Tutorials": tutorials.md
 
 docs_dir: docs
+
+# Files that live under docs/ but are developer-facing notes, not published pages.
+exclude_docs: |
+  /assets/images/README.md
+  /requirements.txt
 
 extra_css:
   - assets/stylesheets/extra.css
