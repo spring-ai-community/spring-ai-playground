@@ -268,3 +268,72 @@ These are the near-term areas we plan to improve while keeping the project focus
 
 - **Authentication**: improve access control where it fits the current product boundary
 - **Multimodal Support**: image and audio input/output with supported multimodal-capable models
+
+## ❓ FAQ
+
+### General
+
+**What is Spring AI Playground?**
+Spring AI Playground is a cross-platform desktop app for building, testing, validating, and executing MCP (Model Context Protocol) tools in a controlled local environment. It helps you create reusable MCP tools once and use them across macOS, Windows, and Linux.
+
+**How is it different from other AI agent builders?**
+Unlike platforms that focus on generating agents or authoring tools, Spring AI Playground focuses on making tools safer and easier to inspect before reuse. Every tool must earn a "Local Pass" through a test-run before it becomes callable from Agentic Chat.
+
+**Do I need to know Java or Spring to use it?**
+No. Spring AI Playground is a standalone desktop app. If you can install the app and write a small JavaScript function, you can build and use MCP tools here.
+
+### Installation & Setup
+
+**What are the system requirements?**
+- **macOS**: Apple Silicon (arm64) or Intel (x64), macOS 12+
+- **Windows**: Windows 10/11, x64
+- **Linux**: DEB or RPM packages, glibc 2.31+
+
+**How do I verify my download?**
+Each release includes checksum files. Compare the SHA-256 hash of your downloaded file with the published checksum to ensure integrity.
+
+**Can I build from source?**
+Yes. See the [Contributing section](#contributing--scope) for build instructions. The project uses Gradle and requires JDK 17+.
+
+### MCP Tools
+
+**What is MCP (Model Context Protocol)?**
+MCP is an open protocol that standardizes how AI applications connect to external data sources and tools. Spring AI Playground helps you build, validate, and host MCP tools that work with any MCP-compatible client.
+
+**How do I create an MCP tool?**
+In Tool Studio, write a JavaScript function with input/output definitions. The tool must pass a local test-run (Local Pass) before it's published to the built-in MCP server.
+
+**What tools are included by default?**
+Spring AI Playground ships with built-in tools for common tasks. See the documentation for the full list and how to extend them.
+
+### Usage
+
+**Which MCP clients are supported?**
+Any MCP-compatible client works, including:
+- Claude Desktop / Claude Code
+- Cursor
+- IDEs with MCP extensions
+- Custom MCP clients
+
+**How do I connect to an MCP server?**
+Once your tools pass validation, they're automatically available through the built-in MCP server. Configure your client to connect to the local MCP endpoint.
+
+**Can I use my own LLM provider?**
+Spring AI Playground focuses on tool execution. LLM configuration is handled by your MCP client (e.g., Claude Desktop settings).
+
+### Troubleshooting
+
+**My tool failed the Local Pass test. What should I do?**
+Check the test output for error details. Common issues include:
+- Invalid input/output schema definitions
+- Runtime errors in the JavaScript function
+- Missing dependencies or environment variables
+
+**The app won't start. What should I check?**
+- Ensure your OS version meets the minimum requirements
+- On Linux, verify glibc version (`ldd --version`)
+- Check the application logs in `~/.spring-ai-playground/logs/`
+
+**Where can I find more help?**
+- 📖 [Documentation](https://spring-ai-community.github.io/spring-ai-playground/)
+- 🐛 [GitHub Issues](https://github.com/spring-ai-community/spring-ai-playground/issues)
