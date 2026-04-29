@@ -221,10 +221,12 @@ Please read this section before opening issues or submitting contributions.
 
 ### Reporting Issues
 
-Before opening an issue:
+Pick the right channel:
 
-- use the Bug Report template for reproducible failures
-- submit a documentation PR for documentation fixes or improvements
+- **Bug Report** issue template — for reproducible app failures
+- **Documentation Issue** template — for docs errors you can't fix via PR
+- documentation PR — preferred path for direct fixes or improvements
+- **GitHub Discussions** — Q&A for questions, Show and tell for examples; not Issues
 - read the project scope above before requesting broader changes
 
 We triage issues regularly, and issues outside the current scope may be closed with guidance.
