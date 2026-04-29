@@ -46,10 +46,29 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import io.modelcontextprotocol.spec.McpClientTransport;
+
 @Service
 public class McpClientService {
 
     private static final Logger logger = LoggerFactory.getLogger(McpClientService.class);
+
+    public enum ServerStatus { OK, OFFLINE, ERROR }
+
+    public record StatusEntry(ServerStatus status, String error) {
+        public static final StatusEntry OFFLINE = new StatusEntry(ServerStatus.OFFLINE, null);
+        public static StatusEntry ok() { return new StatusEntry(ServerStatus.OK, null); }
+        public static StatusEntry error(String error) { return new StatusEntry(ServerStatus.ERROR, error); }
+    }
+
+    public record TestConnectionResult(boolean ok, String error, int toolCount) {
+        public static TestConnectionResult success(int toolCount) {
+            return new TestConnectionResult(true, null, toolCount);
+        }
+        public static TestConnectionResult failure(String error) {
+            return new TestConnectionResult(false, error, 0);
+        }
+    }
 
     private final McpSyncClientConfigurer mcpSyncClientConfigurer;
     private final McpAsyncClientConfigurer mcpAsyncClientConfigurer;
@@ -65,6 +84,8 @@ public class McpClientService {
      */
     private final Map<String, McpClientOps> connectingMcpClientOpsMap;
 
+    private final Map<String, StatusEntry> statusCache;
+
     public McpClientService(@Nullable McpSyncClientConfigurer mcpSyncClientConfigurer,
             @Nullable McpAsyncClientConfigurer mcpAsyncClientConfigurer,
             McpClientCommonProperties mcpClientCommonProperties, ObjectMapper objectMapper,
@@ -79,6 +100,7 @@ public class McpClientService {
                 mcpClientCommonProperties.getType() == ClientType.SYNC ? newSync(namedClientMcpTransport,
                         info) : newAsync(namedClientMcpTransport, info);
         this.connectingMcpClientOpsMap = new ConcurrentHashMap<>();
+        this.statusCache = new ConcurrentHashMap<>();
     }
 
     private McpSyncClientOps newSync(NamedClientMcpTransport namedClientMcpTransport, Implementation info) {
@@ -112,15 +134,76 @@ public class McpClientService {
         Implementation info =
                 new Implementation(mcpClientCommonProperties.getName() + " - " + mcpServerInfo.serverName(),
                         mcpClientCommonProperties.getVersion());
-        McpClientOps mcpClientOps = mcpClientOpsBiFunction.apply(buildMcpClientTransport(mcpServerInfo), info);
-        McpClientOps previous = connectingMcpClientOpsMap.put(clientKey(mcpServerInfo), mcpClientOps);
-        if (previous != null) {
-            logger.info("Replacing existing MCP client; closing previous: serverName={}", mcpServerInfo.serverName());
-            try {
-                previous.close();
-            } catch (RuntimeException e) {
-                logger.error("Failed to close previous MCP client: serverName={}", mcpServerInfo.serverName(), e);
+        String key = clientKey(mcpServerInfo);
+        try {
+            McpClientOps mcpClientOps = mcpClientOpsBiFunction.apply(buildMcpClientTransport(mcpServerInfo), info);
+            McpClientOps previous = connectingMcpClientOpsMap.put(key, mcpClientOps);
+            statusCache.put(key, StatusEntry.ok());
+            if (previous != null) {
+                logger.info("Replacing existing MCP client; closing previous: serverName={}",
+                        mcpServerInfo.serverName());
+                try {
+                    previous.close();
+                } catch (RuntimeException e) {
+                    logger.error("Failed to close previous MCP client: serverName={}",
+                            mcpServerInfo.serverName(), e);
+                }
             }
+        } catch (RuntimeException e) {
+            statusCache.put(key, StatusEntry.error(e.getMessage()));
+            throw e;
+        }
+    }
+
+    public TestConnectionResult testConnection(McpServerInfo mcpServerInfo) {
+        logger.info("Testing MCP client connection: serverName={}, transportType={}",
+                mcpServerInfo.serverName(), mcpServerInfo.mcpTransportType());
+        McpSyncClient transientClient = null;
+        try {
+            McpClientTransport transport = buildMcpClientTransport(mcpServerInfo).transport();
+            Implementation info =
+                    new Implementation(mcpClientCommonProperties.getName() + " - test - " + mcpServerInfo.serverName(),
+                            mcpClientCommonProperties.getVersion());
+            transientClient = McpClient.sync(transport).clientInfo(info)
+                    .requestTimeout(mcpClientCommonProperties.getRequestTimeout()).build();
+            transientClient.initialize();
+            int toolCount = transientClient.listTools().tools().size();
+            return TestConnectionResult.success(toolCount);
+        } catch (Exception e) {
+            String msg = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+            logger.warn("Test connection failed: serverName={}, error={}", mcpServerInfo.serverName(), msg);
+            return TestConnectionResult.failure(msg);
+        } finally {
+            if (transientClient != null) {
+                try {
+                    transientClient.close();
+                } catch (RuntimeException ignore) {
+                }
+            }
+        }
+    }
+
+    public StatusEntry getStatus(McpServerInfo mcpServerInfo) {
+        return statusCache.getOrDefault(clientKey(mcpServerInfo), StatusEntry.OFFLINE);
+    }
+
+    public StatusEntry pingAndUpdateStatus(McpServerInfo mcpServerInfo) {
+        String key = clientKey(mcpServerInfo);
+        McpClientOps ops = connectingMcpClientOpsMap.get(key);
+        if (ops == null) {
+            statusCache.remove(key);
+            return StatusEntry.OFFLINE;
+        }
+        try {
+            ops.ping();
+            StatusEntry ok = StatusEntry.ok();
+            statusCache.put(key, ok);
+            return ok;
+        } catch (RuntimeException e) {
+            String msg = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+            StatusEntry err = StatusEntry.error(msg);
+            statusCache.put(key, err);
+            return err;
         }
     }
 
@@ -131,8 +214,10 @@ public class McpClientService {
     }
 
     public void stopMcpClient(McpServerInfo mcpServerInfo) {
-        McpClientOps mcpClientOps = connectingMcpClientOpsMap.get(clientKey(mcpServerInfo));
+        String key = clientKey(mcpServerInfo);
+        McpClientOps mcpClientOps = connectingMcpClientOpsMap.get(key);
         logger.info("Stopping MCP client: serverName={}, mcpClientOps={}", mcpServerInfo.serverName(), mcpClientOps);
+        statusCache.put(key, StatusEntry.OFFLINE);
         if (Objects.nonNull(mcpClientOps))
             mcpClientOps.close();
     }
@@ -162,7 +247,9 @@ public class McpClientService {
     public void deleteConnectingMcpServer(McpServerInfo mcpServerInfo) {
         logger.info("Deleting MCP client connection: serverName={}", mcpServerInfo.serverName());
         stopMcpClient(mcpServerInfo);
-        this.connectingMcpClientOpsMap.remove(clientKey(mcpServerInfo));
+        String key = clientKey(mcpServerInfo);
+        this.connectingMcpClientOpsMap.remove(key);
+        this.statusCache.remove(key);
     }
 
     public boolean isConnecting(McpServerInfo mcpServerInfo) {
