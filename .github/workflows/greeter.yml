@@ -14,6 +14,6 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           pr-message: |
-            👋 Welcome @${{ github.actor }}!
-            Thanks for your first contribution. The maintainers will review your PR soon.
-            Please review our [Project Scope & Contribution policy](https://github.com/${{github.repository }}/blob/HEAD/README.md#contributing--scope) before proceeding.
+            👋 Welcome @${{ github.actor }}, and thanks for opening a PR!
+            Heads-up: the project is currently in a maintainer-driven phase, so we're focused on bug fixes and documentation improvements (typo, error, broken link in `docs/`). External code PRs are paused while we stabilize the core — please don't take it personally if a code PR is closed with guidance.
+            Please take a moment to read our [Project Scope & Contribution policy](https://github.com/${{github.repository }}/blob/HEAD/README.md#contributing--scope). For questions or ideas, [Discussions](https://github.com/${{github.repository }}/discussions) is always open.

@@ -208,13 +208,12 @@ Please read this section before opening issues or submitting contributions.
 ### Current Scope
 
 - bug reports with reproducible steps
-- documentation improvements
+- targeted documentation fixes
 - usage examples
-- focused improvements to existing tool, MCP, RAG, and Agentic Chat workflows
 
 ### Out of Scope For Now
 
-- broad feature requests that significantly expand project scope
+- feature requests and code contributions — the project is currently in a maintainer-driven phase with limited bandwidth. We are not accepting code PRs or feature proposals from outside contributors at this time. Bug reports and documentation fixes are very welcome.
 - experimental model integrations outside the current supported provider list (currently: Ollama, OpenAI, and OpenAI-compatible APIs)
 - high-level multi-agent orchestration layers
 - platform-level marketplace or governance features
@@ -225,13 +224,13 @@ Pick the right channel:
 
 - **Bug Report** issue template — for reproducible app failures
 - **Documentation Issue** template — for docs errors you can't fix via PR
-- documentation PR — preferred path for direct fixes or improvements
+- documentation PR — for targeted fixes in `docs/` (typos, errors, broken links); open a Discussion first for README changes or new sections
 - **GitHub Discussions** — Q&A for questions, Show and tell for examples; not Issues
 - read the project scope above before requesting broader changes
 
 We triage issues regularly, and issues outside the current scope may be closed with guidance.
 
-If you believe you have a contribution that fits the current scope, submit a PR or a targeted issue.
+If you have a contribution that fits the current scope (bug report, doc fix, usage example), submit a PR or a targeted issue. For anything else, please open a Discussion first — but be aware we may not act on it given current capacity.
 
 ## Anonymous Usage Telemetry
 
