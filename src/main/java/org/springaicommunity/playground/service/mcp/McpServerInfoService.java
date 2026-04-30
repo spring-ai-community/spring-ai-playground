@@ -17,16 +17,22 @@ package org.springaicommunity.playground.service.mcp;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springaicommunity.playground.service.SharedDataReader;
+import org.springaicommunity.playground.service.mcp.client.HttpConnectionParametersWithExtras;
 import org.springaicommunity.playground.service.mcp.client.McpClientPropertiesService;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.service.mcp.client.McpTransportType;
+import org.springaicommunity.playground.service.oauth.McpClientRegistrationRepository;
+import org.springaicommunity.playground.service.oauth.OAuthClientRegistrations;
 import org.springframework.ai.mcp.client.common.autoconfigure.properties.McpStreamableHttpClientProperties;
 import org.springframework.ai.mcp.server.common.autoconfigure.properties.McpServerProperties;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.context.WebServerInitializedEvent;
 import org.springframework.context.ApplicationListener;
+import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.stereotype.Service;
 
 import java.util.Arrays;
@@ -39,10 +45,13 @@ import java.util.stream.Collectors;
 public class McpServerInfoService implements SharedDataReader<List<McpServerInfo>>,
         ApplicationListener<WebServerInitializedEvent> {
 
+    private static final Logger logger = LoggerFactory.getLogger(McpServerInfoService.class);
+
     private final ObjectMapper objectMapper;
     private final Map<McpTransportType, Map<String, McpServerInfo>> typeMcpServerInfosMap;
     private final McpClientService mcpClientService;
     private final ObjectProvider<McpServerInfoPersistenceService> mcpServerInfoPersistenceServiceProvider;
+    private final McpClientRegistrationRepository mcpClientRegistrationRepository;
     private final String defaultMcpServerName;
     private final ThreadLocal<Boolean> skipPersist = ThreadLocal.withInitial(() -> Boolean.FALSE);
     private McpServerInfo defaultMcpServerInfo;
@@ -50,10 +59,12 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
     public McpServerInfoService(ObjectMapper objectMapper, McpClientPropertiesService<?>[] mcpClientPropertiesServices,
             McpClientService mcpClientService,
             ObjectProvider<McpServerInfoPersistenceService> mcpServerInfoPersistenceServiceProvider,
+            McpClientRegistrationRepository mcpClientRegistrationRepository,
             @Value("${server.port:8282}") int serverPort, McpServerProperties mcpServerProperties) {
         this.objectMapper = objectMapper;
         this.mcpClientService = mcpClientService;
         this.mcpServerInfoPersistenceServiceProvider = mcpServerInfoPersistenceServiceProvider;
+        this.mcpClientRegistrationRepository = mcpClientRegistrationRepository;
         this.defaultMcpServerName = mcpServerProperties.getName();
         this.typeMcpServerInfosMap = Arrays.stream(mcpClientPropertiesServices)
                 .collect(Collectors.toMap(McpClientPropertiesService::getTransportType,
@@ -109,14 +120,16 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
     public McpServerInfo createBlankMcpServerInfo() {
         String defaultDescription = "Please edit the description of the MCP Server.";
         long timestamp = System.currentTimeMillis();
-        return new McpServerInfo(McpTransportType.STDIO, "New MCP Server", defaultDescription, timestamp, timestamp,
-                null);
+        return new McpServerInfo(McpTransportType.STREAMABLE_HTTP, "New MCP Server", defaultDescription, timestamp,
+                timestamp, null);
     }
 
     public void deleteMcpServerInfo(McpTransportType transportType, String serverName) {
         McpServerInfo mcpServerInfo = this.typeMcpServerInfosMap.get(transportType).remove(serverName);
-        if (mcpServerInfo != null)
+        if (mcpServerInfo != null) {
+            this.mcpClientRegistrationRepository.unregister(OAuthClientRegistrations.registrationId(mcpServerInfo));
             this.mcpServerInfoPersistenceServiceProvider.getObject().deleteAsync(mcpServerInfo);
+        }
     }
 
     public void loadAll(Runnable loadAction) {
@@ -140,10 +153,40 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
             deleteMcpServerInfo(transportType, serverName);
         this.typeMcpServerInfosMap.get(updateMcpServerInfo.mcpTransportType())
                 .put(updateMcpServerInfo.serverName(), updateMcpServerInfo);
+        syncOAuthRegistration(updateMcpServerInfo);
         if (!Boolean.TRUE.equals(this.skipPersist.get()) &&
                 !updateMcpServerInfo.equals(this.defaultMcpServerInfo))
             this.mcpServerInfoPersistenceServiceProvider.getObject().saveAsync(updateMcpServerInfo);
         return updateMcpServerInfo;
+    }
+
+    private void syncOAuthRegistration(McpServerInfo server) {
+        if (server.equals(this.defaultMcpServerInfo)) return;
+        String regId = OAuthClientRegistrations.registrationId(server);
+        try {
+            HttpConnectionParametersWithExtras.OAuth oauth = parseOAuthConfig(server);
+            ClientRegistration registration = OAuthClientRegistrations.toClientRegistration(server, oauth);
+            if (registration != null) {
+                this.mcpClientRegistrationRepository.register(registration);
+            } else {
+                this.mcpClientRegistrationRepository.unregister(regId);
+            }
+        } catch (Exception e) {
+            logger.warn("OAuth registration sync failed for {}: {}", server.serverName(), e.getMessage());
+            this.mcpClientRegistrationRepository.unregister(regId);
+        }
+    }
+
+    private HttpConnectionParametersWithExtras.OAuth parseOAuthConfig(McpServerInfo server)
+            throws JsonProcessingException {
+        if (server.connectionAsJson() == null || server.connectionAsJson().isBlank()) return null;
+        return switch (server.mcpTransportType()) {
+            case STREAMABLE_HTTP -> objectMapper.readValue(server.connectionAsJson(),
+                    HttpConnectionParametersWithExtras.StreamableHttp.class).oauth();
+            case SSE -> objectMapper.readValue(server.connectionAsJson(),
+                    HttpConnectionParametersWithExtras.Sse.class).oauth();
+            case STDIO -> null;
+        };
     }
 
     @Override

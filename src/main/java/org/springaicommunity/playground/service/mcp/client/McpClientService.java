@@ -24,6 +24,9 @@ import io.modelcontextprotocol.spec.McpSchema.Implementation;
 import io.modelcontextprotocol.spec.McpSchema.ServerCapabilities;
 import jakarta.annotation.Nullable;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
+import org.springaicommunity.playground.service.mcp.McpServerInfoService;
+import org.springaicommunity.playground.service.oauth.McpOAuthAuthorizedEvent;
+import org.springaicommunity.playground.service.oauth.OAuthClientRegistrations;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.mcp.client.common.autoconfigure.NamedClientMcpTransport;
@@ -32,8 +35,12 @@ import org.springframework.ai.mcp.client.common.autoconfigure.configurer.McpSync
 import org.springframework.ai.mcp.client.common.autoconfigure.properties.McpClientCommonProperties;
 import org.springframework.ai.mcp.client.common.autoconfigure.properties.McpClientCommonProperties.ClientType;
 import org.springframework.ai.tool.ToolCallbackProvider;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.event.ContextClosedEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.security.oauth2.client.ClientAuthorizationRequiredException;
+import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
+import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
 import org.springframework.stereotype.Service;
 
 import java.util.Arrays;
@@ -53,12 +60,15 @@ public class McpClientService {
 
     private static final Logger logger = LoggerFactory.getLogger(McpClientService.class);
 
-    public enum ServerStatus { OK, OFFLINE, ERROR }
+    public enum ServerStatus { OK, OFFLINE, ERROR, AWAITING_AUTHORIZATION }
 
-    public record StatusEntry(ServerStatus status, String error) {
-        public static final StatusEntry OFFLINE = new StatusEntry(ServerStatus.OFFLINE, null);
-        public static StatusEntry ok() { return new StatusEntry(ServerStatus.OK, null); }
-        public static StatusEntry error(String error) { return new StatusEntry(ServerStatus.ERROR, error); }
+    public record StatusEntry(ServerStatus status, String error, String authorizationUrl) {
+        public static final StatusEntry OFFLINE = new StatusEntry(ServerStatus.OFFLINE, null, null);
+        public static StatusEntry ok() { return new StatusEntry(ServerStatus.OK, null, null); }
+        public static StatusEntry error(String error) { return new StatusEntry(ServerStatus.ERROR, error, null); }
+        public static StatusEntry awaitingAuthorization(String authorizationUrl) {
+            return new StatusEntry(ServerStatus.AWAITING_AUTHORIZATION, null, authorizationUrl);
+        }
     }
 
     public record TestConnectionResult(boolean ok, String error, int toolCount) {
@@ -74,6 +84,9 @@ public class McpClientService {
     private final McpAsyncClientConfigurer mcpAsyncClientConfigurer;
     private final McpClientCommonProperties mcpClientCommonProperties;
     private final ObjectMapper objectMapper;
+    @Nullable private final OAuth2AuthorizedClientManager oauth2ClientManager;
+    @Nullable private final OAuth2AuthorizedClientService oauth2AuthorizedClientService;
+    private final ObjectProvider<McpServerInfoService> mcpServerInfoServiceProvider;
 
     private final Map<McpTransportType, McpClientPropertiesService<?>> typeMcpClientPropertiesServiceMap;
     private final BiFunction<NamedClientMcpTransport, Implementation, McpClientOps> mcpClientOpsBiFunction;
@@ -89,11 +102,17 @@ public class McpClientService {
     public McpClientService(@Nullable McpSyncClientConfigurer mcpSyncClientConfigurer,
             @Nullable McpAsyncClientConfigurer mcpAsyncClientConfigurer,
             McpClientCommonProperties mcpClientCommonProperties, ObjectMapper objectMapper,
-            McpClientPropertiesService<?>[] mcpClientPropertiesServices) {
+            McpClientPropertiesService<?>[] mcpClientPropertiesServices,
+            @Nullable OAuth2AuthorizedClientManager oauth2ClientManager,
+            @Nullable OAuth2AuthorizedClientService oauth2AuthorizedClientService,
+            ObjectProvider<McpServerInfoService> mcpServerInfoServiceProvider) {
         this.mcpSyncClientConfigurer = mcpSyncClientConfigurer;
         this.mcpAsyncClientConfigurer = mcpAsyncClientConfigurer;
         this.mcpClientCommonProperties = mcpClientCommonProperties;
         this.objectMapper = objectMapper;
+        this.oauth2ClientManager = oauth2ClientManager;
+        this.oauth2AuthorizedClientService = oauth2AuthorizedClientService;
+        this.mcpServerInfoServiceProvider = mcpServerInfoServiceProvider;
         this.typeMcpClientPropertiesServiceMap = Arrays.stream(mcpClientPropertiesServices)
                 .collect(Collectors.toMap(McpClientPropertiesService::getTransportType, Function.identity()));
         this.mcpClientOpsBiFunction = (namedClientMcpTransport, info) ->
@@ -150,9 +169,31 @@ public class McpClientService {
                 }
             }
         } catch (RuntimeException e) {
+            if (isAuthorizationRequired(e)) {
+                String authorizationUrl = "/oauth2/authorization/" + OAuthClientRegistrations.registrationId(
+                        mcpServerInfo);
+                logger.info("MCP client awaiting OAuth authorization: serverName={}, authorizationUrl={}",
+                        mcpServerInfo.serverName(), authorizationUrl);
+                statusCache.put(key, StatusEntry.awaitingAuthorization(authorizationUrl));
+                return;
+            }
             statusCache.put(key, StatusEntry.error(e.getMessage()));
             throw e;
         }
+    }
+
+    private static boolean isAuthorizationRequired(Throwable error) {
+        Throwable current = error;
+        for (int depth = 0; current != null && depth < 16; depth++) {
+            if (current instanceof ClientAuthorizationRequiredException) return true;
+            if (current.getClass().getName().endsWith("ClientAuthorizationRequiredException")) return true;
+            String msg = current.getMessage();
+            if (msg != null && msg.contains("ClientAuthorizationRequiredException")) return true;
+            Throwable next = current.getCause();
+            if (next == null || next == current) break;
+            current = next;
+        }
+        return false;
     }
 
     public TestConnectionResult testConnection(McpServerInfo mcpServerInfo) {
@@ -191,6 +232,11 @@ public class McpClientService {
         String key = clientKey(mcpServerInfo);
         McpClientOps ops = connectingMcpClientOpsMap.get(key);
         if (ops == null) {
+            StatusEntry existing = statusCache.get(key);
+            if (existing != null && existing.status() != ServerStatus.OK
+                    && existing.status() != ServerStatus.OFFLINE) {
+                return existing;
+            }
             statusCache.remove(key);
             return StatusEntry.OFFLINE;
         }
@@ -250,6 +296,10 @@ public class McpClientService {
         String key = clientKey(mcpServerInfo);
         this.connectingMcpClientOpsMap.remove(key);
         this.statusCache.remove(key);
+        if (this.oauth2AuthorizedClientService != null) {
+            this.oauth2AuthorizedClientService.removeAuthorizedClient(
+                    OAuthClientRegistrations.registrationId(mcpServerInfo), "spring-ai-playground-mcp-client");
+        }
     }
 
     public boolean isConnecting(McpServerInfo mcpServerInfo) {
@@ -261,9 +311,33 @@ public class McpClientService {
     }
 
     private NamedClientMcpTransport buildMcpClientTransport(McpServerInfo mcpServerInfo) {
+        String registrationId = OAuthClientRegistrations.registrationId(mcpServerInfo);
         return new NamedClientMcpTransport(mcpServerInfo.serverName(),
                 this.typeMcpClientPropertiesServiceMap.get(mcpServerInfo.mcpTransportType())
-                        .buildClientTransport(this.objectMapper, mcpServerInfo.connectionAsJson()));
+                        .buildClientTransport(this.objectMapper, mcpServerInfo.connectionAsJson(),
+                                registrationId, this.oauth2ClientManager));
+    }
+
+    @EventListener
+    public void onOAuthAuthorized(McpOAuthAuthorizedEvent event) {
+        String regId = event.getRegistrationId();
+        McpServerInfoService infoService = mcpServerInfoServiceProvider.getIfAvailable();
+        if (infoService == null) return;
+        infoService.read().stream()
+                .filter(server -> regId.equals(OAuthClientRegistrations.registrationId(server)))
+                .findFirst()
+                .ifPresent(server -> {
+                    StatusEntry currentStatus = getStatus(server);
+                    if (currentStatus.status() != ServerStatus.AWAITING_AUTHORIZATION) return;
+                    logger.info("OAuth authorized for serverName={}; restarting MCP client",
+                            server.serverName());
+                    try {
+                        startMcpClient(server);
+                    } catch (RuntimeException e) {
+                        logger.warn("Restart after OAuth authorization failed for {}: {}",
+                                server.serverName(), e.getMessage());
+                    }
+                });
     }
 
     @EventListener(ContextClosedEvent.class)

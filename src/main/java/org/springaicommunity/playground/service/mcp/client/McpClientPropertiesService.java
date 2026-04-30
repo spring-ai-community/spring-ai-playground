@@ -22,10 +22,13 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.modelcontextprotocol.client.transport.HttpClientSseClientTransport;
 import io.modelcontextprotocol.client.transport.HttpClientStreamableHttpTransport;
 import io.modelcontextprotocol.client.transport.StdioClientTransport;
+import io.modelcontextprotocol.client.transport.customizer.McpSyncHttpClientRequestCustomizer;
 import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper;
 import io.modelcontextprotocol.spec.McpClientTransport;
+import org.springaicommunity.playground.service.oauth.McpOAuth2AuthorizationCodeRequestCustomizer;
 import org.springaicommunity.playground.service.util.EnvVarResolver;
 import org.springframework.ai.mcp.client.common.autoconfigure.properties.McpStdioClientProperties.Parameters;
+import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
 import org.springframework.util.StringUtils;
 
 import java.util.Iterator;
@@ -42,6 +45,11 @@ public interface McpClientPropertiesService<P> {
     Map<String, P> getDefaultConnections();
 
     default McpClientTransport buildClientTransport(ObjectMapper objectMapper, String parametersAsJson) {
+        return buildClientTransport(objectMapper, parametersAsJson, null, null);
+    }
+
+    default McpClientTransport buildClientTransport(ObjectMapper objectMapper, String parametersAsJson,
+            String oauthRegistrationId, OAuth2AuthorizedClientManager oauth2ClientManager) {
         try {
             return switch (getTransportType()) {
                 case SSE -> {
@@ -54,6 +62,9 @@ public interface McpClientPropertiesService<P> {
                     if (StringUtils.hasText(params.sseEndpoint())) builder.sseEndpoint(params.sseEndpoint());
                     if (!resolvedHeaders.isEmpty())
                         builder.customizeRequest(req -> resolvedHeaders.forEach(req::header));
+                    McpSyncHttpClientRequestCustomizer oauthCustomizer = oauthCustomizer(params.oauth(),
+                            oauthRegistrationId, oauth2ClientManager);
+                    if (oauthCustomizer != null) builder.httpRequestCustomizer(oauthCustomizer);
                     yield builder.build();
                 }
                 case STREAMABLE_HTTP -> {
@@ -66,6 +77,9 @@ public interface McpClientPropertiesService<P> {
                     if (StringUtils.hasText(params.endpoint())) builder.endpoint(params.endpoint());
                     if (!resolvedHeaders.isEmpty())
                         builder.customizeRequest(req -> resolvedHeaders.forEach(req::header));
+                    McpSyncHttpClientRequestCustomizer oauthCustomizer = oauthCustomizer(params.oauth(),
+                            oauthRegistrationId, oauth2ClientManager);
+                    if (oauthCustomizer != null) builder.httpRequestCustomizer(oauthCustomizer);
                     yield builder.build();
                 }
                 case STDIO -> {
@@ -79,6 +93,15 @@ public interface McpClientPropertiesService<P> {
             throw new IllegalStateException(
                     "Failed to parse MCP client connection parameters for transport " + getTransportType(), e);
         }
+    }
+
+    private static McpSyncHttpClientRequestCustomizer oauthCustomizer(HttpConnectionParametersWithExtras.OAuth oauth,
+            String registrationId, OAuth2AuthorizedClientManager manager) {
+        if (oauth == null) return null;
+        if (!StringUtils.hasText(registrationId)) return null;
+        if (manager == null) return null;
+        if (!StringUtils.hasText(oauth.clientId())) return null;
+        return new McpOAuth2AuthorizationCodeRequestCustomizer(manager, registrationId);
     }
 
     private static Set<String> collectHttpRefs(Map<String, String> headers, List<String> declared) {

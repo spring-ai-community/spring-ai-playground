@@ -115,4 +115,67 @@ class HttpConnectionParametersWithExtrasTest {
         var parsed = objectMapper.readValue(full, HttpConnectionParametersWithExtras.StreamableHttp.class);
         assertThrows(UnsupportedOperationException.class, () -> parsed.requiredEnv().add("Z"));
     }
+
+    @Test
+    void streamableLegacyJsonHasNullOAuth() throws Exception {
+        String legacy = """
+                {"url":"http://x","endpoint":"/y"}""";
+        var parsed = objectMapper.readValue(legacy, HttpConnectionParametersWithExtras.StreamableHttp.class);
+        assertNull(parsed.oauth());
+    }
+
+    @Test
+    void streamableJsonWithOAuthCarriesAllFields() throws Exception {
+        String json = """
+                {
+                  "url": "https://api.notion.com/mcp",
+                  "endpoint": "/mcp",
+                  "oauth": {
+                    "issuer-uri": "https://api.notion.com",
+                    "client-id": "client-abc",
+                    "client-secret": "${NOTION_SECRET}",
+                    "scopes": ["read","write"],
+                    "client-authentication-method": "client_secret_basic"
+                  }
+                }""";
+        var parsed = objectMapper.readValue(json, HttpConnectionParametersWithExtras.StreamableHttp.class);
+        var oauth = parsed.oauth();
+        assertNotNull(oauth);
+        assertEquals("https://api.notion.com", oauth.issuerUri());
+        assertEquals("client-abc", oauth.clientId());
+        assertEquals("${NOTION_SECRET}", oauth.clientSecret());
+        assertEquals(2, oauth.scopes().size());
+        assertEquals("client_secret_basic", oauth.clientAuthenticationMethod());
+    }
+
+    @Test
+    void sseJsonWithOAuthCarriesAllFields() throws Exception {
+        String json = """
+                {
+                  "url": "https://api.linear.app/sse",
+                  "sse-endpoint": "/events",
+                  "oauth": {
+                    "authorization-uri": "https://linear.app/oauth/authorize",
+                    "token-uri": "https://api.linear.app/oauth/token",
+                    "client-id": "linear-client",
+                    "scopes": ["read"]
+                  }
+                }""";
+        var parsed = objectMapper.readValue(json, HttpConnectionParametersWithExtras.Sse.class);
+        var oauth = parsed.oauth();
+        assertNotNull(oauth);
+        assertEquals("https://linear.app/oauth/authorize", oauth.authorizationUri());
+        assertEquals("https://api.linear.app/oauth/token", oauth.tokenUri());
+        assertEquals("linear-client", oauth.clientId());
+        assertNull(oauth.clientSecret());
+        assertEquals(1, oauth.scopes().size());
+    }
+
+    @Test
+    void oauthScopesListIsImmutable() throws Exception {
+        String json = """
+                {"url":"http://x","oauth":{"client-id":"c","authorization-uri":"https://a","token-uri":"https://t","scopes":["read"]}}""";
+        var parsed = objectMapper.readValue(json, HttpConnectionParametersWithExtras.StreamableHttp.class);
+        assertThrows(UnsupportedOperationException.class, () -> parsed.oauth().scopes().add("write"));
+    }
 }

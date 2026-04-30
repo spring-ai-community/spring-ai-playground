@@ -130,6 +130,9 @@ public class McpServerConnectionView extends WorkspaceSidebar implements BeforeE
             String tooltipText = mcpServerInfo.description() == null ? "" : mcpServerInfo.description();
             if (status.status() == ServerStatus.ERROR && status.error() != null) {
                 tooltipText = (tooltipText.isBlank() ? "" : tooltipText + "\n") + "Error: " + status.error();
+            } else if (status.status() == ServerStatus.AWAITING_AUTHORIZATION) {
+                tooltipText = (tooltipText.isBlank() ? "" : tooltipText + "\n")
+                        + "Awaiting OAuth authorization — open the config panel and click Authorize.";
             }
             Tooltip.forComponent(row).withText(tooltipText).withHoverDelay(1);
             schedulePing(mcpServerInfo, mcpServerInfoListBox);
@@ -146,6 +149,7 @@ public class McpServerConnectionView extends WorkspaceSidebar implements BeforeE
         String color = switch (status.status()) {
             case OK -> "var(--lumo-success-color)";
             case ERROR -> "var(--lumo-error-color)";
+            case AWAITING_AUTHORIZATION -> "var(--lumo-warning-color)";
             case OFFLINE -> "var(--lumo-contrast-30pct)";
         };
         dot.getStyle()
