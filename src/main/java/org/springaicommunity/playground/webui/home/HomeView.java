@@ -22,6 +22,7 @@ import com.vaadin.flow.spring.annotation.SpringComponent;
 import com.vaadin.flow.spring.annotation.UIScope;
 import org.springaicommunity.playground.service.chat.ChatHistoryService;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
+import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.service.tool.ToolSpecPersistenceService;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
 import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentService;
@@ -44,6 +45,7 @@ public class HomeView extends ContentWorkspaceView {
 
     public HomeView(ToolSpecService toolSpecService,
             McpServerInfoService mcpServerInfoService,
+            McpClientService mcpClientService,
             VectorStoreDocumentService vectorStoreDocumentService,
             ChatHistoryService chatHistoryService,
             ToolSpecPersistenceService toolSpecPersistenceService,
@@ -53,8 +55,8 @@ public class HomeView extends ContentWorkspaceView {
             Environment environment) {
         configureSidebar(new HomeItemView(), "Links");
         setHeaderLabel("Welcome");
-        setContent(new HomeInfoView(toolSpecService, mcpServerInfoService, vectorStoreDocumentService,
-                chatHistoryService, toolSpecPersistenceService, chatModelProvider, embeddingModelProvider,
-                embeddingOptions, environment));
+        setContent(new HomeInfoView(toolSpecService, mcpServerInfoService, mcpClientService,
+                vectorStoreDocumentService, chatHistoryService, toolSpecPersistenceService, chatModelProvider,
+                embeddingModelProvider, embeddingOptions, environment));
     }
 }

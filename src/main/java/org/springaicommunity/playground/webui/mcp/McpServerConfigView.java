@@ -35,6 +35,7 @@ import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.textfield.TextField;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
+import org.springaicommunity.playground.service.mcp.client.HttpConnectionParametersWithExtras;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.service.mcp.client.McpClientService.TestConnectionResult;
 import org.springaicommunity.playground.service.mcp.client.McpTransportType;
@@ -66,6 +67,7 @@ public class McpServerConfigView extends VerticalLayout {
 
     private static final String HEADERS_KEY = "headers";
     private static final String REQUIRED_ENV_KEY = "requiredEnv";
+    private static final String OAUTH_KEY = "oauth";
 
     private static final ObjectMapper FORM_OBJECT_MAPPER = new ObjectMapper();
 
@@ -73,7 +75,8 @@ public class McpServerConfigView extends VerticalLayout {
         NONE("Insert auth header preset…", null, null),
         BEARER("Authorization (Bearer Token)", "Authorization", "Bearer ${YOUR_TOKEN}"),
         BASIC("Authorization (Basic Auth)", "Authorization", "Basic <base64(user:pass)>"),
-        API_KEY("API Key Header", "X-API-Key", "${YOUR_API_KEY}");
+        API_KEY("API Key Header", "X-API-Key", "${YOUR_API_KEY}"),
+        OAUTH_2_1("OAuth 2.1 Authorization Code (configure)", null, null);
 
         private final String label;
         private final String headerName;
@@ -106,6 +109,8 @@ public class McpServerConfigView extends VerticalLayout {
     private final List<StaticVariableForm> headerRows = new ArrayList<>();
     private final Button addHeaderButton = new Button(VaadinIcon.PLUS.create());
     private final Select<HeaderPreset> presetInsertSelect = new Select<>();
+    private final OAuth21SubForm oauthSubForm =
+            new OAuth21SubForm(this::onOAuthChanged, this::currentRegistrationId);
 
     private final McpServerInfo mcpServerInfo;
     private final McpServerInfoService mcpServerInfoService;
@@ -161,6 +166,7 @@ public class McpServerConfigView extends VerticalLayout {
                 updateSaveButtonState();
             }
             switchEditor(e.getValue());
+            oauthSubForm.refreshRedirectInfo();
         });
 
         addEditor(McpTransportType.STREAMABLE_HTTP, """
@@ -198,6 +204,7 @@ public class McpServerConfigView extends VerticalLayout {
             nameChanged = !Objects.equals(e.getValue(), originalName);
             validateNameField();
             updateSaveButtonState();
+            oauthSubForm.refreshRedirectInfo();
         });
 
         descField.addValueChangeListener(e -> {
@@ -249,7 +256,14 @@ public class McpServerConfigView extends VerticalLayout {
         presetInsertSelect.addValueChangeListener(e -> {
             HeaderPreset preset = e.getValue();
             if (preset == null || preset == HeaderPreset.NONE) return;
-            addHeaderRow(preset.headerName(), preset.valueTemplate());
+            if (preset == HeaderPreset.OAUTH_2_1) {
+                oauthSubForm.setVisible(true);
+                oauthSubForm.refreshRedirectInfo();
+                extrasChanged = true;
+                updateSaveButtonState();
+            } else {
+                addHeaderRow(preset.headerName(), preset.valueTemplate());
+            }
             presetInsertSelect.setValue(HeaderPreset.NONE);
         });
 
@@ -259,7 +273,21 @@ public class McpServerConfigView extends VerticalLayout {
         actionsRow.setAlignItems(FlexComponent.Alignment.BASELINE);
         actionsRow.getStyle().set("margin-top", "0.4em");
 
-        httpExtrasGroup.add(headersHeader, headersHelp, headersContainer, actionsRow);
+        oauthSubForm.setVisible(false);
+
+        httpExtrasGroup.add(oauthSubForm, headersHeader, headersHelp, headersContainer, actionsRow);
+    }
+
+    private void onOAuthChanged() {
+        extrasChanged = true;
+        updateSaveButtonState();
+    }
+
+    private String currentRegistrationId() {
+        McpTransportType transport = transportRadioButtonGroup.getValue();
+        String serverName = serverNameField.getValue();
+        if (transport == null || !StringUtils.hasText(serverName)) return null;
+        return "mcp-" + transport.name().toLowerCase() + "-" + serverName.trim();
     }
 
     private StaticVariableForm addHeaderRow(String key, String value) {
@@ -376,8 +404,10 @@ public class McpServerConfigView extends VerticalLayout {
                     ObjectNode obj = (ObjectNode) root;
                     Map<String, String> headers = readHeaders(obj.get(HEADERS_KEY));
                     populateExtras(headers);
+                    populateOAuth(obj.get(OAUTH_KEY));
                     obj.remove(HEADERS_KEY);
                     obj.remove(REQUIRED_ENV_KEY);
+                    obj.remove(OAUTH_KEY);
                     editorJson = FORM_OBJECT_MAPPER.writeValueAsString(obj);
                 }
             } catch (JsonProcessingException ignore) {
@@ -404,16 +434,38 @@ public class McpServerConfigView extends VerticalLayout {
         headerRows.clear();
         headersContainer.removeAll();
         presetInsertSelect.setValue(HeaderPreset.NONE);
+        oauthSubForm.clearFields();
+        oauthSubForm.setVisible(false);
         extrasChanged = false;
     }
 
     private void populateExtras(Map<String, String> headers) {
-        resetExtras();
-        if (headers == null) return;
-        headers.forEach((k, v) -> {
-            if (k != null && !k.isBlank()) addHeaderRow(k, v == null ? "" : v);
-        });
+        headerRows.clear();
+        headersContainer.removeAll();
+        presetInsertSelect.setValue(HeaderPreset.NONE);
+        if (headers != null) {
+            headers.forEach((k, v) -> {
+                if (k != null && !k.isBlank()) addHeaderRow(k, v == null ? "" : v);
+            });
+        }
         extrasChanged = false;
+    }
+
+    private void populateOAuth(JsonNode oauthNode) {
+        if (oauthNode == null || oauthNode.isNull() || !oauthNode.isObject()) {
+            oauthSubForm.clearFields();
+            oauthSubForm.setVisible(false);
+            return;
+        }
+        try {
+            HttpConnectionParametersWithExtras.OAuth oauth = FORM_OBJECT_MAPPER.treeToValue(oauthNode,
+                    HttpConnectionParametersWithExtras.OAuth.class);
+            oauthSubForm.populate(oauth);
+            oauthSubForm.setVisible(true);
+        } catch (JsonProcessingException ignore) {
+            oauthSubForm.clearFields();
+            oauthSubForm.setVisible(false);
+        }
     }
 
     private static Map<String, String> readHeaders(JsonNode node) {
@@ -442,6 +494,10 @@ public class McpServerConfigView extends VerticalLayout {
     private void saveAndConnect() {
         if (!isFormValid()) {
             VaadinUtils.showErrorNotification("Please correct the errors before saving.");
+            return;
+        }
+        if (oauthSubForm.isVisible() && !oauthSubForm.validateForSave()) {
+            VaadinUtils.showErrorNotification("Please correct the OAuth fields before saving.");
             return;
         }
 
@@ -493,6 +549,14 @@ public class McpServerConfigView extends VerticalLayout {
                 headers.forEach(headersNode::put);
                 obj.set(HEADERS_KEY, headersNode);
             }
+
+            HttpConnectionParametersWithExtras.OAuth oauth = oauthSubForm.isVisible() ? oauthSubForm.toRecord() : null;
+            if (oauth == null) {
+                obj.remove(OAUTH_KEY);
+            } else {
+                obj.set(OAUTH_KEY, FORM_OBJECT_MAPPER.valueToTree(oauth));
+            }
+
             return FORM_OBJECT_MAPPER.writeValueAsString(obj);
         } catch (JsonProcessingException e) {
             return editorJson;
