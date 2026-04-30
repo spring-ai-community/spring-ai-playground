@@ -17,6 +17,7 @@ package org.springaicommunity.playground.webui.home;
 
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
+import com.vaadin.flow.server.auth.AnonymousAllowed;
 import com.vaadin.flow.spring.annotation.SpringComponent;
 import com.vaadin.flow.spring.annotation.UIScope;
 import org.springaicommunity.playground.service.chat.ChatHistoryService;
@@ -36,6 +37,7 @@ import java.util.Optional;
 
 @SpringComponent
 @UIScope
+@AnonymousAllowed
 @PageTitle("Home")
 @Route(value = "", layout = SpringAiPlaygroundAppLayout.class)
 public class HomeView extends ContentWorkspaceView {
