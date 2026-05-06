@@ -30,8 +30,10 @@ import org.springframework.ai.mcp.client.common.autoconfigure.properties.McpStre
 import org.springframework.ai.mcp.server.common.autoconfigure.properties.McpServerProperties;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.boot.web.context.WebServerInitializedEvent;
 import org.springframework.context.ApplicationListener;
+import org.springframework.context.event.EventListener;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.stereotype.Service;
 
@@ -54,6 +56,7 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
     private final McpClientRegistrationRepository mcpClientRegistrationRepository;
     private final String defaultMcpServerName;
     private final ThreadLocal<Boolean> skipPersist = ThreadLocal.withInitial(() -> Boolean.FALSE);
+    private volatile boolean applicationReady = false;
     private McpServerInfo defaultMcpServerInfo;
 
     public McpServerInfoService(ObjectMapper objectMapper, McpClientPropertiesService<?>[] mcpClientPropertiesServices,
@@ -82,8 +85,13 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
             this.defaultMcpServerInfo = buildDefaultMcpServerInfo(event.getWebServer().getPort());
             updateMcpServerInfo(defaultMcpServerInfo.mcpTransportType(), defaultMcpServerInfo.serverName(),
                     defaultMcpServerInfo);
-            updateDefaultMcpTool();
         }
+    }
+
+    @EventListener
+    public void onApplicationReady(ApplicationReadyEvent event) {
+        this.applicationReady = true;
+        updateDefaultMcpTool();
     }
 
     public McpServerInfo getDefaultMcpServerInfo() {
@@ -195,6 +203,12 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
     }
 
     public void updateDefaultMcpTool() {
-        this.mcpClientService.startMcpClient(this.defaultMcpServerInfo);
+        if (!this.applicationReady) return;
+        try {
+            this.mcpClientService.startMcpClient(this.defaultMcpServerInfo);
+        } catch (RuntimeException e) {
+            logger.error("Failed to start default loopback MCP client (serverName={}): {}",
+                    this.defaultMcpServerInfo.serverName(), e.getMessage(), e);
+        }
     }
 }

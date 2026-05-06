@@ -49,7 +49,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -87,6 +90,8 @@ public class McpClientService {
     @Nullable private final OAuth2AuthorizedClientManager oauth2ClientManager;
     @Nullable private final OAuth2AuthorizedClientService oauth2AuthorizedClientService;
     private final ObjectProvider<McpServerInfoService> mcpServerInfoServiceProvider;
+    private final McpNotificationStore notificationStore;
+    private final Map<String, List<McpSchema.Root>> rootsByServer = new ConcurrentHashMap<>();
 
     private final Map<McpTransportType, McpClientPropertiesService<?>> typeMcpClientPropertiesServiceMap;
     private final BiFunction<NamedClientMcpTransport, Implementation, McpClientOps> mcpClientOpsBiFunction;
@@ -105,7 +110,8 @@ public class McpClientService {
             McpClientPropertiesService<?>[] mcpClientPropertiesServices,
             @Nullable OAuth2AuthorizedClientManager oauth2ClientManager,
             @Nullable OAuth2AuthorizedClientService oauth2AuthorizedClientService,
-            ObjectProvider<McpServerInfoService> mcpServerInfoServiceProvider) {
+            ObjectProvider<McpServerInfoService> mcpServerInfoServiceProvider,
+            McpNotificationStore notificationStore) {
         this.mcpSyncClientConfigurer = mcpSyncClientConfigurer;
         this.mcpAsyncClientConfigurer = mcpAsyncClientConfigurer;
         this.mcpClientCommonProperties = mcpClientCommonProperties;
@@ -113,6 +119,7 @@ public class McpClientService {
         this.oauth2ClientManager = oauth2ClientManager;
         this.oauth2AuthorizedClientService = oauth2AuthorizedClientService;
         this.mcpServerInfoServiceProvider = mcpServerInfoServiceProvider;
+        this.notificationStore = notificationStore;
         this.typeMcpClientPropertiesServiceMap = Arrays.stream(mcpClientPropertiesServices)
                 .collect(Collectors.toMap(McpClientPropertiesService::getTransportType, Function.identity()));
         this.mcpClientOpsBiFunction = (namedClientMcpTransport, info) ->
@@ -125,9 +132,29 @@ public class McpClientService {
     private McpSyncClientOps newSync(NamedClientMcpTransport namedClientMcpTransport, Implementation info) {
         logger.info("Creating SYNC MCP client: name={}, transport={}",
                 namedClientMcpTransport.name(), namedClientMcpTransport.transport().getClass().getSimpleName());
+        String serverKey = namedClientMcpTransport.name();
         McpClient.SyncSpec syncSpec = McpClient.sync(namedClientMcpTransport.transport())
                 .clientInfo(info)
-                .requestTimeout(mcpClientCommonProperties.getRequestTimeout());
+                .requestTimeout(mcpClientCommonProperties.getRequestTimeout())
+                .loggingConsumer(n -> notificationStore.record(serverKey,
+                        McpNotificationStore.Event.of(McpNotificationStore.Kind.LOGGING,
+                                describeLogging(n), n)))
+                .progressConsumer(n -> notificationStore.record(serverKey,
+                        McpNotificationStore.Event.of(McpNotificationStore.Kind.PROGRESS,
+                                describeProgress(n), n)))
+                .toolsChangeConsumer(tools -> notificationStore.record(serverKey,
+                        McpNotificationStore.Event.of(McpNotificationStore.Kind.TOOLS_CHANGED,
+                                "Tools list changed (" + tools.size() + ")", tools)))
+                .resourcesChangeConsumer(resources -> notificationStore.record(serverKey,
+                        McpNotificationStore.Event.of(McpNotificationStore.Kind.RESOURCES_CHANGED,
+                                "Resources list changed (" + resources.size() + ")", resources)))
+                .promptsChangeConsumer(prompts -> notificationStore.record(serverKey,
+                        McpNotificationStore.Event.of(McpNotificationStore.Kind.PROMPTS_CHANGED,
+                                "Prompts list changed (" + prompts.size() + ")", prompts)))
+                .sampling(req -> awaitSampling(serverKey, req))
+                .elicitation(req -> awaitElicitation(serverKey, req));
+        List<McpSchema.Root> roots = rootsByServer.getOrDefault(serverKey, List.of());
+        syncSpec = syncSpec.roots(roots);
         syncSpec = mcpSyncClientConfigurer.configure(namedClientMcpTransport.name(), syncSpec);
         McpSyncClient mcpSyncClient =
                 syncSpec.requestTimeout(this.mcpClientCommonProperties.getRequestTimeout()).build();
@@ -138,13 +165,94 @@ public class McpClientService {
     private McpAsyncClientOps newAsync(NamedClientMcpTransport namedClientMcpTransport, Implementation implementation) {
         logger.info("Creating ASYNC MCP client: name={}, transport={}",
                 namedClientMcpTransport.name(), namedClientMcpTransport.transport().getClass().getSimpleName());
+        String serverKey = namedClientMcpTransport.name();
         McpClient.AsyncSpec asyncSpec = McpClient.async(namedClientMcpTransport.transport())
-                .clientInfo(implementation).requestTimeout(mcpClientCommonProperties.getRequestTimeout());
+                .clientInfo(implementation).requestTimeout(mcpClientCommonProperties.getRequestTimeout())
+                .loggingConsumer(n -> {
+                    notificationStore.record(serverKey, McpNotificationStore.Event.of(
+                            McpNotificationStore.Kind.LOGGING, describeLogging(n), n));
+                    return reactor.core.publisher.Mono.empty();
+                })
+                .progressConsumer(n -> {
+                    notificationStore.record(serverKey, McpNotificationStore.Event.of(
+                            McpNotificationStore.Kind.PROGRESS, describeProgress(n), n));
+                    return reactor.core.publisher.Mono.empty();
+                })
+                .toolsChangeConsumer(tools -> {
+                    notificationStore.record(serverKey, McpNotificationStore.Event.of(
+                            McpNotificationStore.Kind.TOOLS_CHANGED,
+                            "Tools list changed (" + tools.size() + ")", tools));
+                    return reactor.core.publisher.Mono.empty();
+                })
+                .resourcesChangeConsumer(resources -> {
+                    notificationStore.record(serverKey, McpNotificationStore.Event.of(
+                            McpNotificationStore.Kind.RESOURCES_CHANGED,
+                            "Resources list changed (" + resources.size() + ")", resources));
+                    return reactor.core.publisher.Mono.empty();
+                })
+                .promptsChangeConsumer(prompts -> {
+                    notificationStore.record(serverKey, McpNotificationStore.Event.of(
+                            McpNotificationStore.Kind.PROMPTS_CHANGED,
+                            "Prompts list changed (" + prompts.size() + ")", prompts));
+                    return reactor.core.publisher.Mono.empty();
+                })
+                .sampling(req -> reactor.core.publisher.Mono.fromCallable(() -> awaitSampling(serverKey, req))
+                        .subscribeOn(reactor.core.scheduler.Schedulers.boundedElastic()))
+                .elicitation(req -> reactor.core.publisher.Mono.fromCallable(() -> awaitElicitation(serverKey, req))
+                        .subscribeOn(reactor.core.scheduler.Schedulers.boundedElastic()));
+        List<McpSchema.Root> roots = rootsByServer.getOrDefault(serverKey, List.of());
+        asyncSpec = asyncSpec.roots(roots);
         asyncSpec = mcpAsyncClientConfigurer.configure(namedClientMcpTransport.name(), asyncSpec);
         McpAsyncClient mcpAsyncClient =
                 asyncSpec.requestTimeout(this.mcpClientCommonProperties.getRequestTimeout()).build();
         mcpAsyncClient.initialize().block();
         return new McpAsyncClientOps(mcpAsyncClient);
+    }
+
+    private static String describeLogging(McpSchema.LoggingMessageNotification n) {
+        StringBuilder sb = new StringBuilder();
+        if (n.level() != null) sb.append(n.level()).append(": ");
+        if (n.logger() != null) sb.append("[").append(n.logger()).append("] ");
+        sb.append(String.valueOf(n.data()));
+        String s = sb.toString();
+        return s.length() > 240 ? s.substring(0, 240) + "…" : s;
+    }
+
+    private static String describeProgress(McpSchema.ProgressNotification n) {
+        StringBuilder sb = new StringBuilder("Progress");
+        if (n.progressToken() != null) sb.append(" [").append(n.progressToken()).append("]");
+        sb.append(": ").append(n.progress());
+        if (n.total() != null) sb.append(" / ").append(n.total());
+        return sb.toString();
+    }
+
+    private McpSchema.CreateMessageResult awaitSampling(String serverKey,
+            McpSchema.CreateMessageRequest request) {
+        try {
+            return notificationStore.awaitSamplingResponse(serverKey, request).get(2, TimeUnit.MINUTES);
+        } catch (TimeoutException e) {
+            return McpSchema.CreateMessageResult.builder()
+                    .role(McpSchema.Role.ASSISTANT)
+                    .content(new McpSchema.TextContent("Timed out waiting for user response."))
+                    .stopReason(McpSchema.CreateMessageResult.StopReason.END_TURN)
+                    .build();
+        } catch (Exception e) {
+            return McpSchema.CreateMessageResult.builder()
+                    .role(McpSchema.Role.ASSISTANT)
+                    .content(new McpSchema.TextContent("Error: " + e.getMessage()))
+                    .stopReason(McpSchema.CreateMessageResult.StopReason.END_TURN)
+                    .build();
+        }
+    }
+
+    private McpSchema.ElicitResult awaitElicitation(String serverKey, McpSchema.ElicitRequest request) {
+        try {
+            return notificationStore.awaitElicitationResponse(serverKey, request).get(2, TimeUnit.MINUTES);
+        } catch (TimeoutException e) {
+            return new McpSchema.ElicitResult(McpSchema.ElicitResult.Action.CANCEL, Map.of());
+        } catch (Exception e) {
+            return new McpSchema.ElicitResult(McpSchema.ElicitResult.Action.CANCEL, Map.of());
+        }
     }
 
     public void startMcpClient(McpServerInfo mcpServerInfo) {
@@ -278,6 +386,101 @@ public class McpClientService {
                 .map(McpClientOps::listTools);
     }
 
+    public Optional<List<McpSchema.Resource>> getResourceListAsOpt(McpServerInfo mcpServerInfo) {
+        return Optional.ofNullable(connectingMcpClientOpsMap.get(clientKey(mcpServerInfo)))
+                .map(McpClientOps::listResources);
+    }
+
+    public Optional<McpSchema.ReadResourceResult> readResourceAsOpt(McpServerInfo mcpServerInfo, String uri) {
+        logger.info("Reading MCP resource: serverName={}, uri={}", mcpServerInfo.serverName(), uri);
+        return Optional.ofNullable(connectingMcpClientOpsMap.get(clientKey(mcpServerInfo)))
+                .map(ops -> ops.readResource(uri));
+    }
+
+    public Optional<List<McpSchema.ResourceTemplate>> getResourceTemplateListAsOpt(McpServerInfo mcpServerInfo) {
+        return Optional.ofNullable(connectingMcpClientOpsMap.get(clientKey(mcpServerInfo)))
+                .map(McpClientOps::listResourceTemplates);
+    }
+
+    public Optional<List<McpSchema.Prompt>> getPromptListAsOpt(McpServerInfo mcpServerInfo) {
+        return Optional.ofNullable(connectingMcpClientOpsMap.get(clientKey(mcpServerInfo)))
+                .map(McpClientOps::listPrompts);
+    }
+
+    public Optional<McpSchema.GetPromptResult> getPromptAsOpt(McpServerInfo mcpServerInfo, String name,
+            Map<String, Object> args) {
+        logger.info("Getting MCP prompt: serverName={}, name={}", mcpServerInfo.serverName(), name);
+        return Optional.ofNullable(connectingMcpClientOpsMap.get(clientKey(mcpServerInfo)))
+                .map(ops -> ops.getPrompt(name, args));
+    }
+
+    public boolean setLoggingLevel(McpServerInfo mcpServerInfo, McpSchema.LoggingLevel level) {
+        McpClientOps ops = connectingMcpClientOpsMap.get(clientKey(mcpServerInfo));
+        if (ops == null) return false;
+        ops.setLoggingLevel(level);
+        return true;
+    }
+
+    public List<McpSchema.Root> getRoots(McpServerInfo mcpServerInfo) {
+        return new java.util.ArrayList<>(rootsByServer.getOrDefault(mcpServerInfo.serverName(), List.of()));
+    }
+
+    public void addRoot(McpServerInfo mcpServerInfo, McpSchema.Root root) {
+        String key = mcpServerInfo.serverName();
+        rootsByServer.computeIfAbsent(key, k -> new java.util.concurrent.CopyOnWriteArrayList<>()).add(root);
+        McpClientOps ops = connectingMcpClientOpsMap.get(clientKey(mcpServerInfo));
+        if (ops != null) {
+            ops.addRoot(root);
+            ops.notifyRootsListChanged();
+        }
+    }
+
+    public void removeRoot(McpServerInfo mcpServerInfo, String name) {
+        String key = mcpServerInfo.serverName();
+        List<McpSchema.Root> rs = rootsByServer.get(key);
+        if (rs != null) rs.removeIf(r -> name.equals(r.name()));
+        McpClientOps ops = connectingMcpClientOpsMap.get(clientKey(mcpServerInfo));
+        if (ops != null) {
+            ops.removeRoot(name);
+            ops.notifyRootsListChanged();
+        }
+    }
+
+    public List<McpNotificationStore.Event> snapshotEvents(McpServerInfo mcpServerInfo) {
+        return notificationStore.snapshot(mcpServerInfo.serverName());
+    }
+
+    public Runnable subscribeNotifications(McpServerInfo mcpServerInfo,
+            Consumer<McpNotificationStore.Event> listener) {
+        return notificationStore.subscribe(mcpServerInfo.serverName(), listener);
+    }
+
+    public Runnable subscribePendingChange(McpServerInfo mcpServerInfo, Runnable listener) {
+        return notificationStore.subscribePendingChange(mcpServerInfo.serverName(), listener);
+    }
+
+    public void clearEvents(McpServerInfo mcpServerInfo) {
+        notificationStore.clear(mcpServerInfo.serverName());
+    }
+
+    public List<McpNotificationStore.PendingSampling> snapshotPendingSamplings(McpServerInfo mcpServerInfo) {
+        return notificationStore.snapshotPendingSamplings(mcpServerInfo.serverName());
+    }
+
+    public List<McpNotificationStore.PendingElicitation> snapshotPendingElicitations(McpServerInfo mcpServerInfo) {
+        return notificationStore.snapshotPendingElicitations(mcpServerInfo.serverName());
+    }
+
+    public void completeSampling(McpServerInfo mcpServerInfo, String pendingId,
+            McpSchema.CreateMessageResult result) {
+        notificationStore.completeSampling(mcpServerInfo.serverName(), pendingId, result);
+    }
+
+    public void completeElicitation(McpServerInfo mcpServerInfo, String pendingId,
+            McpSchema.ElicitResult result) {
+        notificationStore.completeElicitation(mcpServerInfo.serverName(), pendingId, result);
+    }
+
     public Optional<McpSchema.CallToolResult> callTool(McpServerInfo mcpServerInfo, String toolName,
             Map<String, Object> args, Map<String, Object> meta) {
         logger.info("Calling MCP tool: serverName={}, toolName={}", mcpServerInfo.serverName(), toolName);
@@ -296,6 +499,8 @@ public class McpClientService {
         String key = clientKey(mcpServerInfo);
         this.connectingMcpClientOpsMap.remove(key);
         this.statusCache.remove(key);
+        this.rootsByServer.remove(mcpServerInfo.serverName());
+        this.notificationStore.removeServer(mcpServerInfo.serverName());
         if (this.oauth2AuthorizedClientService != null) {
             this.oauth2AuthorizedClientService.removeAuthorizedClient(
                     OAuthClientRegistrations.registrationId(mcpServerInfo), "spring-ai-playground-mcp-client");
