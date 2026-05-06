@@ -16,7 +16,9 @@
 package org.springaicommunity.playground.webui.mcp;
 
 import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.DetachEvent;
 import com.vaadin.flow.component.Text;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.dependency.CssImport;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
@@ -31,8 +33,14 @@ import com.vaadin.flow.data.value.ValueChangeMode;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
+import org.springaicommunity.playground.webui.mcp.inspector.ElicitationTab;
 import org.springaicommunity.playground.webui.mcp.inspector.InspectorHelpers;
 import org.springaicommunity.playground.webui.mcp.inspector.InspectorHelpers.ToolInfo;
+import org.springaicommunity.playground.webui.mcp.inspector.NotificationsTab;
+import org.springaicommunity.playground.webui.mcp.inspector.PingTab;
+import org.springaicommunity.playground.webui.mcp.inspector.RootsTab;
+import org.springaicommunity.playground.webui.mcp.inspector.SamplingTab;
+import org.springaicommunity.playground.webui.mcp.inspector.primitives.server.PromptPrimitive;
 import org.springaicommunity.playground.webui.mcp.inspector.primitives.server.ResourcePrimitive;
 import org.springaicommunity.playground.webui.mcp.inspector.primitives.server.ResourceTemplatePrimitive;
 import org.springaicommunity.playground.webui.mcp.inspector.primitives.server.ToolPrimitive;
@@ -51,11 +59,29 @@ public class McpServerInspectorView extends VerticalLayout {
 
     private final VerticalLayout cardsContainer = new VerticalLayout();
     private final VerticalLayout resourcesContainer = new VerticalLayout();
+    private final VerticalLayout promptsContainer = new VerticalLayout();
+    private final VerticalLayout pingContainer = new VerticalLayout();
+    private final VerticalLayout notificationsContainer = new VerticalLayout();
+    private final VerticalLayout rootsContainer = new VerticalLayout();
+    private final VerticalLayout samplingContainer = new VerticalLayout();
+    private final VerticalLayout elicitationContainer = new VerticalLayout();
 
     private final Tab toolsTab = tab(VaadinIcon.WRENCH, "Tools");
     private final Tab resourcesTab = tab(VaadinIcon.FILE_TEXT_O, "Resources");
+    private final Tab promptsTab = tab(VaadinIcon.COMMENT_ELLIPSIS_O, "Prompts");
+    private final Tab pingTab = tab(VaadinIcon.SPARK_LINE, "Ping");
+    private final Tab notificationsTabRef = tab(VaadinIcon.BELL_O, "Notifications");
+    private final Tab rootsTabRef = tab(VaadinIcon.FOLDER_O, "Roots");
+    private final Tab samplingTabRef = tab(VaadinIcon.MAGIC, "Sampling");
+    private final Tab elicitationTabRef = tab(VaadinIcon.QUESTION_CIRCLE_O, "Elicitation");
 
     private boolean resourcesLoaded = false;
+    private boolean promptsLoaded = false;
+    private boolean pingTabInitialized = false;
+    private NotificationsTab notificationsTab;
+    private RootsTab rootsTab;
+    private SamplingTab samplingTab;
+    private ElicitationTab elicitationTab;
 
     public McpServerInspectorView(McpServerInfo serverInfo, McpClientService clientService,
             List<McpSchema.Tool> tools) {
@@ -67,7 +93,7 @@ public class McpServerInspectorView extends VerticalLayout {
         setPadding(false);
         setSpacing(false);
 
-        for (VerticalLayout container : List.of(cardsContainer, resourcesContainer)) {
+        for (VerticalLayout container : List.of(cardsContainer, resourcesContainer, promptsContainer, pingContainer, notificationsContainer, rootsContainer, samplingContainer, elicitationContainer)) {
             container.setPadding(false);
             container.setSpacing(false);
             container.setWidthFull();
@@ -91,10 +117,40 @@ public class McpServerInspectorView extends VerticalLayout {
         tabSheet.setWidthFull();
         tabSheet.add(toolsTab, toolsTabContent);
         tabSheet.add(resourcesTab, resourcesContainer);
+        tabSheet.add(promptsTab, promptsContainer);
+        tabSheet.add(pingTab, pingContainer);
+        tabSheet.add(notificationsTabRef, notificationsContainer);
+        tabSheet.add(rootsTabRef, rootsContainer);
+        tabSheet.add(samplingTabRef, samplingContainer);
+        tabSheet.add(elicitationTabRef, elicitationContainer);
 
         tabSheet.addSelectedChangeListener(e -> {
             Tab selected = e.getSelectedTab();
             if (selected == resourcesTab && !resourcesLoaded) loadResources();
+            else if (selected == promptsTab && !promptsLoaded) loadPrompts();
+            else if (selected == pingTab && !pingTabInitialized) {
+                pingTabInitialized = true;
+                pingContainer.add(new PingTab(serverInfo, clientService));
+            }
+            else if (selected == notificationsTabRef && notificationsTab == null) {
+                notificationsTab = new NotificationsTab(serverInfo, clientService);
+                notificationsContainer.add(notificationsTab);
+                notificationsTab.attachListeners(UI.getCurrent());
+            }
+            else if (selected == rootsTabRef && rootsTab == null) {
+                rootsTab = new RootsTab(serverInfo, clientService);
+                rootsContainer.add(rootsTab);
+            }
+            else if (selected == samplingTabRef && samplingTab == null) {
+                samplingTab = new SamplingTab(serverInfo, clientService);
+                samplingContainer.add(samplingTab);
+                samplingTab.attachListeners(UI.getCurrent());
+            }
+            else if (selected == elicitationTabRef && elicitationTab == null) {
+                elicitationTab = new ElicitationTab(serverInfo, clientService);
+                elicitationContainer.add(elicitationTab);
+                elicitationTab.attachListeners(UI.getCurrent());
+            }
         });
 
         add(tabSheet);
@@ -102,6 +158,22 @@ public class McpServerInspectorView extends VerticalLayout {
 
     private static Tab tab(VaadinIcon icon, String caption) {
         return new Tab(icon.create(), new Text(caption));
+    }
+
+    private void loadPrompts() {
+        promptsLoaded = true;
+        try {
+            List<McpSchema.Prompt> prompts =
+                    clientService.getPromptListAsOpt(serverInfo).orElseGet(List::of);
+            for (McpSchema.Prompt p : prompts) {
+                promptsContainer.add(new PromptPrimitive(p, serverInfo, clientService));
+            }
+            if (prompts.isEmpty()) {
+                promptsContainer.add(InspectorHelpers.emptyState("No prompts exposed by this server."));
+            }
+        } catch (Exception ex) {
+            promptsContainer.add(InspectorHelpers.emptyState("Failed to load prompts: " + ex.getMessage()));
+        }
     }
 
     private void loadResources() {
@@ -160,5 +232,15 @@ public class McpServerInspectorView extends VerticalLayout {
         for (ToolPrimitive card : cards) {
             card.setVisible(card.matches(needle));
         }
+    }
+
+    @Override
+    protected void onDetach(DetachEvent detachEvent) {
+        try {
+            if (notificationsTab != null) notificationsTab.detach();
+            if (samplingTab != null) samplingTab.detach();
+            if (elicitationTab != null) elicitationTab.detach();
+        } catch (RuntimeException ignore) {}
+        super.onDetach(detachEvent);
     }
 }
