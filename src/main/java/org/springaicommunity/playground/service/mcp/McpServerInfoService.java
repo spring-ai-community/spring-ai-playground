@@ -55,6 +55,7 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
     private final ObjectProvider<McpServerInfoPersistenceService> mcpServerInfoPersistenceServiceProvider;
     private final McpClientRegistrationRepository mcpClientRegistrationRepository;
     private final String defaultMcpServerName;
+    private final boolean stdioServerMode;
     private final ThreadLocal<Boolean> skipPersist = ThreadLocal.withInitial(() -> Boolean.FALSE);
     private volatile boolean applicationReady = false;
     private McpServerInfo defaultMcpServerInfo;
@@ -69,6 +70,13 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
         this.mcpServerInfoPersistenceServiceProvider = mcpServerInfoPersistenceServiceProvider;
         this.mcpClientRegistrationRepository = mcpClientRegistrationRepository;
         this.defaultMcpServerName = mcpServerProperties.getName();
+        // When the embedded MCP server is configured for stdio transport, the
+        // app has no HTTP /mcp endpoint to introspect itself through. The
+        // default MCP server entry is still kept for UI display, but the
+        // self-connecting MCP client (`updateDefaultMcpTool`) must be a no-op
+        // in stdio mode — otherwise boot crashes with "Unknown media type:
+        // text/html" when the client hits the Vaadin index page instead.
+        this.stdioServerMode = mcpServerProperties.isStdio();
         this.typeMcpServerInfosMap = Arrays.stream(mcpClientPropertiesServices)
                 .collect(Collectors.toMap(McpClientPropertiesService::getTransportType,
                         mcpClientPropertiesService -> mcpClientPropertiesService.getDefaultConnections().entrySet()
@@ -203,6 +211,14 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
     }
 
     public void updateDefaultMcpTool() {
+        // In stdio server mode the app exposes its tools over process stdio,
+        // not HTTP, so trying to start an MCP client against the local
+        // /mcp endpoint would either hit nothing or get the Vaadin HTML.
+        // Skipping the loopback-client setup avoids the misleading error log
+        // that the broader try/catch below would otherwise emit on every call.
+        if (this.stdioServerMode || this.defaultMcpServerInfo == null) {
+            return;
+        }
         if (!this.applicationReady) return;
         try {
             this.mcpClientService.startMcpClient(this.defaultMcpServerInfo);
