@@ -33,6 +33,8 @@ import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.webui.mcp.inspector.InspectorHelpers;
 import org.springaicommunity.playground.webui.mcp.inspector.InspectorHelpers.ToolInfo;
+import org.springaicommunity.playground.webui.mcp.inspector.primitives.server.ResourcePrimitive;
+import org.springaicommunity.playground.webui.mcp.inspector.primitives.server.ResourceTemplatePrimitive;
 import org.springaicommunity.playground.webui.mcp.inspector.primitives.server.ToolPrimitive;
 
 import java.util.ArrayList;
@@ -48,8 +50,12 @@ public class McpServerInspectorView extends VerticalLayout {
     private final List<ToolPrimitive> cards = new ArrayList<>();
 
     private final VerticalLayout cardsContainer = new VerticalLayout();
+    private final VerticalLayout resourcesContainer = new VerticalLayout();
 
     private final Tab toolsTab = tab(VaadinIcon.WRENCH, "Tools");
+    private final Tab resourcesTab = tab(VaadinIcon.FILE_TEXT_O, "Resources");
+
+    private boolean resourcesLoaded = false;
 
     public McpServerInspectorView(McpServerInfo serverInfo, McpClientService clientService,
             List<McpSchema.Tool> tools) {
@@ -61,7 +67,7 @@ public class McpServerInspectorView extends VerticalLayout {
         setPadding(false);
         setSpacing(false);
 
-        for (VerticalLayout container : List.of(cardsContainer)) {
+        for (VerticalLayout container : List.of(cardsContainer, resourcesContainer)) {
             container.setPadding(false);
             container.setSpacing(false);
             container.setWidthFull();
@@ -84,12 +90,47 @@ public class McpServerInspectorView extends VerticalLayout {
         tabSheet.addThemeVariants(TabSheetVariant.LUMO_BORDERED);
         tabSheet.setWidthFull();
         tabSheet.add(toolsTab, toolsTabContent);
+        tabSheet.add(resourcesTab, resourcesContainer);
+
+        tabSheet.addSelectedChangeListener(e -> {
+            Tab selected = e.getSelectedTab();
+            if (selected == resourcesTab && !resourcesLoaded) loadResources();
+        });
 
         add(tabSheet);
     }
 
     private static Tab tab(VaadinIcon icon, String caption) {
         return new Tab(icon.create(), new Text(caption));
+    }
+
+    private void loadResources() {
+        resourcesLoaded = true;
+        try {
+            List<McpSchema.Resource> resources =
+                    clientService.getResourceListAsOpt(serverInfo).orElseGet(List::of);
+            List<McpSchema.ResourceTemplate> templates =
+                    clientService.getResourceTemplateListAsOpt(serverInfo).orElseGet(List::of);
+
+            if (!resources.isEmpty()) {
+                resourcesContainer.add(InspectorHelpers.sectionHeader("Resources", resources.size()));
+                for (McpSchema.Resource res : resources) {
+                    resourcesContainer.add(new ResourcePrimitive(res, serverInfo, clientService));
+                }
+            }
+            if (!templates.isEmpty()) {
+                resourcesContainer.add(InspectorHelpers.sectionHeader("Resource Templates", templates.size()));
+                for (McpSchema.ResourceTemplate tmpl : templates) {
+                    resourcesContainer.add(new ResourceTemplatePrimitive(tmpl, serverInfo, clientService));
+                }
+            }
+            if (resources.isEmpty() && templates.isEmpty()) {
+                resourcesContainer.add(InspectorHelpers.emptyState(
+                        "No resources or templates exposed by this server."));
+            }
+        } catch (Exception ex) {
+            resourcesContainer.add(InspectorHelpers.emptyState("Failed to load resources: " + ex.getMessage()));
+        }
     }
 
     private Component createToolbar() {
