@@ -2,17 +2,29 @@ name: Greeter
 on:
   pull_request_target:
     types: [opened]
+  issues:
+    types: [opened]
 
 permissions:
   pull-requests: write
+  issues: write
 
 jobs:
   welcome:
+    # `actions/first-interaction@v3` errors when the actor is anyone the
+    # action wouldn't greet (repo owner, org member, or a prior contributor).
+    # `author_association` lets us skip the job for everyone except true
+    # first-time contributors so the workflow stays green for maintainer PRs.
+    if: ${{ !contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR", "CONTRIBUTOR"]'), github.event.pull_request.author_association || github.event.issue.author_association) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/first-interaction@v3
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
+          issue_message: |
+            👋 Welcome @${{ github.actor }}, and thanks for opening an issue!
+            Heads-up: the project is currently in a maintainer-driven phase, so we're focused on bug fixes and documentation improvements (typo, error, broken link in `docs/`). For questions or ideas, [Discussions](https://github.com/${{ github.repository }}/discussions) is always open.
+            Please take a moment to read our [Project Scope & Contribution policy](https://github.com/${{ github.repository }}/blob/HEAD/README.md#contributing--scope).
           pr_message: |
             👋 Welcome @${{ github.actor }}, and thanks for opening a PR!
             Heads-up: the project is currently in a maintainer-driven phase, so we're focused on bug fixes and documentation improvements (typo, error, broken link in `docs/`). External code PRs are paused while we stabilize the core — please don't take it personally if a code PR is closed with guidance.

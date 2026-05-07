@@ -1732,8 +1732,8 @@ function createMainWindow() {
   }
 
   const { workAreaSize } = screen.getPrimaryDisplay();
-  const width = Math.max(1280, Math.floor(workAreaSize.width * 0.67));
-  const height = Math.max(820, Math.floor(workAreaSize.height * 0.82));
+  const width = Math.max(1280, Math.floor(workAreaSize.width * 0.82));
+  const height = Math.max(820, Math.floor(workAreaSize.height * 0.9));
   mainWindow = new BrowserWindow({
     width, height,
     minWidth: 1280, minHeight: 820,
