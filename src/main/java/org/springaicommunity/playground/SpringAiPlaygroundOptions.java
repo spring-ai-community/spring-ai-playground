@@ -29,7 +29,8 @@ public record SpringAiPlaygroundOptions(@NestedConfigurationProperty ToolStudio 
     public record ToolStudio(Long timeoutSeconds, @NestedConfigurationProperty JsSandbox jsSandbox) {}
 
     public record JsSandbox(boolean allowNetworkIo, boolean allowFileIo, boolean allowNativeAccess,
-                            boolean allowCreateThread, Long maxStatements, Set<String> allowClasses) {}
+                            boolean allowCreateThread, Long maxStatements, Set<String> denyClasses,
+                            Set<String> allowClasses) {}
 
     public record Chat(String systemPrompt, List<String> models,
                        @NestedConfigurationProperty DefaultChatOptions chatOptions) {}

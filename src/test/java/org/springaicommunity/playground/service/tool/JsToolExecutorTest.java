@@ -33,13 +33,18 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 public class JsToolExecutorTest {
 
+    private static final Set<String> STANDARD_DENY =
+            Set.of("java.lang.System", "java.lang.Runtime", "java.lang.ProcessBuilder", "java.lang.Process",
+                    "java.lang.Class", "java.lang.invoke.*", "java.lang.reflect.*");
     private JsToolExecutor executor;
 
     @BeforeEach
     void setUp() {
         executor = new JsToolExecutor(null, new JsSandbox(true, false, false, false, 50_000L,
+                STANDARD_DENY,
                 Set.of("java.lang.*", "java.math.*", "java.time.*", "java.util.*", "java.text.*", "java.net.*",
-                        "java.io.*", "org.jsoup.*")));
+                        "java.io.*", "org.jsoup.*"),
+                Map.of()));
     }
 
     @Test
@@ -216,9 +221,10 @@ public class JsToolExecutorTest {
     }
 
     @Test
-    void testEnvPlaceholderandMaskOnlyInLog() throws ClassNotFoundException {
+    void testEnvPlaceholder_maskedEverywhere() throws ClassNotFoundException {
         String PROP_NAME = "TEST_SECRET";
         String PROP_VALUE = "super-secret-value-123456";
+        String MASKED_VALUE = "supe*****************3456";
         System.setProperty(PROP_NAME, PROP_VALUE);
 
         try {
@@ -238,7 +244,8 @@ public class JsToolExecutorTest {
             JsToolExecutor.JsExecutionResult result = executor.execute(execParams);
 
             assertTrue(result.isOk());
-            assertEquals(PROP_VALUE, result.result());
+            // Return value is now masked in the same form as the state log entry.
+            assertEquals(MASKED_VALUE, result.result());
 
             String debug = result.debugInfo();
             assertNotNull(debug);
@@ -247,7 +254,7 @@ public class JsToolExecutorTest {
             assertEquals("=== Execution Log ===\n" +
                     "\n" +
                     "=== Final State ===\n" +
-                    "apiKey = supe*****************3456 (env TEST_SECRET)", debug);
+                    "apiKey = " + MASKED_VALUE + " (env TEST_SECRET)", debug);
         } finally {
             System.clearProperty(PROP_NAME);
         }
@@ -277,6 +284,111 @@ public class JsToolExecutorTest {
         assertFalse(debug.contains("(env "));
     }
 
+
+    @Test
+    void isClassAllowed_blocksReflectPackage() {
+        var sandbox = new JsSandbox(true, false, false, false, 50_000L, STANDARD_DENY, Set.of("java.lang.*"), Map.of());
+
+        assertFalse(JsToolExecutor.isClassAllowed("java.lang.reflect.Method", sandbox));
+        assertFalse(JsToolExecutor.isClassAllowed("java.lang.reflect.Field", sandbox));
+        assertFalse(JsToolExecutor.isClassAllowed("java.lang.reflect.Constructor", sandbox));
+    }
+
+    @Test
+    void isClassAllowed_blocksJavaLangClass_toPreventClassForNameBypass() {
+        var sandbox = new JsSandbox(true, false, false, false, 50_000L, STANDARD_DENY, Set.of("java.lang.*"), Map.of());
+
+        assertFalse(JsToolExecutor.isClassAllowed("java.lang.Class", sandbox));
+        // Sibling classes still allowed
+        assertTrue(JsToolExecutor.isClassAllowed("java.lang.String", sandbox));
+        assertTrue(JsToolExecutor.isClassAllowed("java.lang.StringBuilder", sandbox));
+    }
+
+    @Test
+    void isClassAllowed_wildcardRequiresDotSeparator_doesNotMatchPrefixOnly() {
+        // Empty deny set — this test focuses on allow-classes wildcard semantics, not deny.
+        var sandbox = new JsSandbox(true, false, false, false, 50_000L, Set.of(), Set.of("com.foo.*"), Map.of());
+
+        // True positives — class is in the allowed package
+        assertTrue(JsToolExecutor.isClassAllowed("com.foo.Bar", sandbox));
+        assertTrue(JsToolExecutor.isClassAllowed("com.foo.subpkg.Baz", sandbox));
+
+        // False positives the old code would have matched (className.startsWith(prefix) without the dot):
+        // "com.foobar.Bad" or "com.fooSomething.X" must NOT match "com.foo.*".
+        assertFalse(JsToolExecutor.isClassAllowed("com.foobar.Bad", sandbox));
+        assertFalse(JsToolExecutor.isClassAllowed("com.fooSomething.X", sandbox));
+        assertFalse(JsToolExecutor.isClassAllowed("com.foo", sandbox));
+    }
+
+    @Test
+    void consoleLog_masksEnvBackedSecrets() {
+        String PROP_NAME = "PHASE1_CONSOLE_SECRET";
+        String PROP_VALUE = "console-secret-token-987654";
+        System.setProperty(PROP_NAME, PROP_VALUE);
+
+        try {
+            JsToolExecutor executor = new JsToolExecutor(5L, null);
+
+            String jsCode = "console.log('value is', apiKey); return 'ok';";
+            Map<String, Object> params = Map.of("apiKey", "${" + PROP_NAME + "}");
+
+            JsExecutionResult result = executor.execute(new JsExecutionParams(params, jsCode));
+
+            assertTrue(result.isOk());
+            String debug = result.debugInfo();
+            assertNotNull(debug);
+            // [LOG] line must NOT contain the plain secret
+            assertFalse(debug.contains(PROP_VALUE));
+            // It should still contain a masked form
+            assertTrue(debug.contains("[LOG] value is "));
+            assertTrue(debug.contains("*"));
+        } finally {
+            System.clearProperty(PROP_NAME);
+        }
+    }
+
+    @Test
+    void denyClasses_fromExplicitYamlConfig_isHonored() {
+        // Simulate a yaml-supplied deny-classes set (custom — does not include reflect.*)
+        Set<String> customDeny = Set.of("java.lang.System", "com.evil.*");
+        var sandbox = new JsSandbox(true, false, false, false, 50_000L,
+                customDeny, Set.of("java.lang.*", "com.evil.*", "com.good.*"), Map.of()
+        );
+
+        // Explicit deny-classes entry is honored
+        assertFalse(JsToolExecutor.isClassAllowed("java.lang.System", sandbox));
+        assertFalse(JsToolExecutor.isClassAllowed("com.evil.Bad", sandbox));
+        // A class NOT in the custom deny set (reflect.*) is allowed — user explicitly omitted it.
+        // In production this lowers the security posture; Phase 2 SecurityPostureCalculator will flag this.
+        assertTrue(JsToolExecutor.isClassAllowed("java.lang.reflect.Method", sandbox));
+        // Allowed class still allowed
+        assertTrue(JsToolExecutor.isClassAllowed("com.good.Util", sandbox));
+    }
+
+    @Test
+    void envBackedSecret_alwaysMaskedInResult() {
+        String PROP_NAME = "PHASE1_TEST_SECRET";
+        String PROP_VALUE = "super-secret-token-789012";
+        System.setProperty(PROP_NAME, PROP_VALUE);
+
+        try {
+            // No flag — masking is always-on (symmetric with state log + console.log).
+            JsToolExecutor executor = new JsToolExecutor(5L, null);
+            String jsCode = "return apiKey;";
+            Map<String, Object> params = Map.of("apiKey", "${" + PROP_NAME + "}");
+
+            JsExecutionResult result = executor.execute(new JsExecutionParams(params, jsCode));
+
+            assertTrue(result.isOk());
+            assertNotNull(result.result());
+            String resultStr = result.result().toString();
+            assertFalse(resultStr.equals(PROP_VALUE));
+            assertFalse(resultStr.contains(PROP_VALUE));
+            assertTrue(resultStr.contains("*"));
+        } finally {
+            System.clearProperty(PROP_NAME);
+        }
+    }
 
     @Disabled
     @Test

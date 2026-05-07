@@ -36,6 +36,16 @@ spring:
           allow-native-access: false
           allow-create-thread: false
           max-statements: 500000
+          # Classes/packages user JS must never access. Evaluated before allow-classes — deny ALWAYS wins.
+          # Removing entries lowers sandbox security; keep defaults unless you know what you are doing.
+          deny-classes:
+            - java.lang.System              # env vars, System.exit, etc.
+            - java.lang.Runtime             # exec / halt
+            - java.lang.ProcessBuilder      # spawn external processes
+            - java.lang.Process             # ProcessBuilder result
+            - java.lang.Class               # Class.forName bypass
+            - java.lang.invoke.*            # MethodHandle and dynamic dispatch
+            - java.lang.reflect.*           # Method.invoke and reflection
           allow-classes:
             # Completely safe core packages — strongly recommended to allow entirely
             - java.lang.*                  # String, StringBuilder, System.getProperty, etc. (basic utilities)

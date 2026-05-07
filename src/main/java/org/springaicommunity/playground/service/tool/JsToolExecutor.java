@@ -17,8 +17,10 @@ package org.springaicommunity.playground.service.tool;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions.JsSandbox;
+import org.springaicommunity.playground.service.tool.policy.EffectivePolicyResolver.EffectivePolicy;
 import org.springaicommunity.playground.service.util.EnvVarResolver;
 import org.graalvm.polyglot.Context;
+import org.graalvm.polyglot.Engine;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.ResourceLimits;
 import org.graalvm.polyglot.Value;
@@ -31,6 +33,7 @@ import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -44,7 +47,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.regex.Pattern;
 
 @ConfigurationProperties(prefix = "tool-studio.sandbox")
 public class JsToolExecutor {
@@ -53,53 +55,80 @@ public class JsToolExecutor {
 
     public record JsExecutionParams(Map<String, Object> params, String code) {}
 
-    private static final Pattern BLACKLIST_PATTERN =
-            Pattern.compile("^(java\\.lang\\.(System|Runtime|ProcessBuilder|Process)|java\\.lang\\.invoke\\..*)$");
+    private static final Map<String, String> JS_OPTIONS = Map.ofEntries(
+            Map.entry("js.ecmascript-version", "2024"),
+            Map.entry("js.intl-402", "true"),
+            Map.entry("js.text-encoding", "true"),
+            Map.entry("js.temporal", "true"),
+            Map.entry("js.iterator-helpers", "true"),
+            Map.entry("js.new-set-methods", "true"),
+            Map.entry("js.regexp-unicode-sets", "true"));
 
-    private final Context.Builder contextBuilder;
+    private static final Engine ENGINE = Engine.newBuilder()
+            .allowExperimentalOptions(true)
+            .options(JS_OPTIONS)
+            .build();
+
+    private static final HostAccess HOST_ACCESS = HostAccess.newBuilder().allowPublicAccess(true).build();
+
     private final long timeoutSeconds;
+    private final EffectivePolicy defaultPolicy;
     private final ExecutorService executor;
 
     public JsToolExecutor(Long timeoutSeconds, JsSandbox jsSandbox) {
-        this.contextBuilder = Context.newBuilder("js")
-                .option("js.ecmascript-version", "2023")
-                .allowAllAccess(false);
-        if (Objects.nonNull(jsSandbox)) {
-            HostAccess hostAccess = HostAccess.newBuilder().allowPublicAccess(true).build();
-            IOAccess ioConfig = IOAccess.newBuilder()
-                    .allowHostFileAccess(jsSandbox.allowFileIo())
-                    .allowHostSocketAccess(jsSandbox.allowNetworkIo())
-                    .build();
-            this.contextBuilder
-                    .allowHostClassLookup(className -> {
-                        if (BLACKLIST_PATTERN.matcher(className).matches()) {
-                            return false;
-                        }
-                        return jsSandbox.allowClasses().stream().anyMatch(pattern -> {
-                            if (pattern.endsWith(".*")) {
-                                String prefix = pattern.substring(0, pattern.length() - 2);
-                                return className.startsWith(prefix + ".") || className.startsWith(prefix);
-                            }
-                            return className.equals(pattern);
-                        });
-                    })
-                    .allowHostAccess(hostAccess)
-                    .allowIO(ioConfig)
-                    .allowNativeAccess(jsSandbox.allowNativeAccess())
-                    .allowCreateThread(jsSandbox.allowCreateThread())
-                    .resourceLimits(
-                            ResourceLimits.newBuilder().statementLimit(jsSandbox.maxStatements(), null).build());
-        }
         this.timeoutSeconds = Optional.ofNullable(timeoutSeconds).orElse(30L);
+        this.defaultPolicy = jsSandbox == null ? null : toDefaultPolicy(jsSandbox, this.timeoutSeconds);
         this.executor = Executors.newVirtualThreadPerTaskExecutor();
     }
 
+    private static EffectivePolicy toDefaultPolicy(JsSandbox sandbox, long timeoutSeconds) {
+        long maxStatements = sandbox.maxStatements() == null ? 500_000L : sandbox.maxStatements();
+        return new EffectivePolicy(
+                sandbox.allowClasses() == null ? Set.of() : sandbox.allowClasses(),
+                sandbox.denyClasses() == null ? Set.of() : sandbox.denyClasses(),
+                sandbox.allowNetworkIo(), sandbox.allowFileIo(), sandbox.allowNativeAccess(),
+                sandbox.allowCreateThread(), maxStatements, timeoutSeconds,
+                true, null, null, null);
+    }
+
+    static boolean isClassAllowed(String className, JsSandbox jsSandbox) {
+        if (matchesAnyPattern(className, jsSandbox.denyClasses())) {
+            return false;
+        }
+        return matchesAnyPattern(className, jsSandbox.allowClasses());
+    }
+
+    static boolean isClassAllowed(String className, EffectivePolicy policy) {
+        if (matchesAnyPattern(className, policy.denyClasses())) {
+            return false;
+        }
+        return matchesAnyPattern(className, policy.allowClasses());
+    }
+
+    private static boolean matchesAnyPattern(String className, Set<String> patterns) {
+        if (patterns == null || patterns.isEmpty()) return false;
+        return patterns.stream().anyMatch(pattern -> {
+            if (pattern.endsWith(".*")) {
+                String prefix = pattern.substring(0, pattern.length() - 2);
+                return className.startsWith(prefix + ".");
+            }
+            return className.equals(pattern);
+        });
+    }
+
     public JsExecutionResult execute(JsExecutionParams jsExecutionParams) {
+        return execute(jsExecutionParams, defaultPolicy);
+    }
+
+    public JsExecutionResult execute(JsExecutionParams jsExecutionParams, EffectivePolicy policy) {
         String jsCode = """
                 (async function() {
                     %s
                 })();
                 """.formatted(jsExecutionParams.code());
+
+        long effectiveTimeout = policy == null ? this.timeoutSeconds : policy.timeoutSeconds();
+        Context.Builder contextBuilder = buildContext(policy);
 
         List<String> logList = new ArrayList<>();
         Future<JsExecutionResult> future = executor.submit(() -> {
@@ -107,19 +136,24 @@ public class JsToolExecutor {
                 Value bindings = context.getBindings("js");
 
                 Map<String, String> envBackedVariables = new HashMap<>();
+                Set<String> envSecretValues = new HashSet<>();
                 if (jsExecutionParams.params() != null) {
                     jsExecutionParams.params().forEach((name, rawValue) -> bindings.putMember(name,
-                            resolveParamValue(rawValue, name, envBackedVariables)));
+                            resolveParamValue(rawValue, name, envBackedVariables, envSecretValues)));
                 }
 
                 Map<String, String> initialState = snapshotVariables(bindings);
 
                 logList.add("=== Execution Log ===");
-                installConsoleLog(bindings, logList);
+                installConsoleLog(bindings, logList, envSecretValues);
 
                 Value jsResultValue = awaitPromise(context.eval("js", jsCode));
                 Object jsResult = jsResultValue.isNull() ? "undefined" :
                         deepCopyPolyglot(jsResultValue.as(Object.class));
+
+                if (!envSecretValues.isEmpty()) {
+                    jsResult = maskSecretsInResult(jsResult, envSecretValues);
+                }
 
                 Map<String, String> finalState = snapshotVariables(bindings);
 
@@ -133,25 +167,68 @@ public class JsToolExecutor {
         });
 
         try {
-            return future.get(timeoutSeconds, TimeUnit.SECONDS);
+            return future.get(effectiveTimeout, TimeUnit.SECONDS);
         } catch (TimeoutException e) {
             future.cancel(true);
-            return new JsExecutionResult(false, "", "Execution timed out after " + timeoutSeconds + " seconds",
+            return new JsExecutionResult(false, "", "Execution timed out after " + effectiveTimeout + " seconds",
                     buildDebugInfo(logList));
         } catch (Exception e) {
             return new JsExecutionResult(false, "", e.getMessage(), buildDebugInfo(logList));
         }
     }
 
+    private Context.Builder buildContext(EffectivePolicy policy) {
+        Context.Builder builder = Context.newBuilder("js")
+                .engine(ENGINE)
+                .allowHostAccess(HOST_ACCESS)
+                .allowAllAccess(false);
+        if (policy == null) {
+            return builder.allowHostClassLookup(className -> false);
+        }
+        IOAccess ioConfig = IOAccess.newBuilder()
+                .allowHostFileAccess(policy.allowFileIo())
+                .allowHostSocketAccess(policy.allowNetworkIo())
+                .build();
+        if (policy.javaInterop()) {
+            builder.allowHostClassLookup(className -> isClassAllowed(className, policy));
+        } else {
+            builder.allowHostClassLookup(className -> false);
+        }
+        return builder
+                .allowIO(ioConfig)
+                .allowNativeAccess(policy.allowNativeAccess())
+                .allowCreateThread(policy.allowCreateThread())
+                .resourceLimits(ResourceLimits.newBuilder().statementLimit(policy.maxStatements(), null).build());
+    }
+
     private Object resolveParamValue(Object rawValue, String paramName,
-            Map<String, String> envBackedVariables) {
+            Map<String, String> envBackedVariables, Set<String> envSecretValues) {
         if (!(rawValue instanceof String str)) return rawValue;
         Optional<String> envName = EnvVarResolver.anchoredEnvName(str);
         if (envName.isEmpty()) return rawValue;
         Optional<String> resolved = EnvVarResolver.lookup(envName.get());
         if (resolved.isEmpty()) return rawValue;
         envBackedVariables.put(paramName, envName.get());
+        envSecretValues.add(resolved.get());
         return resolved.get();
+    }
+
+    private Object maskSecretsInResult(Object value, Set<String> secrets) {
+        if (value == null) return null;
+        if (value instanceof String s) {
+            return maskKnownSecrets(s, secrets);
+        }
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Object> copy = new LinkedHashMap<>();
+            map.forEach((k, v) -> copy.put(k.toString(), maskSecretsInResult(v, secrets)));
+            return copy;
+        }
+        if (value instanceof Iterable<?> it) {
+            List<Object> copy = new ArrayList<>();
+            for (Object v : it) copy.add(maskSecretsInResult(v, secrets));
+            return copy;
+        }
+        return value;
     }
 
     private Object deepCopyPolyglot(Object value) {
@@ -198,17 +275,35 @@ public class JsToolExecutor {
         return completableFuture.get();
     }
 
-    private void installConsoleLog(Value bindings, List<String> logList) {
+    private void installConsoleLog(Value bindings, List<String> logList, Set<String> envSecretValues) {
         bindings.putMember("console", ProxyObject.fromMap(
                 Map.of("log", (ProxyExecutable) args -> {
                     if (logList.size() > 1000)
                         return null;
-                    String msg = Arrays.stream(args).map(v -> v == null ? "null" : v.toString())
+                    String msg = Arrays.stream(args).map(JsToolExecutor::stringifyConsoleArg)
                             .reduce((a, b) -> a + " " + b).orElse("");
+                    msg = maskKnownSecrets(msg, envSecretValues);
                     logList.add("[LOG] " + msg);
                     return null;
                 })
         ));
+    }
+
+    private static String stringifyConsoleArg(Value v) {
+        if (v == null || v.isNull()) return "null";
+        if (v.isString()) return v.asString();
+        return v.toString();
+    }
+
+    private String maskKnownSecrets(String input, Set<String> secrets) {
+        if (input == null || secrets == null || secrets.isEmpty()) return input;
+        String out = input;
+        for (String secret : secrets) {
+            if (!secret.isEmpty() && out.contains(secret)) {
+                out = out.replace(secret, maskValue(secret));
+            }
+        }
+        return out;
     }
 
     private Map<String, String> snapshotVariables(Value bindings) {
@@ -240,10 +335,10 @@ public class JsToolExecutor {
 
             if (envName != null) {
                 if (beforeForLog != null && !"null".equals(beforeForLog)) {
-                    beforeForLog = maskValueForLog(beforeForLog);
+                    beforeForLog = maskValue(beforeForLog);
                 }
                 if (afterForLog != null && !"null".equals(afterForLog)) {
-                    afterForLog = maskValueForLog(afterForLog);
+                    afterForLog = maskValue(afterForLog);
                 }
             }
 
@@ -259,7 +354,7 @@ public class JsToolExecutor {
         }
     }
 
-    private String maskValueForLog(String value) {
+    private String maskValue(String value) {
         if (value == null) {
             return null;
         }
