@@ -8,6 +8,11 @@ permissions:
 
 jobs:
   welcome:
+    # `actions/first-interaction@v3` errors when the PR author is anyone the
+    # action wouldn't greet (repo owner, org member, or a prior contributor).
+    # `author_association` lets us skip the job for everyone except true
+    # first-time contributors so the workflow stays green for maintainer PRs.
+    if: ${{ !contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR", "CONTRIBUTOR"]'), github.event.pull_request.author_association) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/first-interaction@v3

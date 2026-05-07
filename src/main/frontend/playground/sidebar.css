@@ -1,0 +1,18 @@
+/* Consistent left/right padding for sidebar list items across all features.
+ * Outer space-s (8px) plus Vaadin's internal ~24px content offset puts item
+ * text at ~32px from the sidebar's left edge — one icon-width past the
+ * sibling header text at 16px. */
+.custom-list-box vaadin-item,
+.custom-list-box vaadin-multi-select-list-box-item,
+vaadin-multi-select-list-box.custom-list-box vaadin-item {
+    padding-inline-start: var(--lumo-space-s);
+    padding-inline-end: var(--lumo-space-s);
+    overflow: hidden;
+}
+
+/* MCP transport accordions: summary has no internal content offset, so use
+ * space-m to align its text with the surrounding header at 16px. */
+.workspace-sidebar-details > vaadin-details-summary {
+    padding-inline-start: var(--lumo-space-m);
+    padding-inline-end: var(--lumo-space-m);
+}

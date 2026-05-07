@@ -227,9 +227,19 @@ Pick the asset that matches your platform.
     .then((response) => response.ok ? response.json() : Promise.reject(new Error(`HTTP ${response.status}`)))
     .then((release) => {
       const assets = release.assets || [];
+      // Defensive filter: only consider assets whose filename also contains
+      // the release tag's version. Without this, a release whose draft was
+      // polluted with older-version assets (the way `0.2.0-M4-*.dmg` lived
+      // inside the `v0.2.0-M5` draft) would let `find()` return the older
+      // file just because it appeared first in upload order.
+      const releaseVersion = (release.tag_name || '').replace(/^v/, '');
       buttons.forEach((button) => {
         const pattern = button.dataset.pattern;
-        const asset = assets.find((a) => a.name && a.name.endsWith(pattern));
+        const asset = assets.find((a) =>
+          a.name &&
+          a.name.endsWith(pattern) &&
+          (!releaseVersion || a.name.includes(releaseVersion))
+        );
         if (asset) {
           button.href = asset.browser_download_url;
           button.dataset.resolved = asset.name;
