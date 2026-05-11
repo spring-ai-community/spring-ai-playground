@@ -16,3 +16,33 @@ vaadin-multi-select-list-box.custom-list-box vaadin-item {
     padding-inline-start: var(--lumo-space-m);
     padding-inline-end: var(--lumo-space-m);
 }
+
+/* Selection effect — drop the default checkmark, paint a subtle background tint
+ * with a left accent border so the selected row is obvious without the icon. */
+.custom-list-box vaadin-item::part(checkmark) {
+    display: none;
+}
+.custom-list-box vaadin-item {
+    width: 100%;
+    box-sizing: border-box;
+}
+.custom-list-box vaadin-item[selected] {
+    background-color: var(--lumo-primary-color-10pct);
+    border-left: 3px solid var(--lumo-primary-color);
+    padding-inline-start: calc(var(--lumo-space-s) - 3px);
+}
+.custom-list-box vaadin-item[selected]:hover {
+    background-color: var(--lumo-primary-color-10pct);
+}
+
+/* Debug Console — the inner <textarea> is slotted (light DOM child), so style
+ * it directly. Lumo doesn't define a --lumo-font-family-monospace variable,
+ * so we set an explicit monospace stack instead. */
+vaadin-text-area.debug-console > textarea {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: var(--lumo-font-size-s);
+    line-height: 1.5;
+}
+vaadin-text-area.debug-console::part(input-field) {
+    background: var(--lumo-contrast-5pct);
+}

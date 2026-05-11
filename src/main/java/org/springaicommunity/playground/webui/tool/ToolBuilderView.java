@@ -20,23 +20,32 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
+import com.vaadin.flow.component.combobox.ComboBox;
+import com.vaadin.flow.component.combobox.MultiSelectComboBox;
+import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H4;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextArea;
 import com.vaadin.flow.component.textfield.TextField;
+import org.springaicommunity.playground.SpringAiPlaygroundOptions;
+import org.springaicommunity.playground.service.tool.ChipListBinding;
 import org.springaicommunity.playground.service.tool.ToolSpec;
 import org.springaicommunity.playground.service.tool.ToolSpec.JsonSchemaType;
 import org.springaicommunity.playground.service.tool.ToolSpec.ToolParamSpec;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
+import org.springaicommunity.playground.service.tool.catalog.ToolCategoryCatalog;
+import org.springaicommunity.playground.service.tool.policy.SandboxPostureCalculator;
 import org.springaicommunity.playground.webui.VaadinUtils;
 
 import java.beans.PropertyChangeSupport;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -49,17 +58,22 @@ public class ToolBuilderView extends VerticalLayout {
     private final ToolSpec toolSpec;
     private final PropertyChangeSupport toolChangeSupport;
     private final ToolSpecService toolSpecService;
+    private final ToolCategoryCatalog categoryCatalog;
     private final HorizontalLayout paramsContainer;
     private final List<ToolParameterForm> paramForms;
     private final TextField toolNameField;
     private final TextArea toolDescriptionField;
+    private final ComboBox<String> categoryField;
+    private final MultiSelectComboBox<String> tagsField;
     private final JavascriptToolPlaygroundView javascriptToolPlaygroundView;
 
     public ToolBuilderView(ToolSpec toolSpec, PropertyChangeSupport toolChangeSupport, ToolSpecService toolSpecService,
-            ObjectMapper objectMapper) {
+            ToolCategoryCatalog categoryCatalog, SpringAiPlaygroundOptions options,
+            SandboxPostureCalculator postureCalculator, ObjectMapper objectMapper) {
         this.toolSpec = toolSpec;
         this.toolChangeSupport = toolChangeSupport;
         this.toolSpecService = toolSpecService;
+        this.categoryCatalog = categoryCatalog;
         this.paramForms = new ArrayList<>();
 
         setSizeFull();
@@ -95,6 +109,41 @@ public class ToolBuilderView extends VerticalLayout {
         this.toolDescriptionField.setPlaceholder("e.g., Get the current weather for a location");
         this.toolDescriptionField.setWidthFull();
 
+        this.categoryField = new ComboBox<>("Category");
+        this.categoryField.setItems(this.categoryCatalog.categoryIds());
+        this.categoryField.setItemLabelGenerator(id -> this.categoryCatalog.resolveOrFallback(id).displayName());
+        this.categoryField.setValue("CUSTOM");
+
+        this.tagsField = new MultiSelectComboBox<>("Tags");
+        this.tagsField.setAllowCustomValue(true);
+
+        Set<String> observedTags = new LinkedHashSet<>();
+        for (ToolSpec existing : this.toolSpecService.getToolSpecList()) observedTags.addAll(existing.tags());
+        ChipListBinding tagsBinding = new ChipListBinding(observedTags);
+        tagsBinding.replaceSelected(List.of());
+        this.tagsField.setItems(tagsBinding.items());
+        this.tagsField.addCustomValueSetListener(e -> {
+            if (tagsBinding.add(e.getDetail())) {
+                this.tagsField.setItems(tagsBinding.items());
+                this.tagsField.setValue(tagsBinding.selected());
+            }
+        });
+        this.tagsField.addValueChangeListener(e -> tagsBinding.replaceSelected(e.getValue()));
+
+        this.toolNameField.setMinWidth("0");
+        this.categoryField.setMinWidth("0");
+        this.tagsField.setMinWidth("0");
+        this.toolNameField.getStyle().set("flex", "2 1 280px");
+        this.categoryField.getStyle().set("flex", "1 1 160px");
+        this.tagsField.getStyle().set("flex", "1 1 200px");
+        Div topRow = new Div(this.toolNameField, this.categoryField, this.tagsField);
+        topRow.getStyle()
+                .set("display", "flex")
+                .set("flex-wrap", "wrap")
+                .set("gap", "var(--lumo-space-m)")
+                .set("width", "100%")
+                .set("align-items", "flex-end");
+
         Span paramsHint =
                 new Span("Structured tool parameters defined in the tool spec and passed by the LLM at call time");
         paramsHint.getElement().getStyle().set("font-size", "0.85em").set("color", "var(--lumo-secondary-text-color)");
@@ -115,12 +164,12 @@ public class ToolBuilderView extends VerticalLayout {
         parametersSection.setSpacing(true);
         parametersSection.setWidthFull();
 
-        this.javascriptToolPlaygroundView = new JavascriptToolPlaygroundView(objectMapper, toolSpecService,
-                () -> getCurrentToolParamsAsOpt().orElseGet(List::of));
+        this.javascriptToolPlaygroundView = new JavascriptToolPlaygroundView(objectMapper, toolSpecService, options,
+                postureCalculator, () -> getCurrentToolParamsAsOpt().orElseGet(List::of));
         this.javascriptToolPlaygroundView.setHeightFull();
 
-        VerticalLayout scrollArea = new VerticalLayout(this.toolNameField, toolDescriptionField, parametersSection,
-                javascriptToolPlaygroundView);
+        VerticalLayout scrollArea = new VerticalLayout(topRow, toolDescriptionField,
+                parametersSection, javascriptToolPlaygroundView);
         scrollArea.setPadding(false);
         scrollArea.setSpacing(true);
         scrollArea.setSizeFull();
@@ -144,6 +193,10 @@ public class ToolBuilderView extends VerticalLayout {
         if (Objects.nonNull(toolSpec)) {
             this.toolNameField.setValue(toolSpec.name());
             toolDescriptionField.setValue(toolSpec.description());
+
+            String resolvedCategory = this.categoryCatalog.resolveOrFallback(toolSpec.category()).id();
+            this.categoryField.setValue(resolvedCategory);
+            this.tagsField.setValue(toolSpec.tags() == null ? Set.of() : toolSpec.tags());
             if (!toolSpec.params().isEmpty()) {
                 toolSpec.params().forEach(param -> addParameterForm(paramForms.size() + 1).updateFields(param));
                 this.javascriptToolPlaygroundView.updateContents(toolSpec.staticVariables(), toolSpec.code());
@@ -211,12 +264,16 @@ public class ToolBuilderView extends VerticalLayout {
         String toolDescription = descriptionField.getValue();
         getCurrentToolParamsAsOpt().filter(toolParamSpecs -> this.javascriptToolPlaygroundView.runTest())
                 .ifPresent(toolParamSpecs -> {
-                    ToolSpec registeredToolSpec =
-                            toolSpecService.update(Optional.ofNullable(this.toolSpec).map(ToolSpec::toolId)
-                                            .orElseGet(() -> UUID.randomUUID().toString()),
-                                    toolName, toolDescription, this.javascriptToolPlaygroundView.getStaticVariables(),
-                                    toolParamSpecs, this.javascriptToolPlaygroundView.getCurrentJsCode(),
-                                    ToolSpec.CodeType.Javascript);
+                    String toolId = Optional.ofNullable(this.toolSpec).map(ToolSpec::toolId)
+                            .orElseGet(() -> UUID.randomUUID().toString());
+
+                    ToolSpec formSpec = new ToolSpec(toolId, toolName, toolDescription,
+                            this.javascriptToolPlaygroundView.getStaticVariables(), toolParamSpecs,
+                            this.javascriptToolPlaygroundView.getCurrentJsCode(), ToolSpec.CodeType.Javascript, null)
+                            .withCategory(this.categoryField.getValue())
+                            .withTags(this.tagsField.getValue() == null ? Set.of() : this.tagsField.getValue())
+                            .withSandboxOverrides(this.javascriptToolPlaygroundView.currentSandboxOverrides());
+                    ToolSpec registeredToolSpec = toolSpecService.update(formSpec);
                     VaadinUtils.showInfoNotification("Tool '" + toolName + "' registered successfully!");
                     this.toolChangeSupport.firePropertyChange(TOOL_CHANGE_EVENT, this.toolSpec, registeredToolSpec);
                 });

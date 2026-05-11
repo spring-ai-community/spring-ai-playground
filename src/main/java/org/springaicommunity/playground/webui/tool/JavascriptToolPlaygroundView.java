@@ -24,20 +24,31 @@ import com.hilerio.ace.AceTheme;
 import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.combobox.MultiSelectComboBox;
 import com.vaadin.flow.component.dependency.JavaScript;
+import com.vaadin.flow.component.details.Details;
 import com.vaadin.flow.component.html.H4;
 import com.vaadin.flow.component.html.H5;
 import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.FlexLayout;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.page.PendingJavaScriptResult;
+import com.vaadin.flow.component.radiobutton.RadioButtonGroup;
 import com.vaadin.flow.component.textfield.TextArea;
+import org.springaicommunity.playground.SpringAiPlaygroundOptions;
+import org.springaicommunity.playground.SpringAiPlaygroundOptions.JsSandbox;
+import org.springaicommunity.playground.service.tool.ChipListBinding;
 import org.springaicommunity.playground.service.tool.JsToolExecutor.JsExecutionResult;
+import org.springaicommunity.playground.service.tool.ToolManifest.Sandbox.RiskLevel;
+import org.springaicommunity.playground.service.tool.ToolSpec;
 import org.springaicommunity.playground.service.tool.ToolSpec.JsonSchemaType;
 import org.springaicommunity.playground.service.tool.ToolSpec.ToolParamSpec;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
+import org.springaicommunity.playground.service.tool.policy.SandboxPostureCalculator;
+import org.springaicommunity.playground.service.tool.policy.SandboxPostureCalculator.Inputs;
 import org.springaicommunity.playground.webui.VaadinUtils;
 
 import java.time.Instant;
@@ -48,6 +59,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Supplier;
 
 @JavaScript("./prettier-standalone.js")
@@ -74,16 +86,34 @@ public class JavascriptToolPlaygroundView extends VerticalLayout {
     private final List<StaticVariableForm> staticVariableForms;
     private final AceEditor ace;
     private final TextArea consoleTextArea;
+    private final HorizontalLayout consoleStatusRow;
+    private final Span consoleStatusBadge;
+    private final Span consoleTimingBadge;
     private final Button testRunButton;
     private final Button formatButton;
     private final ObjectMapper objectMapper;
     private final ToolSpecService toolSpecService;
+    private final SpringAiPlaygroundOptions options;
+    private final SandboxPostureCalculator postureCalculator;
     private final Supplier<List<ToolParamSpec>> currentToolParamsSupplier;
 
+    // Sandbox controls — kept as fields so the live posture badge can react to changes
+    private RadioButtonGroup<String> networkModeField;
+    private MultiSelectComboBox<String> hostsField;
+    private MultiSelectComboBox<String> allowClassesField;
+    private MultiSelectComboBox<String> denyClassesField;
+    private Span postureBadge;
+    private Icon postureIcon;
+    private Set<String> yamlBaselineDeny = Set.of();
+    private Set<String> yamlBaselineAllow = Set.of();
+
     public JavascriptToolPlaygroundView(ObjectMapper objectMapper, ToolSpecService toolSpecService,
+            SpringAiPlaygroundOptions options, SandboxPostureCalculator postureCalculator,
             Supplier<List<ToolParamSpec>> currentToolParamsSupplier) {
         this.objectMapper = objectMapper;
         this.toolSpecService = toolSpecService;
+        this.options = options;
+        this.postureCalculator = postureCalculator;
         this.currentToolParamsSupplier = currentToolParamsSupplier;
         this.staticVariableForms = new ArrayList<>();
 
@@ -144,19 +174,29 @@ public class JavascriptToolPlaygroundView extends VerticalLayout {
         consoleTextArea = new TextArea();
         consoleTextArea.setReadOnly(true);
         consoleTextArea.setWidthFull();
-        consoleTextArea.getStyle()
-                .set("font-family", "var(--lumo-font-family-monospace)")
-                .set("font-size", "var(--lumo-font-size-s)")
-                .set("border", "none")
-                .set("background-color", "var(--lumo-contrast-5pct)")
-                .set("flex-grow", "1");
+        consoleTextArea.addClassName("debug-console");
+        consoleTextArea.setPlaceholder("No run yet. Click Test Run to execute the JS code and see output here.");
+        consoleTextArea.getStyle().set("flex-grow", "1");
         consoleTextArea.getElement().getStyle().set("min-height", "300px");
+
+        this.consoleStatusBadge = new Span();
+        this.consoleTimingBadge = new Span();
+        this.consoleTimingBadge.getElement().setAttribute("theme", "badge contrast pill small");
+        this.consoleStatusRow = new HorizontalLayout(this.consoleStatusBadge, this.consoleTimingBadge);
+        this.consoleStatusRow.setSpacing(false);
+        this.consoleStatusRow.getStyle().set("gap", "0.4em");
+        this.consoleStatusRow.setAlignItems(HorizontalLayout.Alignment.CENTER);
+        this.consoleStatusRow.setVisible(false);
 
         VerticalLayout bottomContainer = new VerticalLayout();
         bottomContainer.setPadding(false);
         bottomContainer.setSpacing(true);
         bottomContainer.setWidthFull();
-        bottomContainer.add(new H5("Debug Console"), consoleTextArea);
+        HorizontalLayout consoleHeader = new HorizontalLayout(new H5("Debug Console"), this.consoleStatusRow);
+        consoleHeader.setAlignItems(HorizontalLayout.Alignment.BASELINE);
+        consoleHeader.setSpacing(false);
+        consoleHeader.getStyle().set("gap", "var(--lumo-space-m)");
+        bottomContainer.add(consoleHeader, consoleTextArea);
         bottomContainer.getStyle().set("display", "flex").set("flex-direction", "column");
 
         this.testRunButton = new Button("Test Run", VaadinIcon.PLAY.create(), e -> runTestJavascript());
@@ -189,6 +229,9 @@ public class JavascriptToolPlaygroundView extends VerticalLayout {
         staticVarsSection.setPadding(false);
         staticVarsSection.setSpacing(true);
         staticVarsSection.setWidthFull();
+
+        Details sandboxSection = buildSandboxDetails();
+
         HorizontalLayout actionBar = new HorizontalLayout(testRunButton, clearButton, formatButton);
 
         actionBar.setPadding(false);
@@ -196,10 +239,156 @@ public class JavascriptToolPlaygroundView extends VerticalLayout {
         actionBar.getStyle().set("gap", "var(--lumo-space-s)");
         actionBar.setWidthFull();
 
-        add(new H4("Tool Action"), staticVarsSection, new H5("JS Code Editor"), ace, actionBar, bottomContainer);
+        add(new H4("Tool Action"), sandboxSection, staticVarsSection, new H5("JS Code Editor"), ace, actionBar, bottomContainer);
         setFlexGrow(1, ace);
         setFlexGrow(1, bottomContainer);
         addDefaultStaticVariableForm();
+    }
+
+    private Details buildSandboxDetails() {
+        JsSandbox baseline = this.options.toolStudio() != null
+                ? this.options.toolStudio().jsSandbox() : null;
+        this.yamlBaselineAllow = baseline != null && baseline.allowClasses() != null
+                ? baseline.allowClasses() : Set.of();
+        this.yamlBaselineDeny = baseline != null && baseline.denyClasses() != null
+                ? baseline.denyClasses() : Set.of();
+
+        this.allowClassesField = chipListField("Allow Classes",
+                "Java APIs this tool can use. Removing tightens. Adding a new class can raise risk (L3+).",
+                this.yamlBaselineAllow);
+
+        this.denyClassesField = chipListField("Deny Classes",
+                "Always blocked. Removing reflection denies → L4. Removing System / Runtime / Process → L5.",
+                this.yamlBaselineDeny);
+
+        // Built-in fetch() only. Java HttpClient is gated by Allow Classes instead.
+        this.networkModeField = new RadioButtonGroup<>();
+        this.networkModeField.setLabel("Built-in fetch() egress");
+        this.networkModeField.setItems("blocked", "allowlist", "open");
+        this.networkModeField.setValue("blocked");
+        this.networkModeField.setHelperText(
+                "Built-in fetch() only. Java HttpClient is governed by Allow Classes. "
+                        + "blocked = no network · allowlist = listed hosts (L3) · open = any host (L4).");
+
+        this.hostsField = new MultiSelectComboBox<>("Allowed Hosts");
+        this.hostsField.setAllowCustomValue(true);
+        this.hostsField.setWidthFull();
+        this.hostsField.addCustomValueSetListener(e -> {
+            Set<String> next = new java.util.LinkedHashSet<>(this.hostsField.getValue());
+            next.add(e.getDetail().trim());
+            this.hostsField.setValue(next);
+        });
+
+        this.networkModeField.addValueChangeListener(e -> {
+            this.hostsField.setVisible("allowlist".equals(e.getValue()));
+            updatePostureBadge();
+        });
+        this.hostsField.addValueChangeListener(e -> updatePostureBadge());
+        this.allowClassesField.addValueChangeListener(e -> updatePostureBadge());
+        this.denyClassesField.addValueChangeListener(e -> updatePostureBadge());
+        this.hostsField.setVisible(false);
+
+        VerticalLayout body = new VerticalLayout(
+                this.allowClassesField,
+                this.denyClassesField,
+                this.networkModeField,
+                this.hostsField);
+        body.setPadding(false);
+        body.setSpacing(true);
+        body.setWidthFull();
+
+        Span title = new Span("Sandbox & Capabilities");
+        title.getStyle().set("font-weight", "var(--lumo-font-weight-semibold)");
+
+        Span separator = new Span("·");
+        separator.getStyle()
+                .set("color", "var(--lumo-tertiary-text-color)")
+                .set("margin", "0 0.6em");
+
+        this.postureIcon = VaadinIcon.LOCK.create();
+        this.postureIcon.setSize("1.1em");
+
+        this.postureBadge = new Span();
+        this.postureBadge.getStyle().set("margin-inline-start", "0.35em");
+
+        HorizontalLayout summary = new HorizontalLayout(title, separator, this.postureIcon, this.postureBadge);
+        summary.setAlignItems(HorizontalLayout.Alignment.CENTER);
+        summary.setSpacing(false);
+
+        updatePostureBadge();  // initial paint
+
+        Details details = new Details(summary, body);
+        details.setOpened(false);  // collapsed by default — posture visible from header alone
+        details.setWidthFull();
+        return details;
+    }
+
+    private static MultiSelectComboBox<String> chipListField(String label, String helper, Set<String> baseline) {
+        MultiSelectComboBox<String> field = new MultiSelectComboBox<>(label);
+        field.setHelperText(helper);
+        field.setWidthFull();
+        field.setAllowCustomValue(true);
+
+        ChipListBinding binding = new ChipListBinding(baseline);
+        field.setItems(binding.items());
+        field.setValue(binding.selected());
+
+        field.addCustomValueSetListener(e -> {
+            if (binding.add(e.getDetail())) {
+                field.setItems(binding.items());
+                field.setValue(binding.selected());
+            }
+        });
+        field.addValueChangeListener(e -> binding.replaceSelected(e.getValue()));
+        return field;
+    }
+
+    private void updatePostureBadge() {
+        if (this.postureBadge == null) return;
+        RiskLevel level = computeRisk();
+        this.postureBadge.setText(postureLabel(level) + "  " + level.name());
+        String theme = switch (level) {
+            case L0, L1 -> "badge success primary small";
+            case L2     -> "badge contrast small";
+            case L3     -> "badge contrast primary small";
+            case L4     -> "badge warning primary small";
+            case L5     -> "badge error primary small";
+        };
+        this.postureBadge.getElement().setAttribute("theme", theme);
+        VaadinIcon iconKind = switch (level) {
+            case L0, L1, L2 -> VaadinIcon.LOCK;
+            case L3         -> VaadinIcon.SHIELD;
+            case L4         -> VaadinIcon.UNLOCK;
+            case L5         -> VaadinIcon.WARNING;
+        };
+        String iconColour = switch (level) {
+            case L0, L1 -> "var(--lumo-success-color)";
+            case L2, L3 -> "var(--lumo-primary-color)";
+            case L4     -> "#f0a500";
+            case L5     -> "var(--lumo-error-color)";
+        };
+        this.postureIcon.getElement().setAttribute("icon", "vaadin:" + iconKind.name().toLowerCase().replace('_', '-'));
+        this.postureIcon.getStyle().set("color", iconColour);
+    }
+
+    private RiskLevel computeRisk() {
+        String mode = this.networkModeField == null ? "blocked" : this.networkModeField.getValue();
+        Set<String> hosts = this.hostsField == null ? Set.of() : this.hostsField.getValue();
+        Set<String> userDeny = this.denyClassesField == null ? Set.of() : this.denyClassesField.getValue();
+        Set<String> userAllow = this.allowClassesField == null ? Set.of() : this.allowClassesField.getValue();
+        return this.postureCalculator.compute(
+                new Inputs(mode, hosts, this.yamlBaselineDeny, userDeny, this.yamlBaselineAllow, userAllow));
+    }
+
+    private static String postureLabel(RiskLevel level) {
+        return switch (level) {
+            case L0 -> "Locked";
+            case L1 -> "Locked + clock";
+            case L2 -> "Workspace";
+            case L3 -> "Network allowlist";
+            case L4 -> "Open network";
+            case L5 -> "Side effects";
+        };
     }
 
     private void addDefaultStaticVariableForm() {
@@ -246,6 +435,24 @@ public class JavascriptToolPlaygroundView extends VerticalLayout {
             String key = staticVariableForm.getKey().trim();
             return !key.isBlank() ? Map.entry(key, staticVariableForm.getValue()) : null;
         }).filter(Objects::nonNull).toList();
+    }
+
+    public ToolSpec.SandboxOverrides currentSandboxOverrides() {
+        Set<String> userAllow = this.allowClassesField == null ? Set.of() : this.allowClassesField.getValue();
+        Set<String> userDeny = this.denyClassesField == null ? Set.of() : this.denyClassesField.getValue();
+        Set<String> addAllow = diff(userAllow, this.yamlBaselineAllow);
+        Set<String> removeAllow = diff(this.yamlBaselineAllow, userAllow);
+        Set<String> addDeny = diff(userDeny, this.yamlBaselineDeny);
+        Set<String> removeDeny = diff(this.yamlBaselineDeny, userDeny);
+        String networkMode = this.networkModeField == null ? null : this.networkModeField.getValue();
+        Set<String> hosts = this.hostsField == null ? Set.of() : this.hostsField.getValue();
+        return new ToolSpec.SandboxOverrides(addAllow, removeAllow, addDeny, removeDeny, networkMode, hosts);
+    }
+
+    private static Set<String> diff(Set<String> a, Set<String> b) {
+        Set<String> out = new java.util.LinkedHashSet<>(a == null ? Set.of() : a);
+        if (b != null) out.removeAll(b);
+        return out;
     }
 
     private void formatCodeWithPrettier() {
@@ -312,6 +519,7 @@ public class JavascriptToolPlaygroundView extends VerticalLayout {
     private boolean runTestJavascript() {
         this.testRunButton.setEnabled(false);
         consoleTextArea.clear();
+        this.consoleStatusRow.setVisible(false);
         long start = System.currentTimeMillis();
 
         try {
@@ -320,11 +528,15 @@ public class JavascriptToolPlaygroundView extends VerticalLayout {
                 toolParams.put(spec.name(), convertValueForType(spec.testValue(), spec.type()));
             }
             JsExecutionResult jsExecutionResult =
-                    toolSpecService.executeTool("", getStaticVariables(), getCurrentJsCode(), toolParams);
+                    toolSpecService.executeTool("", getStaticVariables(), getCurrentJsCode(),
+                            toolParams, currentSandboxOverrides());
             VaadinUtils.getUi(this).access(() -> {
                 long end = System.currentTimeMillis();
-                String formattedResult = buildResultString(start, end, jsExecutionResult);
-                consoleTextArea.setValue(formattedResult);
+                consoleTextArea.setValue(buildResultString(jsExecutionResult));
+                updateConsoleStatusRow(jsExecutionResult.isOk(), start, end);
+                if (!jsExecutionResult.isOk()) {
+                    VaadinUtils.showErrorNotification("Error Details:\n" + jsExecutionResult.error());
+                }
             });
             return jsExecutionResult.isOk();
         } catch (Exception ex) {
@@ -335,24 +547,25 @@ public class JavascriptToolPlaygroundView extends VerticalLayout {
         }
     }
 
-    private String buildResultString(long start, long end, JsExecutionResult result) {
+    private static String buildResultString(JsExecutionResult result) {
         StringBuilder sb = new StringBuilder();
-        sb.append(result.debugInfo()).append("\n\n");
-        sb.append("Status: ").append(result.isOk() ? "Success" : "Error").append("\n");
-        sb.append("----------------------------------------\n");
-        sb.append("Start Time:    ").append(formatTs(start)).append("\n");
-        sb.append("End Time:      ").append(formatTs(end)).append("\n");
-        sb.append("Elapsed Time:  ").append(formatDuration(end - start)).append("\n");
-        sb.append("----------------------------------------\n\n");
-
+        sb.append(result.debugInfo()).append("\n");
         if (result.isOk()) {
-            sb.append("Result:\n").append(result.result());
+            sb.append("\nResult:\n").append(result.result());
         } else {
-            String errorMessage = "Error Details:\n" + result.error();
-            sb.append(errorMessage);
-            VaadinUtils.getUi(this).access(() -> VaadinUtils.showErrorNotification(errorMessage));
+            sb.append("\nError Details:\n").append(result.error());
         }
         return sb.toString();
+    }
+
+    private void updateConsoleStatusRow(boolean ok, long startMs, long endMs) {
+        this.consoleStatusBadge.setText(ok ? "✓ Success" : "✗ Error");
+        this.consoleStatusBadge.getElement().setAttribute(
+                "theme", ok ? "badge success pill small" : "badge error pill small");
+        this.consoleTimingBadge.setText(formatDuration(endMs - startMs));
+        this.consoleTimingBadge.getElement().setAttribute("title",
+                "Started " + formatTs(startMs) + "  →  ended " + formatTs(endMs));
+        this.consoleStatusRow.setVisible(true);
     }
 
     private String formatTs(long ts) {

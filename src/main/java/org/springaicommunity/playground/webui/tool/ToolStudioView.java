@@ -30,8 +30,12 @@ import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.auth.AnonymousAllowed;
 import com.vaadin.flow.spring.annotation.SpringComponent;
 import com.vaadin.flow.spring.annotation.UIScope;
+import org.springaicommunity.playground.SpringAiPlaygroundOptions;
 import org.springaicommunity.playground.service.tool.ToolSpec;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
+import org.springaicommunity.playground.service.tool.catalog.ToolCategoryCatalog;
+import org.springaicommunity.playground.service.tool.policy.SandboxPostureCalculator;
+import org.springaicommunity.playground.service.tool.state.ToolActivationCalculator;
 import org.springaicommunity.playground.webui.PersistentUiDataStorage;
 import org.springaicommunity.playground.webui.SpringAiPlaygroundAppLayout;
 import org.springaicommunity.playground.webui.VaadinUtils;
@@ -56,6 +60,9 @@ public class ToolStudioView extends ContentWorkspaceView {
     public static final String TOOL_EMPTY_EVENT = "TOOL_EMPTY_EVENT";
 
     private final ToolSpecService toolSpecService;
+    private final ToolCategoryCatalog toolCategoryCatalog;
+    private final SpringAiPlaygroundOptions playgroundOptions;
+    private final SandboxPostureCalculator sandboxPostureCalculator;
     private final ObjectMapper objectMapper;
     private final PropertyChangeSupport toolChangeSupport;
     private final ToolListView toolListView;
@@ -65,12 +72,18 @@ public class ToolStudioView extends ContentWorkspaceView {
     private ToolBuilderView toolBuilderView;
 
     public ToolStudioView(PersistentUiDataStorage persistentUiDataStorage, ObjectMapper objectMapper,
-            ToolSpecService toolSpecService) {
+            ToolSpecService toolSpecService, ToolCategoryCatalog toolCategoryCatalog,
+            ToolActivationCalculator toolActivationCalculator, SpringAiPlaygroundOptions playgroundOptions,
+            SandboxPostureCalculator sandboxPostureCalculator) {
         this.toolSpecService = toolSpecService;
+        this.toolCategoryCatalog = toolCategoryCatalog;
+        this.playgroundOptions = playgroundOptions;
+        this.sandboxPostureCalculator = sandboxPostureCalculator;
         this.objectMapper = objectMapper;
         this.toolChangeSupport = new PropertyChangeSupport(this);
 
-        this.toolListView = new ToolListView(persistentUiDataStorage, toolSpecService, toolChangeSupport);
+        this.toolListView = new ToolListView(persistentUiDataStorage, toolSpecService, toolCategoryCatalog,
+                toolActivationCalculator, toolChangeSupport);
         toolChangeSupport.addPropertyChangeListener(TOOL_SELECT_EVENT,
                 event -> Optional.ofNullable(event.getNewValue()).map(value -> (ToolSpec) value)
                         .ifPresent(this::changeToolContent));
@@ -80,6 +93,7 @@ public class ToolStudioView extends ContentWorkspaceView {
             if ((boolean) event.getNewValue()) {displayNewToolDesignView();}
         });
 
+        setSidebarSplitterPosition(20);
         configureSidebar(this.toolListView, "Tools");
 
         Button newToolButton = styledButton("New Tool", VaadinIcon.TOOLS.create(),
@@ -118,11 +132,12 @@ public class ToolStudioView extends ContentWorkspaceView {
 
     private void changeToolContent(ToolSpec toolSpec) {
         if (Objects.isNull(toolSpec)) {
-            this.toolBuilderView = new ToolBuilderView(null, this.toolChangeSupport, toolSpecService, objectMapper);
+            this.toolBuilderView = new ToolBuilderView(null, this.toolChangeSupport, toolSpecService,
+                    toolCategoryCatalog, playgroundOptions, sandboxPostureCalculator, objectMapper);
             this.toolListView.clearSelectTool();
         } else {
-            this.toolBuilderView =
-                    new ToolBuilderView(toolSpec, toolChangeSupport, toolSpecService, objectMapper);
+            this.toolBuilderView = new ToolBuilderView(toolSpec, toolChangeSupport, toolSpecService,
+                    toolCategoryCatalog, playgroundOptions, sandboxPostureCalculator, objectMapper);
             if (Objects.isNull(toolSpec.toolId())) {
                 this.toolListView.clearSelectTool();
             }
