@@ -15,16 +15,21 @@
  */
 package org.springaicommunity.playground.service.tool;
 
+import com.sun.net.httpserver.HttpServer;
 import org.springaicommunity.playground.service.tool.JsToolExecutor.JsExecutionParams;
 import org.springaicommunity.playground.service.tool.JsToolExecutor.JsExecutionResult;
+import org.springaicommunity.playground.service.tool.policy.EffectivePolicyResolver.EffectivePolicy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Set;
 
 import static org.springaicommunity.playground.SpringAiPlaygroundOptions.JsSandbox;
+import static org.springaicommunity.playground.SpringAiPlaygroundOptions.NetworkPolicy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -432,6 +437,109 @@ public class JsToolExecutorTest {
 
         assertTrue(result.isOk());
         assertNotNull(result.result());
+    }
+
+    @Test
+    void testFetchUndefinedWhenNoNetworkIo() {
+        JsToolExecutor exec = new JsToolExecutor(30L, new JsSandbox(false, false, false, false, 50_000L,
+                STANDARD_DENY, Set.of(), Map.of()));
+        String code = "return typeof fetch;";
+        JsExecutionResult result = exec.execute(new JsExecutionParams(Map.of(), code));
+        assertTrue(result.isOk());
+        assertEquals("undefined", result.result());
+    }
+
+    @Test
+    void testFetchUndefinedWhenNetworkBlockedByPolicy() {
+        EffectivePolicy policy = new EffectivePolicy(Set.of(), Set.of(), true, false, false, false,
+                500_000L, 30L, true, new NetworkPolicy("blocked", Set.of(), Set.of()), null, null);
+        JsExecutionResult result = executor.execute(
+                new JsExecutionParams(Map.of(), "return typeof fetch;"), policy);
+        assertTrue(result.isOk());
+        assertEquals("undefined", result.result());
+    }
+
+    @Test
+    void testFetchStrictBlocksLiteralIp() {
+        String code = """
+                try {
+                    await fetch('http://127.0.0.1/');
+                    return 'no-throw';
+                } catch (e) {
+                    return String(e.message || e);
+                }
+                """;
+        JsExecutionResult result = executor.execute(new JsExecutionParams(Map.of(), code));
+        assertTrue(result.isOk());
+        String message = (String) result.result();
+        assertTrue("expected denied marker in: " + message, message.contains("denied"));
+    }
+
+    @Test
+    void testFetchReturnsResponseShape() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/data", exchange -> {
+            byte[] body = "{\"name\":\"alice\",\"age\":30}".getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.start();
+        try {
+            String baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
+            EffectivePolicy policy = new EffectivePolicy(Set.of(), Set.of(), true, false, false, false,
+                    500_000L, 30L, true, new NetworkPolicy("permissive", Set.of(), Set.of()), null, null);
+            String code = ("""
+                    const r = await fetch('%s/data');
+                    const data = await r.json();
+                    return { status: r.status, ok: r.ok, name: data.name, age: data.age,
+                             contentType: r.contentType, header: r.headers.get('Content-Type') };
+                    """).formatted(baseUrl);
+            JsExecutionResult result = executor.execute(new JsExecutionParams(Map.of(), code), policy);
+            assertTrue(result.error(), result.isOk());
+            @SuppressWarnings("unchecked")
+            Map<String, Object> m = (Map<String, Object>) result.result();
+            assertEquals(200, ((Number) m.get("status")).intValue());
+            assertEquals(true, m.get("ok"));
+            assertEquals("alice", m.get("name"));
+            assertEquals(30, ((Number) m.get("age")).intValue());
+            assertEquals("application/json", m.get("contentType"));
+            assertEquals("application/json", m.get("header"));
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void testFetchPaginationTruncates() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/big", exchange -> {
+            byte[] body = "0123456789".getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "text/plain");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.start();
+        try {
+            String baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
+            EffectivePolicy policy = new EffectivePolicy(Set.of(), Set.of(), true, false, false, false,
+                    500_000L, 30L, true, new NetworkPolicy("permissive", Set.of(), Set.of()), null, null);
+            String code = ("""
+                    const r = await fetch('%s/big', { maxLength: 4 });
+                    return { text: await r.text(), truncated: r.truncated, next: r.nextStartIndex };
+                    """).formatted(baseUrl);
+            JsExecutionResult result = executor.execute(new JsExecutionParams(Map.of(), code), policy);
+            assertTrue(result.error(), result.isOk());
+            @SuppressWarnings("unchecked")
+            Map<String, Object> m = (Map<String, Object>) result.result();
+            assertEquals("0123", m.get("text"));
+            assertEquals(true, m.get("truncated"));
+            assertEquals(4, ((Number) m.get("next")).intValue());
+        } finally {
+            server.stop(0);
+        }
     }
 
 }
