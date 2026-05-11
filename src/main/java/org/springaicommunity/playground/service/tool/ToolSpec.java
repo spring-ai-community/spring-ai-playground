@@ -21,6 +21,7 @@ import org.springframework.ai.tool.ToolCallback;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
 public class ToolSpec {
@@ -56,6 +57,14 @@ public class ToolSpec {
         Javascript
     }
 
+    public record SandboxOverrides(Set<String> addAllowClasses, Set<String> removeAllowClasses,
+                                   Set<String> addDenyClasses, Set<String> removeDenyClasses,
+                                   String networkMode, Set<String> hostsAllow) {
+        public static SandboxOverrides empty() {
+            return new SandboxOverrides(Set.of(), Set.of(), Set.of(), Set.of(), null, Set.of());
+        }
+    }
+
     private String toolId;
     private String name;
     private String description;
@@ -63,6 +72,9 @@ public class ToolSpec {
     private List<ToolParamSpec> params;
     private String code;
     private CodeType codeType;
+    private String category;
+    private Set<String> tags;
+    private SandboxOverrides sandboxOverrides;
 
     @JsonIgnore
     private ToolCallback toolCallback;
@@ -124,6 +136,33 @@ public class ToolSpec {
 
     public long updateTimestamp() {
         return updateTimestamp;
+    }
+
+    public String category() {
+        return category;
+    }
+
+    public Set<String> tags() {
+        return tags == null ? Set.of() : tags;
+    }
+
+    public SandboxOverrides sandboxOverrides() {
+        return sandboxOverrides == null ? SandboxOverrides.empty() : sandboxOverrides;
+    }
+
+    public ToolSpec withCategory(String category) {
+        this.category = category;
+        return this;
+    }
+
+    public ToolSpec withTags(Set<String> tags) {
+        this.tags = tags;
+        return this;
+    }
+
+    public ToolSpec withSandboxOverrides(SandboxOverrides overrides) {
+        this.sandboxOverrides = overrides;
+        return this;
     }
 
 }

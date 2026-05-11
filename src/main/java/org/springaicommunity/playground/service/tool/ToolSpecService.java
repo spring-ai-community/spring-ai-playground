@@ -23,8 +23,13 @@ import io.modelcontextprotocol.server.McpSyncServer;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
+import org.springaicommunity.playground.SpringAiPlaygroundOptions.JsSandbox;
+import org.springaicommunity.playground.SpringAiPlaygroundOptions.NetworkPolicy;
 import org.springaicommunity.playground.service.tool.JsToolExecutor.JsExecutionParams;
 import org.springaicommunity.playground.service.tool.JsToolExecutor.JsExecutionResult;
+import org.springaicommunity.playground.service.tool.policy.EffectivePolicyResolver;
+import org.springaicommunity.playground.service.tool.policy.EffectivePolicyResolver.EffectivePolicy;
+import org.springaicommunity.playground.service.tool.policy.EffectivePolicyResolver.Overrides;
 import org.springaicommunity.playground.service.tool.ToolSpec.ToolParamSpec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -64,6 +69,8 @@ public class ToolSpecService {
     private final ObjectProvider<ToolSpecPersistenceService> toolSpecPersistenceServiceProvider;
     private final Map<String, ToolSpec> toolIdSpecs;
     private final JsToolExecutor jsToolExecutor;
+    private final JsSandbox sandboxBaseline;
+    private final EffectivePolicyResolver policyResolver;
     private final ThreadLocal<Boolean> skipPersist = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
     private ToolMcpServerSetting toolMcpServerSetting;
@@ -71,15 +78,18 @@ public class ToolSpecService {
     public ToolSpecService(ObjectProvider<McpSyncServer> syncServerProvider,
             ObjectProvider<McpAsyncServer> asyncServerProvider, McpServerInfoService mcpServerInfoService,
             ObjectProvider<ToolSpecPersistenceService> toolSpecPersistenceServiceProvider,
-            SpringAiPlaygroundOptions playgroundOptions) throws ClassNotFoundException {
+            SpringAiPlaygroundOptions playgroundOptions, EffectivePolicyResolver policyResolver)
+            throws ClassNotFoundException {
         this.mcpSyncServer = syncServerProvider.getIfAvailable();
         this.mcpAsyncServer = asyncServerProvider.getIfAvailable();
         this.mcpServerInfoService = mcpServerInfoService;
         this.toolSpecPersistenceServiceProvider = toolSpecPersistenceServiceProvider;
         this.toolMcpServerSetting = new ToolMcpServerSetting(true, Set.of());
         this.toolIdSpecs = new ConcurrentHashMap<>();
+        this.sandboxBaseline = playgroundOptions.toolStudio().jsSandbox();
+        this.policyResolver = policyResolver;
         this.jsToolExecutor = new JsToolExecutor(playgroundOptions.toolStudio().timeoutSeconds(),
-                playgroundOptions.toolStudio().jsSandbox());
+                this.sandboxBaseline);
     }
 
     public void loadAll(Runnable loadAction) {
@@ -102,8 +112,12 @@ public class ToolSpecService {
     }
 
     public ToolSpec update(ToolSpec toolSpec) {
-        return update(toolSpec.toolId(), toolSpec.name(), toolSpec.description(), toolSpec.staticVariables(),
-                toolSpec.params(), toolSpec.code(), toolSpec.codeType());
+        ToolSpec result = update(toolSpec.toolId(), toolSpec.name(), toolSpec.description(),
+                toolSpec.staticVariables(), toolSpec.params(), toolSpec.code(), toolSpec.codeType());
+        result.withCategory(toolSpec.category())
+                .withTags(toolSpec.tags())
+                .withSandboxOverrides(toolSpec.sandboxOverrides());
+        return result;
     }
 
     public ToolSpec update(String toolId, String toolName, String toolDescription,
@@ -126,8 +140,11 @@ public class ToolSpecService {
     private ToolSpec update(String toolId, String toolName, String toolDescription,
             List<Map.Entry<String, String>> staticVariables, List<ToolParamSpec> toolParamSpecs, String jsCode,
             ToolSpec.CodeType codeType, ToolSpec toolSpec) {
-        Function<Map<String, Object>, Object> executor = toolParams -> executeTool(toolName, staticVariables,
-                jsCode, toolParams).result();
+        Function<Map<String, Object>, Object> executor = toolParams -> {
+            ToolSpec current = this.toolIdSpecs.get(toolId);
+            ToolSpec.SandboxOverrides overrides = current == null ? null : current.sandboxOverrides();
+            return executeTool(toolName, staticVariables, jsCode, toolParams, overrides).result();
+        };
         ToolSpec newToolSpec =
                 new ToolSpec(toolId, toolName, toolDescription, staticVariables, toolParamSpecs, jsCode, codeType,
                         FunctionToolCallback.builder(toolName, executor).description(toolDescription)
@@ -198,14 +215,40 @@ public class ToolSpecService {
 
     public JsExecutionResult executeTool(String toolName, List<Map.Entry<String, String>> staticVariables,
             String jsCode, Map<String, Object> toolParams) {
+        return executeTool(toolName, staticVariables, jsCode, toolParams, null);
+    }
+
+    public JsExecutionResult executeTool(String toolName, List<Map.Entry<String, String>> staticVariables,
+            String jsCode, Map<String, Object> toolParams, ToolSpec.SandboxOverrides sandboxOverrides) {
         Map<String, Object> mergeParams = new HashMap<>(toolParams);
         staticVariables.forEach(entry -> mergeParams.put(entry.getKey(), entry.getValue()));
         JsExecutionParams jsExecutionParams = new JsExecutionParams(mergeParams, jsCode);
-        JsExecutionResult jsExecutionResult = this.jsToolExecutor.execute(jsExecutionParams);
+        EffectivePolicy policy = this.policyResolver.resolve(this.sandboxBaseline, null,
+                toResolverOverrides(sandboxOverrides));
+        JsExecutionResult jsExecutionResult = this.jsToolExecutor.execute(jsExecutionParams, policy);
         logger.info("Executing tool: {}, jsExecutionParams: {}, isOk: {}", toolName, jsExecutionParams.params(),
                 jsExecutionResult.isOk());
         logger.debug("Executing tool Result: {}", jsExecutionResult);
         return jsExecutionResult;
+    }
+
+    private static Overrides toResolverOverrides(ToolSpec.SandboxOverrides spec) {
+        if (spec == null) return Overrides.empty();
+        return new Overrides(spec.addAllowClasses(), spec.removeAllowClasses(),
+                spec.addDenyClasses(), spec.removeDenyClasses(),
+                mapNetworkPolicy(spec.networkMode(), spec.hostsAllow()));
+    }
+
+    private static NetworkPolicy mapNetworkPolicy(String mode, Set<String> hostsAllow) {
+        if (mode == null || mode.isBlank()) return null;
+        String egress = switch (mode.toLowerCase()) {
+            case "blocked" -> "blocked";
+            case "allowlist" -> "allowlist";
+            case "open" -> "permissive";
+            default -> null;
+        };
+        if (egress == null) return null;
+        return new NetworkPolicy(egress, hostsAllow == null ? Set.of() : hostsAllow, Set.of());
     }
 
     public List<ToolSpec> getToolSpecList() {
