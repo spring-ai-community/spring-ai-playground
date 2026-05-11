@@ -20,6 +20,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @ConfigurationProperties(prefix = "spring.ai.playground")
@@ -30,7 +31,14 @@ public record SpringAiPlaygroundOptions(@NestedConfigurationProperty ToolStudio 
 
     public record JsSandbox(boolean allowNetworkIo, boolean allowFileIo, boolean allowNativeAccess,
                             boolean allowCreateThread, Long maxStatements, Set<String> denyClasses,
-                            Set<String> allowClasses) {}
+                            Set<String> allowClasses, Map<String, SandboxProfile> profiles) {}
+
+    public record SandboxProfile(String level, String extendsProfile, Boolean javaInterop,
+                                 Set<String> allowClasses, Set<String> denyClasses,
+                                 @NestedConfigurationProperty NetworkPolicy network,
+                                 Long maxStatements, Long timeoutMs) {}
+
+    public record NetworkPolicy(String egressLevel, Set<String> hostsAllow, Set<String> hostsDeny) {}
 
     public record Chat(String systemPrompt, List<String> models,
                        @NestedConfigurationProperty DefaultChatOptions chatOptions) {}
