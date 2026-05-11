@@ -18,6 +18,7 @@ package org.springaicommunity.playground.service.tool;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions.JsSandbox;
 import org.springaicommunity.playground.service.tool.policy.EffectivePolicyResolver.EffectivePolicy;
+import org.springaicommunity.playground.service.tool.runtime.JsRuntimeGlobals;
 import org.springaicommunity.playground.service.util.EnvVarResolver;
 import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.Engine;
@@ -70,6 +71,8 @@ public class JsToolExecutor {
             .build();
 
     private static final HostAccess HOST_ACCESS = HostAccess.newBuilder().allowPublicAccess(true).build();
+
+    private static final Set<String> HOST_INJECTED_GLOBALS = JsRuntimeGlobals.INJECTED_NAMES;
 
     private final long timeoutSeconds;
     private final EffectivePolicy defaultPolicy;
@@ -146,6 +149,7 @@ public class JsToolExecutor {
 
                 logList.add("=== Execution Log ===");
                 installConsoleLog(bindings, logList, envSecretValues);
+                JsRuntimeGlobals.installAll(bindings, policy);
 
                 Value jsResultValue = awaitPromise(context.eval("js", jsCode));
                 Object jsResult = jsResultValue.isNull() ? "undefined" :
@@ -307,12 +311,14 @@ public class JsToolExecutor {
     }
 
     private Map<String, String> snapshotVariables(Value bindings) {
-        return bindings.getMemberKeys().stream().filter(key -> !key.equals("console")).collect(LinkedHashMap::new,
-                (m, key) -> {
-                    Value v = bindings.getMember(key);
-                    String s = (v == null) ? "null" : v.toString();
-                    m.put(key, s);
-                }, Map::putAll);
+        return bindings.getMemberKeys().stream()
+                .filter(key -> !HOST_INJECTED_GLOBALS.contains(key))
+                .collect(LinkedHashMap::new,
+                        (m, key) -> {
+                            Value v = bindings.getMember(key);
+                            String s = (v == null) ? "null" : v.toString();
+                            m.put(key, s);
+                        }, Map::putAll);
     }
 
     private void mergeStateLogs(List<String> log,
