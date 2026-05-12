@@ -31,15 +31,21 @@ import java.util.Set;
 public class EffectivePolicyResolver {
 
     public record EffectivePolicy(Set<String> allowClasses, Set<String> denyClasses, boolean allowNetworkIo,
-                                  boolean allowFileIo, boolean allowNativeAccess, boolean allowCreateThread,
-                                  long maxStatements, long timeoutSeconds, boolean javaInterop, NetworkPolicy network,
-                                  String profileName, String level) {}
+                                  boolean fileRead, boolean fileWrite, boolean allowNativeAccess,
+                                  boolean allowCreateThread, long maxStatements, long timeoutSeconds,
+                                  boolean javaInterop, NetworkPolicy network,
+                                  String profileName, String level) {
+        public boolean allowFileIo() {
+            return fileRead || fileWrite;
+        }
+    }
 
     public record Overrides(Set<String> addAllowClasses, Set<String> removeAllowClasses,
                             Set<String> addDenyClasses, Set<String> removeDenyClasses,
-                            NetworkPolicy networkOverride) {
+                            NetworkPolicy networkOverride, Boolean networkIoOverride,
+                            Boolean fileReadOverride, Boolean fileWriteOverride) {
         public static Overrides empty() {
-            return new Overrides(Set.of(), Set.of(), Set.of(), Set.of(), null);
+            return new Overrides(Set.of(), Set.of(), Set.of(), Set.of(), null, null, null, null);
         }
     }
 
@@ -55,7 +61,8 @@ public class EffectivePolicyResolver {
         Set<String> allow = new LinkedHashSet<>(sandbox.allowClasses() == null ? Set.of() : sandbox.allowClasses());
         Set<String> deny = new LinkedHashSet<>(sandbox.denyClasses() == null ? Set.of() : sandbox.denyClasses());
         boolean networkIo = sandbox.allowNetworkIo();
-        boolean fileIo = sandbox.allowFileIo();
+        boolean fileRead = sandbox.allowFileIo();
+        boolean fileWrite = sandbox.allowFileIo();
         boolean nativeAccess = sandbox.allowNativeAccess();
         boolean createThread = sandbox.allowCreateThread();
         long maxStatements = sandbox.maxStatements() == null ? 500_000L : sandbox.maxStatements();
@@ -70,6 +77,11 @@ public class EffectivePolicyResolver {
                 if (profile.denyClasses() != null) deny.addAll(profile.denyClasses());
                 if (profile.javaInterop() != null) javaInterop = profile.javaInterop();
                 if (profile.network() != null) network = profile.network();
+                if (profile.fileMode() != null) {
+                    String fm = profile.fileMode().toLowerCase();
+                    fileRead = !"off".equals(fm);
+                    fileWrite = "read+write".equals(fm) || "readwrite".equals(fm);
+                }
                 if (profile.level() != null) level = profile.level();
                 if (profile.maxStatements() != null) maxStatements = profile.maxStatements();
                 if (profile.timeoutMs() != null) timeoutSeconds = Math.max(1L, profile.timeoutMs() / 1000L);
@@ -82,6 +94,9 @@ public class EffectivePolicyResolver {
         if (safeOverrides.addDenyClasses() != null) deny.addAll(safeOverrides.addDenyClasses());
         if (safeOverrides.removeDenyClasses() != null) deny.removeAll(safeOverrides.removeDenyClasses());
         if (safeOverrides.networkOverride() != null) network = safeOverrides.networkOverride();
+        if (safeOverrides.networkIoOverride() != null) networkIo = safeOverrides.networkIoOverride();
+        if (safeOverrides.fileReadOverride() != null) fileRead = safeOverrides.fileReadOverride();
+        if (safeOverrides.fileWriteOverride() != null) fileWrite = safeOverrides.fileWriteOverride();
 
         Set<String> conflict = new HashSet<>(allow);
         conflict.retainAll(deny);
@@ -90,8 +105,9 @@ public class EffectivePolicyResolver {
                     "Sandbox policy conflict — allow-classes and deny-classes overlap: " + conflict);
         }
 
-        return new EffectivePolicy(Set.copyOf(allow), Set.copyOf(deny), networkIo, fileIo, nativeAccess,
-                createThread, maxStatements, timeoutSeconds, javaInterop, network, profileName, level);
+        return new EffectivePolicy(Set.copyOf(allow), Set.copyOf(deny), networkIo, fileRead, fileWrite,
+                nativeAccess, createThread, maxStatements, timeoutSeconds, javaInterop, network,
+                profileName, level);
     }
 
     private List<SandboxProfile> resolveProfileChain(JsSandbox sandbox, String leafName) {

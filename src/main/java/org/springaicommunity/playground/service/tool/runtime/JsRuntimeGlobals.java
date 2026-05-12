@@ -16,22 +16,36 @@
 package org.springaicommunity.playground.service.tool.runtime;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
+import org.apache.commons.csv.CSVRecord;
 import org.graalvm.polyglot.Value;
 import org.graalvm.polyglot.proxy.ProxyArray;
 import org.graalvm.polyglot.proxy.ProxyExecutable;
 import org.graalvm.polyglot.proxy.ProxyInstantiable;
 import org.graalvm.polyglot.proxy.ProxyObject;
+import org.jsoup.Jsoup;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions.NetworkPolicy;
 import org.springaicommunity.playground.service.tool.policy.EffectivePolicyResolver.EffectivePolicy;
-import org.springaicommunity.playground.service.tool.sandbox.SafeHttpFetch;
-import org.springaicommunity.playground.service.tool.sandbox.SafeHttpFetch.FetchResponse;
+import org.springaicommunity.playground.service.tool.runtime.SafeFs;
+import org.springaicommunity.playground.service.tool.runtime.SafeHttpFetch;
+import org.springaicommunity.playground.service.tool.runtime.SafeHttpFetch.FetchResponse;
+import org.w3c.dom.Element;
+import org.w3c.dom.NamedNodeMap;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.xml.sax.InputSource;
+import org.yaml.snakeyaml.Yaml;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import javax.xml.parsers.DocumentBuilderFactory;
+import java.io.StringReader;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
@@ -47,7 +61,7 @@ import java.util.UUID;
 public final class JsRuntimeGlobals {
 
     public static final Set<String> INJECTED_NAMES =
-            Set.of("console", "fetch", "URL", "URLSearchParams", "atob", "btoa", "crypto");
+            Set.of("console", "fetch", "URL", "URLSearchParams", "atob", "btoa", "crypto", "safety");
 
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
@@ -59,11 +73,267 @@ public final class JsRuntimeGlobals {
 
     private JsRuntimeGlobals() {}
 
-    public static void installAll(Value bindings, EffectivePolicy policy) {
+    public static void installAll(Value bindings, EffectivePolicy policy, Path fsBasePath) {
         installFetch(bindings, policy);
         installUrl(bindings);
         installBase64(bindings);
         installCrypto(bindings);
+        installSafety(bindings, policy, fsBasePath);
+    }
+
+    public static void installSafety(Value bindings, EffectivePolicy policy, Path fsBasePath) {
+        Map<String, Object> parser = new LinkedHashMap<>();
+        parser.put("html", (ProxyExecutable) JsRuntimeGlobals::parseHtml);
+        parser.put("yaml", (ProxyExecutable) JsRuntimeGlobals::parseYaml);
+        parser.put("csv", (ProxyExecutable) JsRuntimeGlobals::parseCsv);
+        parser.put("xml", (ProxyExecutable) JsRuntimeGlobals::parseXml);
+
+        Map<String, Object> safety = new LinkedHashMap<>();
+        safety.put("parser", ProxyObject.fromMap(parser));
+        if (policy != null && (policy.fileRead() || policy.fileWrite()) && fsBasePath != null) {
+            safety.put("fs", fsProxy(policy, fsBasePath));
+        }
+        bindings.putMember("safety", ProxyObject.fromMap(safety));
+    }
+
+    private static ProxyObject fsProxy(EffectivePolicy policy, Path base) {
+        Map<String, Object> fs = new LinkedHashMap<>();
+        if (policy.fileRead()) {
+            fs.put("readText", (ProxyExecutable) args -> {
+                try {
+                    return SafeFs.readText(base, args.length > 0 ? args[0].asString() : null);
+                } catch (java.io.IOException e) {
+                    throw new RuntimeException("safety.fs.readText: " + e.getMessage());
+                }
+            });
+            fs.put("list", (ProxyExecutable) args -> {
+                try {
+                    String dir = args.length > 0 && !args[0].isNull() ? args[0].asString() : ".";
+                    return ProxyArray.fromArray((Object[]) SafeFs.list(base, dir).toArray(new String[0]));
+                } catch (java.io.IOException e) {
+                    throw new RuntimeException("safety.fs.list: " + e.getMessage());
+                }
+            });
+            fs.put("exists", (ProxyExecutable) args ->
+                    SafeFs.exists(base, args.length > 0 ? args[0].asString() : null));
+            fs.put("stat", (ProxyExecutable) args -> {
+                try {
+                    SafeFs.FileStat s = SafeFs.stat(base, args.length > 0 ? args[0].asString() : null);
+                    Map<String, Object> out = new LinkedHashMap<>();
+                    out.put("size", s.size());
+                    out.put("mtime", s.mtime());
+                    out.put("directory", s.directory());
+                    return ProxyObject.fromMap(out);
+                } catch (java.io.IOException e) {
+                    throw new RuntimeException("safety.fs.stat: " + e.getMessage());
+                }
+            });
+            fs.put("grep", (ProxyExecutable) args -> {
+                if (args.length < 2) throw new RuntimeException("safety.fs.grep: requires pattern and path");
+                String pattern = args[0].asString();
+                String path = args[1].asString();
+                Value opts = args.length > 2 && !args[2].isNull() ? args[2] : null;
+                boolean caseInsensitive = opts != null && opts.hasMember("caseInsensitive")
+                        && opts.getMember("caseInsensitive").asBoolean();
+                int limit = opts != null && opts.hasMember("limit") && !opts.getMember("limit").isNull()
+                        ? opts.getMember("limit").asInt() : 0;
+                boolean numbered = opts != null && opts.hasMember("numbered")
+                        && opts.getMember("numbered").asBoolean();
+                try {
+                    return ProxyArray.fromArray((Object[]) SafeFs.grep(base, path, pattern, caseInsensitive,
+                            limit, numbered).toArray(new String[0]));
+                } catch (java.io.IOException e) {
+                    throw new RuntimeException("safety.fs.grep: " + e.getMessage());
+                }
+            });
+            fs.put("lineCount", (ProxyExecutable) args -> {
+                try {
+                    return SafeFs.lineCount(base, args.length > 0 ? args[0].asString() : null);
+                } catch (java.io.IOException e) {
+                    throw new RuntimeException("safety.fs.lineCount: " + e.getMessage());
+                }
+            });
+            fs.put("slice", (ProxyExecutable) args -> {
+                if (args.length < 1) throw new RuntimeException("safety.fs.slice: requires path");
+                String path = args[0].asString();
+                Integer start = args.length > 1 && !args[1].isNull() ? args[1].asInt() : null;
+                Integer end = args.length > 2 && !args[2].isNull() ? args[2].asInt() : null;
+                try {
+                    return ProxyArray.fromArray((Object[]) SafeFs.slice(base, path, start, end)
+                            .toArray(new String[0]));
+                } catch (java.io.IOException e) {
+                    throw new RuntimeException("safety.fs.slice: " + e.getMessage());
+                }
+            });
+            fs.put("cut", (ProxyExecutable) args -> {
+                if (args.length < 2) throw new RuntimeException("safety.fs.cut: requires path and opts");
+                String path = args[0].asString();
+                Value opts = args[1];
+                if (opts.isNull() || !opts.hasMember("fields")) {
+                    throw new RuntimeException("safety.fs.cut: opts.fields required");
+                }
+                Value fieldsVal = opts.getMember("fields");
+                if (!fieldsVal.hasArrayElements()) {
+                    throw new RuntimeException("safety.fs.cut: opts.fields must be an array");
+                }
+                java.util.List<Integer> fields = new java.util.ArrayList<>();
+                for (long i = 0; i < fieldsVal.getArraySize(); i++) {
+                    fields.add(fieldsVal.getArrayElement(i).asInt());
+                }
+                String delimiter = opts.hasMember("delimiter") && !opts.getMember("delimiter").isNull()
+                        ? opts.getMember("delimiter").asString() : null;
+                boolean regex = opts.hasMember("regex") && opts.getMember("regex").asBoolean();
+                try {
+                    return ProxyArray.fromArray((Object[]) SafeFs.cut(base, path, delimiter, fields, regex)
+                            .toArray(new String[0]));
+                } catch (java.io.IOException e) {
+                    throw new RuntimeException("safety.fs.cut: " + e.getMessage());
+                }
+            });
+            fs.put("sort", (ProxyExecutable) args -> {
+                if (args.length < 1) throw new RuntimeException("safety.fs.sort: requires path");
+                String path = args[0].asString();
+                Value opts = args.length > 1 && !args[1].isNull() ? args[1] : null;
+                boolean reverse = opts != null && opts.hasMember("reverse") && opts.getMember("reverse").asBoolean();
+                boolean numeric = opts != null && opts.hasMember("numeric") && opts.getMember("numeric").asBoolean();
+                boolean caseInsensitive = opts != null && opts.hasMember("caseInsensitive")
+                        && opts.getMember("caseInsensitive").asBoolean();
+                boolean unique = opts != null && opts.hasMember("unique") && opts.getMember("unique").asBoolean();
+                try {
+                    return ProxyArray.fromArray((Object[]) SafeFs.sort(base, path, reverse, numeric,
+                            caseInsensitive, unique).toArray(new String[0]));
+                } catch (java.io.IOException e) {
+                    throw new RuntimeException("safety.fs.sort: " + e.getMessage());
+                }
+            });
+            fs.put("find", (ProxyExecutable) args -> {
+                String dir = args.length > 0 && !args[0].isNull() ? args[0].asString() : ".";
+                String glob = args.length > 1 && !args[1].isNull() ? args[1].asString() : "*";
+                Value opts = args.length > 2 && !args[2].isNull() ? args[2] : null;
+                int maxDepth = opts != null && opts.hasMember("maxDepth") && !opts.getMember("maxDepth").isNull()
+                        ? opts.getMember("maxDepth").asInt() : 0;
+                String type = opts != null && opts.hasMember("type") && !opts.getMember("type").isNull()
+                        ? opts.getMember("type").asString() : null;
+                try {
+                    return ProxyArray.fromArray((Object[]) SafeFs.find(base, dir, glob, maxDepth, type)
+                            .toArray(new String[0]));
+                } catch (java.io.IOException e) {
+                    throw new RuntimeException("safety.fs.find: " + e.getMessage());
+                }
+            });
+        }
+        if (policy.fileWrite()) {
+            fs.put("writeText", (ProxyExecutable) args -> {
+                try {
+                    SafeFs.writeText(base,
+                            args.length > 0 ? args[0].asString() : null,
+                            args.length > 1 && !args[1].isNull() ? args[1].asString() : "");
+                    return null;
+                } catch (java.io.IOException e) {
+                    throw new RuntimeException("safety.fs.writeText: " + e.getMessage());
+                }
+            });
+        }
+        return ProxyObject.fromMap(fs);
+    }
+
+    private static Object parseHtml(Value[] args) {
+        if (args.length == 0 || args[0] == null || args[0].isNull()) {
+            throw new RuntimeException("safety.parser.html: missing input");
+        }
+        return Jsoup.parse(args[0].asString());
+    }
+
+    private static Object parseYaml(Value[] args) {
+        if (args.length == 0 || args[0] == null || args[0].isNull()) {
+            throw new RuntimeException("safety.parser.yaml: missing input");
+        }
+        try {
+            return jsonToProxy(new Yaml().load(args[0].asString()));
+        } catch (Exception e) {
+            throw new RuntimeException("safety.parser.yaml: " + e.getMessage());
+        }
+    }
+
+    private static Object parseCsv(Value[] args) {
+        if (args.length == 0 || args[0] == null || args[0].isNull()) {
+            throw new RuntimeException("safety.parser.csv: missing input");
+        }
+        String input = args[0].asString();
+        Value opts = args.length > 1 && args[1] != null && !args[1].isNull() ? args[1] : null;
+        boolean header = opts != null && opts.hasMember("header")
+                && !opts.getMember("header").isNull() && opts.getMember("header").asBoolean();
+        char delimiter = ',';
+        if (opts != null && opts.hasMember("delimiter") && !opts.getMember("delimiter").isNull()) {
+            String d = opts.getMember("delimiter").asString();
+            if (!d.isEmpty()) delimiter = d.charAt(0);
+        }
+        CSVFormat format = CSVFormat.DEFAULT.builder().setDelimiter(delimiter).get();
+        if (header) {
+            format = format.builder().setHeader().setSkipHeaderRecord(true).get();
+        }
+        try (CSVParser parser = CSVParser.parse(new StringReader(input), format)) {
+            List<Object> rows = new ArrayList<>();
+            for (CSVRecord record : parser) {
+                if (header) {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    record.toMap().forEach(row::put);
+                    rows.add(row);
+                } else {
+                    List<String> row = new ArrayList<>();
+                    record.forEach(row::add);
+                    rows.add(row);
+                }
+            }
+            return jsonToProxy(rows);
+        } catch (Exception e) {
+            throw new RuntimeException("safety.parser.csv: " + e.getMessage());
+        }
+    }
+
+    private static Object parseXml(Value[] args) {
+        if (args.length == 0 || args[0] == null || args[0].isNull()) {
+            throw new RuntimeException("safety.parser.xml: missing input");
+        }
+        String input = args[0].asString();
+        try {
+            DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+            dbf.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            dbf.setFeature("http://xml.org/sax/features/external-general-entities", false);
+            dbf.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+            dbf.setXIncludeAware(false);
+            dbf.setExpandEntityReferences(false);
+            org.w3c.dom.Document doc = dbf.newDocumentBuilder().parse(new InputSource(new StringReader(input)));
+            return xmlElementToProxy(doc.getDocumentElement());
+        } catch (Exception e) {
+            throw new RuntimeException("safety.parser.xml: " + e.getMessage());
+        }
+    }
+
+    private static Object xmlElementToProxy(Element elem) {
+        Map<String, Object> attrs = new LinkedHashMap<>();
+        NamedNodeMap attributes = elem.getAttributes();
+        for (int i = 0; i < attributes.getLength(); i++) {
+            Node attr = attributes.item(i);
+            attrs.put(attr.getNodeName(), attr.getNodeValue());
+        }
+        List<Object> children = new ArrayList<>();
+        StringBuilder text = new StringBuilder();
+        NodeList nodes = elem.getChildNodes();
+        for (int i = 0; i < nodes.getLength(); i++) {
+            Node n = nodes.item(i);
+            if (n.getNodeType() == Node.ELEMENT_NODE) {
+                children.add(xmlElementToProxy((Element) n));
+            } else if (n.getNodeType() == Node.TEXT_NODE || n.getNodeType() == Node.CDATA_SECTION_NODE) {
+                text.append(n.getNodeValue());
+            }
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("tag", elem.getTagName());
+        out.put("attrs", ProxyObject.fromMap(attrs));
+        out.put("text", text.toString().trim());
+        out.put("children", ProxyArray.fromArray(children.toArray()));
+        return ProxyObject.fromMap(out);
     }
 
     public static void installFetch(Value bindings, EffectivePolicy policy) {

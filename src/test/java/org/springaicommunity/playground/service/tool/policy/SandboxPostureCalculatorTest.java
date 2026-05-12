@@ -35,7 +35,7 @@ class SandboxPostureCalculatorTest {
     private final SandboxPostureCalculator calc = new SandboxPostureCalculator();
 
     private RiskLevel risk(String mode, Set<String> hosts, Set<String> userDeny, Set<String> userAllow) {
-        return calc.compute(new Inputs(mode, hosts, BASELINE_DENY, userDeny, BASELINE_ALLOW, userAllow));
+        return calc.compute(new Inputs(mode, hosts, false, false, BASELINE_DENY, userDeny, BASELINE_ALLOW, userAllow));
     }
 
     private RiskLevel risk(String mode, Set<String> userDeny, Set<String> userAllow) {
@@ -106,7 +106,7 @@ class SandboxPostureCalculatorTest {
     @Test
     void addingHarmlessAllowIsL3() {
         Set<String> userAllow = new java.util.HashSet<>(BASELINE_ALLOW);
-        userAllow.add("org.jsoup.*");
+        userAllow.add("java.text.NumberFormat");
         assertEquals(RiskLevel.L3, risk("blocked", BASELINE_DENY, userAllow));
     }
 
@@ -115,6 +115,48 @@ class SandboxPostureCalculatorTest {
         Set<String> userAllow = new java.util.HashSet<>(BASELINE_ALLOW);
         userAllow.add("java.lang.reflect.Method");
         assertEquals(RiskLevel.L4, risk("blocked", BASELINE_DENY, userAllow));
+    }
+
+    @Test
+    void addingNetworkAllowIsL4() {
+        Set<String> userAllow = new java.util.HashSet<>(BASELINE_ALLOW);
+        userAllow.add("java.net.Socket");
+        assertEquals(RiskLevel.L4, risk("blocked", BASELINE_DENY, userAllow));
+    }
+
+    @Test
+    void addingJsoupAllowIsL4() {
+        Set<String> userAllow = new java.util.HashSet<>(BASELINE_ALLOW);
+        userAllow.add("org.jsoup.Jsoup");
+        assertEquals(RiskLevel.L4, risk("blocked", BASELINE_DENY, userAllow));
+    }
+
+    @Test
+    void addingFileReadAllowIsL4() {
+        Set<String> userAllow = new java.util.HashSet<>(BASELINE_ALLOW);
+        userAllow.add("java.io.FileReader");
+        assertEquals(RiskLevel.L4, risk("blocked", BASELINE_DENY, userAllow));
+    }
+
+    @Test
+    void addingFileWriteAllowIsL5() {
+        Set<String> userAllow = new java.util.HashSet<>(BASELINE_ALLOW);
+        userAllow.add("java.io.FileWriter");
+        assertEquals(RiskLevel.L5, risk("blocked", BASELINE_DENY, userAllow));
+    }
+
+    @Test
+    void fsReadOnlyHelperIsL3() {
+        RiskLevel level = calc.compute(new Inputs("blocked", null, true, false,
+                BASELINE_DENY, BASELINE_DENY, BASELINE_ALLOW, BASELINE_ALLOW));
+        assertEquals(RiskLevel.L3, level);
+    }
+
+    @Test
+    void fsReadWriteHelperIsL4() {
+        RiskLevel level = calc.compute(new Inputs("blocked", null, true, true,
+                BASELINE_DENY, BASELINE_DENY, BASELINE_ALLOW, BASELINE_ALLOW));
+        assertEquals(RiskLevel.L4, level);
     }
 
     @Test
@@ -141,7 +183,7 @@ class SandboxPostureCalculatorTest {
 
     @Test
     void nullCollectionsTreatedAsEmpty() {
-        assertEquals(RiskLevel.L0, calc.compute(new Inputs("blocked", null, null, null, null, null)));
+        assertEquals(RiskLevel.L0, calc.compute(new Inputs("blocked", null, false, false, null, null, null, null)));
     }
 
     @Test

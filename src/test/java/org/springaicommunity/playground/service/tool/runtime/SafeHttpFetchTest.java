@@ -13,12 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.springaicommunity.playground.service.tool.sandbox;
+package org.springaicommunity.playground.service.tool.runtime;
 
 import com.sun.net.httpserver.HttpServer;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions.NetworkPolicy;
-import org.springaicommunity.playground.service.tool.sandbox.SafeHttpFetch.FetchPolicyException;
-import org.springaicommunity.playground.service.tool.sandbox.SafeHttpFetch.FetchResponse;
+import org.springaicommunity.playground.service.tool.runtime.SafeHttpFetch.FetchPolicyException;
+import org.springaicommunity.playground.service.tool.runtime.SafeHttpFetch.FetchResponse;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

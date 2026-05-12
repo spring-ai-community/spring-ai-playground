@@ -13,11 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.springaicommunity.playground.service.tool;
+package org.springaicommunity.playground.service.tool.runtime;
 
 import com.sun.net.httpserver.HttpServer;
-import org.springaicommunity.playground.service.tool.JsToolExecutor.JsExecutionParams;
-import org.springaicommunity.playground.service.tool.JsToolExecutor.JsExecutionResult;
+import org.springaicommunity.playground.service.tool.runtime.JsToolExecutor.JsExecutionParams;
+import org.springaicommunity.playground.service.tool.runtime.JsToolExecutor.JsExecutionResult;
 import org.springaicommunity.playground.service.tool.policy.EffectivePolicyResolver.EffectivePolicy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -49,7 +49,7 @@ public class JsToolExecutorTest {
                 STANDARD_DENY,
                 Set.of("java.lang.*", "java.math.*", "java.time.*", "java.util.*", "java.text.*", "java.net.*",
                         "java.io.*", "org.jsoup.*"),
-                Map.of()));
+                Map.of()), null);
     }
 
     @Test
@@ -233,7 +233,7 @@ public class JsToolExecutorTest {
         System.setProperty(PROP_NAME, PROP_VALUE);
 
         try {
-            JsToolExecutor executor = new JsToolExecutor(5L, null);
+            JsToolExecutor executor = new JsToolExecutor(5L, null, null);
 
             String jsCode = """
                     return apiKey;
@@ -267,7 +267,7 @@ public class JsToolExecutorTest {
 
     @Test
     void nonEnvPattern_shouldBeUsedAsLiteralValue() throws ClassNotFoundException {
-        JsToolExecutor executor = new JsToolExecutor(5L, null);
+        JsToolExecutor executor = new JsToolExecutor(5L, null, null);
 
         String literal = "${not_uppercase}";
         String jsCode = "return value;";
@@ -332,7 +332,7 @@ public class JsToolExecutorTest {
         System.setProperty(PROP_NAME, PROP_VALUE);
 
         try {
-            JsToolExecutor executor = new JsToolExecutor(5L, null);
+            JsToolExecutor executor = new JsToolExecutor(5L, null, null);
 
             String jsCode = "console.log('value is', apiKey); return 'ok';";
             Map<String, Object> params = Map.of("apiKey", "${" + PROP_NAME + "}");
@@ -378,7 +378,7 @@ public class JsToolExecutorTest {
 
         try {
             // No flag — masking is always-on (symmetric with state log + console.log).
-            JsToolExecutor executor = new JsToolExecutor(5L, null);
+            JsToolExecutor executor = new JsToolExecutor(5L, null, null);
             String jsCode = "return apiKey;";
             Map<String, Object> params = Map.of("apiKey", "${" + PROP_NAME + "}");
 
@@ -442,7 +442,7 @@ public class JsToolExecutorTest {
     @Test
     void testFetchUndefinedWhenNoNetworkIo() {
         JsToolExecutor exec = new JsToolExecutor(30L, new JsSandbox(false, false, false, false, 50_000L,
-                STANDARD_DENY, Set.of(), Map.of()));
+                STANDARD_DENY, Set.of(), Map.of()), null);
         String code = "return typeof fetch;";
         JsExecutionResult result = exec.execute(new JsExecutionParams(Map.of(), code));
         assertTrue(result.isOk());
@@ -450,8 +450,49 @@ public class JsToolExecutorTest {
     }
 
     @Test
+    void testFileModeOffHidesFsNamespace() {
+        EffectivePolicy policy = new EffectivePolicy(Set.of(), Set.of(), false, false, false, false, false,
+                500_000L, 30L, true, null, null, null);
+        JsExecutionResult result = executor.execute(
+                new JsExecutionParams(Map.of(), "return typeof safety.fs;"), policy);
+        assertTrue(result.isOk());
+        assertEquals("undefined", result.result());
+    }
+
+    @Test
+    void testFileModeReadOnlyOmitsWriteText() {
+        EffectivePolicy policy = new EffectivePolicy(Set.of(), Set.of(), false, true, false, false, false,
+                500_000L, 30L, true, null, null, null);
+        String code = "return typeof safety.fs.readText + ':' + typeof safety.fs.writeText;";
+        JsExecutionResult result = executor.execute(new JsExecutionParams(Map.of(), code), policy);
+        assertTrue(result.isOk());
+        assertEquals("function:undefined", result.result());
+    }
+
+    @Test
+    void testFileModeReadWriteInjectsAll() {
+        EffectivePolicy policy = new EffectivePolicy(Set.of(), Set.of(), false, true, true, false, false,
+                500_000L, 30L, true, null, null, null);
+        String code = "return typeof safety.fs.readText + ':' + typeof safety.fs.writeText "
+                + "+ ':' + typeof safety.fs.grep + ':' + typeof safety.fs.cut;";
+        JsExecutionResult result = executor.execute(new JsExecutionParams(Map.of(), code), policy);
+        assertTrue(result.isOk());
+        assertEquals("function:function:function:function", result.result());
+    }
+
+    @Test
+    void testParserAvailableEvenWhenFsOff() {
+        EffectivePolicy policy = new EffectivePolicy(Set.of(), Set.of(), false, false, false, false, false,
+                500_000L, 30L, true, null, null, null);
+        String code = "return typeof safety.parser.html + ':' + typeof safety.parser.yaml;";
+        JsExecutionResult result = executor.execute(new JsExecutionParams(Map.of(), code), policy);
+        assertTrue(result.isOk());
+        assertEquals("function:function", result.result());
+    }
+
+    @Test
     void testFetchUndefinedWhenNetworkBlockedByPolicy() {
-        EffectivePolicy policy = new EffectivePolicy(Set.of(), Set.of(), true, false, false, false,
+        EffectivePolicy policy = new EffectivePolicy(Set.of(), Set.of(), true, false, false, false, false,
                 500_000L, 30L, true, new NetworkPolicy("blocked", Set.of(), Set.of()), null, null);
         JsExecutionResult result = executor.execute(
                 new JsExecutionParams(Map.of(), "return typeof fetch;"), policy);
@@ -488,7 +529,7 @@ public class JsToolExecutorTest {
         server.start();
         try {
             String baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
-            EffectivePolicy policy = new EffectivePolicy(Set.of(), Set.of(), true, false, false, false,
+            EffectivePolicy policy = new EffectivePolicy(Set.of(), Set.of(), true, false, false, false, false,
                     500_000L, 30L, true, new NetworkPolicy("permissive", Set.of(), Set.of()), null, null);
             String code = ("""
                     const r = await fetch('%s/data');
@@ -524,7 +565,7 @@ public class JsToolExecutorTest {
         server.start();
         try {
             String baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
-            EffectivePolicy policy = new EffectivePolicy(Set.of(), Set.of(), true, false, false, false,
+            EffectivePolicy policy = new EffectivePolicy(Set.of(), Set.of(), true, false, false, false, false,
                     500_000L, 30L, true, new NetworkPolicy("permissive", Set.of(), Set.of()), null, null);
             String code = ("""
                     const r = await fetch('%s/big', { maxLength: 4 });

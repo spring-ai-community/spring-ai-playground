@@ -13,10 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.springaicommunity.playground.service.tool.catalog;
+package org.springaicommunity.playground.service.tool;
 
 import org.junit.jupiter.api.Test;
-import org.springaicommunity.playground.service.tool.catalog.ToolCategoryCatalog.CategoryDef;
+import org.springaicommunity.playground.service.tool.ToolCategoryCatalog.CategoryDef;
 
 import java.util.List;
 import java.util.Set;

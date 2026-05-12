@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.springaicommunity.playground.service.tool.state;
+package org.springaicommunity.playground.service.tool;
 
 import org.springaicommunity.playground.service.tool.ToolSpec;
 import org.springframework.stereotype.Service;

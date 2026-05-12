@@ -25,6 +25,7 @@ import java.util.Set;
 public class SandboxPostureCalculator {
 
     public record Inputs(String networkMode, Set<String> allowedHosts,
+                         boolean fileRead, boolean fileWrite,
                          Set<String> baselineDeny, Set<String> userDeny,
                          Set<String> baselineAllow, Set<String> userAllow) {}
 
@@ -40,6 +41,12 @@ public class SandboxPostureCalculator {
             }
         }
         if ("open".equals(inputs.networkMode())) level = max(level, RiskLevel.L4);
+
+        if (inputs.fileWrite()) {
+            level = max(level, RiskLevel.L4);
+        } else if (inputs.fileRead()) {
+            level = max(level, RiskLevel.L3);
+        }
 
         Set<String> removedDeny = new HashSet<>(inputs.baselineDeny() == null ? Set.of() : inputs.baselineDeny());
         if (inputs.userDeny() != null) removedDeny.removeAll(inputs.userDeny());
@@ -58,7 +65,11 @@ public class SandboxPostureCalculator {
         if (!addedAllow.isEmpty()) {
             if (addedAllow.stream().anyMatch(SandboxPostureCalculator::isCriticalClass)) {
                 level = max(level, RiskLevel.L5);
-            } else if (addedAllow.stream().anyMatch(SandboxPostureCalculator::isReflectionClass)) {
+            } else if (addedAllow.stream().anyMatch(SandboxPostureCalculator::isFileWriteClass)) {
+                level = max(level, RiskLevel.L5);
+            } else if (addedAllow.stream().anyMatch(SandboxPostureCalculator::isReflectionClass)
+                    || addedAllow.stream().anyMatch(SandboxPostureCalculator::isNetworkClass)
+                    || addedAllow.stream().anyMatch(SandboxPostureCalculator::isFileReadClass)) {
                 level = max(level, RiskLevel.L4);
             } else {
                 level = max(level, RiskLevel.L3);
@@ -80,6 +91,36 @@ public class SandboxPostureCalculator {
         return name.startsWith("java.lang.reflect")
                 || name.startsWith("java.lang.invoke")
                 || name.equals("java.lang.Class");
+    }
+
+    static boolean isNetworkClass(String name) {
+        if (name == null) return false;
+        return name.startsWith("java.net.http")
+                || name.startsWith("java.net.Socket")
+                || name.startsWith("java.net.URL")
+                || name.startsWith("java.net.URLConnection")
+                || name.startsWith("java.net.HttpURLConnection")
+                || name.startsWith("java.nio.channels.Socket")
+                || name.startsWith("javax.net.ssl")
+                || name.startsWith("org.jsoup");
+    }
+
+    static boolean isFileReadClass(String name) {
+        if (name == null) return false;
+        return name.equals("java.io.File")
+                || name.startsWith("java.io.FileReader")
+                || name.startsWith("java.io.FileInputStream")
+                || name.startsWith("java.nio.file.Files")
+                || name.startsWith("java.nio.file.Path")
+                || name.startsWith("java.nio.file.Paths");
+    }
+
+    static boolean isFileWriteClass(String name) {
+        if (name == null) return false;
+        return name.startsWith("java.io.FileWriter")
+                || name.startsWith("java.io.FileOutputStream")
+                || name.startsWith("java.io.RandomAccessFile")
+                || name.startsWith("java.nio.channels.FileChannel");
     }
 
     private static RiskLevel max(RiskLevel a, RiskLevel b) {

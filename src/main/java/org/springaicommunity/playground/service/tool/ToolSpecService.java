@@ -25,8 +25,9 @@ import org.springaicommunity.playground.SpringAiPlaygroundOptions;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions.JsSandbox;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions.NetworkPolicy;
-import org.springaicommunity.playground.service.tool.JsToolExecutor.JsExecutionParams;
-import org.springaicommunity.playground.service.tool.JsToolExecutor.JsExecutionResult;
+import org.springaicommunity.playground.service.tool.runtime.JsToolExecutor;
+import org.springaicommunity.playground.service.tool.runtime.JsToolExecutor.JsExecutionParams;
+import org.springaicommunity.playground.service.tool.runtime.JsToolExecutor.JsExecutionResult;
 import org.springaicommunity.playground.service.tool.policy.EffectivePolicyResolver;
 import org.springaicommunity.playground.service.tool.policy.EffectivePolicyResolver.EffectivePolicy;
 import org.springaicommunity.playground.service.tool.policy.EffectivePolicyResolver.Overrides;
@@ -89,7 +90,7 @@ public class ToolSpecService {
         this.sandboxBaseline = playgroundOptions.toolStudio().jsSandbox();
         this.policyResolver = policyResolver;
         this.jsToolExecutor = new JsToolExecutor(playgroundOptions.toolStudio().timeoutSeconds(),
-                this.sandboxBaseline);
+                this.sandboxBaseline, playgroundOptions.toolStudio().fs());
     }
 
     public void loadAll(Runnable loadAction) {
@@ -225,7 +226,11 @@ public class ToolSpecService {
         JsExecutionParams jsExecutionParams = new JsExecutionParams(mergeParams, jsCode);
         EffectivePolicy policy = this.policyResolver.resolve(this.sandboxBaseline, null,
                 toResolverOverrides(sandboxOverrides));
-        JsExecutionResult jsExecutionResult = this.jsToolExecutor.execute(jsExecutionParams, policy);
+        java.nio.file.Path overrideBase = sandboxOverrides == null
+                || sandboxOverrides.fsBasePath() == null || sandboxOverrides.fsBasePath().isBlank()
+                ? null
+                : java.nio.file.Paths.get(sandboxOverrides.fsBasePath()).toAbsolutePath().normalize();
+        JsExecutionResult jsExecutionResult = this.jsToolExecutor.execute(jsExecutionParams, policy, overrideBase);
         logger.info("Executing tool: {}, jsExecutionParams: {}, isOk: {}", toolName, jsExecutionParams.params(),
                 jsExecutionResult.isOk());
         logger.debug("Executing tool Result: {}", jsExecutionResult);
@@ -236,7 +241,9 @@ public class ToolSpecService {
         if (spec == null) return Overrides.empty();
         return new Overrides(spec.addAllowClasses(), spec.removeAllowClasses(),
                 spec.addDenyClasses(), spec.removeDenyClasses(),
-                mapNetworkPolicy(spec.networkMode(), spec.hostsAllow()));
+                mapNetworkPolicy(spec.networkMode(), spec.hostsAllow()),
+                deriveNetworkIo(spec.networkMode()),
+                spec.fileRead(), spec.fileWrite());
     }
 
     private static NetworkPolicy mapNetworkPolicy(String mode, Set<String> hostsAllow) {
@@ -249,6 +256,11 @@ public class ToolSpecService {
         };
         if (egress == null) return null;
         return new NetworkPolicy(egress, hostsAllow == null ? Set.of() : hostsAllow, Set.of());
+    }
+
+    private static Boolean deriveNetworkIo(String mode) {
+        if (mode == null || mode.isBlank()) return null;
+        return !"blocked".equalsIgnoreCase(mode);
     }
 
     public List<ToolSpec> getToolSpecList() {
