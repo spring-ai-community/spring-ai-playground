@@ -87,8 +87,11 @@ public class ToolStudioView extends ContentWorkspaceView {
         toolChangeSupport.addPropertyChangeListener(TOOL_SELECT_EVENT,
                 event -> Optional.ofNullable(event.getNewValue()).map(value -> (ToolSpec) value)
                         .ifPresent(this::changeToolContent));
-        toolChangeSupport.addPropertyChangeListener(TOOL_CHANGE_EVENT,
-                event -> this.toolListView.changeToolContent((ToolSpec) event.getNewValue()));
+        toolChangeSupport.addPropertyChangeListener(TOOL_CHANGE_EVENT, event -> {
+            ToolSpec newSpec = (ToolSpec) event.getNewValue();
+            this.toolListView.changeToolContent(newSpec);
+            changeToolContent(newSpec);
+        });
         toolChangeSupport.addPropertyChangeListener(TOOL_EMPTY_EVENT, event -> {
             if ((boolean) event.getNewValue()) {displayNewToolDesignView();}
         });

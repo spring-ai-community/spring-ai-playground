@@ -113,12 +113,33 @@ public class ToolSpecService {
     }
 
     public ToolSpec update(ToolSpec toolSpec) {
+        boolean targetDraft = toolSpec.draft();
         ToolSpec result = update(toolSpec.toolId(), toolSpec.name(), toolSpec.description(),
                 toolSpec.staticVariables(), toolSpec.params(), toolSpec.code(), toolSpec.codeType());
         result.withCategory(toolSpec.category())
                 .withTags(toolSpec.tags())
-                .withSandboxOverrides(toolSpec.sandboxOverrides());
+                .withSandboxOverrides(toolSpec.sandboxOverrides())
+                .withDraft(targetDraft);
+        syncMcpExposureForDraft(result, targetDraft);
         return result;
+    }
+
+    private void syncMcpExposureForDraft(ToolSpec spec, boolean targetDraft) {
+        boolean currentlyExposed = getMcpToolList().stream()
+                .anyMatch(tool -> tool.name().equals(spec.name()));
+        if (targetDraft && currentlyExposed) {
+            removeMcpTool(spec.name());
+            HashSet<String> ids = new HashSet<>(this.toolMcpServerSetting.exposedToolIds());
+            ids.remove(spec.toolId());
+            this.toolMcpServerSetting = new ToolMcpServerSetting(this.toolMcpServerSetting.autoAdd(), ids);
+            persistAsync();
+        } else if (!targetDraft && !currentlyExposed && this.toolMcpServerSetting.autoAdd()) {
+            addMcpTool(spec);
+            HashSet<String> ids = new HashSet<>(this.toolMcpServerSetting.exposedToolIds());
+            ids.add(spec.toolId());
+            this.toolMcpServerSetting = new ToolMcpServerSetting(true, ids);
+            persistAsync();
+        }
     }
 
     public ToolSpec update(String toolId, String toolName, String toolDescription,

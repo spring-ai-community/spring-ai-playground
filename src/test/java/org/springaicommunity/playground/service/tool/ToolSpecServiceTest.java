@@ -32,7 +32,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import java.util.List;
 import java.util.Map;
 
-import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
 @TestPropertySource(properties = "logging.level.com.example=DEBUG")
@@ -155,6 +155,84 @@ class ToolSpecServiceTest {
                 }""";
 
         Assertions.assertEquals(expectedSchema.replace("\r\n", "\n"), schema.replace("\r\n", "\n"));
+    }
+
+
+    private static ToolSpec freshSpec(String id, String name, boolean draft) {
+        return new ToolSpec(id, name, "desc",
+                List.<Map.Entry<String, String>>of(),
+                List.<ToolParamSpec>of(),
+                "return 1;", CodeType.Javascript, null)
+                .withDraft(draft);
+    }
+
+    @Test
+    void draftToolIsNotExposedToMcp() {
+        ToolSpec draft = freshSpec("draft-1", "draftOne", true);
+        toolSpecService.update(draft);
+
+        assertThat(toolSpecService.getToolSpecAsOpt("draftOne")).isPresent();
+        assertThat(toolSpecService.getMcpToolList().stream().map(McpSchema.Tool::name).toList())
+                .doesNotContain("draftOne");
+    }
+
+    @Test
+    void publishingDraftAddsToMcp() {
+        toolSpecService.update(freshSpec("publish-1", "publishOne", true));
+        assertThat(toolSpecService.getMcpToolList().stream().map(McpSchema.Tool::name).toList())
+                .doesNotContain("publishOne");
+
+        toolSpecService.update(freshSpec("publish-1", "publishOne", false));
+        assertThat(toolSpecService.getMcpToolList().stream().map(McpSchema.Tool::name).toList())
+                .contains("publishOne");
+    }
+
+    @Test
+    void unpublishingRemovesFromMcp() {
+        toolSpecService.update(freshSpec("unp-1", "unpubOne", false));
+        assertThat(toolSpecService.getMcpToolList().stream().map(McpSchema.Tool::name).toList())
+                .contains("unpubOne");
+
+        toolSpecService.update(freshSpec("unp-1", "unpubOne", true));
+        assertThat(toolSpecService.getMcpToolList().stream().map(McpSchema.Tool::name).toList())
+                .doesNotContain("unpubOne");
+    }
+
+
+    @Test
+    void executeToolSurfacesSsrfDenialToUser() {
+        String code = "await fetch('http://10.0.0.1/'); return 'ok';";
+        JsExecutionResult result = toolSpecService.executeTool(
+                "ssrfBlockedTool", List.<Map.Entry<String, String>>of(), code, Map.of());
+        assertThat(result.isOk()).isFalse();
+        assertThat(result.error()).contains("denied").contains("10.0.0.1");
+    }
+
+    @Test
+    void executeToolSurfacesAllowlistClassDenialToUser() {
+        String code = "Java.type('javax.imageio.ImageIO'); return 'ok';";
+        JsExecutionResult result = toolSpecService.executeTool(
+                "denyOutsideAllowlistTool", List.<Map.Entry<String, String>>of(), code, Map.of());
+        assertThat(result.isOk()).isFalse();
+        assertThat(result.error()).isNotEmpty();
+    }
+
+    @Test
+    void executeToolSurfacesFsUnavailableToUser() {
+        String code = "return typeof safety.fs;";
+        JsExecutionResult result = toolSpecService.executeTool(
+                "noFsTool", List.<Map.Entry<String, String>>of(), code, Map.of());
+        assertThat(result.isOk()).isTrue();
+        assertThat(result.result()).isEqualTo("undefined");
+    }
+
+    @Test
+    void publishedToolIsExposedToMcpByDefault() {
+        ToolSpec published = freshSpec("pub-1", "pubOne", false);
+        toolSpecService.update(published);
+
+        assertThat(toolSpecService.getMcpToolList().stream().map(McpSchema.Tool::name).toList())
+                .contains("pubOne");
     }
 
     @Test

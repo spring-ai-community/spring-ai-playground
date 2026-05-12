@@ -76,6 +76,7 @@ public class ToolSpec {
     private String category;
     private Set<String> tags;
     private SandboxOverrides sandboxOverrides;
+    private boolean draft;
 
     @JsonIgnore
     private ToolCallback toolCallback;
@@ -151,6 +152,10 @@ public class ToolSpec {
         return sandboxOverrides == null ? SandboxOverrides.empty() : sandboxOverrides;
     }
 
+    public boolean draft() {
+        return draft;
+    }
+
     public ToolSpec withCategory(String category) {
         this.category = category;
         return this;
@@ -163,6 +168,11 @@ public class ToolSpec {
 
     public ToolSpec withSandboxOverrides(SandboxOverrides overrides) {
         this.sandboxOverrides = overrides;
+        return this;
+    }
+
+    public ToolSpec withDraft(boolean draft) {
+        this.draft = draft;
         return this;
     }
 

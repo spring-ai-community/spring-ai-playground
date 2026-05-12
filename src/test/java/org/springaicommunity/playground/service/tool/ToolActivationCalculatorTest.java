@@ -99,6 +99,27 @@ class ToolActivationCalculatorTest {
     }
 
     @Test
+    void draftFlagFlipsStateToDraftEvenWhenEnvSatisfied() {
+        ToolActivationCalculator c = calc(Map.of("OPENAI_API_KEY", "sk-test"));
+        ToolSpec tool = toolWith(List.of(Map.entry("apiKey", "${OPENAI_API_KEY}"))).withDraft(true);
+        assertEquals(ToolActivationCalculator.State.DRAFT, c.calculate(tool));
+    }
+
+    @Test
+    void draftFlagBeatsMissingRequirements() {
+        ToolActivationCalculator c = calc(Map.of());
+        ToolSpec tool = toolWith(List.of(Map.entry("apiKey", "${OPENAI_API_KEY}"))).withDraft(true);
+        assertEquals(ToolActivationCalculator.State.DRAFT, c.calculate(tool));
+    }
+
+    @Test
+    void publishedToolBehavesAsBefore() {
+        ToolActivationCalculator c = calc(Map.of("OPENAI_API_KEY", "sk-test"));
+        ToolSpec tool = toolWith(List.of(Map.entry("apiKey", "${OPENAI_API_KEY}"))).withDraft(false);
+        assertEquals(ToolActivationCalculator.State.ACTIVE, c.calculate(tool));
+    }
+
+    @Test
     void declaredEnvVarsAreDeduplicated() {
         ToolActivationCalculator c = calc(Map.of());
         ToolSpec tool = toolWith(List.of(

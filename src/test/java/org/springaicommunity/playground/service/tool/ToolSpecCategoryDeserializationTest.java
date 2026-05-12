@@ -56,4 +56,28 @@ class ToolSpecCategoryDeserializationTest {
         assertEquals(java.util.Set.of("oss", "global"), target.tags());
     }
 
+    @Test
+    void draftFlagSurvivesSerializationRoundTrip() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolSpec draftSpec = new ToolSpec("draft-1", "draftTool", "desc",
+                java.util.List.of(), java.util.List.of(),
+                "return 1;", ToolSpec.CodeType.Javascript, null).withDraft(true);
+        String json = mapper.writeValueAsString(draftSpec);
+        assertTrue(json.contains("\"draft\":true"), "Expected draft:true in JSON, got: " + json);
+
+        ToolSpec restored = mapper.readValue(json, ToolSpec.class);
+        assertEquals(true, restored.draft());
+        assertEquals("draftTool", restored.name());
+    }
+
+    @Test
+    void missingDraftFieldDeserializesAsFalse() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        String json = "{\"toolId\":\"x\",\"name\":\"n\",\"description\":\"d\","
+                + "\"staticVariables\":[],\"params\":[],\"code\":\"return 1;\",\"codeType\":\"Javascript\"}";
+        ToolSpec spec = mapper.readValue(json, ToolSpec.class);
+        assertEquals(false, spec.draft(),
+                "Built-in JSON without explicit draft field must default to published (false)");
+    }
+
 }

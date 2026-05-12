@@ -49,6 +49,7 @@ public class ToolActivationCalculator {
 
     public State calculate(ToolSpec tool) {
         if (Objects.isNull(tool)) return State.DRAFT;
+        if (tool.draft()) return State.DRAFT;
         for (String envVar : declaredEnvVars(tool)) {
             String value = envLookup.apply(envVar);
             if (value == null || value.isBlank()) {
