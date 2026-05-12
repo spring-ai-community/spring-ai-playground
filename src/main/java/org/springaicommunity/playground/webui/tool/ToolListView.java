@@ -16,6 +16,7 @@
 package org.springaicommunity.playground.webui.tool;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.combobox.MultiSelectComboBox;
@@ -145,12 +146,20 @@ public class ToolListView extends WorkspaceSidebar implements BeforeEnterObserve
         this.groupContainer.setPadding(false);
         this.groupContainer.setSpacing(false);
         this.groupContainer.setWidthFull();
+        this.groupContainer.getStyle()
+                .set("flex", "1 1 auto")
+                .set("min-height", "0")
+                .set("gap", "0");
 
         VerticalLayout body = new VerticalLayout(filtersBlock, this.groupContainer);
         body.setPadding(false);
         body.setSpacing(false);
-        body.setWidthFull();
-        setSidebarContent(verticalScroller(body));
+        body.setSizeFull();
+        body.getStyle()
+                .set("min-height", "0")
+                .set("gap", "0")
+                .set("overflow-x", "hidden");
+        setSidebarContent(body);
     }
 
     private void renderGroups() {
@@ -170,22 +179,92 @@ public class ToolListView extends WorkspaceSidebar implements BeforeEnterObserve
             return;
         }
 
+        List<ToolSpec> drafts = new ArrayList<>();
+        List<ToolSpec> published = new ArrayList<>();
+        for (ToolSpec tool : filtered) {
+            if (tool.draft()) drafts.add(tool);
+            else published.add(tool);
+        }
+
+        Details localPass = buildParentSection("Local Pass", published, false);
+        Div localPassWrap = new Div(localPass);
+        localPassWrap.getStyle()
+                .set("padding-inline-start", "var(--lumo-space-s)")
+                .set("flex", "1 1 auto")
+                .set("min-height", "0")
+                .set("overflow-y", "auto")
+                .set("width", "100%");
+        this.groupContainer.add(localPassWrap);
+
+        Details draftsSection = buildParentSection("Drafts", drafts, true);
+        Div draftsWrap = new Div(draftsSection);
+        draftsWrap.getStyle()
+                .set("padding-inline-start", "var(--lumo-space-s)")
+                .set("flex", "0 1 auto")
+                .set("max-height", "50%")
+                .set("overflow-y", "auto")
+                .set("width", "100%");
+        this.groupContainer.add(draftsWrap);
+    }
+
+    private Details buildParentSection(String label, List<ToolSpec> tools, boolean draftStyling) {
+        Span header = new Span(label + " (" + tools.size() + ")");
+        header.getStyle()
+                .set("font-weight", "var(--lumo-font-weight-semibold)")
+                .set("font-size", "var(--lumo-font-size-s)")
+                .set("text-transform", "uppercase")
+                .set("letter-spacing", "0.06em");
+        if (draftStyling) {
+            header.getStyle().set("color", "var(--lumo-secondary-text-color)");
+        }
+
+        VerticalLayout body = new VerticalLayout();
+        body.setPadding(false);
+        body.setSpacing(false);
+        body.setWidthFull();
+        body.getStyle()
+                .set("gap", "0")
+                .set("padding-inline-start", "var(--lumo-space-s)");
+        for (Component child : buildCategoryChildren(tools)) {
+            body.add(child);
+        }
+
+        Details details = new Details(header, body);
+        details.addClassName("workspace-sidebar-parent");
+        details.setOpened(true);
+        details.setWidthFull();
+        details.getStyle()
+                .set("--vaadin-details-summary-padding", "var(--lumo-space-xs) var(--lumo-space-m)");
+        if (draftStyling) {
+            details.addClassName("drafts-section");
+            details.getStyle()
+                    .set("margin-top", "var(--lumo-space-s)")
+                    .set("padding-top", "var(--lumo-space-xs)")
+                    .set("border-top", "2px dashed var(--lumo-contrast-20pct)")
+                    .set("background", "var(--lumo-shade-5pct)")
+                    .set("border-radius", "var(--lumo-border-radius-s)");
+        }
+        return details;
+    }
+
+    private List<Component> buildCategoryChildren(List<ToolSpec> tools) {
         Map<String, List<ToolSpec>> byCategory = new LinkedHashMap<>();
         for (CategoryDef categoryDef : this.categoryCatalog.categories()) {
             byCategory.put(categoryDef.id(), new ArrayList<>());
         }
-        for (ToolSpec tool : filtered) {
+        for (ToolSpec tool : tools) {
             String id = this.categoryCatalog.resolveOrFallback(tool.category()).id();
             byCategory.get(id).add(tool);
         }
-
+        List<Component> children = new ArrayList<>();
         for (Map.Entry<String, List<ToolSpec>> entry : byCategory.entrySet()) {
             List<ToolSpec> bucket = entry.getValue();
             if (bucket.isEmpty()) continue;
             bucket.sort(Comparator.comparing(ToolSpec::name, String.CASE_INSENSITIVE_ORDER));
             CategoryDef categoryDef = this.categoryCatalog.find(entry.getKey()).orElseThrow();
-            this.groupContainer.add(buildCategoryGroup(categoryDef, bucket));
+            children.add(buildCategoryGroup(categoryDef, bucket));
         }
+        return children;
     }
 
     private void updateHeaderCount(int filteredCount, int totalCount) {
@@ -256,13 +335,16 @@ public class ToolListView extends WorkspaceSidebar implements BeforeEnterObserve
         listBox.setItems(tools);
         listBox.setRenderer(new ComponentRenderer<>(this::renderToolItem));
         listBox.addValueChangeListener(event -> notifyToolSelection(event.getOldValue(), event.getValue()));
+        listBox.getStyle().set("--lumo-size-m", "var(--lumo-size-s)");
         this.categoryListBoxes.add(listBox);
 
         Details details = new Details(header, listBox);
         details.addClassName("workspace-sidebar-details");
         details.setOpened(true);
         details.setWidthFull();
-        details.getStyle().set("margin-bottom", "var(--lumo-space-xs)");
+        details.getStyle()
+                .set("margin", "0")
+                .set("--vaadin-details-summary-padding", "var(--lumo-space-xs) var(--lumo-space-s)");
         return details;
     }
 
