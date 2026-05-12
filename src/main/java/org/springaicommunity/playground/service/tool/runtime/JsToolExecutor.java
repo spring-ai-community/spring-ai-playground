@@ -183,6 +183,7 @@ public class JsToolExecutor {
 
                 return new JsExecutionResult(true, jsResult, null, buildDebugInfo(logList));
             } catch (Exception e) {
+                logList.add(classifyError(e));
                 return new JsExecutionResult(false, "", e.getMessage(), buildDebugInfo(logList));
             }
         });
@@ -191,9 +192,11 @@ public class JsToolExecutor {
             return future.get(effectiveTimeout, TimeUnit.SECONDS);
         } catch (TimeoutException e) {
             future.cancel(true);
+            logList.add("[TIMEOUT] execution: " + effectiveTimeout + "s-limit-exceeded");
             return new JsExecutionResult(false, "", "Execution timed out after " + effectiveTimeout + " seconds",
                     buildDebugInfo(logList));
         } catch (Exception e) {
+            logList.add(classifyError(e));
             return new JsExecutionResult(false, "", e.getMessage(), buildDebugInfo(logList));
         }
     }
@@ -287,11 +290,80 @@ public class JsToolExecutor {
         return String.join("\n", logList);
     }
 
+    private static JsHelperException unwrapHelper(Throwable e) {
+        Throwable cur = e;
+        int hops = 0;
+        while (cur != null && hops++ < 16) {
+            if (cur instanceof JsHelperException he) return he;
+            if (cur instanceof org.graalvm.polyglot.PolyglotException pe && pe.isHostException()) {
+                Throwable host = pe.asHostException();
+                if (host instanceof JsHelperException he) return he;
+                cur = host;
+                continue;
+            }
+            cur = cur.getCause();
+        }
+        return null;
+    }
+
+    private static final Set<String> JS_ERROR_TYPES = Set.of(
+            "Error", "TypeError", "ReferenceError", "SyntaxError",
+            "RangeError", "URIError", "EvalError");
+
+    private static String classifyError(Throwable e) {
+        JsHelperException he = unwrapHelper(e);
+        if (he != null) {
+            return "[" + he.kind().name() + "] " + he.helper() + ": " + he.reason();
+        }
+        Throwable cur = e;
+        int hops = 0;
+        while (cur != null && hops++ < 16) {
+            if (cur instanceof org.graalvm.polyglot.PolyglotException pe) {
+                if (pe.isResourceExhausted()) {
+                    return "[RESOURCE_LIMIT] execution: limit-exceeded";
+                }
+                if (pe.isGuestException()) {
+                    return "[JS_ERROR] user-code: " + extractJsErrorType(pe.getMessage());
+                }
+                break;
+            }
+            String jsType = matchJsErrorPrefix(cur.getMessage());
+            if (jsType != null) {
+                return "[JS_ERROR] user-code: " + jsType;
+            }
+            cur = cur.getCause();
+        }
+        return "[RUNTIME_ERROR] execution: " + e.getClass().getSimpleName();
+    }
+
+    private static String matchJsErrorPrefix(String msg) {
+        if (msg == null) return null;
+        int colon = msg.indexOf(':');
+        if (colon <= 0 || colon >= 30) return null;
+        String prefix = msg.substring(0, colon);
+        return JS_ERROR_TYPES.contains(prefix) ? prefix : null;
+    }
+
+    private static String extractJsErrorType(String msg) {
+        if (msg == null) return "Error";
+        int colon = msg.indexOf(':');
+        if (colon <= 0) return "Error";
+        String type = msg.substring(0, colon);
+        return JS_ERROR_TYPES.contains(type) ? type : "Error";
+    }
+
     private Value awaitPromise(Value promise) throws Exception {
         CompletableFuture<Value> completableFuture = new CompletableFuture<>();
-        promise.invokeMember("then", (ProxyExecutable) args -> {completableFuture.complete(args[0]); return null;});
+        promise.invokeMember("then", (ProxyExecutable) args -> {
+            completableFuture.complete(args[0]);
+            return null;
+        });
         promise.invokeMember("catch", (ProxyExecutable) args -> {
-            completableFuture.completeExceptionally(new RuntimeException(args[0].toString())); return null;
+            Value err = args[0];
+            Throwable cause = err != null && err.isHostObject() && err.asHostObject() instanceof Throwable t
+                    ? t : new RuntimeException(err == null ? "null" : err.toString());
+            completableFuture.completeExceptionally(cause);
+            return null;
         });
         return completableFuture.get();
     }

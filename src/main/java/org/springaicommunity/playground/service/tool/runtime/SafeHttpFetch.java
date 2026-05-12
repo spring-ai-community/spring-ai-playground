@@ -36,9 +36,13 @@ public final class SafeHttpFetch {
 
     public record FetchResponse(int status, Map<String, String> headers, byte[] body, String finalUrl) {}
 
-    public static final class FetchPolicyException extends RuntimeException {
+    public static final class FetchPolicyException extends JsHelperException {
         public FetchPolicyException(String message) {
-            super(message);
+            super(Kind.SECURITY, "fetch", "security-violation", message);
+        }
+
+        public FetchPolicyException(Kind kind, String reason, String message) {
+            super(kind, "fetch", reason, message);
         }
     }
 
@@ -78,18 +82,21 @@ public final class SafeHttpFetch {
             }
             return toResponse(raw, current);
         }
-        throw new FetchPolicyException("[fetch] denied: too many redirects (max " + MAX_REDIRECTS + ")");
+        throw new FetchPolicyException(JsHelperException.Kind.SECURITY, "too-many-redirects",
+                "[fetch] denied: too many redirects (max " + MAX_REDIRECTS + ")");
     }
 
     static void enforce(URI uri, NetworkPolicy policy, Function<String, InetAddress[]> dnsResolver) {
         String scheme = uri.getScheme();
         if (scheme == null
                 || !(scheme.equalsIgnoreCase("http") || scheme.equalsIgnoreCase("https"))) {
-            throw new FetchPolicyException("[fetch] denied: unsupported scheme: " + scheme);
+            throw new FetchPolicyException(JsHelperException.Kind.SECURITY, "unsupported-scheme",
+                    "[fetch] denied: unsupported scheme: " + scheme);
         }
         String host = uri.getHost();
         if (host == null || host.isBlank()) {
-            throw new FetchPolicyException("[fetch] denied: missing host");
+            throw new FetchPolicyException(JsHelperException.Kind.INVALID_INPUT, "missing-host",
+                    "[fetch] denied: missing host");
         }
 
         String level = policy == null || policy.egressLevel() == null
@@ -102,19 +109,22 @@ public final class SafeHttpFetch {
             case "allowlist" -> {
                 Set<String> allow = policy == null ? null : policy.hostsAllow();
                 if (allow == null || allow.isEmpty() || !matchesHost(host, allow)) {
-                    throw new FetchPolicyException("[fetch] denied: host not in allowlist: " + host);
+                    throw new FetchPolicyException(JsHelperException.Kind.SECURITY, "host-not-in-allowlist",
+                            "[fetch] denied: host not in allowlist: " + host);
                 }
                 return;
             }
             case "custom" -> {
                 Set<String> deny = policy == null ? null : policy.hostsDeny();
                 if (deny != null && matchesHost(host, deny)) {
-                    throw new FetchPolicyException("[fetch] denied: host in denylist: " + host);
+                    throw new FetchPolicyException(JsHelperException.Kind.SECURITY, "host-in-denylist",
+                            "[fetch] denied: host in denylist: " + host);
                 }
                 return;
             }
             case "strict" -> enforceSsrfFourLayer(host, dnsResolver);
-            default -> throw new FetchPolicyException("[fetch] denied: unknown egress level: " + level);
+            default -> throw new FetchPolicyException(JsHelperException.Kind.INVALID_INPUT, "unknown-egress-level",
+                    "[fetch] denied: unknown egress level: " + level);
         }
     }
 
@@ -122,7 +132,8 @@ public final class SafeHttpFetch {
         InetAddress literal = tryParseLiteral(host);
         if (literal != null) {
             if (isPrivateOrReserved(literal)) {
-                throw new FetchPolicyException("[fetch] denied: literal private/reserved IP: " + host);
+                throw new FetchPolicyException(JsHelperException.Kind.SECURITY, "literal-private-ip",
+                        "[fetch] denied: literal private/reserved IP: " + host);
             }
             return;
         }
@@ -130,15 +141,18 @@ public final class SafeHttpFetch {
         try {
             resolved = dnsResolver.apply(host);
         } catch (RuntimeException e) {
-            throw new FetchPolicyException("[fetch] denied: dns resolution failed: " + host);
+            throw new FetchPolicyException(JsHelperException.Kind.SECURITY, "dns-resolution-failed",
+                    "[fetch] denied: dns resolution failed: " + host);
         }
         if (resolved == null || resolved.length == 0) {
-            throw new FetchPolicyException("[fetch] denied: dns returned no addresses: " + host);
+            throw new FetchPolicyException(JsHelperException.Kind.SECURITY, "dns-no-addresses",
+                    "[fetch] denied: dns returned no addresses: " + host);
         }
         for (InetAddress addr : resolved) {
             if (isPrivateOrReserved(addr)) {
-                throw new FetchPolicyException("[fetch] denied: host resolves to private/reserved IP: "
-                        + host + " -> " + addr.getHostAddress());
+                throw new FetchPolicyException(JsHelperException.Kind.SECURITY, "resolved-private-ip",
+                        "[fetch] denied: host resolves to private/reserved IP: "
+                                + host + " -> " + addr.getHostAddress());
             }
         }
     }
@@ -206,7 +220,8 @@ public final class SafeHttpFetch {
         try {
             return InetAddress.getAllByName(host);
         } catch (UnknownHostException e) {
-            throw new RuntimeException(e);
+            throw new JsHelperException(JsHelperException.Kind.HELPER_RUNTIME, "fetch", "dns-unknown-host",
+                    "[fetch] dns: unknown host: " + host, e);
         }
     }
 
@@ -235,19 +250,23 @@ public final class SafeHttpFetch {
         try {
             HttpResponse<byte[]> response = client.send(request, HttpResponse.BodyHandlers.ofByteArray());
             if (response.body() != null && response.body().length > MAX_BODY_BYTES) {
-                throw new FetchPolicyException(
+                throw new FetchPolicyException(JsHelperException.Kind.SECURITY, "response-body-too-large",
                         "[fetch] denied: response body exceeds " + MAX_BODY_BYTES + " bytes");
             }
             return response;
         } catch (HttpTimeoutException e) {
-            throw new RuntimeException("[fetch] timeout: " + REQUEST_TIMEOUT.toSeconds() + "s", e);
+            throw new JsHelperException(JsHelperException.Kind.HELPER_RUNTIME, "fetch", "timeout",
+                    "[fetch] timeout: " + REQUEST_TIMEOUT.toSeconds() + "s", e);
         } catch (SSLException e) {
-            throw new RuntimeException("[fetch] tls: " + e.getMessage(), e);
+            throw new JsHelperException(JsHelperException.Kind.HELPER_RUNTIME, "fetch", "tls",
+                    "[fetch] tls: " + e.getMessage(), e);
         } catch (IOException e) {
-            throw new RuntimeException("[fetch] io: " + e.getMessage(), e);
+            throw new JsHelperException(JsHelperException.Kind.HELPER_RUNTIME, "fetch", "io",
+                    "[fetch] io: " + e.getMessage(), e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new RuntimeException("[fetch] interrupted", e);
+            throw new JsHelperException(JsHelperException.Kind.HELPER_RUNTIME, "fetch", "interrupted",
+                    "[fetch] interrupted", e);
         }
     }
 
