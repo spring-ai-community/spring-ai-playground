@@ -34,9 +34,13 @@ import java.util.stream.Stream;
 
 public final class SafeFs {
 
-    public static final class FsPolicyException extends RuntimeException {
+    public static final class FsPolicyException extends JsHelperException {
         public FsPolicyException(String message) {
-            super(message);
+            super(Kind.SECURITY, "safety.fs", "security-violation", message);
+        }
+
+        public FsPolicyException(Kind kind, String reason, String message) {
+            super(kind, "safety.fs", reason, message);
         }
     }
 
@@ -60,7 +64,8 @@ public final class SafeFs {
         String input = userDir == null || userDir.isEmpty() ? "." : userDir;
         Path dir = resolveAndValidate(base, input);
         if (!Files.isDirectory(dir)) {
-            throw new FsPolicyException("not a directory: " + userDir);
+            throw new FsPolicyException(JsHelperException.Kind.INVALID_INPUT, "not-a-directory",
+                    "not a directory: " + userDir);
         }
         List<String> out = new ArrayList<>();
         try (Stream<Path> stream = Files.list(dir)) {
@@ -85,14 +90,17 @@ public final class SafeFs {
 
     public static List<String> grep(Path base, String userPath, String pattern,
                                     boolean caseInsensitive, int limit, boolean numbered) throws IOException {
-        if (pattern == null || pattern.isEmpty()) throw new FsPolicyException("grep: pattern required");
+        if (pattern == null || pattern.isEmpty())
+            throw new FsPolicyException(JsHelperException.Kind.INVALID_INPUT, "grep-pattern-required",
+                    "grep: pattern required");
         Path target = resolveAndValidate(base, userPath);
         Pattern regex;
         try {
             int flags = caseInsensitive ? Pattern.CASE_INSENSITIVE : 0;
             regex = Pattern.compile(pattern, flags);
         } catch (PatternSyntaxException e) {
-            throw new FsPolicyException("grep: invalid pattern: " + e.getMessage());
+            throw new FsPolicyException(JsHelperException.Kind.INVALID_INPUT, "grep-invalid-pattern",
+                    "grep: invalid pattern: " + e.getMessage());
         }
         int cap = limit > 0 ? limit : 10_000;
         List<String> out = new ArrayList<>();
@@ -142,7 +150,8 @@ public final class SafeFs {
                                    boolean regexDelimiter) throws IOException {
         Path target = resolveAndValidate(base, userPath);
         if (fields == null || fields.isEmpty()) {
-            throw new FsPolicyException("cut: fields required");
+            throw new FsPolicyException(JsHelperException.Kind.INVALID_INPUT, "cut-fields-required",
+                    "cut: fields required");
         }
         String delim = delimiter == null || delimiter.isEmpty() ? "\t" : delimiter;
         String splitter = regexDelimiter ? delim : Pattern.quote(delim);
@@ -151,7 +160,8 @@ public final class SafeFs {
         try {
             compiled = Pattern.compile(splitter);
         } catch (PatternSyntaxException e) {
-            throw new FsPolicyException("cut: invalid delimiter: " + e.getMessage());
+            throw new FsPolicyException(JsHelperException.Kind.INVALID_INPUT, "cut-invalid-delimiter",
+                    "cut: invalid delimiter: " + e.getMessage());
         }
         List<String> out = new ArrayList<>();
         try (Stream<String> lines = Files.lines(target, StandardCharsets.UTF_8)) {
@@ -203,14 +213,16 @@ public final class SafeFs {
         String input = userDir == null || userDir.isEmpty() ? "." : userDir;
         Path root = resolveAndValidate(base, input);
         if (!Files.isDirectory(root)) {
-            throw new FsPolicyException("find: not a directory: " + userDir);
+            throw new FsPolicyException(JsHelperException.Kind.INVALID_INPUT, "find-not-a-directory",
+                    "find: not a directory: " + userDir);
         }
         String pattern = glob == null || glob.isEmpty() ? "*" : glob;
         PathMatcher matcher;
         try {
             matcher = FileSystems.getDefault().getPathMatcher("glob:" + pattern);
         } catch (Exception e) {
-            throw new FsPolicyException("find: invalid glob: " + e.getMessage());
+            throw new FsPolicyException(JsHelperException.Kind.INVALID_INPUT, "find-invalid-glob",
+                    "find: invalid glob: " + e.getMessage());
         }
         int depth = maxDepth <= 0 ? Integer.MAX_VALUE : maxDepth;
         List<String> out = new ArrayList<>();
@@ -231,16 +243,18 @@ public final class SafeFs {
 
     static Path resolveAndValidate(Path base, String userPath) {
         if (userPath == null || userPath.isEmpty()) {
-            throw new FsPolicyException("path required");
+            throw new FsPolicyException(JsHelperException.Kind.INVALID_INPUT, "path-required", "path required");
         }
         Path candidate;
         try {
             candidate = base.resolve(userPath).normalize();
         } catch (Exception e) {
-            throw new FsPolicyException("invalid path: " + userPath);
+            throw new FsPolicyException(JsHelperException.Kind.INVALID_INPUT, "invalid-path",
+                    "invalid path: " + userPath);
         }
         if (!candidate.startsWith(base)) {
-            throw new FsPolicyException("path escapes base: " + userPath);
+            throw new FsPolicyException(JsHelperException.Kind.SECURITY, "path-escapes-base",
+                    "path escapes base: " + userPath);
         }
         return candidate;
     }

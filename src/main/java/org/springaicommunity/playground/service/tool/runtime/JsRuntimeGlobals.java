@@ -103,7 +103,8 @@ public final class JsRuntimeGlobals {
                 try {
                     return SafeFs.readText(base, args.length > 0 ? args[0].asString() : null);
                 } catch (java.io.IOException e) {
-                    throw new RuntimeException("safety.fs.readText: " + e.getMessage());
+                    throw new JsHelperException(JsHelperException.Kind.HELPER_RUNTIME, "safety.fs.readText",
+                            "io", "safety.fs.readText: " + e.getMessage(), e);
                 }
             });
             fs.put("list", (ProxyExecutable) args -> {
@@ -111,7 +112,8 @@ public final class JsRuntimeGlobals {
                     String dir = args.length > 0 && !args[0].isNull() ? args[0].asString() : ".";
                     return ProxyArray.fromArray((Object[]) SafeFs.list(base, dir).toArray(new String[0]));
                 } catch (java.io.IOException e) {
-                    throw new RuntimeException("safety.fs.list: " + e.getMessage());
+                    throw new JsHelperException(JsHelperException.Kind.HELPER_RUNTIME, "safety.fs.list",
+                            "io", "safety.fs.list: " + e.getMessage(), e);
                 }
             });
             fs.put("exists", (ProxyExecutable) args ->
@@ -125,11 +127,14 @@ public final class JsRuntimeGlobals {
                     out.put("directory", s.directory());
                     return ProxyObject.fromMap(out);
                 } catch (java.io.IOException e) {
-                    throw new RuntimeException("safety.fs.stat: " + e.getMessage());
+                    throw new JsHelperException(JsHelperException.Kind.HELPER_RUNTIME, "safety.fs.stat",
+                            "io", "safety.fs.stat: " + e.getMessage(), e);
                 }
             });
             fs.put("grep", (ProxyExecutable) args -> {
-                if (args.length < 2) throw new RuntimeException("safety.fs.grep: requires pattern and path");
+                if (args.length < 2)
+                    throw new JsHelperException(JsHelperException.Kind.INVALID_INPUT, "safety.fs.grep",
+                            "missing-args", "safety.fs.grep: requires pattern and path");
                 String pattern = args[0].asString();
                 String path = args[1].asString();
                 Value opts = args.length > 2 && !args[2].isNull() ? args[2] : null;
@@ -143,18 +148,22 @@ public final class JsRuntimeGlobals {
                     return ProxyArray.fromArray((Object[]) SafeFs.grep(base, path, pattern, caseInsensitive,
                             limit, numbered).toArray(new String[0]));
                 } catch (java.io.IOException e) {
-                    throw new RuntimeException("safety.fs.grep: " + e.getMessage());
+                    throw new JsHelperException(JsHelperException.Kind.HELPER_RUNTIME, "safety.fs.grep",
+                            "io", "safety.fs.grep: " + e.getMessage(), e);
                 }
             });
             fs.put("lineCount", (ProxyExecutable) args -> {
                 try {
                     return SafeFs.lineCount(base, args.length > 0 ? args[0].asString() : null);
                 } catch (java.io.IOException e) {
-                    throw new RuntimeException("safety.fs.lineCount: " + e.getMessage());
+                    throw new JsHelperException(JsHelperException.Kind.HELPER_RUNTIME, "safety.fs.lineCount",
+                            "io", "safety.fs.lineCount: " + e.getMessage(), e);
                 }
             });
             fs.put("slice", (ProxyExecutable) args -> {
-                if (args.length < 1) throw new RuntimeException("safety.fs.slice: requires path");
+                if (args.length < 1)
+                    throw new JsHelperException(JsHelperException.Kind.INVALID_INPUT, "safety.fs.slice",
+                            "missing-args", "safety.fs.slice: requires path");
                 String path = args[0].asString();
                 Integer start = args.length > 1 && !args[1].isNull() ? args[1].asInt() : null;
                 Integer end = args.length > 2 && !args[2].isNull() ? args[2].asInt() : null;
@@ -162,19 +171,24 @@ public final class JsRuntimeGlobals {
                     return ProxyArray.fromArray((Object[]) SafeFs.slice(base, path, start, end)
                             .toArray(new String[0]));
                 } catch (java.io.IOException e) {
-                    throw new RuntimeException("safety.fs.slice: " + e.getMessage());
+                    throw new JsHelperException(JsHelperException.Kind.HELPER_RUNTIME, "safety.fs.slice",
+                            "io", "safety.fs.slice: " + e.getMessage(), e);
                 }
             });
             fs.put("cut", (ProxyExecutable) args -> {
-                if (args.length < 2) throw new RuntimeException("safety.fs.cut: requires path and opts");
+                if (args.length < 2)
+                    throw new JsHelperException(JsHelperException.Kind.INVALID_INPUT, "safety.fs.cut",
+                            "missing-args", "safety.fs.cut: requires path and opts");
                 String path = args[0].asString();
                 Value opts = args[1];
                 if (opts.isNull() || !opts.hasMember("fields")) {
-                    throw new RuntimeException("safety.fs.cut: opts.fields required");
+                    throw new JsHelperException(JsHelperException.Kind.INVALID_INPUT, "safety.fs.cut",
+                            "fields-required", "safety.fs.cut: opts.fields required");
                 }
                 Value fieldsVal = opts.getMember("fields");
                 if (!fieldsVal.hasArrayElements()) {
-                    throw new RuntimeException("safety.fs.cut: opts.fields must be an array");
+                    throw new JsHelperException(JsHelperException.Kind.INVALID_INPUT, "safety.fs.cut",
+                            "fields-not-array", "safety.fs.cut: opts.fields must be an array");
                 }
                 java.util.List<Integer> fields = new java.util.ArrayList<>();
                 for (long i = 0; i < fieldsVal.getArraySize(); i++) {
@@ -187,11 +201,14 @@ public final class JsRuntimeGlobals {
                     return ProxyArray.fromArray((Object[]) SafeFs.cut(base, path, delimiter, fields, regex)
                             .toArray(new String[0]));
                 } catch (java.io.IOException e) {
-                    throw new RuntimeException("safety.fs.cut: " + e.getMessage());
+                    throw new JsHelperException(JsHelperException.Kind.HELPER_RUNTIME, "safety.fs.cut",
+                            "io", "safety.fs.cut: " + e.getMessage(), e);
                 }
             });
             fs.put("sort", (ProxyExecutable) args -> {
-                if (args.length < 1) throw new RuntimeException("safety.fs.sort: requires path");
+                if (args.length < 1)
+                    throw new JsHelperException(JsHelperException.Kind.INVALID_INPUT, "safety.fs.sort",
+                            "missing-args", "safety.fs.sort: requires path");
                 String path = args[0].asString();
                 Value opts = args.length > 1 && !args[1].isNull() ? args[1] : null;
                 boolean reverse = opts != null && opts.hasMember("reverse") && opts.getMember("reverse").asBoolean();
@@ -203,7 +220,8 @@ public final class JsRuntimeGlobals {
                     return ProxyArray.fromArray((Object[]) SafeFs.sort(base, path, reverse, numeric,
                             caseInsensitive, unique).toArray(new String[0]));
                 } catch (java.io.IOException e) {
-                    throw new RuntimeException("safety.fs.sort: " + e.getMessage());
+                    throw new JsHelperException(JsHelperException.Kind.HELPER_RUNTIME, "safety.fs.sort",
+                            "io", "safety.fs.sort: " + e.getMessage(), e);
                 }
             });
             fs.put("find", (ProxyExecutable) args -> {
@@ -218,7 +236,8 @@ public final class JsRuntimeGlobals {
                     return ProxyArray.fromArray((Object[]) SafeFs.find(base, dir, glob, maxDepth, type)
                             .toArray(new String[0]));
                 } catch (java.io.IOException e) {
-                    throw new RuntimeException("safety.fs.find: " + e.getMessage());
+                    throw new JsHelperException(JsHelperException.Kind.HELPER_RUNTIME, "safety.fs.find",
+                            "io", "safety.fs.find: " + e.getMessage(), e);
                 }
             });
         }
@@ -230,7 +249,8 @@ public final class JsRuntimeGlobals {
                             args.length > 1 && !args[1].isNull() ? args[1].asString() : "");
                     return null;
                 } catch (java.io.IOException e) {
-                    throw new RuntimeException("safety.fs.writeText: " + e.getMessage());
+                    throw new JsHelperException(JsHelperException.Kind.HELPER_RUNTIME, "safety.fs.writeText",
+                            "io", "safety.fs.writeText: " + e.getMessage(), e);
                 }
             });
         }
@@ -239,25 +259,29 @@ public final class JsRuntimeGlobals {
 
     private static Object parseHtml(Value[] args) {
         if (args.length == 0 || args[0] == null || args[0].isNull()) {
-            throw new RuntimeException("safety.parser.html: missing input");
+            throw new JsHelperException(JsHelperException.Kind.INVALID_INPUT, "safety.parser.html",
+                    "missing-input", "safety.parser.html: missing input");
         }
         return Jsoup.parse(args[0].asString());
     }
 
     private static Object parseYaml(Value[] args) {
         if (args.length == 0 || args[0] == null || args[0].isNull()) {
-            throw new RuntimeException("safety.parser.yaml: missing input");
+            throw new JsHelperException(JsHelperException.Kind.INVALID_INPUT, "safety.parser.yaml",
+                    "missing-input", "safety.parser.yaml: missing input");
         }
         try {
             return jsonToProxy(new Yaml().load(args[0].asString()));
         } catch (Exception e) {
-            throw new RuntimeException("safety.parser.yaml: " + e.getMessage());
+            throw new JsHelperException(JsHelperException.Kind.HELPER_RUNTIME, "safety.parser.yaml",
+                    "parse-failed", "safety.parser.yaml: " + e.getMessage(), e);
         }
     }
 
     private static Object parseCsv(Value[] args) {
         if (args.length == 0 || args[0] == null || args[0].isNull()) {
-            throw new RuntimeException("safety.parser.csv: missing input");
+            throw new JsHelperException(JsHelperException.Kind.INVALID_INPUT, "safety.parser.csv",
+                    "missing-input", "safety.parser.csv: missing input");
         }
         String input = args[0].asString();
         Value opts = args.length > 1 && args[1] != null && !args[1].isNull() ? args[1] : null;
@@ -287,13 +311,15 @@ public final class JsRuntimeGlobals {
             }
             return jsonToProxy(rows);
         } catch (Exception e) {
-            throw new RuntimeException("safety.parser.csv: " + e.getMessage());
+            throw new JsHelperException(JsHelperException.Kind.HELPER_RUNTIME, "safety.parser.csv",
+                    "parse-failed", "safety.parser.csv: " + e.getMessage(), e);
         }
     }
 
     private static Object parseXml(Value[] args) {
         if (args.length == 0 || args[0] == null || args[0].isNull()) {
-            throw new RuntimeException("safety.parser.xml: missing input");
+            throw new JsHelperException(JsHelperException.Kind.INVALID_INPUT, "safety.parser.xml",
+                    "missing-input", "safety.parser.xml: missing input");
         }
         String input = args[0].asString();
         try {
@@ -306,7 +332,8 @@ public final class JsRuntimeGlobals {
             org.w3c.dom.Document doc = dbf.newDocumentBuilder().parse(new InputSource(new StringReader(input)));
             return xmlElementToProxy(doc.getDocumentElement());
         } catch (Exception e) {
-            throw new RuntimeException("safety.parser.xml: " + e.getMessage());
+            throw new JsHelperException(JsHelperException.Kind.HELPER_RUNTIME, "safety.parser.xml",
+                    "parse-failed", "safety.parser.xml: " + e.getMessage(), e);
         }
     }
 
@@ -345,7 +372,8 @@ public final class JsRuntimeGlobals {
 
     private static Object jsFetch(Value[] args, NetworkPolicy net) {
         if (args.length == 0 || args[0] == null || args[0].isNull()) {
-            throw new RuntimeException("[fetch] missing url argument");
+            throw new JsHelperException(JsHelperException.Kind.INVALID_INPUT, "fetch", "missing-url",
+                    "[fetch] missing url argument");
         }
         String url = args[0].asString();
         Value init = args.length > 1 && args[1] != null && !args[1].isNull() ? args[1] : null;
@@ -388,7 +416,8 @@ public final class JsRuntimeGlobals {
         try {
             uri = URI.create(url);
         } catch (IllegalArgumentException e) {
-            throw new RuntimeException("[fetch] invalid url: " + url);
+            throw new JsHelperException(JsHelperException.Kind.INVALID_INPUT, "fetch", "invalid-url",
+                    "[fetch] invalid url: " + url);
         }
         return buildResponseProxy(SafeHttpFetch.fetch(uri, method, headers, body, net), maxLength, startIndex);
     }
@@ -437,7 +466,8 @@ public final class JsRuntimeGlobals {
             try {
                 return jsonToProxy(JSON_MAPPER.readValue(s, Object.class));
             } catch (Exception e) {
-                throw new RuntimeException("[fetch] invalid json: " + e.getMessage());
+                throw new JsHelperException(JsHelperException.Kind.HELPER_RUNTIME, "fetch", "invalid-json",
+                        "[fetch] invalid json: " + e.getMessage(), e);
             }
         });
         proxy.put("arrayBuffer", (ProxyExecutable) aArgs -> {
@@ -510,7 +540,8 @@ public final class JsRuntimeGlobals {
 
     static Object newUrl(Value[] args) {
         if (args.length == 0 || args[0] == null || args[0].isNull()) {
-            throw new RuntimeException("URL: missing input");
+            throw new JsHelperException(JsHelperException.Kind.INVALID_INPUT, "URL", "missing-input",
+                    "URL: missing input");
         }
         String input = args[0].asString();
         String base = args.length > 1 && args[1] != null && !args[1].isNull() ? args[1].asString() : null;
@@ -522,7 +553,8 @@ public final class JsRuntimeGlobals {
                 uri = URI.create(input);
             }
         } catch (IllegalArgumentException e) {
-            throw new RuntimeException("URL: invalid url: " + input);
+            throw new JsHelperException(JsHelperException.Kind.INVALID_INPUT, "URL", "invalid-url",
+                    "URL: invalid url: " + input);
         }
         return urlProxy(uri);
     }
@@ -666,14 +698,15 @@ public final class JsRuntimeGlobals {
 
     static Object btoa(Value[] args) {
         if (args.length == 0 || args[0] == null || args[0].isNull()) {
-            throw new RuntimeException("btoa: missing input");
+            throw new JsHelperException(JsHelperException.Kind.INVALID_INPUT, "btoa", "missing-input",
+                    "btoa: missing input");
         }
         String input = args[0].asString();
         byte[] bytes = new byte[input.length()];
         for (int i = 0; i < input.length(); i++) {
             char c = input.charAt(i);
             if (c > 0xFF) {
-                throw new RuntimeException(
+                throw new JsHelperException(JsHelperException.Kind.INVALID_INPUT, "btoa", "non-latin-1",
                         "btoa: input contains non-Latin-1 character at index " + i);
             }
             bytes[i] = (byte) c;
@@ -683,14 +716,16 @@ public final class JsRuntimeGlobals {
 
     static Object atob(Value[] args) {
         if (args.length == 0 || args[0] == null || args[0].isNull()) {
-            throw new RuntimeException("atob: missing input");
+            throw new JsHelperException(JsHelperException.Kind.INVALID_INPUT, "atob", "missing-input",
+                    "atob: missing input");
         }
         String input = args[0].asString();
         byte[] bytes;
         try {
             bytes = Base64.getDecoder().decode(input);
         } catch (IllegalArgumentException e) {
-            throw new RuntimeException("atob: invalid base64");
+            throw new JsHelperException(JsHelperException.Kind.INVALID_INPUT, "atob", "invalid-base64",
+                    "atob: invalid base64", e);
         }
         StringBuilder sb = new StringBuilder(bytes.length);
         for (byte b : bytes) sb.append((char) (b & 0xFF));
@@ -701,45 +736,52 @@ public final class JsRuntimeGlobals {
 
     private static Object cryptoDigest(Value[] args) {
         if (args.length < 2) {
-            throw new RuntimeException("crypto.subtle.digest: requires algorithm and data");
+            throw new JsHelperException(JsHelperException.Kind.INVALID_INPUT, "crypto.subtle.digest",
+                    "missing-args", "crypto.subtle.digest: requires algorithm and data");
         }
         String alg = normalizeAlgorithm(args[0]);
         if (!SUPPORTED_HASHES.contains(alg)) {
-            throw new RuntimeException("crypto.subtle.digest: unsupported algorithm: " + alg);
+            throw new JsHelperException(JsHelperException.Kind.INVALID_INPUT, "crypto.subtle.digest",
+                    "unsupported-algorithm", "crypto.subtle.digest: unsupported algorithm: " + alg);
         }
         byte[] data = readBytes(args[1]);
         try {
             MessageDigest md = MessageDigest.getInstance(alg);
             return toUnsignedProxyArray(md.digest(data));
         } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("crypto.subtle.digest: " + e.getMessage());
+            throw new JsHelperException(JsHelperException.Kind.HELPER_RUNTIME, "crypto.subtle.digest",
+                    "no-such-algorithm", "crypto.subtle.digest: " + e.getMessage(), e);
         }
     }
 
     private static Object cryptoSign(Value[] args) {
         if (args.length < 3) {
-            throw new RuntimeException("crypto.subtle.sign: requires algorithm, key, data");
+            throw new JsHelperException(JsHelperException.Kind.INVALID_INPUT, "crypto.subtle.sign",
+                    "missing-args", "crypto.subtle.sign: requires algorithm, key, data");
         }
         String alg = normalizeAlgorithm(args[0]);
         if (!alg.equals("HMAC")) {
-            throw new RuntimeException("crypto.subtle.sign: only HMAC supported, got: " + alg);
+            throw new JsHelperException(JsHelperException.Kind.INVALID_INPUT, "crypto.subtle.sign",
+                    "unsupported-algorithm", "crypto.subtle.sign: only HMAC supported, got: " + alg);
         }
         Value keyVal = args[1];
         if (keyVal == null || !keyVal.hasMember("__isHmacKey")
                 || !keyVal.getMember("__isHmacKey").asBoolean()) {
-            throw new RuntimeException("crypto.subtle.sign: invalid HMAC key");
+            throw new JsHelperException(JsHelperException.Kind.INVALID_INPUT, "crypto.subtle.sign",
+                    "invalid-key", "crypto.subtle.sign: invalid HMAC key");
         }
         return keyVal.getMember("__sign").execute(args[2]);
     }
 
     private static Object cryptoImportKey(Value[] args) {
         if (args.length < 3) {
-            throw new RuntimeException(
-                    "crypto.subtle.importKey: requires format, keyData, algorithm");
+            throw new JsHelperException(JsHelperException.Kind.INVALID_INPUT, "crypto.subtle.importKey",
+                    "missing-args", "crypto.subtle.importKey: requires format, keyData, algorithm");
         }
         String format = args[0].asString();
         if (!format.equals("raw")) {
-            throw new RuntimeException(
+            throw new JsHelperException(JsHelperException.Kind.INVALID_INPUT, "crypto.subtle.importKey",
+                    "unsupported-format",
                     "crypto.subtle.importKey: only 'raw' format supported, got: " + format);
         }
         byte[] keyBytes = readBytes(args[1]);
@@ -760,15 +802,17 @@ public final class JsRuntimeGlobals {
                 hashAlg = hashMember.getMember("name").asString();
             }
         } else {
-            throw new RuntimeException("crypto.subtle.importKey: invalid algorithm");
+            throw new JsHelperException(JsHelperException.Kind.INVALID_INPUT, "crypto.subtle.importKey",
+                    "invalid-algorithm", "crypto.subtle.importKey: invalid algorithm");
         }
         if (!algName.equals("HMAC")) {
-            throw new RuntimeException(
+            throw new JsHelperException(JsHelperException.Kind.INVALID_INPUT, "crypto.subtle.importKey",
+                    "unsupported-algorithm",
                     "crypto.subtle.importKey: only HMAC supported, got: " + algName);
         }
         if (!SUPPORTED_HASHES.contains(hashAlg)) {
-            throw new RuntimeException(
-                    "crypto.subtle.importKey: unsupported hash: " + hashAlg);
+            throw new JsHelperException(JsHelperException.Kind.INVALID_INPUT, "crypto.subtle.importKey",
+                    "unsupported-hash", "crypto.subtle.importKey: unsupported hash: " + hashAlg);
         }
 
         final byte[] capturedKey = keyBytes.clone();
@@ -789,7 +833,8 @@ public final class JsRuntimeGlobals {
                 mac.init(new SecretKeySpec(capturedKey, macName));
                 return toUnsignedProxyArray(mac.doFinal(data));
             } catch (Exception e) {
-                throw new RuntimeException("crypto.subtle.sign: " + e.getMessage());
+                throw new JsHelperException(JsHelperException.Kind.HELPER_RUNTIME, "crypto.subtle.sign",
+                        "sign-failed", "crypto.subtle.sign: " + e.getMessage(), e);
             }
         });
         return ProxyObject.fromMap(keyObj);
@@ -797,16 +842,18 @@ public final class JsRuntimeGlobals {
 
     private static Object cryptoGetRandomValues(Value[] args) {
         if (args.length == 0 || args[0] == null || args[0].isNull()) {
-            throw new RuntimeException("crypto.getRandomValues: missing argument");
+            throw new JsHelperException(JsHelperException.Kind.INVALID_INPUT, "crypto.getRandomValues",
+                    "missing-args", "crypto.getRandomValues: missing argument");
         }
         Value arr = args[0];
         if (!arr.hasArrayElements()) {
-            throw new RuntimeException(
-                    "crypto.getRandomValues: argument must be an array-like typed array");
+            throw new JsHelperException(JsHelperException.Kind.INVALID_INPUT, "crypto.getRandomValues",
+                    "not-array", "crypto.getRandomValues: argument must be an array-like typed array");
         }
         int n = (int) arr.getArraySize();
         if (n > MAX_RANDOM_BYTES) {
-            throw new RuntimeException(
+            throw new JsHelperException(JsHelperException.Kind.INVALID_INPUT, "crypto.getRandomValues",
+                    "array-too-large",
                     "crypto.getRandomValues: array too large (max " + MAX_RANDOM_BYTES + ")");
         }
         byte[] bytes = new byte[n];
@@ -822,7 +869,8 @@ public final class JsRuntimeGlobals {
         if (v.hasMembers() && v.hasMember("name")) {
             return v.getMember("name").asString();
         }
-        throw new RuntimeException("invalid algorithm parameter");
+        throw new JsHelperException(JsHelperException.Kind.INVALID_INPUT, "crypto", "invalid-algorithm",
+                "invalid algorithm parameter");
     }
 
     private static byte[] readBytes(Value v) {
@@ -840,7 +888,8 @@ public final class JsRuntimeGlobals {
             for (long i = 0; i < n; i++) out[(int) i] = (byte) v.getArrayElement(i).asInt();
             return out;
         }
-        throw new RuntimeException("readBytes: unsupported argument type");
+        throw new JsHelperException(JsHelperException.Kind.INVALID_INPUT, "crypto", "unsupported-arg-type",
+                "readBytes: unsupported argument type");
     }
 
     private static ProxyArray toUnsignedProxyArray(byte[] bytes) {
