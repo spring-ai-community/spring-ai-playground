@@ -5,8 +5,9 @@
 .custom-list-box vaadin-item,
 .custom-list-box vaadin-multi-select-list-box-item,
 vaadin-multi-select-list-box.custom-list-box vaadin-item {
-    padding-inline-start: var(--lumo-space-s);
+    padding-inline-start: var(--lumo-space-m);
     padding-inline-end: var(--lumo-space-s);
+    padding-block: var(--lumo-space-s);
     overflow: hidden;
 }
 

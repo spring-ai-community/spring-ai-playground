@@ -24,31 +24,23 @@ import com.hilerio.ace.AceTheme;
 import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
-import com.vaadin.flow.component.combobox.MultiSelectComboBox;
 import com.vaadin.flow.component.dependency.JavaScript;
-import com.vaadin.flow.component.details.Details;
 import com.vaadin.flow.component.html.H4;
 import com.vaadin.flow.component.html.H5;
 import com.vaadin.flow.component.html.Span;
-import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.FlexLayout;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.page.PendingJavaScriptResult;
-import com.vaadin.flow.component.radiobutton.RadioButtonGroup;
 import com.vaadin.flow.component.textfield.TextArea;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
-import org.springaicommunity.playground.SpringAiPlaygroundOptions.JsSandbox;
-import org.springaicommunity.playground.service.tool.ChipListBinding;
-import org.springaicommunity.playground.service.tool.JsToolExecutor.JsExecutionResult;
-import org.springaicommunity.playground.service.tool.ToolManifest.Sandbox.RiskLevel;
+import org.springaicommunity.playground.service.tool.runtime.JsToolExecutor.JsExecutionResult;
 import org.springaicommunity.playground.service.tool.ToolSpec;
 import org.springaicommunity.playground.service.tool.ToolSpec.JsonSchemaType;
 import org.springaicommunity.playground.service.tool.ToolSpec.ToolParamSpec;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
 import org.springaicommunity.playground.service.tool.policy.SandboxPostureCalculator;
-import org.springaicommunity.playground.service.tool.policy.SandboxPostureCalculator.Inputs;
 import org.springaicommunity.playground.webui.VaadinUtils;
 
 import java.time.Instant;
@@ -59,7 +51,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Supplier;
 
 @JavaScript("./prettier-standalone.js")
@@ -93,29 +84,17 @@ public class JavascriptToolPlaygroundView extends VerticalLayout {
     private final Button formatButton;
     private final ObjectMapper objectMapper;
     private final ToolSpecService toolSpecService;
-    private final SpringAiPlaygroundOptions options;
-    private final SandboxPostureCalculator postureCalculator;
     private final Supplier<List<ToolParamSpec>> currentToolParamsSupplier;
-
-    // Sandbox controls — kept as fields so the live posture badge can react to changes
-    private RadioButtonGroup<String> networkModeField;
-    private MultiSelectComboBox<String> hostsField;
-    private MultiSelectComboBox<String> allowClassesField;
-    private MultiSelectComboBox<String> denyClassesField;
-    private Span postureBadge;
-    private Icon postureIcon;
-    private Set<String> yamlBaselineDeny = Set.of();
-    private Set<String> yamlBaselineAllow = Set.of();
+    private final SandboxCapabilitiesView sandboxView;
 
     public JavascriptToolPlaygroundView(ObjectMapper objectMapper, ToolSpecService toolSpecService,
             SpringAiPlaygroundOptions options, SandboxPostureCalculator postureCalculator,
             Supplier<List<ToolParamSpec>> currentToolParamsSupplier) {
         this.objectMapper = objectMapper;
         this.toolSpecService = toolSpecService;
-        this.options = options;
-        this.postureCalculator = postureCalculator;
         this.currentToolParamsSupplier = currentToolParamsSupplier;
         this.staticVariableForms = new ArrayList<>();
+        this.sandboxView = new SandboxCapabilitiesView(options, postureCalculator);
 
         setSizeFull();
         setPadding(false);
@@ -136,34 +115,43 @@ public class JavascriptToolPlaygroundView extends VerticalLayout {
         ace.setPlaceholder("Type JavaScript code here…");
         String exampleJs = """
                 /**
-                 * NOTE TO DEVELOPERS:
-                 * This code runs on JavaScript (ECMAScript 2023) inside the JVM using GraalJS.
-                 * It is NOT a browser or Node.js environment.
+                 * Tool runtime — ECMAScript 2024 on GraalJS (inside the JVM).
+                 * Not a browser or Node.js: the host bridges a curated set of globals.
+                 * Per-tool policy (network / filesystem / classes) is set in the Sandbox panel above.
                  *
-                 * Unavailable APIs:
-                 * - Browser APIs: fetch, XMLHttpRequest, DOM (window/document), timers, etc.
-                 * - Node.js APIs: require(), modules, process, built-in modules, etc.
+                 * ── Web Standard globals (always available) ──────────────────────────
+                 *   fetch(url, init?)              WHATWG fetch — gated by Network mode
+                 *   URL, URLSearchParams           WHATWG URL parsing
+                 *   atob(b64), btoa(str)           Base64 encode / decode
+                 *   crypto.randomUUID()            UUID v4
+                 *   crypto.getRandomValues(buf)    fill a Uint8Array
+                 *   crypto.subtle.digest|sign|importKey   SHA-256/384/512, HMAC-SHA256
+                 *   console.log(...args)           captured to Debug Console below
                  *
-                 * Available features:
-                 * - Java interop via Java.type() is restricted to a safe allowlist (see application.yml)
-                 * - Common utilities and HTTP client classes are allowed (e.g. java.util.*, java.net.http.HttpClient, ...)
-                 * - Dangerous operations (file I/O, system commands, reflection, etc.) are completely blocked
-                 * - console.log output is captured and displayed in the Debug Console below
+                 * ── safety.* helpers (host-bridged) ──────────────────────────────────
+                 *   safety.parser.html|yaml|csv|xml(text)          always available
+                 *   safety.fs.readText|list|exists|stat|grep|
+                 *            lineCount|slice|cut|sort|find         Filesystem mode ≥ read
+                 *   safety.fs.writeText(path, text)                Filesystem mode = read+write
+                 *   (all fs paths are resolved under the Base path set in the Sandbox panel)
                  *
-                 * Execution model:
-                 * - Your script is executed in a sandboxed environment with strict security restrictions
-                 * - The script runs fresh on every call (stateless)
-                 * - You MUST return a value — this becomes the tool result returned to the agent
+                 * ── Java interop ─────────────────────────────────────────────────────
+                 *   Java.type('java.lang|math|time|util|text.*')   allowlist — see application.yaml
+                 *   Reflection / Thread / ClassLoader / ServiceLoader → denied
+                 *
+                 * ── Execution model ──────────────────────────────────────────────────
+                 *   Your script runs in an async wrapper (top-level await OK), stateless per call.
+                 *   You MUST return a value — it becomes the tool result sent back to the agent.
                  */
-                
-                /* ===== Example: Hello World — delete and replace ===== */
+
+                // ── Example: Hello World — replace with your tool's logic ──
                 const Instant = Java.type('java.time.Instant');
-                
+
                 return {
                   message: 'Hello World from Spring AI Playground 👋',
                   timestamp: new Date().toISOString(),
                   epochMilli: Instant.now().toEpochMilli(),
-                  note: 'You can access allow Java classes, configured safely in application.yml!',
+                  hint: 'Try fetch(url) · safety.parser.yaml(text) · safety.fs.readText(path)',
                 };
                 """;
         ace.setValue(exampleJs);
@@ -230,8 +218,6 @@ public class JavascriptToolPlaygroundView extends VerticalLayout {
         staticVarsSection.setSpacing(true);
         staticVarsSection.setWidthFull();
 
-        Details sandboxSection = buildSandboxDetails();
-
         HorizontalLayout actionBar = new HorizontalLayout(testRunButton, clearButton, formatButton);
 
         actionBar.setPadding(false);
@@ -239,156 +225,10 @@ public class JavascriptToolPlaygroundView extends VerticalLayout {
         actionBar.getStyle().set("gap", "var(--lumo-space-s)");
         actionBar.setWidthFull();
 
-        add(new H4("Tool Action"), sandboxSection, staticVarsSection, new H5("JS Code Editor"), ace, actionBar, bottomContainer);
+        add(new H4("Tool Action"), this.sandboxView, staticVarsSection, new H5("JS Code Editor"), ace, actionBar, bottomContainer);
         setFlexGrow(1, ace);
         setFlexGrow(1, bottomContainer);
         addDefaultStaticVariableForm();
-    }
-
-    private Details buildSandboxDetails() {
-        JsSandbox baseline = this.options.toolStudio() != null
-                ? this.options.toolStudio().jsSandbox() : null;
-        this.yamlBaselineAllow = baseline != null && baseline.allowClasses() != null
-                ? baseline.allowClasses() : Set.of();
-        this.yamlBaselineDeny = baseline != null && baseline.denyClasses() != null
-                ? baseline.denyClasses() : Set.of();
-
-        this.allowClassesField = chipListField("Allow Classes",
-                "Java APIs this tool can use. Removing tightens. Adding a new class can raise risk (L3+).",
-                this.yamlBaselineAllow);
-
-        this.denyClassesField = chipListField("Deny Classes",
-                "Always blocked. Removing reflection denies → L4. Removing System / Runtime / Process → L5.",
-                this.yamlBaselineDeny);
-
-        // Built-in fetch() only. Java HttpClient is gated by Allow Classes instead.
-        this.networkModeField = new RadioButtonGroup<>();
-        this.networkModeField.setLabel("Built-in fetch() egress");
-        this.networkModeField.setItems("blocked", "allowlist", "open");
-        this.networkModeField.setValue("blocked");
-        this.networkModeField.setHelperText(
-                "Built-in fetch() only. Java HttpClient is governed by Allow Classes. "
-                        + "blocked = no network · allowlist = listed hosts (L3) · open = any host (L4).");
-
-        this.hostsField = new MultiSelectComboBox<>("Allowed Hosts");
-        this.hostsField.setAllowCustomValue(true);
-        this.hostsField.setWidthFull();
-        this.hostsField.addCustomValueSetListener(e -> {
-            Set<String> next = new java.util.LinkedHashSet<>(this.hostsField.getValue());
-            next.add(e.getDetail().trim());
-            this.hostsField.setValue(next);
-        });
-
-        this.networkModeField.addValueChangeListener(e -> {
-            this.hostsField.setVisible("allowlist".equals(e.getValue()));
-            updatePostureBadge();
-        });
-        this.hostsField.addValueChangeListener(e -> updatePostureBadge());
-        this.allowClassesField.addValueChangeListener(e -> updatePostureBadge());
-        this.denyClassesField.addValueChangeListener(e -> updatePostureBadge());
-        this.hostsField.setVisible(false);
-
-        VerticalLayout body = new VerticalLayout(
-                this.allowClassesField,
-                this.denyClassesField,
-                this.networkModeField,
-                this.hostsField);
-        body.setPadding(false);
-        body.setSpacing(true);
-        body.setWidthFull();
-
-        Span title = new Span("Sandbox & Capabilities");
-        title.getStyle().set("font-weight", "var(--lumo-font-weight-semibold)");
-
-        Span separator = new Span("·");
-        separator.getStyle()
-                .set("color", "var(--lumo-tertiary-text-color)")
-                .set("margin", "0 0.6em");
-
-        this.postureIcon = VaadinIcon.LOCK.create();
-        this.postureIcon.setSize("1.1em");
-
-        this.postureBadge = new Span();
-        this.postureBadge.getStyle().set("margin-inline-start", "0.35em");
-
-        HorizontalLayout summary = new HorizontalLayout(title, separator, this.postureIcon, this.postureBadge);
-        summary.setAlignItems(HorizontalLayout.Alignment.CENTER);
-        summary.setSpacing(false);
-
-        updatePostureBadge();  // initial paint
-
-        Details details = new Details(summary, body);
-        details.setOpened(false);  // collapsed by default — posture visible from header alone
-        details.setWidthFull();
-        return details;
-    }
-
-    private static MultiSelectComboBox<String> chipListField(String label, String helper, Set<String> baseline) {
-        MultiSelectComboBox<String> field = new MultiSelectComboBox<>(label);
-        field.setHelperText(helper);
-        field.setWidthFull();
-        field.setAllowCustomValue(true);
-
-        ChipListBinding binding = new ChipListBinding(baseline);
-        field.setItems(binding.items());
-        field.setValue(binding.selected());
-
-        field.addCustomValueSetListener(e -> {
-            if (binding.add(e.getDetail())) {
-                field.setItems(binding.items());
-                field.setValue(binding.selected());
-            }
-        });
-        field.addValueChangeListener(e -> binding.replaceSelected(e.getValue()));
-        return field;
-    }
-
-    private void updatePostureBadge() {
-        if (this.postureBadge == null) return;
-        RiskLevel level = computeRisk();
-        this.postureBadge.setText(postureLabel(level) + "  " + level.name());
-        String theme = switch (level) {
-            case L0, L1 -> "badge success primary small";
-            case L2     -> "badge contrast small";
-            case L3     -> "badge contrast primary small";
-            case L4     -> "badge warning primary small";
-            case L5     -> "badge error primary small";
-        };
-        this.postureBadge.getElement().setAttribute("theme", theme);
-        VaadinIcon iconKind = switch (level) {
-            case L0, L1, L2 -> VaadinIcon.LOCK;
-            case L3         -> VaadinIcon.SHIELD;
-            case L4         -> VaadinIcon.UNLOCK;
-            case L5         -> VaadinIcon.WARNING;
-        };
-        String iconColour = switch (level) {
-            case L0, L1 -> "var(--lumo-success-color)";
-            case L2, L3 -> "var(--lumo-primary-color)";
-            case L4     -> "#f0a500";
-            case L5     -> "var(--lumo-error-color)";
-        };
-        this.postureIcon.getElement().setAttribute("icon", "vaadin:" + iconKind.name().toLowerCase().replace('_', '-'));
-        this.postureIcon.getStyle().set("color", iconColour);
-    }
-
-    private RiskLevel computeRisk() {
-        String mode = this.networkModeField == null ? "blocked" : this.networkModeField.getValue();
-        Set<String> hosts = this.hostsField == null ? Set.of() : this.hostsField.getValue();
-        Set<String> userDeny = this.denyClassesField == null ? Set.of() : this.denyClassesField.getValue();
-        Set<String> userAllow = this.allowClassesField == null ? Set.of() : this.allowClassesField.getValue();
-        return this.postureCalculator.compute(
-                new Inputs(mode, hosts, this.yamlBaselineDeny, userDeny, this.yamlBaselineAllow, userAllow));
-    }
-
-    private static String postureLabel(RiskLevel level) {
-        return switch (level) {
-            case L0 -> "Locked";
-            case L1 -> "Locked + clock";
-            case L2 -> "Workspace";
-            case L3 -> "Network allowlist";
-            case L4 -> "Open network";
-            case L5 -> "Side effects";
-        };
     }
 
     private void addDefaultStaticVariableForm() {
@@ -438,21 +278,7 @@ public class JavascriptToolPlaygroundView extends VerticalLayout {
     }
 
     public ToolSpec.SandboxOverrides currentSandboxOverrides() {
-        Set<String> userAllow = this.allowClassesField == null ? Set.of() : this.allowClassesField.getValue();
-        Set<String> userDeny = this.denyClassesField == null ? Set.of() : this.denyClassesField.getValue();
-        Set<String> addAllow = diff(userAllow, this.yamlBaselineAllow);
-        Set<String> removeAllow = diff(this.yamlBaselineAllow, userAllow);
-        Set<String> addDeny = diff(userDeny, this.yamlBaselineDeny);
-        Set<String> removeDeny = diff(this.yamlBaselineDeny, userDeny);
-        String networkMode = this.networkModeField == null ? null : this.networkModeField.getValue();
-        Set<String> hosts = this.hostsField == null ? Set.of() : this.hostsField.getValue();
-        return new ToolSpec.SandboxOverrides(addAllow, removeAllow, addDeny, removeDeny, networkMode, hosts);
-    }
-
-    private static Set<String> diff(Set<String> a, Set<String> b) {
-        Set<String> out = new java.util.LinkedHashSet<>(a == null ? Set.of() : a);
-        if (b != null) out.removeAll(b);
-        return out;
+        return this.sandboxView.currentOverrides();
     }
 
     private void formatCodeWithPrettier() {

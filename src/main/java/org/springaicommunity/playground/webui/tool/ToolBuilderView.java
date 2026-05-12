@@ -35,7 +35,7 @@ import org.springaicommunity.playground.service.tool.ToolSpec;
 import org.springaicommunity.playground.service.tool.ToolSpec.JsonSchemaType;
 import org.springaicommunity.playground.service.tool.ToolSpec.ToolParamSpec;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
-import org.springaicommunity.playground.service.tool.catalog.ToolCategoryCatalog;
+import org.springaicommunity.playground.service.tool.ToolCategoryCatalog;
 import org.springaicommunity.playground.service.tool.policy.SandboxPostureCalculator;
 import org.springaicommunity.playground.webui.VaadinUtils;
 
@@ -79,6 +79,10 @@ public class ToolBuilderView extends VerticalLayout {
         setSizeFull();
         setSpacing(true);
         setMargin(false);
+        setPadding(false);
+        getStyle()
+                .set("padding-block", "var(--lumo-space-m)")
+                .set("padding-inline-start", "var(--lumo-space-m)");
 
         this.toolNameField = new TextField("Tool Name");
         this.toolNameField.setPlaceholder(
@@ -176,7 +180,8 @@ public class ToolBuilderView extends VerticalLayout {
         scrollArea.getStyle()
                 .set("overflow-y", "auto")
                 .set("overflow-x", "hidden")
-                .set("min-width", "0");
+                .set("min-width", "0")
+                .set("padding-inline-end", "var(--lumo-space-m)");
 
         Button registerToolButton = new Button("Test & Update Tool", e -> testAndUpdateTool(toolNameField,
                 toolDescriptionField));
@@ -187,6 +192,7 @@ public class ToolBuilderView extends VerticalLayout {
         bottomMenuLayout.setSpacing(true);
         bottomMenuLayout.setWidthFull();
         bottomMenuLayout.setHeight("95px");
+        bottomMenuLayout.getStyle().set("padding-inline-end", "var(--lumo-space-m)");
 
         add(scrollArea, bottomMenuLayout);
 

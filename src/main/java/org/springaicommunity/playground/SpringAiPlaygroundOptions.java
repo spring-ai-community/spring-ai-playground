@@ -27,7 +27,8 @@ import java.util.Set;
 public record SpringAiPlaygroundOptions(@NestedConfigurationProperty ToolStudio toolStudio, boolean persistence,
                                         String userHome, @NestedConfigurationProperty Chat chat) {
 
-    public record ToolStudio(Long timeoutSeconds, @NestedConfigurationProperty JsSandbox jsSandbox) {}
+    public record ToolStudio(Long timeoutSeconds, @NestedConfigurationProperty JsSandbox jsSandbox,
+                             @NestedConfigurationProperty FsConfig fs) {}
 
     public record JsSandbox(boolean allowNetworkIo, boolean allowFileIo, boolean allowNativeAccess,
                             boolean allowCreateThread, Long maxStatements, Set<String> denyClasses,
@@ -36,9 +37,12 @@ public record SpringAiPlaygroundOptions(@NestedConfigurationProperty ToolStudio 
     public record SandboxProfile(String level, String extendsProfile, Boolean javaInterop,
                                  Set<String> allowClasses, Set<String> denyClasses,
                                  @NestedConfigurationProperty NetworkPolicy network,
+                                 String fileMode,
                                  Long maxStatements, Long timeoutMs) {}
 
     public record NetworkPolicy(String egressLevel, Set<String> hostsAllow, Set<String> hostsDeny) {}
+
+    public record FsConfig(String basePath) {}
 
     public record Chat(String systemPrompt, List<String> models,
                        @NestedConfigurationProperty DefaultChatOptions chatOptions) {}

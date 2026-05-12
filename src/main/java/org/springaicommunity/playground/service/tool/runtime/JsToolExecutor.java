@@ -13,9 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.springaicommunity.playground.service.tool;
+package org.springaicommunity.playground.service.tool.runtime;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import org.springaicommunity.playground.SpringAiPlaygroundOptions.FsConfig;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions.JsSandbox;
 import org.springaicommunity.playground.service.tool.policy.EffectivePolicyResolver.EffectivePolicy;
 import org.springaicommunity.playground.service.tool.runtime.JsRuntimeGlobals;
@@ -31,6 +32,8 @@ import org.graalvm.polyglot.proxy.ProxyObject;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.lang.reflect.Array;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -76,12 +79,20 @@ public class JsToolExecutor {
 
     private final long timeoutSeconds;
     private final EffectivePolicy defaultPolicy;
+    private final Path fsBasePath;
     private final ExecutorService executor;
 
-    public JsToolExecutor(Long timeoutSeconds, JsSandbox jsSandbox) {
+    public JsToolExecutor(Long timeoutSeconds, JsSandbox jsSandbox, FsConfig fsConfig) {
         this.timeoutSeconds = Optional.ofNullable(timeoutSeconds).orElse(30L);
         this.defaultPolicy = jsSandbox == null ? null : toDefaultPolicy(jsSandbox, this.timeoutSeconds);
+        this.fsBasePath = resolveFsBasePath(fsConfig);
         this.executor = Executors.newVirtualThreadPerTaskExecutor();
+    }
+
+    private static Path resolveFsBasePath(FsConfig fsConfig) {
+        String path = fsConfig == null || fsConfig.basePath() == null || fsConfig.basePath().isBlank()
+                ? System.getProperty("user.home") : fsConfig.basePath();
+        return Paths.get(path).toAbsolutePath().normalize();
     }
 
     private static EffectivePolicy toDefaultPolicy(JsSandbox sandbox, long timeoutSeconds) {
@@ -89,8 +100,8 @@ public class JsToolExecutor {
         return new EffectivePolicy(
                 sandbox.allowClasses() == null ? Set.of() : sandbox.allowClasses(),
                 sandbox.denyClasses() == null ? Set.of() : sandbox.denyClasses(),
-                sandbox.allowNetworkIo(), sandbox.allowFileIo(), sandbox.allowNativeAccess(),
-                sandbox.allowCreateThread(), maxStatements, timeoutSeconds,
+                sandbox.allowNetworkIo(), sandbox.allowFileIo(), sandbox.allowFileIo(),
+                sandbox.allowNativeAccess(), sandbox.allowCreateThread(), maxStatements, timeoutSeconds,
                 true, null, null, null);
     }
 
@@ -120,10 +131,15 @@ public class JsToolExecutor {
     }
 
     public JsExecutionResult execute(JsExecutionParams jsExecutionParams) {
-        return execute(jsExecutionParams, defaultPolicy);
+        return execute(jsExecutionParams, defaultPolicy, null);
     }
 
     public JsExecutionResult execute(JsExecutionParams jsExecutionParams, EffectivePolicy policy) {
+        return execute(jsExecutionParams, policy, null);
+    }
+
+    public JsExecutionResult execute(JsExecutionParams jsExecutionParams, EffectivePolicy policy,
+                                     Path overrideFsBase) {
         String jsCode = """
                 (async function() {
                     %s
@@ -149,7 +165,8 @@ public class JsToolExecutor {
 
                 logList.add("=== Execution Log ===");
                 installConsoleLog(bindings, logList, envSecretValues);
-                JsRuntimeGlobals.installAll(bindings, policy);
+                JsRuntimeGlobals.installAll(bindings, policy,
+                        overrideFsBase != null ? overrideFsBase : this.fsBasePath);
 
                 Value jsResultValue = awaitPromise(context.eval("js", jsCode));
                 Object jsResult = jsResultValue.isNull() ? "undefined" :

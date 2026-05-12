@@ -33,10 +33,10 @@ import com.vaadin.flow.router.BeforeEnterEvent;
 import com.vaadin.flow.router.BeforeEnterObserver;
 import org.springaicommunity.playground.service.tool.ToolSpec;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
-import org.springaicommunity.playground.service.tool.catalog.ToolCategoryCatalog;
-import org.springaicommunity.playground.service.tool.catalog.ToolCategoryCatalog.CategoryDef;
-import org.springaicommunity.playground.service.tool.state.ToolActivationCalculator;
-import org.springaicommunity.playground.service.tool.state.ToolActivationCalculator.State;
+import org.springaicommunity.playground.service.tool.ToolCategoryCatalog;
+import org.springaicommunity.playground.service.tool.ToolCategoryCatalog.CategoryDef;
+import org.springaicommunity.playground.service.tool.ToolActivationCalculator;
+import org.springaicommunity.playground.service.tool.ToolActivationCalculator.State;
 import org.springaicommunity.playground.webui.PersistentUiDataStorage;
 import org.springaicommunity.playground.webui.VaadinUtils;
 import org.springaicommunity.playground.webui.common.WorkspaceSidebar;
@@ -259,14 +259,16 @@ public class ToolListView extends WorkspaceSidebar implements BeforeEnterObserve
         this.categoryListBoxes.add(listBox);
 
         Details details = new Details(header, listBox);
+        details.addClassName("workspace-sidebar-details");
         details.setOpened(true);
         details.setWidthFull();
+        details.getStyle().set("margin-bottom", "var(--lumo-space-xs)");
         return details;
     }
 
     private Div renderToolItem(ToolSpec tool) {
         Div row = new Div();
-        row.getStyle().set("display", "flex").set("flex-direction", "column").set("gap", "0.15em")
+        row.getStyle().set("display", "flex").set("flex-direction", "column").set("gap", "0.35em")
                 .set("width", "100%");
 
         // Activation state visible without clicking the row.

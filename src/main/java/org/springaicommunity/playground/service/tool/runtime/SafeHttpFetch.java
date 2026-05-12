@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.springaicommunity.playground.service.tool.sandbox;
+package org.springaicommunity.playground.service.tool.runtime;
 
 import org.springaicommunity.playground.SpringAiPlaygroundOptions.NetworkPolicy;
 

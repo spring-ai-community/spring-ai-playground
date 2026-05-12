@@ -63,7 +63,7 @@ class EffectivePolicyResolverTest {
         SandboxProfile webFetch = new SandboxProfile("L3", null, true,
                 Set.of("java.net.http.*"), Set.of("java.io.File"),
                 new NetworkPolicy("allowlist", Set.of("api.example.com"), Set.of("10.0.0.0/8")),
-                100_000L, 30_000L);
+                null, 100_000L, 30_000L);
         JsSandbox sandbox = new JsSandbox(true, false, false, false, 50_000L,
                 Set.of("java.lang.System"), Set.of("java.lang.*"),
                 Map.of("web-fetch", webFetch));
@@ -85,11 +85,11 @@ class EffectivePolicyResolverTest {
     @Test
     void resolveWithExtendsChainWalksRootToLeaf() {
         SandboxProfile root = new SandboxProfile("L0", null, false,
-                Set.of("java.lang.String"), Set.of("java.io.*"), null, null, null);
+                Set.of("java.lang.String"), Set.of("java.io.*"), null, null, null, null);
         SandboxProfile child = new SandboxProfile("L1", "root", null,
-                Set.of("java.time.*"), Set.of(), null, null, null);
+                Set.of("java.time.*"), Set.of(), null, null, null, null);
         SandboxProfile leaf = new SandboxProfile("L2", "child", true,
-                Set.of("java.util.*"), Set.of("java.net.*"), null, null, null);
+                Set.of("java.util.*"), Set.of("java.net.*"), null, null, null, null);
         JsSandbox sandbox = new JsSandbox(true, false, false, false, 50_000L,
                 Set.of(), Set.of(),
                 Map.of("root", root, "child", child, "leaf", leaf));
@@ -107,8 +107,8 @@ class EffectivePolicyResolverTest {
 
     @Test
     void resolveWithCycleThrows() {
-        SandboxProfile a = new SandboxProfile("L0", "b", null, Set.of(), Set.of(), null, null, null);
-        SandboxProfile b = new SandboxProfile("L0", "a", null, Set.of(), Set.of(), null, null, null);
+        SandboxProfile a = new SandboxProfile("L0", "b", null, Set.of(), Set.of(), null, null, null, null);
+        SandboxProfile b = new SandboxProfile("L0", "a", null, Set.of(), Set.of(), null, null, null, null);
         JsSandbox sandbox = new JsSandbox(true, false, false, false, 50_000L,
                 Set.of(), Set.of(), Map.of("a", a, "b", b));
 
@@ -127,7 +127,7 @@ class EffectivePolicyResolverTest {
     @Test
     void resolveFailsFastWhenAllowOverlapsDeny() {
         SandboxProfile bad = new SandboxProfile("L0", null, null,
-                Set.of("java.lang.System"), Set.of(), null, null, null);
+                Set.of("java.lang.System"), Set.of(), null, null, null, null);
         JsSandbox sandbox = new JsSandbox(true, false, false, false, 50_000L,
                 Set.of("java.lang.System"), Set.of("java.lang.*"),
                 Map.of("bad", bad));
@@ -140,7 +140,7 @@ class EffectivePolicyResolverTest {
     @Test
     void resolveHonorsJavaInteropFalseInProfile() {
         SandboxProfile pure = new SandboxProfile("L0", null, false,
-                Set.of(), Set.of(), null, null, null);
+                Set.of(), Set.of(), null, null, null, null);
         JsSandbox sandbox = new JsSandbox(true, false, false, false, 50_000L,
                 Set.of("java.lang.System"), Set.of("java.lang.*"),
                 Map.of("pure", pure));
@@ -151,7 +151,7 @@ class EffectivePolicyResolverTest {
 
     @Test
     void overridesAddDenyExtendsBaseline() {
-        Overrides overrides = new Overrides(Set.of(), Set.of(), Set.of("java.io.File"), Set.of(), null);
+        Overrides overrides = new Overrides(Set.of(), Set.of(), Set.of("java.io.File"), Set.of(), null, null, null, null);
         EffectivePolicy policy = resolver.resolve(baseline(), null, overrides);
         assertTrue(policy.denyClasses().contains("java.io.File"));
         assertTrue(policy.denyClasses().contains("java.lang.System"), "baseline still in deny");
@@ -159,7 +159,7 @@ class EffectivePolicyResolverTest {
 
     @Test
     void overridesRemoveDenyLiftsBaseline() {
-        Overrides overrides = new Overrides(Set.of(), Set.of(), Set.of(), Set.of("java.lang.reflect.*"), null);
+        Overrides overrides = new Overrides(Set.of(), Set.of(), Set.of(), Set.of("java.lang.reflect.*"), null, null, null, null);
         EffectivePolicy policy = resolver.resolve(baseline(), null, overrides);
         assertFalse(policy.denyClasses().contains("java.lang.reflect.*"),
                 "per-tool unblock — reflection no longer denied");
@@ -168,7 +168,7 @@ class EffectivePolicyResolverTest {
 
     @Test
     void overridesAddAllowExtendsBaseline() {
-        Overrides overrides = new Overrides(Set.of("org.jsoup.*"), Set.of(), Set.of(), Set.of(), null);
+        Overrides overrides = new Overrides(Set.of("org.jsoup.*"), Set.of(), Set.of(), Set.of(), null, null, null, null);
         EffectivePolicy policy = resolver.resolve(baseline(), null, overrides);
         assertTrue(policy.allowClasses().contains("org.jsoup.*"));
         assertTrue(policy.allowClasses().contains("java.lang.*"), "baseline allow stays");
@@ -176,7 +176,7 @@ class EffectivePolicyResolverTest {
 
     @Test
     void overridesRemoveAllowRevokesBaseline() {
-        Overrides overrides = new Overrides(Set.of(), Set.of("java.util.*"), Set.of(), Set.of(), null);
+        Overrides overrides = new Overrides(Set.of(), Set.of("java.util.*"), Set.of(), Set.of(), null, null, null, null);
         EffectivePolicy policy = resolver.resolve(baseline(), null, overrides);
         assertFalse(policy.allowClasses().contains("java.util.*"));
         assertTrue(policy.allowClasses().contains("java.lang.*"));
@@ -184,10 +184,70 @@ class EffectivePolicyResolverTest {
 
     @Test
     void overridesConflictAddAllowAndAddDenyFailsFast() {
-        Overrides overrides = new Overrides(Set.of("java.io.File"), Set.of(), Set.of("java.io.File"), Set.of(), null);
+        Overrides overrides = new Overrides(Set.of("java.io.File"), Set.of(), Set.of("java.io.File"), Set.of(), null, null, null, null);
         IllegalStateException ex = assertThrows(IllegalStateException.class,
                 () -> resolver.resolve(baseline(), null, overrides));
         assertTrue(ex.getMessage().contains("conflict"));
+    }
+
+    @Test
+    void overridesNetworkIoFlipsBaseline() {
+        Overrides overrides = new Overrides(Set.of(), Set.of(), Set.of(), Set.of(),
+                null, false, null, null);
+        EffectivePolicy policy = resolver.resolve(baseline(), null, overrides);
+        assertFalse(policy.allowNetworkIo());
+    }
+
+    @Test
+    void overridesFileReadOnly() {
+        Overrides overrides = new Overrides(Set.of(), Set.of(), Set.of(), Set.of(),
+                null, null, true, null);
+        EffectivePolicy policy = resolver.resolve(baseline(), null, overrides);
+        assertTrue(policy.fileRead());
+        assertFalse(policy.fileWrite());
+        assertTrue(policy.allowFileIo());
+    }
+
+    @Test
+    void overridesFileReadWrite() {
+        Overrides overrides = new Overrides(Set.of(), Set.of(), Set.of(), Set.of(),
+                null, null, true, true);
+        EffectivePolicy policy = resolver.resolve(baseline(), null, overrides);
+        assertTrue(policy.fileRead());
+        assertTrue(policy.fileWrite());
+    }
+
+    @Test
+    void overridesNetworkPolicyApplied() {
+        NetworkPolicy net = new NetworkPolicy("allowlist",
+                Set.of("api.example.com"), Set.of());
+        Overrides overrides = new Overrides(Set.of(), Set.of(), Set.of(), Set.of(),
+                net, null, null, null);
+        EffectivePolicy policy = resolver.resolve(baseline(), null, overrides);
+        assertEquals("allowlist", policy.network().egressLevel());
+        assertTrue(policy.network().hostsAllow().contains("api.example.com"));
+    }
+
+    @Test
+    void profileFileModeReadOnly() {
+        SandboxProfile readOnly = new SandboxProfile("L3", null, false,
+                Set.of(), Set.of(), null, "read", null, null);
+        JsSandbox sandbox = new JsSandbox(true, false, false, false, 50_000L,
+                Set.of(), Set.of(), Map.of("read-only", readOnly));
+        EffectivePolicy policy = resolver.resolve(sandbox, "read-only");
+        assertTrue(policy.fileRead());
+        assertFalse(policy.fileWrite());
+    }
+
+    @Test
+    void profileFileModeReadWrite() {
+        SandboxProfile rw = new SandboxProfile("L4", null, false,
+                Set.of(), Set.of(), null, "read+write", null, null);
+        JsSandbox sandbox = new JsSandbox(true, false, false, false, 50_000L,
+                Set.of(), Set.of(), Map.of("rw", rw));
+        EffectivePolicy policy = resolver.resolve(sandbox, "rw");
+        assertTrue(policy.fileRead());
+        assertTrue(policy.fileWrite());
     }
 
     @Test
