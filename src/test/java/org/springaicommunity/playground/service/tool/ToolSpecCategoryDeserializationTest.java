@@ -51,8 +51,8 @@ class ToolSpecCategoryDeserializationTest {
     void carryOverHelpersPreserveCategoryAndTags() {
         ToolSpec target = new ToolSpec("id1", "name", "desc", java.util.List.of(), java.util.List.of(),
                 "code", ToolSpec.CodeType.Javascript, null);
-        target.withCategory("SEARCH").withTags(java.util.Set.of("oss", "global"));
-        assertEquals("SEARCH", target.category());
+        target.withCategory("WEB").withTags(java.util.Set.of("oss", "global"));
+        assertEquals("WEB", target.category());
         assertEquals(java.util.Set.of("oss", "global"), target.tags());
     }
 

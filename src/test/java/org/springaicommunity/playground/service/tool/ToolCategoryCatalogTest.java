@@ -33,31 +33,29 @@ class ToolCategoryCatalogTest {
     void loadsAllThirteenCategoryIdsInOrder() throws Exception {
         ToolCategoryCatalog catalog = new ToolCategoryCatalog();
         List<CategoryDef> defs = catalog.categories();
-        // 13 curated IDs match mcp-catalog/default-categories.json (single source of truth)
         assertEquals(13, defs.size());
-        // Verify ordering — order field drives display sequence
-        assertEquals("PRODUCTIVITY", defs.get(0).id());
-        assertEquals("STORAGE",      defs.get(1).id());
-        assertEquals("CUSTOM",       defs.get(defs.size() - 1).id(),
+        assertEquals("TEXT",   defs.get(0).id());
+        assertEquals("DATA",   defs.get(1).id());
+        assertEquals("CUSTOM", defs.get(defs.size() - 1).id(),
                 "CUSTOM must be last (order=999) so user-defined tools sink to bottom");
     }
 
     @Test
-    void exposesExactlyTheMcpCatalogIds() throws Exception {
+    void exposesExactlyTheToolCatalogIds() throws Exception {
         ToolCategoryCatalog catalog = new ToolCategoryCatalog();
         Set<String> expected = Set.of(
-                "PRODUCTIVITY", "STORAGE", "COMMUNICATION", "PROJECT_MGMT", "DEV", "SEARCH",
-                "CLOUD", "DATABASE", "FINANCE", "CRM", "DESIGN", "UTIL", "CUSTOM");
+                "TEXT", "DATA", "DATETIME", "MATH", "ENCODING", "CRYPTO", "SECURITY", "FILE",
+                "WEB", "PRODUCTIVITY", "MESSAGING", "AI", "CUSTOM");
         assertEquals(expected, catalog.categoryIds());
     }
 
     @Test
     void resolveKnownIdReturnsDef() throws Exception {
         ToolCategoryCatalog catalog = new ToolCategoryCatalog();
-        CategoryDef def = catalog.resolveOrFallback("SEARCH");
-        assertEquals("SEARCH", def.id());
-        assertEquals("Search", def.displayName());
-        assertEquals("search", def.icon());
+        CategoryDef def = catalog.resolveOrFallback("CRYPTO");
+        assertEquals("CRYPTO", def.id());
+        assertEquals("Crypto & Random", def.displayName());
+        assertEquals("key", def.icon());
     }
 
     @Test
@@ -78,14 +76,14 @@ class ToolCategoryCatalogTest {
     void findReturnsEmptyForUnknown() throws Exception {
         ToolCategoryCatalog catalog = new ToolCategoryCatalog();
         assertTrue(catalog.find("NOPE").isEmpty());
-        assertTrue(catalog.find("DEV").isPresent());
+        assertTrue(catalog.find("CRYPTO").isPresent());
     }
 
     @Test
     void isKnownAcceptsCatalogIdsRejectsOthers() throws Exception {
         ToolCategoryCatalog catalog = new ToolCategoryCatalog();
-        assertTrue(catalog.isKnown("UTIL"));
-        assertFalse(catalog.isKnown("util"));            // case-sensitive — IDs are uppercase
+        assertTrue(catalog.isKnown("TEXT"));
+        assertFalse(catalog.isKnown("text"));            // case-sensitive — IDs are uppercase
         assertFalse(catalog.isKnown(""));
         assertFalse(catalog.isKnown(null));
     }
@@ -100,7 +98,7 @@ class ToolCategoryCatalogTest {
 
     @Test
     void rejectsCatalogMissingFallbackId() {
-        List<CategoryDef> withoutCustom = List.of(new CategoryDef("DEV", "Dev", 50, "code", "test"));
+        List<CategoryDef> withoutCustom = List.of(new CategoryDef("TEXT", "Text", 10, "font", "test"));
         assertThrows(IllegalStateException.class, () -> new ToolCategoryCatalog(withoutCustom));
     }
 
