@@ -83,10 +83,11 @@ public class SandboxCapabilitiesView extends Details {
 
         this.networkModeField = new RadioButtonGroup<>();
         this.networkModeField.setLabel("Network mode (fetch)");
-        this.networkModeField.setItems("blocked", "allowlist", "open");
+        this.networkModeField.setItems("blocked", "allowlist", "strict", "open");
         this.networkModeField.setValue("blocked");
         this.networkModeField.setHelperText(
-                "blocked = no outbound · allowlist = listed hosts only (L3) · open = any host (L4)");
+                "blocked = no outbound · allowlist = listed hosts only (L3) · "
+                        + "strict = any host with SSRF 4-layer guard (L3) · open = any host (L4)");
 
         this.hostsField = new MultiSelectComboBox<>("Allowed hosts");
         this.hostsField.setAllowCustomValue(true);
@@ -223,6 +224,42 @@ public class SandboxCapabilitiesView extends Details {
                 fileRead, fileWrite, fsBasePath);
     }
 
+    public void applyOverrides(ToolSpec.SandboxOverrides overrides) {
+        if (overrides == null) return;
+        Set<String> resolvedAllow = new LinkedHashSet<>(this.yamlBaselineAllow);
+        if (overrides.removeAllowClasses() != null) resolvedAllow.removeAll(overrides.removeAllowClasses());
+        if (overrides.addAllowClasses() != null) resolvedAllow.addAll(overrides.addAllowClasses());
+        this.allowClassesField.setItems(resolvedAllow);
+        this.allowClassesField.setValue(resolvedAllow);
+
+        Set<String> resolvedDeny = new LinkedHashSet<>(this.yamlBaselineDeny);
+        if (overrides.removeDenyClasses() != null) resolvedDeny.removeAll(overrides.removeDenyClasses());
+        if (overrides.addDenyClasses() != null) resolvedDeny.addAll(overrides.addDenyClasses());
+        this.denyClassesField.setItems(resolvedDeny);
+        this.denyClassesField.setValue(resolvedDeny);
+
+        if (overrides.networkMode() != null && !overrides.networkMode().isBlank()) {
+            this.networkModeField.setValue(overrides.networkMode());
+        }
+        if (overrides.hostsAllow() != null) {
+            Set<String> hosts = new LinkedHashSet<>(overrides.hostsAllow());
+            this.hostsField.setItems(hosts);
+            this.hostsField.setValue(hosts);
+        }
+
+        if (overrides.fileWrite() != null && overrides.fileWrite()) {
+            this.fileModeField.setValue("read+write");
+        } else if (overrides.fileRead() != null && overrides.fileRead()) {
+            this.fileModeField.setValue("read");
+        } else if (overrides.fileRead() != null || overrides.fileWrite() != null) {
+            this.fileModeField.setValue("off");
+        }
+        if (overrides.fsBasePath() != null && !overrides.fsBasePath().isBlank()) {
+            this.fsBasePathField.setValue(overrides.fsBasePath());
+        }
+        updatePostureBadge();
+    }
+
     private void applyBasePathHelperText(String fileMode, String defaultBasePath) {
         String helper = "off".equals(fileMode)
                 ? "Filesystem mode is off — set a path now and toggle to read/read+write to enable safety.fs.* (default: " + defaultBasePath + ")"
@@ -253,7 +290,7 @@ public class SandboxCapabilitiesView extends Details {
     private void updatePostureBadge() {
         if (this.postureBadge == null) return;
         RiskLevel level = computeRisk();
-        this.postureBadge.setText(postureLabel(level) + "  " + level.name());
+        this.postureBadge.setText(postureLabel(level, currentSignals()) + "  " + level.name());
         String theme = switch (level) {
             case L0, L1 -> "badge success primary small";
             case L2     -> "badge contrast small";
@@ -291,13 +328,37 @@ public class SandboxCapabilitiesView extends Details {
                         this.yamlBaselineDeny, userDeny, this.yamlBaselineAllow, userAllow));
     }
 
-    private static String postureLabel(RiskLevel level) {
+    private record PostureSignals(String networkMode, boolean fileRead, boolean fileWrite,
+                                  boolean customClasses) {}
+
+    private PostureSignals currentSignals() {
+        String mode = this.networkModeField.getValue();
+        String fileMode = this.fileModeField.getValue();
+        boolean fileRead = !"off".equals(fileMode);
+        boolean fileWrite = "read+write".equals(fileMode);
+        boolean customClasses = !diff(this.allowClassesField.getValue(), this.yamlBaselineAllow).isEmpty()
+                || !diff(this.denyClassesField.getValue(), this.yamlBaselineDeny).isEmpty();
+        return new PostureSignals(mode, fileRead, fileWrite, customClasses);
+    }
+
+    static String postureLabel(RiskLevel level, PostureSignals signals) {
         return switch (level) {
             case L0 -> "Locked";
             case L1 -> "Locked + clock";
-            case L2 -> "Workspace";
-            case L3 -> "Network allowlist";
-            case L4 -> "Open network";
+            case L2 -> signals != null && signals.fileRead() ? "File read" : "Workspace";
+            case L3 -> {
+                if (signals == null) yield "Sandboxed";
+                if ("strict".equalsIgnoreCase(signals.networkMode())) yield "Network strict";
+                if ("allowlist".equalsIgnoreCase(signals.networkMode())) yield "Network allowlist";
+                if (signals.fileRead()) yield "File read";
+                yield "Sandboxed";
+            }
+            case L4 -> {
+                if (signals == null) yield "Open network";
+                if (signals.fileWrite()) yield "File write";
+                if ("open".equalsIgnoreCase(signals.networkMode())) yield "Open network";
+                yield "Elevated";
+            }
             case L5 -> "Side effects";
         };
     }

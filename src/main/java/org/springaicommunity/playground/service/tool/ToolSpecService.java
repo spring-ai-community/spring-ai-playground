@@ -288,6 +288,7 @@ public class ToolSpecService {
         String egress = switch (mode.toLowerCase()) {
             case "blocked" -> "blocked";
             case "allowlist" -> "allowlist";
+            case "strict" -> "strict";
             case "open" -> "permissive";
             default -> null;
         };
