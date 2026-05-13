@@ -77,6 +77,7 @@ public class ToolSpec {
     private Set<String> tags;
     private SandboxOverrides sandboxOverrides;
     private boolean draft;
+    private Map<String, Object> toolSafety;
 
     @JsonIgnore
     private ToolCallback toolCallback;
@@ -154,6 +155,15 @@ public class ToolSpec {
 
     public boolean draft() {
         return draft;
+    }
+
+    public Map<String, Object> toolSafety() {
+        return toolSafety == null ? Map.of() : toolSafety;
+    }
+
+    public ToolSpec withToolSafety(Map<String, Object> toolSafety) {
+        this.toolSafety = toolSafety;
+        return this;
     }
 
     public ToolSpec withCategory(String category) {

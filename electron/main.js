@@ -170,8 +170,8 @@ function collectSecretSuggestions(yamlText = '') {
     });
   }
 
-  const toolSpecsPath = getDefaultToolSpecsPath();
-  if (fs.existsSync(toolSpecsPath)) {
+  for (const toolSpecsPath of getDefaultToolSpecsPaths()) {
+    if (!fs.existsSync(toolSpecsPath)) continue;
     try {
       const toolSpecs = JSON.parse(fs.readFileSync(toolSpecsPath, 'utf8'));
       for (const tool of toolSpecs) {
@@ -236,11 +236,24 @@ function getDefaultConfigPath() {
 }
 
 function getDefaultToolSpecsPath() {
-  const packagedPath = path.join(process.resourcesPath, 'default-tool-specs.json');
-  if (!isDev && fs.existsSync(packagedPath)) return packagedPath;
-  const preparedResourcePath = path.join(__dirname, 'resources', 'default-tool-specs.json');
-  if (fs.existsSync(preparedResourcePath)) return preparedResourcePath;
-  return path.join(__dirname, '..', 'src', 'main', 'resources', 'default-tool-specs.json');
+  const paths = getDefaultToolSpecsPaths();
+  return paths.length > 0 ? paths[0] : '';
+}
+
+function getDefaultToolSpecsPaths() {
+  const candidateDirs = [
+    !isDev ? process.resourcesPath : null,
+    path.join(__dirname, 'resources'),
+    path.join(__dirname, '..', 'src', 'main', 'resources'),
+  ].filter(Boolean);
+  for (const dir of candidateDirs) {
+    if (!fs.existsSync(dir)) continue;
+    const matches = fs.readdirSync(dir)
+      .filter(f => /^default-tool-specs.*\.json$/.test(f))
+      .map(f => path.join(dir, f));
+    if (matches.length > 0) return matches;
+  }
+  return [];
 }
 
 function getUserConfigPath() {

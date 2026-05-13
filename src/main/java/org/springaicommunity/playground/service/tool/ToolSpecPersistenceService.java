@@ -25,12 +25,17 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.context.WebServerInitializedEvent;
 import org.springframework.context.ApplicationListener;
 import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -53,7 +58,7 @@ public class ToolSpecPersistenceService implements
     private final PersistenceExecutor persistenceExecutor;
 
     public ToolSpecPersistenceService(Path springAiPlaygroundHomeDir, ToolSpecService toolSpecService,
-            @Value("${spring.application.default-tool-location:}")
+            @Value("${spring.ai.playground.default-tool-location:}")
             String defaultToolSpecsLocation, ObjectMapper objectMapper, ResourceLoader resourceLoader,
             PersistenceExecutor persistenceExecutor) throws IOException {
         this.saveDir = springAiPlaygroundHomeDir.resolve("tool").resolve("save");
@@ -61,10 +66,35 @@ public class ToolSpecPersistenceService implements
         this.toolSpecService = toolSpecService;
         this.toolSpecsMcpServerSettings = this.loads();
         this.persistenceExecutor = persistenceExecutor;
-        Resource resource = resourceLoader.getResource(defaultToolSpecsLocation);
-        this.defaultToolSpecs = !defaultToolSpecsLocation.isBlank() && resource.exists() ?
-                objectMapper.readValue(resource.getInputStream(),
-                        objectMapper.getTypeFactory().constructCollectionType(List.class, ToolSpec.class)) : List.of();
+        this.defaultToolSpecs = loadDefaultToolSpecs(defaultToolSpecsLocation, objectMapper, resourceLoader);
+    }
+
+    private static List<ToolSpec> loadDefaultToolSpecs(String location, ObjectMapper objectMapper,
+            ResourceLoader resourceLoader) throws IOException {
+        if (location == null || location.isBlank()) return List.of();
+        Resource[] resources = location.contains("*")
+                ? new PathMatchingResourcePatternResolver(resourceLoader).getResources(location)
+                : new Resource[] { resourceLoader.getResource(location) };
+        Arrays.sort(resources, Comparator.comparing(r -> {
+            try { return r.getFilename() == null ? "" : r.getFilename(); }
+            catch (Exception e) { return ""; }
+        }));
+        List<ToolSpec> merged = new ArrayList<>();
+        Set<String> seenIds = new HashSet<>();
+        for (Resource resource : resources) {
+            if (!resource.exists()) continue;
+            List<ToolSpec> batch = objectMapper.readValue(resource.getInputStream(),
+                    objectMapper.getTypeFactory().constructCollectionType(List.class, ToolSpec.class));
+            for (ToolSpec spec : batch) {
+                if (spec.toolId() != null && !seenIds.add(spec.toolId())) {
+                    logger.warn("Duplicate default tool id {} from {} — skipping", spec.toolId(),
+                            resource.getFilename());
+                    continue;
+                }
+                merged.add(spec);
+            }
+        }
+        return List.copyOf(merged);
     }
 
     public void saveAsync() {

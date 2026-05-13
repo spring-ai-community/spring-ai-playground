@@ -15,7 +15,6 @@ spring:
       max-request-size: 20MB
   application:
     name: spring-ai-playground
-    default-tool-location: classpath:default-tool-specs.json
   profiles:
     default: ollama
   ai:
@@ -28,6 +27,7 @@ spring:
         speech: none
         transcription: none
     playground:
+      default-tool-location: "classpath*:default-tool-specs*.json"
       tool-studio:
         timeout-seconds: 30
         fs:
