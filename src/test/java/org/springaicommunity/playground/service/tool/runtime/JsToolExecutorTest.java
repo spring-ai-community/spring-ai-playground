@@ -130,7 +130,7 @@ public class JsToolExecutorTest {
         String jsCode = """
                 /**
                  * NOTE TO DEVELOPERS:
-                 * This code runs on JavaScript (ECMAScript 2023) inside the JVM.
+                 * This code runs on JavaScript (ECMAScript 2024) inside the JVM.
                  * It is NOT a browser or Node.js environment.
                  *
                  * Unavailable APIs:

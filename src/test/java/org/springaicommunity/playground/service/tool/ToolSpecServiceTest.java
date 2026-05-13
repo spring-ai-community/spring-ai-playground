@@ -24,6 +24,7 @@ import org.springaicommunity.playground.service.tool.ToolSpec.ToolParamSpec;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.ai.tool.execution.ToolExecutionException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
@@ -198,6 +199,33 @@ class ToolSpecServiceTest {
                 .doesNotContain("unpubOne");
     }
 
+
+    @Test
+    void mcpInvocationFillsMissingOptionalParamsWithNull() {
+        var paramsSpec = List.of(
+                new ToolParamSpec("text", "input", true, JsonSchemaType.STRING, "hello"),
+                new ToolParamSpec("mode", "encode|decode", false, JsonSchemaType.STRING, "encode"));
+        String code = "return (mode == null ? 'NULL' : mode) + ':' + text;";
+        ToolSpec spec = toolSpecService.update("missing-opt", "missingOptTool",
+                "", List.of(), paramsSpec, code, ToolSpec.CodeType.Javascript);
+
+        String out = spec.toolCallback().call("{\"text\":\"hello\"}");
+        assertThat(out).contains("NULL:hello");
+        toolSpecService.deleteToolSpec("missing-opt");
+    }
+
+    @Test
+    void mcpInvocationSurfacesExecutionErrorAsToolExecutionException() {
+        var paramsSpec = List.of(
+                new ToolParamSpec("text", "input", true, JsonSchemaType.STRING, "hello"));
+        String code = "throw new Error('boom');";
+        ToolSpec spec = toolSpecService.update("explodes", "explodingTool",
+                "", List.of(), paramsSpec, code, ToolSpec.CodeType.Javascript);
+
+        Assertions.assertThrows(ToolExecutionException.class,
+                () -> spec.toolCallback().call("{\"text\":\"hi\"}"));
+        toolSpecService.deleteToolSpec("explodes");
+    }
 
     @Test
     void executeToolSurfacesSsrfDenialToUser() {
