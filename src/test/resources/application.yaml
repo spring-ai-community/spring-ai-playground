@@ -34,6 +34,7 @@ spring:
         speech: none
         transcription: none
     playground:
+      default-tool-location: "classpath*:default-tool-specs*.json"
       tool-studio:
         js-sandbox:
           allow-network-io: true

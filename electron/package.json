@@ -43,7 +43,7 @@
       "!resources/app.jar",
       "!resources/jre-bundle{,/**}",
       "!resources/default-application.yaml",
-      "!resources/default-tool-specs.json"
+      "!resources/default-tool-specs*.json"
     ],
     "extraResources": [
       {
@@ -59,8 +59,9 @@
         "to": "default-application.yaml"
       },
       {
-        "from": "resources/default-tool-specs.json",
-        "to": "default-tool-specs.json"
+        "from": "resources",
+        "to": ".",
+        "filter": ["default-tool-specs*.json"]
       }
     ],
     "win": {
