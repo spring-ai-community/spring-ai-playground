@@ -27,6 +27,7 @@ import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.ResourceLimits;
 import org.graalvm.polyglot.Value;
 import org.graalvm.polyglot.io.IOAccess;
+import org.graalvm.polyglot.proxy.ProxyArray;
 import org.graalvm.polyglot.proxy.ProxyExecutable;
 import org.graalvm.polyglot.proxy.ProxyObject;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -184,7 +185,7 @@ public class JsToolExecutor {
                 return new JsExecutionResult(true, jsResult, null, buildDebugInfo(logList));
             } catch (Exception e) {
                 logList.add(classifyError(e));
-                return new JsExecutionResult(false, "", e.getMessage(), buildDebugInfo(logList));
+                return new JsExecutionResult(false, "", userFacingErrorMessage(e), buildDebugInfo(logList));
             }
         });
 
@@ -197,8 +198,32 @@ public class JsToolExecutor {
                     buildDebugInfo(logList));
         } catch (Exception e) {
             logList.add(classifyError(e));
-            return new JsExecutionResult(false, "", e.getMessage(), buildDebugInfo(logList));
+            return new JsExecutionResult(false, "", userFacingErrorMessage(e), buildDebugInfo(logList));
         }
+    }
+
+    static String userFacingErrorMessage(Throwable e) {
+        JsHelperException helper = unwrapHelper(e);
+        if (helper != null) {
+            return helper.getMessage();
+        }
+        Throwable cur = e;
+        int hops = 0;
+        while (cur != null && hops++ < 16) {
+            if (cur instanceof org.graalvm.polyglot.PolyglotException pe) {
+                if (pe.isResourceExhausted()) return "execution: limit exceeded";
+                String msg = pe.getMessage();
+                return msg == null ? "guest error" : msg;
+            }
+            Throwable cause = cur.getCause();
+            if (cause == null || cause == cur) {
+                String msg = cur.getMessage();
+                return msg != null ? msg : cur.getClass().getSimpleName();
+            }
+            cur = cause;
+        }
+        String msg = e.getMessage();
+        return msg != null ? msg : e.getClass().getSimpleName();
     }
 
     private Context.Builder buildContext(EffectivePolicy policy) {
@@ -227,7 +252,7 @@ public class JsToolExecutor {
 
     private Object resolveParamValue(Object rawValue, String paramName,
             Map<String, String> envBackedVariables, Set<String> envSecretValues) {
-        if (!(rawValue instanceof String str)) return rawValue;
+        if (!(rawValue instanceof String str)) return materialiseForJs(rawValue);
         Optional<String> envName = EnvVarResolver.anchoredEnvName(str);
         if (envName.isEmpty()) return rawValue;
         Optional<String> resolved = EnvVarResolver.lookup(envName.get());
@@ -235,6 +260,20 @@ public class JsToolExecutor {
         envBackedVariables.put(paramName, envName.get());
         envSecretValues.add(resolved.get());
         return resolved.get();
+    }
+
+    private Object materialiseForJs(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Object> out = new LinkedHashMap<>();
+            map.forEach((k, v) -> out.put(k.toString(), materialiseForJs(v)));
+            return ProxyObject.fromMap(out);
+        }
+        if (value instanceof List<?> list) {
+            Object[] arr = new Object[list.size()];
+            for (int i = 0; i < list.size(); i++) arr[i] = materialiseForJs(list.get(i));
+            return ProxyArray.fromArray(arr);
+        }
+        return value;
     }
 
     private Object maskSecretsInResult(Object value, Set<String> secrets) {

@@ -35,6 +35,8 @@ import org.springaicommunity.playground.service.tool.ToolSpec.ToolParamSpec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.mcp.McpToolUtils;
+import org.springframework.ai.tool.execution.ToolExecutionException;
+import org.springframework.ai.tool.definition.DefaultToolDefinition;
 import org.springframework.ai.tool.function.FunctionToolCallback;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.event.ContextClosedEvent;
@@ -165,7 +167,21 @@ public class ToolSpecService {
         Function<Map<String, Object>, Object> executor = toolParams -> {
             ToolSpec current = this.toolIdSpecs.get(toolId);
             ToolSpec.SandboxOverrides overrides = current == null ? null : current.sandboxOverrides();
-            return executeTool(toolName, staticVariables, jsCode, toolParams, overrides).result();
+            Map<String, Object> filled = new HashMap<>(toolParams == null ? Map.of() : toolParams);
+            if (toolParamSpecs != null) {
+                for (ToolParamSpec spec : toolParamSpecs) {
+                    if (spec != null && spec.name() != null) filled.putIfAbsent(spec.name(), null);
+                }
+            }
+            JsExecutionResult result = executeTool(toolName, staticVariables, jsCode, filled, overrides);
+            if (!result.isOk()) {
+                String message = result.error() == null || result.error().isBlank()
+                        ? "tool " + toolName + " failed" : result.error();
+                throw new ToolExecutionException(
+                        DefaultToolDefinition.builder().name(toolName).description(toolDescription).inputSchema("{}").build(),
+                        new RuntimeException(message));
+            }
+            return result.result();
         };
         ToolSpec newToolSpec =
                 new ToolSpec(toolId, toolName, toolDescription, staticVariables, toolParamSpecs, jsCode, codeType,
