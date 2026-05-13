@@ -418,4 +418,8 @@ public class JavascriptToolPlaygroundView extends VerticalLayout {
         }
         this.ace.setValue(code);
     }
+
+    public void applySandboxOverrides(ToolSpec.SandboxOverrides overrides) {
+        this.sandboxView.applyOverrides(overrides);
+    }
 }
