@@ -129,17 +129,21 @@ public class ToolSpecService {
     private void syncMcpExposureForDraft(ToolSpec spec, boolean targetDraft) {
         boolean currentlyExposed = getMcpToolList().stream()
                 .anyMatch(tool -> tool.name().equals(spec.name()));
+        boolean changed = false;
         if (targetDraft && currentlyExposed) {
             removeMcpTool(spec.name());
             HashSet<String> ids = new HashSet<>(this.toolMcpServerSetting.exposedToolIds());
             ids.remove(spec.toolId());
             this.toolMcpServerSetting = new ToolMcpServerSetting(this.toolMcpServerSetting.autoAdd(), ids);
-            persistAsync();
+            changed = true;
         } else if (!targetDraft && !currentlyExposed && this.toolMcpServerSetting.autoAdd()) {
             addMcpTool(spec);
             HashSet<String> ids = new HashSet<>(this.toolMcpServerSetting.exposedToolIds());
             ids.add(spec.toolId());
             this.toolMcpServerSetting = new ToolMcpServerSetting(true, ids);
+            changed = true;
+        }
+        if (changed) {
             persistAsync();
         }
     }

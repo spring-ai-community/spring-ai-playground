@@ -38,6 +38,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -49,6 +50,8 @@ public class ToolSpecPersistenceService implements
 
     public record ToolSpecsMcpServerSetting(List<ToolSpec> toolSpecs, ToolMcpServerSetting toolMcpServerSetting) {}
 
+    private static final String LEGACY_OVERRIDES_FILE_NAME = "defaultToolOverrides.json";
+
     private static final Logger logger = LoggerFactory.getLogger(ToolSpecPersistenceService.class);
 
     private final Path saveDir;
@@ -56,17 +59,27 @@ public class ToolSpecPersistenceService implements
     private final List<ToolSpec> defaultToolSpecs;
     private final List<ToolSpecsMcpServerSetting> toolSpecsMcpServerSettings;
     private final PersistenceExecutor persistenceExecutor;
+    private final Set<String> defaultToolIds;
+    private final DefaultToolsPreferenceService preferenceService;
+    private final DefaultToolsPreferenceResolver preferenceResolver;
 
     public ToolSpecPersistenceService(Path springAiPlaygroundHomeDir, ToolSpecService toolSpecService,
             @Value("${spring.ai.playground.default-tool-location:}")
             String defaultToolSpecsLocation, ObjectMapper objectMapper, ResourceLoader resourceLoader,
-            PersistenceExecutor persistenceExecutor) throws IOException {
+            PersistenceExecutor persistenceExecutor,
+            DefaultToolsPreferenceService preferenceService,
+            DefaultToolsPreferenceResolver preferenceResolver) throws IOException {
         this.saveDir = springAiPlaygroundHomeDir.resolve("tool").resolve("save");
         Files.createDirectories(this.saveDir);
         this.toolSpecService = toolSpecService;
         this.toolSpecsMcpServerSettings = this.loads();
         this.persistenceExecutor = persistenceExecutor;
         this.defaultToolSpecs = loadDefaultToolSpecs(defaultToolSpecsLocation, objectMapper, resourceLoader);
+        this.defaultToolIds = this.defaultToolSpecs.stream().map(ToolSpec::toolId)
+                .filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());
+        this.preferenceService = preferenceService;
+        this.preferenceResolver = preferenceResolver;
+        archiveLegacyOverridesFile();
     }
 
     private static List<ToolSpec> loadDefaultToolSpecs(String location, ObjectMapper objectMapper,
@@ -97,12 +110,23 @@ public class ToolSpecPersistenceService implements
         return List.copyOf(merged);
     }
 
+    private void archiveLegacyOverridesFile() {
+        Path legacy = saveDir.resolve(LEGACY_OVERRIDES_FILE_NAME);
+        if (!Files.exists(legacy)) return;
+        Path archived = saveDir.resolve(LEGACY_OVERRIDES_FILE_NAME + ".deprecated");
+        try {
+            Files.move(legacy, archived, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            logger.info("Archived legacy overrides file {} → {}", legacy, archived);
+        } catch (IOException e) {
+            logger.warn("Could not archive legacy overrides file {}", legacy, e);
+        }
+    }
+
     public void saveAsync() {
         this.persistenceExecutor.submit(() -> {
-            Set<String> toolIdSet = this.defaultToolSpecs.stream().map(ToolSpec::toolId).collect(Collectors.toSet());
             ToolSpecsMcpServerSetting snapshot = new ToolSpecsMcpServerSetting(
                     this.toolSpecService.getToolSpecList().stream()
-                            .filter(toolSpec -> !toolIdSet.contains(toolSpec.toolId())).toList(),
+                            .filter(toolSpec -> !this.defaultToolIds.contains(toolSpec.toolId())).toList(),
                     this.toolSpecService.getToolMcpServerSetting());
             try {
                 save(snapshot);
@@ -113,7 +137,27 @@ public class ToolSpecPersistenceService implements
     }
 
     public Set<String> getDefaultToolIds() {
-        return this.defaultToolSpecs.stream().map(ToolSpec::toolId).collect(Collectors.toSet());
+        return this.defaultToolIds;
+    }
+
+    public List<ToolSpec> getDefaultToolSpecs() {
+        return this.defaultToolSpecs;
+    }
+
+    public DefaultToolsPreferenceService getPreferenceService() {
+        return this.preferenceService;
+    }
+
+    public void applyPreference(DefaultToolsPreference next) {
+        preferenceService.update(next);
+        Set<String> active = preferenceResolver.resolveActiveNames(next, defaultToolSpecs);
+        for (ToolSpec spec : defaultToolSpecs) {
+            boolean shouldBeDraft = !active.contains(spec.name());
+            if (spec.draft() != shouldBeDraft) {
+                spec.withDraft(shouldBeDraft);
+                toolSpecService.update(spec);
+            }
+        }
     }
 
     @Override
@@ -144,6 +188,11 @@ public class ToolSpecPersistenceService implements
 
     @Override
     public void onApplicationEvent(WebServerInitializedEvent event) {
+        DefaultToolsPreference preference = preferenceService.current();
+        Set<String> active = preferenceResolver.resolveActiveNames(preference, defaultToolSpecs);
+        for (ToolSpec spec : this.defaultToolSpecs) {
+            spec.withDraft(!active.contains(spec.name()));
+        }
         this.toolSpecService.loadAll(() -> Stream.concat(defaultToolSpecs.stream(),
                         toolSpecsMcpServerSettings.stream().map(ToolSpecsMcpServerSetting::toolSpecs).flatMap(List::stream))
                 .forEach(toolSpecService::update));

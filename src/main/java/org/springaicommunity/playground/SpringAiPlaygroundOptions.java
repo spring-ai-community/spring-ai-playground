@@ -25,7 +25,14 @@ import java.util.Set;
 
 @ConfigurationProperties(prefix = "spring.ai.playground")
 public record SpringAiPlaygroundOptions(@NestedConfigurationProperty ToolStudio toolStudio, boolean persistence,
-                                        String userHome, @NestedConfigurationProperty Chat chat) {
+                                        String userHome, @NestedConfigurationProperty Chat chat,
+                                        @NestedConfigurationProperty DefaultTools defaultTools) {
+
+    public record DefaultTools(String preset,
+                               @NestedConfigurationProperty SelectionRule include,
+                               @NestedConfigurationProperty SelectionRule exclude) {}
+
+    public record SelectionRule(Set<String> names, Set<String> tags, Set<String> categories) {}
 
     public record ToolStudio(Long timeoutSeconds, @NestedConfigurationProperty JsSandbox jsSandbox,
                              @NestedConfigurationProperty FsConfig fs) {}

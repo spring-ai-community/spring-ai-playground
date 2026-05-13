@@ -19,7 +19,7 @@
     "updateTimestamp": 1768000000000,
     "category": "WEB",
     "tags": [
-      "network"
+      "example"
     ],
     "sandboxOverrides": {
       "addAllowClasses": [],
@@ -53,7 +53,8 @@
     "updateTimestamp": 1765800328375,
     "category": "DATETIME",
     "tags": [
-      "date"
+      "example",
+      "util"
     ]
   },
   {
@@ -111,8 +112,10 @@
     "updateTimestamp": 1765801820195,
     "category": "PRODUCTIVITY",
     "tags": [
-      "calendar"
-    ]
+      "example",
+      "util"
+    ],
+    "draft": true
   },
   {
     "toolId": "eb35a905-4074-4589-805b-4dfd67353fb0",
@@ -134,8 +137,8 @@
     "updateTimestamp": 1768000000000,
     "category": "WEB",
     "tags": [
-      "network",
-      "free"
+      "example",
+      "weather"
     ],
     "sandboxOverrides": {
       "addAllowClasses": [],
@@ -192,8 +195,8 @@
     "updateTimestamp": 1768000000000,
     "category": "WEB",
     "tags": [
-      "network",
-      "keyed"
+      "example",
+      "search"
     ],
     "sandboxOverrides": {
       "addAllowClasses": [],
@@ -207,7 +210,8 @@
       "fileRead": null,
       "fileWrite": null,
       "fsBasePath": null
-    }
+    },
+    "draft": true
   },
   {
     "toolId": "b8329c50-5e48-44f0-8fd9-5c747f16618a",
@@ -240,8 +244,7 @@
     "updateTimestamp": 1768000000000,
     "category": "AI",
     "tags": [
-      "network",
-      "keyed"
+      "example"
     ],
     "sandboxOverrides": {
       "addAllowClasses": [],
@@ -255,7 +258,8 @@
       "fileRead": null,
       "fileWrite": null,
       "fsBasePath": null
-    }
+    },
+    "draft": true
   },
   {
     "toolId": "f88f624e-250c-42b2-a9fe-7cfdfb7319cd",
@@ -281,8 +285,7 @@
     "updateTimestamp": 1768000000000,
     "category": "MESSAGING",
     "tags": [
-      "network",
-      "keyed"
+      "example"
     ],
     "sandboxOverrides": {
       "addAllowClasses": [],
@@ -296,6 +299,7 @@
       "fileRead": null,
       "fileWrite": null,
       "fsBasePath": null
-    }
+    },
+    "draft": true
   }
 ]
