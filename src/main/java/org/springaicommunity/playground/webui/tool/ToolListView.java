@@ -192,6 +192,7 @@ public class ToolListView extends WorkspaceSidebar implements BeforeEnterObserve
                 .set("padding-inline-start", "var(--lumo-space-s)")
                 .set("flex", "1 1 auto")
                 .set("min-height", "0")
+                .set("max-height", "50%")
                 .set("overflow-y", "auto")
                 .set("width", "100%");
         this.groupContainer.add(localPassWrap);
@@ -200,7 +201,8 @@ public class ToolListView extends WorkspaceSidebar implements BeforeEnterObserve
         Div draftsWrap = new Div(draftsSection);
         draftsWrap.getStyle()
                 .set("padding-inline-start", "var(--lumo-space-s)")
-                .set("flex", "0 1 auto")
+                .set("flex", "1 1 auto")
+                .set("min-height", "0")
                 .set("max-height", "50%")
                 .set("overflow-y", "auto")
                 .set("width", "100%");
@@ -225,6 +227,16 @@ public class ToolListView extends WorkspaceSidebar implements BeforeEnterObserve
         body.getStyle()
                 .set("gap", "0")
                 .set("padding-inline-start", "var(--lumo-space-s)");
+        if (draftStyling && !tools.isEmpty()) {
+            Span hint = new Span("Open a draft → Test in Builder → Publish to activate on MCP");
+            hint.getStyle()
+                    .set("display", "block")
+                    .set("padding", "var(--lumo-space-xs) var(--lumo-space-m)")
+                    .set("font-size", "var(--lumo-font-size-xs)")
+                    .set("color", "var(--lumo-secondary-text-color)")
+                    .set("font-style", "italic");
+            body.add(hint);
+        }
         for (Component child : buildCategoryChildren(tools)) {
             body.add(child);
         }

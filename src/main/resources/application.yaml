@@ -31,7 +31,7 @@ spring:
       tool-studio:
         timeout-seconds: 30
         fs:
-          base-path: ${TOOL_STUDIO_FS_BASE:${user.home}}
+          base-path: ${TOOL_STUDIO_FS_BASE:${user.home}/spring-ai-playground/fs-tool-workspace}
         js-sandbox:
           allow-network-io: false
           allow-file-io: false
