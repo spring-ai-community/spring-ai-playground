@@ -76,8 +76,7 @@ class McpToolDefinitionTest {
         assertTrue(json.contains("\"name\":\"extractPageContent\""));
         assertTrue(json.contains("\"toolId\":\"uuid-1\""));
         assertTrue(json.contains("\"createTimestamp\":1700000000000"));
-        // category is a flat MCP-catalog-aligned ID string
-        assertTrue(json.contains("\"category\":\"SEARCH\""));
+        assertTrue(json.contains("\"category\":\"WEB\""));
         assertTrue(json.contains("\"tags\":["));
         assertTrue(json.contains("\"manifest\""));
     }
@@ -134,7 +133,7 @@ class McpToolDefinitionTest {
         assertEquals(Set.of("java.io.File"), back.manifest().sandbox().overrides().denyClasses());
         assertEquals(Instant.parse("2026-05-09T00:00:00Z"), back.manifest().audit().lastTestedAt());
         assertEquals(Set.of("oss", "global"), back.tags());
-        assertEquals("SEARCH", back.category());
+        assertEquals("WEB", back.category());
     }
 
 
@@ -169,16 +168,13 @@ class McpToolDefinitionTest {
     }
 
     @Test
-    void categoryAlignsWithMcpCatalogIds() {
-        // Tool category is a flat string ID matching mcp-catalog/default-categories.json IDs
-        // (kept in sync by ToolCategoryCatalog — see catalog file & doc §4.7.4)
-        Set<String> mcpCatalogIds = Set.of(
-                "PRODUCTIVITY", "STORAGE", "COMMUNICATION", "PROJECT_MGMT", "DEV", "SEARCH",
-                "CLOUD", "DATABASE", "FINANCE", "CRM", "DESIGN", "UTIL", "CUSTOM");
-        // Sample fixture uses SEARCH — must be one of the catalog IDs
+    void categoryAlignsWithToolCatalogIds() {
+        Set<String> toolCatalogIds = Set.of(
+                "TEXT", "DATA", "DATETIME", "MATH", "ENCODING", "CRYPTO", "SECURITY",
+                "WEB", "PRODUCTIVITY", "MESSAGING", "AI", "CUSTOM");
         McpToolDefinition tool = exampleTool();
-        assertTrue(mcpCatalogIds.contains(tool.category()),
-                "tool.category() = " + tool.category() + " not in mcp-catalog id set");
+        assertTrue(toolCatalogIds.contains(tool.category()),
+                "tool.category() = " + tool.category() + " not in tool-catalog id set");
     }
 
     private static McpToolDefinition exampleTool() {
@@ -206,7 +202,7 @@ class McpToolDefinitionTest {
                 manifest,
                 "uuid-1",
                 1700000000000L, 1700000001000L,
-                "SEARCH",
+                "WEB",
                 Set.of("oss", "global"));
     }
 }
