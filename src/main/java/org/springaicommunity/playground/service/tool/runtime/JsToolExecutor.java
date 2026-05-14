@@ -256,7 +256,9 @@ public class JsToolExecutor {
         Optional<String> envName = EnvVarResolver.anchoredEnvName(str);
         if (envName.isEmpty()) return rawValue;
         Optional<String> resolved = EnvVarResolver.lookup(envName.get());
-        if (resolved.isEmpty()) return rawValue;
+        if (resolved.isEmpty()) {
+            throw new IllegalStateException(paramName + " env var not set: " + str);
+        }
         envBackedVariables.put(paramName, envName.get());
         envSecretValues.add(resolved.get());
         return resolved.get();
