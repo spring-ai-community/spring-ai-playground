@@ -32,7 +32,10 @@ import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.router.BeforeEnterEvent;
 import com.vaadin.flow.router.BeforeEnterObserver;
+import org.springaicommunity.playground.service.tool.DefaultToolPresetCatalog;
+import org.springaicommunity.playground.service.tool.DefaultToolsPreferenceResolver;
 import org.springaicommunity.playground.service.tool.ToolSpec;
+import org.springaicommunity.playground.service.tool.ToolSpecPersistenceService;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
 import org.springaicommunity.playground.service.tool.ToolCategoryCatalog;
 import org.springaicommunity.playground.service.tool.ToolCategoryCatalog.CategoryDef;
@@ -77,6 +80,9 @@ public class ToolListView extends WorkspaceSidebar implements BeforeEnterObserve
     private Set<String> categoryFilterSelection = Set.of();
     private Set<String> tagFilterSelection = Set.of();
     private ToolSpec selectedSpec;
+    private final ToolSpecPersistenceService toolSpecPersistenceService;
+    private final DefaultToolPresetCatalog defaultToolPresetCatalog;
+    private final DefaultToolsPreferenceResolver defaultToolsPreferenceResolver;
 
     @Override
     public void beforeEnter(BeforeEnterEvent beforeEnterEvent) {
@@ -92,15 +98,25 @@ public class ToolListView extends WorkspaceSidebar implements BeforeEnterObserve
                 });
     }
 
+    public void refreshAfterCurationChange() {
+        renderGroups();
+    }
+
     public ToolListView(PersistentUiDataStorage persistentUiDataStorage, ToolSpecService toolSpecService,
             ToolCategoryCatalog categoryCatalog, ToolActivationCalculator activationCalculator,
-            PropertyChangeSupport toolChangeSupport) {
+            PropertyChangeSupport toolChangeSupport,
+            ToolSpecPersistenceService toolSpecPersistenceService,
+            DefaultToolPresetCatalog defaultToolPresetCatalog,
+            DefaultToolsPreferenceResolver defaultToolsPreferenceResolver) {
         super("Tool List");
         this.persistentUiDataStorage = persistentUiDataStorage;
         this.toolSpecService = toolSpecService;
         this.categoryCatalog = categoryCatalog;
         this.activationCalculator = activationCalculator;
         this.toolChangeSupport = toolChangeSupport;
+        this.toolSpecPersistenceService = toolSpecPersistenceService;
+        this.defaultToolPresetCatalog = defaultToolPresetCatalog;
+        this.defaultToolsPreferenceResolver = defaultToolsPreferenceResolver;
 
         addHeaderIcon(VaadinIcon.CLOSE, "Delete Selected Tool", e -> deleteTool());
 
