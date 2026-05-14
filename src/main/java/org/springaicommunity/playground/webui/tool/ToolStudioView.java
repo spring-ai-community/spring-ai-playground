@@ -31,7 +31,10 @@ import com.vaadin.flow.server.auth.AnonymousAllowed;
 import com.vaadin.flow.spring.annotation.SpringComponent;
 import com.vaadin.flow.spring.annotation.UIScope;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
+import org.springaicommunity.playground.service.tool.DefaultToolPresetCatalog;
+import org.springaicommunity.playground.service.tool.DefaultToolsPreferenceResolver;
 import org.springaicommunity.playground.service.tool.ToolSpec;
+import org.springaicommunity.playground.service.tool.ToolSpecPersistenceService;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
 import org.springaicommunity.playground.service.tool.ToolCategoryCatalog;
 import org.springaicommunity.playground.service.tool.policy.SandboxPostureCalculator;
@@ -74,7 +77,10 @@ public class ToolStudioView extends ContentWorkspaceView {
     public ToolStudioView(PersistentUiDataStorage persistentUiDataStorage, ObjectMapper objectMapper,
             ToolSpecService toolSpecService, ToolCategoryCatalog toolCategoryCatalog,
             ToolActivationCalculator toolActivationCalculator, SpringAiPlaygroundOptions playgroundOptions,
-            SandboxPostureCalculator sandboxPostureCalculator) {
+            SandboxPostureCalculator sandboxPostureCalculator,
+            ToolSpecPersistenceService toolSpecPersistenceService,
+            DefaultToolPresetCatalog defaultToolPresetCatalog,
+            DefaultToolsPreferenceResolver defaultToolsPreferenceResolver) {
         this.toolSpecService = toolSpecService;
         this.toolCategoryCatalog = toolCategoryCatalog;
         this.playgroundOptions = playgroundOptions;
@@ -83,15 +89,11 @@ public class ToolStudioView extends ContentWorkspaceView {
         this.toolChangeSupport = new PropertyChangeSupport(this);
 
         this.toolListView = new ToolListView(persistentUiDataStorage, toolSpecService, toolCategoryCatalog,
-                toolActivationCalculator, toolChangeSupport);
+                toolActivationCalculator, toolChangeSupport,
+                toolSpecPersistenceService, defaultToolPresetCatalog, defaultToolsPreferenceResolver);
         toolChangeSupport.addPropertyChangeListener(TOOL_SELECT_EVENT,
                 event -> Optional.ofNullable(event.getNewValue()).map(value -> (ToolSpec) value)
                         .ifPresent(this::changeToolContent));
-        toolChangeSupport.addPropertyChangeListener(TOOL_CHANGE_EVENT, event -> {
-            ToolSpec newSpec = (ToolSpec) event.getNewValue();
-            this.toolListView.changeToolContent(newSpec);
-            changeToolContent(newSpec);
-        });
         toolChangeSupport.addPropertyChangeListener(TOOL_EMPTY_EVENT, event -> {
             if ((boolean) event.getNewValue()) {displayNewToolDesignView();}
         });
@@ -116,15 +118,29 @@ public class ToolStudioView extends ContentWorkspaceView {
         String mcpTitle = "Tool MCP Server Setting";
         this.toolMcpServerSettingView = new ToolMcpServerSettingView(
                 this.toolSpecService.getToolSpecList(),
-                this.toolSpecService.getToolMcpServerSetting());
+                this.toolSpecService.getToolMcpServerSetting(),
+                toolSpecPersistenceService, defaultToolPresetCatalog,
+                defaultToolsPreferenceResolver, toolCategoryCatalog);
         this.mcpServerSettingsDrawer = installSettingsDrawer(VaadinIcon.TOOLBOX, mcpTitle, mcpTitle);
         this.mcpServerSettingsDrawer.setBody(this.toolMcpServerSettingView);
         this.mcpServerSettingsDrawer.setOnOpen(() -> this.toolMcpServerSettingView.update(
                 this.toolSpecService.getToolSpecList(),
                 this.toolSpecService.getToolMcpServerSetting()));
-        this.mcpServerSettingsDrawer.setApplyButton("Confirm", () ->
-                this.toolSpecService.updateToolMcpServerSetting(
-                        this.toolMcpServerSettingView.getUiToolMcpServerSetting()));
+        this.mcpServerSettingsDrawer.setApplyButton("Confirm", () -> {
+            this.toolSpecService.updateToolMcpServerSetting(
+                    this.toolMcpServerSettingView.getUiToolMcpServerSetting());
+            this.toolMcpServerSettingView.applyCurationPreference();
+            this.toolListView.refreshAfterCurationChange();
+        });
+
+        toolChangeSupport.addPropertyChangeListener(TOOL_CHANGE_EVENT, event -> {
+            ToolSpec newSpec = (ToolSpec) event.getNewValue();
+            this.toolListView.changeToolContent(newSpec);
+            changeToolContent(newSpec);
+            this.toolMcpServerSettingView.update(
+                    this.toolSpecService.getToolSpecList(),
+                    this.toolSpecService.getToolMcpServerSetting());
+        });
 
         displayNewToolDesignView();
     }
