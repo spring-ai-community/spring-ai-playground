@@ -15,23 +15,32 @@
  */
 package org.springaicommunity.playground.service.tool;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
+import org.springaicommunity.playground.service.tool.ToolSpec.SandboxOverrides;
 import org.springaicommunity.playground.service.tool.runtime.JsToolExecutor.JsExecutionResult;
 import org.springaicommunity.playground.service.tool.ToolSpec.CodeType;
 import org.springaicommunity.playground.service.tool.ToolSpec.JsonSchemaType;
 import org.springaicommunity.playground.service.tool.ToolSpec.ToolParamSpec;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.tool.execution.ToolExecutionException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -45,11 +54,36 @@ class ToolSpecServiceTest {
     @MockitoBean
     McpServerInfoService mcpServerInfoService;
 
+    private ListAppender<ILoggingEvent> logAppender;
+    private Logger toolSpecLogger;
+
     @BeforeEach
     void clean() {
         toolSpecService.getToolSpecList().stream()
                 .map(ToolSpec::toolId)
                 .forEach(toolSpecService::deleteToolSpec);
+        this.toolSpecLogger = (Logger) LoggerFactory.getLogger(ToolSpecService.class);
+        this.logAppender = new ListAppender<>();
+        this.logAppender.start();
+        this.toolSpecLogger.addAppender(this.logAppender);
+    }
+
+    @AfterEach
+    void detachAppender() {
+        if (this.toolSpecLogger != null && this.logAppender != null) {
+            this.toolSpecLogger.detachAppender(this.logAppender);
+            this.logAppender.stop();
+        }
+    }
+
+    private String logLevelOfFirstExecStart() {
+        return this.logAppender.list.stream()
+                .filter(e -> e.getLevel() == Level.INFO)
+                .map(ILoggingEvent::getFormattedMessage)
+                .filter(m -> m.startsWith("tool.exec.start "))
+                .map(m -> m.replaceAll("(?s).*\\blevel=(L\\d)\\b.*", "$1"))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("no tool.exec.start log captured"));
     }
 
     @Test
@@ -300,5 +334,72 @@ class ToolSpecServiceTest {
         toolSpecService.deleteToolSpec(toolId);
 
         assertThat(toolSpecService.getToolSpecAsOpt(toolName)).isEmpty();
+    }
+
+    @Test
+    void emptyOverrideDeltasOnAllowlistToolLogLevelStaysL3() {
+        SandboxOverrides allowlistOnly = new SandboxOverrides(
+                Set.of(), Set.of(), Set.of(), Set.of(),
+                "allowlist", Set.of("wttr.in"),
+                null, null, null);
+
+        JsExecutionResult result = toolSpecService.executeTool(
+                "allowlistOnlyTool", List.<Map.Entry<String, String>>of(),
+                "return 1;", Map.of(), allowlistOnly);
+
+        assertThat(result.isOk()).isTrue();
+        assertThat(logLevelOfFirstExecStart()).isEqualTo("L3");
+    }
+
+    @Test
+    void nullOverridesLogLevelIsL0() {
+        JsExecutionResult result = toolSpecService.executeTool(
+                "noOverridesTool", List.<Map.Entry<String, String>>of(),
+                "return 1;", Map.of());
+
+        assertThat(result.isOk()).isTrue();
+        assertThat(logLevelOfFirstExecStart()).isEqualTo("L0");
+    }
+
+    @Test
+    void removingCriticalDenyClassEscalatesLogLevelToL5() {
+        SandboxOverrides removeSystem = new SandboxOverrides(
+                Set.of(), Set.of(),
+                Set.of(), Set.of("java.lang.System"),
+                "blocked", Set.of(),
+                null, null, null);
+
+        JsExecutionResult result = toolSpecService.executeTool(
+                "criticalRemovedTool", List.<Map.Entry<String, String>>of(),
+                "return 1;", Map.of(), removeSystem);
+
+        assertThat(result.isOk()).isTrue();
+        assertThat(logLevelOfFirstExecStart()).isEqualTo("L5");
+    }
+
+    @Test
+    void maskSecretsRedactsStaticVariableValuesButKeepsRegularParams() {
+        Map<String, Object> merged = new LinkedHashMap<>();
+        merged.put("query", "spring ai");
+        merged.put("naverClientId", "abcdef1234");
+        merged.put("naverClientSecret", "xy");
+        merged.put("nullKey", null);
+        Set<String> secrets = Set.of("naverClientId", "naverClientSecret", "nullKey");
+
+        Map<String, Object> masked = ToolSpecService.maskSecrets(merged, secrets);
+
+        assertThat(masked.get("query")).isEqualTo("spring ai");
+        // long secret → last 2 chars visible
+        assertThat(masked.get("naverClientId")).isEqualTo("***34");
+        // short secret (≤ 4 chars) → fully redacted
+        assertThat(masked.get("naverClientSecret")).isEqualTo("***");
+        assertThat(masked.get("nullKey")).isNull();
+        assertThat(masked.toString()).doesNotContain("abcdef1234").doesNotContain("xy");
+    }
+
+    @Test
+    void maskSecretsHandlesEmptyOrNullMap() {
+        assertThat(ToolSpecService.maskSecrets(null, Set.of())).isEmpty();
+        assertThat(ToolSpecService.maskSecrets(Map.of(), Set.of("k"))).isEmpty();
     }
 }

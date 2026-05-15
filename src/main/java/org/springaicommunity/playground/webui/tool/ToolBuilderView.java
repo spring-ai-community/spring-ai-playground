@@ -178,7 +178,8 @@ public class ToolBuilderView extends VerticalLayout {
         parametersSection.setWidthFull();
 
         this.javascriptToolPlaygroundView = new JavascriptToolPlaygroundView(objectMapper, toolSpecService, options,
-                postureCalculator, () -> getCurrentToolParamsAsOpt().orElseGet(List::of));
+                postureCalculator, () -> getCurrentToolParamsAsOpt().orElseGet(List::of),
+                () -> this.toolNameField.getValue());
         this.javascriptToolPlaygroundView.setHeightFull();
 
         VerticalLayout scrollArea = new VerticalLayout(topRow, toolDescriptionField,
