@@ -1,6 +1,6 @@
 {
   "name": "spring-ai-playground",
-  "version": "0.2.0-M6",
+  "version": "0.0.0-dev",
   "description": "Desktop launcher for the Spring AI Community incubating project Spring AI Playground",
   "homepage": "https://github.com/spring-ai-community/spring-ai-playground",
   "author": {
