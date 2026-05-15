@@ -85,14 +85,17 @@ public class JavascriptToolPlaygroundView extends VerticalLayout {
     private final ObjectMapper objectMapper;
     private final ToolSpecService toolSpecService;
     private final Supplier<List<ToolParamSpec>> currentToolParamsSupplier;
+    private final Supplier<String> currentToolNameSupplier;
     private final SandboxCapabilitiesView sandboxView;
 
     public JavascriptToolPlaygroundView(ObjectMapper objectMapper, ToolSpecService toolSpecService,
             SpringAiPlaygroundOptions options, SandboxPostureCalculator postureCalculator,
-            Supplier<List<ToolParamSpec>> currentToolParamsSupplier) {
+            Supplier<List<ToolParamSpec>> currentToolParamsSupplier,
+            Supplier<String> currentToolNameSupplier) {
         this.objectMapper = objectMapper;
         this.toolSpecService = toolSpecService;
         this.currentToolParamsSupplier = currentToolParamsSupplier;
+        this.currentToolNameSupplier = currentToolNameSupplier;
         this.staticVariableForms = new ArrayList<>();
         this.sandboxView = new SandboxCapabilitiesView(options, postureCalculator);
 
@@ -353,8 +356,12 @@ public class JavascriptToolPlaygroundView extends VerticalLayout {
             for (ToolParamSpec spec : this.currentToolParamsSupplier.get()) {
                 toolParams.put(spec.name(), convertValueForType(spec.testValue(), spec.type()));
             }
+            String resolvedName = this.currentToolNameSupplier.get();
+            if (resolvedName == null || resolvedName.isBlank()) {
+                resolvedName = "draft";
+            }
             JsExecutionResult jsExecutionResult =
-                    toolSpecService.executeTool("", getStaticVariables(), getCurrentJsCode(),
+                    toolSpecService.executeTool(resolvedName, getStaticVariables(), getCurrentJsCode(),
                             toolParams, currentSandboxOverrides());
             VaadinUtils.getUi(this).access(() -> {
                 long end = System.currentTimeMillis();

@@ -31,6 +31,7 @@ import org.springaicommunity.playground.service.tool.runtime.JsToolExecutor.JsEx
 import org.springaicommunity.playground.service.tool.policy.EffectivePolicyResolver;
 import org.springaicommunity.playground.service.tool.policy.EffectivePolicyResolver.EffectivePolicy;
 import org.springaicommunity.playground.service.tool.policy.EffectivePolicyResolver.Overrides;
+import org.springaicommunity.playground.service.tool.policy.SandboxPostureCalculator;
 import org.springaicommunity.playground.service.tool.ToolSpec.ToolParamSpec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,11 +49,13 @@ import org.springframework.util.StringUtils;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -74,6 +77,7 @@ public class ToolSpecService {
     private final JsToolExecutor jsToolExecutor;
     private final JsSandbox sandboxBaseline;
     private final EffectivePolicyResolver policyResolver;
+    private final SandboxPostureCalculator postureCalculator;
     private final ThreadLocal<Boolean> skipPersist = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
     private ToolMcpServerSetting toolMcpServerSetting;
@@ -81,7 +85,8 @@ public class ToolSpecService {
     public ToolSpecService(ObjectProvider<McpSyncServer> syncServerProvider,
             ObjectProvider<McpAsyncServer> asyncServerProvider, McpServerInfoService mcpServerInfoService,
             ObjectProvider<ToolSpecPersistenceService> toolSpecPersistenceServiceProvider,
-            SpringAiPlaygroundOptions playgroundOptions, EffectivePolicyResolver policyResolver)
+            SpringAiPlaygroundOptions playgroundOptions, EffectivePolicyResolver policyResolver,
+            SandboxPostureCalculator postureCalculator)
             throws ClassNotFoundException {
         this.mcpSyncServer = syncServerProvider.getIfAvailable();
         this.mcpAsyncServer = asyncServerProvider.getIfAvailable();
@@ -91,6 +96,7 @@ public class ToolSpecService {
         this.toolIdSpecs = new ConcurrentHashMap<>();
         this.sandboxBaseline = playgroundOptions.toolStudio().jsSandbox();
         this.policyResolver = policyResolver;
+        this.postureCalculator = postureCalculator;
         this.jsToolExecutor = new JsToolExecutor(playgroundOptions.toolStudio().timeoutSeconds(),
                 this.sandboxBaseline, playgroundOptions.toolStudio().fs());
     }
@@ -271,11 +277,93 @@ public class ToolSpecService {
                 || sandboxOverrides.fsBasePath() == null || sandboxOverrides.fsBasePath().isBlank()
                 ? null
                 : java.nio.file.Paths.get(sandboxOverrides.fsBasePath()).toAbsolutePath().normalize();
-        JsExecutionResult jsExecutionResult = this.jsToolExecutor.execute(jsExecutionParams, policy, overrideBase);
-        logger.info("Executing tool: {}, jsExecutionParams: {}, isOk: {}", toolName, jsExecutionParams.params(),
-                jsExecutionResult.isOk());
-        logger.debug("Executing tool Result: {}", jsExecutionResult);
+
+        String cid = UUID.randomUUID().toString().substring(0, 8);
+        Set<String> secretKeys = staticVariables.stream().map(Map.Entry::getKey).collect(Collectors.toSet());
+        Map<String, Object> safeParams = maskSecrets(mergeParams, secretKeys);
+        String level = riskLevelFor(sandboxOverrides);
+        String caps = capabilitySummary(sandboxOverrides);
+        Set<String> hosts = sandboxOverrides == null || sandboxOverrides.hostsAllow() == null
+                ? Set.of() : sandboxOverrides.hostsAllow();
+
+        logger.info("tool.exec.start cid={} tool={} level={} caps={} hosts={} fsBase={} params={}",
+                cid, toolName, level, caps, hosts,
+                overrideBase == null ? "-" : overrideBase, safeParams);
+
+        long startNs = System.nanoTime();
+        JsExecutionResult jsExecutionResult;
+        try {
+            jsExecutionResult = this.jsToolExecutor.execute(jsExecutionParams, policy, overrideBase);
+        } catch (RuntimeException e) {
+            long durMs = (System.nanoTime() - startNs) / 1_000_000L;
+            logger.warn("tool.exec.crash cid={} tool={} level={} durationMs={} error={}",
+                    cid, toolName, level, durMs, e.getMessage());
+            throw e;
+        }
+        long durMs = (System.nanoTime() - startNs) / 1_000_000L;
+        if (jsExecutionResult.isOk()) {
+            logger.info("tool.exec.done cid={} tool={} level={} durationMs={} ok=true", cid, toolName, level, durMs);
+        } else {
+            logger.warn("tool.exec.done cid={} tool={} level={} durationMs={} ok=false error={}",
+                    cid, toolName, level, durMs, jsExecutionResult.error());
+        }
+        logger.debug("tool.exec.result cid={} result={}", cid, jsExecutionResult);
         return jsExecutionResult;
+    }
+
+    private String riskLevelFor(ToolSpec.SandboxOverrides sbo) {
+        if (sbo == null) return "L0";
+        Set<String> baselineDeny = this.sandboxBaseline.denyClasses() == null
+                ? Set.of() : this.sandboxBaseline.denyClasses();
+        Set<String> baselineAllow = this.sandboxBaseline.allowClasses() == null
+                ? Set.of() : this.sandboxBaseline.allowClasses();
+        Set<String> effectiveDeny = new HashSet<>(baselineDeny);
+        if (sbo.removeDenyClasses() != null) effectiveDeny.removeAll(sbo.removeDenyClasses());
+        if (sbo.addDenyClasses() != null) effectiveDeny.addAll(sbo.addDenyClasses());
+        Set<String> effectiveAllow = new HashSet<>(baselineAllow);
+        if (sbo.removeAllowClasses() != null) effectiveAllow.removeAll(sbo.removeAllowClasses());
+        if (sbo.addAllowClasses() != null) effectiveAllow.addAll(sbo.addAllowClasses());
+        return this.postureCalculator.compute(new SandboxPostureCalculator.Inputs(
+                sbo.networkMode(),
+                sbo.hostsAllow() == null ? Set.of() : sbo.hostsAllow(),
+                Boolean.TRUE.equals(sbo.fileRead()),
+                Boolean.TRUE.equals(sbo.fileWrite()),
+                baselineDeny,
+                effectiveDeny,
+                baselineAllow,
+                effectiveAllow)).name();
+    }
+
+    private static String capabilitySummary(ToolSpec.SandboxOverrides sbo) {
+        if (sbo == null) return "-";
+        StringBuilder b = new StringBuilder();
+        if (Boolean.TRUE.equals(sbo.fileRead()))  b.append("R");
+        if (Boolean.TRUE.equals(sbo.fileWrite())) b.append("W");
+        String net = sbo.networkMode();
+        if (net != null && !net.isBlank() && !"blocked".equalsIgnoreCase(net)) {
+            if (b.length() > 0) b.append("+");
+            b.append("net:").append(net);
+        }
+        return b.length() == 0 ? "none" : b.toString();
+    }
+
+    static Map<String, Object> maskSecrets(Map<String, Object> merged, Set<String> secretKeys) {
+        if (merged == null || merged.isEmpty()) return Map.of();
+        Map<String, Object> out = new LinkedHashMap<>(merged.size());
+        for (Map.Entry<String, Object> e : merged.entrySet()) {
+            if (secretKeys.contains(e.getKey())) {
+                Object v = e.getValue();
+                if (v == null) {
+                    out.put(e.getKey(), null);
+                } else {
+                    String s = v.toString();
+                    out.put(e.getKey(), s.length() <= 4 ? "***" : "***" + s.substring(s.length() - 2));
+                }
+            } else {
+                out.put(e.getKey(), e.getValue());
+            }
+        }
+        return out;
     }
 
     private static Overrides toResolverOverrides(ToolSpec.SandboxOverrides spec) {

@@ -71,6 +71,18 @@ class SandboxPostureCalculatorTest {
     }
 
     @Test
+    void strictNetworkPromotesToL3() {
+        assertEquals(RiskLevel.L3, risk("strict", Set.of(), BASELINE_DENY, BASELINE_ALLOW),
+                "strict mode reaches any host with SSRF 4-layer guard — no host list, same L3 risk class as allowlist");
+    }
+
+    @Test
+    void strictNetworkIgnoresHostsList() {
+        assertEquals(RiskLevel.L3, risk("strict", Set.of("api.example.com"), BASELINE_DENY, BASELINE_ALLOW),
+                "strict does not honor an allowlist — hosts argument must not raise or lower the level");
+    }
+
+    @Test
     void removingOneNonCriticalDenyIsL3() {
         Set<String> userDeny = new java.util.HashSet<>(BASELINE_DENY);
         userDeny.remove("java.lang.invoke.*");

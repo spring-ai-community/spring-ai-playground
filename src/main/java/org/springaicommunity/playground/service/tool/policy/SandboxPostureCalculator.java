@@ -40,6 +40,7 @@ public class SandboxPostureCalculator {
                 level = max(level, RiskLevel.L3);
             }
         }
+        if ("strict".equals(inputs.networkMode())) level = max(level, RiskLevel.L3);
         if ("open".equals(inputs.networkMode())) level = max(level, RiskLevel.L4);
 
         if (inputs.fileWrite()) {
