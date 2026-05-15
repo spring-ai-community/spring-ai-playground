@@ -252,12 +252,21 @@ jobs:
             artifact_paths: |
               electron/dist/*.exe
 
-          - name: Linux DEB/RPM
+          # Linux DEB and RPM run as separate matrix entries so each format
+          # builds on its own runner in parallel. `electron-builder --linux deb rpm`
+          # would otherwise build them sequentially inside one job.
+          - name: Linux DEB
             runs_on: ubuntu-latest
-            dist_command: npm run dist:linux
-            artifact_name: spring-ai-playground-linux-installers
+            dist_command: npm run dist:linux:deb
+            artifact_name: spring-ai-playground-linux-deb
             artifact_paths: |
               electron/dist/*.deb
+
+          - name: Linux RPM
+            runs_on: ubuntu-latest
+            dist_command: npm run dist:linux:rpm
+            artifact_name: spring-ai-playground-linux-rpm
+            artifact_paths: |
               electron/dist/*.rpm
 
     steps:
@@ -285,6 +294,11 @@ jobs:
               | grep '<version>' | head -1 \
               | sed -E 's@.*<version>([^<]+)</version>.*@\1@')
             SOURCE="pom.xml (ref=$REF)"
+            # Surface a warning so a non-tag push that falls back to pom.xml
+            # doesn't silently produce mismatched-version installers when
+            # pom.xml hasn't been bumped to the next milestone yet (this is
+            # how M4-named assets ended up in the v0.2.0-M5 draft).
+            echo "::warning title=Release version from pom.xml fallback::ref='$REF' did not contain a version, so installers are tagged $VERSION from pom.xml. Confirm pom.xml is bumped to the upcoming milestone before tagging the release."
           fi
           # Normalize milestone marker case (e.g., -m4 -> -M4).
           VERSION=$(echo "$VERSION" | sed -E 's/-m([0-9]+)/-M\1/')
@@ -401,6 +415,29 @@ jobs:
             release-assets/*.deb
             release-assets/*.rpm
             release-assets/*.jar
+
+      # Tag-triggered releases (re)assemble the published artefact set from
+      # scratch, so wipe any stale assets the existing draft might have
+      # accumulated from earlier runs. Without this, softprops adds new files
+      # alongside old ones, which is how M4-named installers ended up living
+      # inside the v0.2.0-M5 draft. Restricted to tag pushes / dispatch so a
+      # main-push draft (which uses tag_name=`main`) doesn't disturb anything.
+      - name: Wipe stale assets from existing release draft
+        if: ${{ startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '') }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag || github.ref_name }}
+        run: |
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' \
+              | while IFS= read -r name; do
+                  [ -n "$name" ] || continue
+                  echo "Deleting stale asset: $name"
+                  gh release delete-asset "$TAG" "$name" --yes --repo "$GITHUB_REPOSITORY" || true
+                done
+          else
+            echo "No existing release for tag $TAG; nothing to wipe."
+          fi
 
       - name: Upload assets to GitHub Release
         uses: softprops/action-gh-release@v2.5.0
