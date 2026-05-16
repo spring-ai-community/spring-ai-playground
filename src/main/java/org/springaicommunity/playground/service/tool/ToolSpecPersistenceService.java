@@ -50,6 +50,7 @@ public class ToolSpecPersistenceService implements
 
     public record ToolSpecsMcpServerSetting(List<ToolSpec> toolSpecs, ToolMcpServerSetting toolMcpServerSetting) {}
 
+    private static final String SAVE_FILE_NAME = "toolSpecsMcpSetting.json";
     private static final String LEGACY_OVERRIDES_FILE_NAME = "defaultToolOverrides.json";
 
     private static final Logger logger = LoggerFactory.getLogger(ToolSpecPersistenceService.class);
@@ -176,14 +177,21 @@ public class ToolSpecPersistenceService implements
     }
 
     @Override
+    public boolean shouldLoadFile(Path path) {
+        return SAVE_FILE_NAME.equals(path.getFileName().toString());
+    }
+
+    @Override
     public ToolSpecsMcpServerSetting convertTo(Map<String, Object> saveObjectMap) {
         return OBJECT_MAPPER.convertValue(saveObjectMap, ToolSpecsMcpServerSetting.class);
     }
 
     @Override
     public void onStart() throws IOException {
-        if (!toolSpecsMcpServerSettings.isEmpty())
-            this.toolSpecService.setToolMcpServerSetting(toolSpecsMcpServerSettings.getFirst().toolMcpServerSetting());
+        toolSpecsMcpServerSettings.stream().findFirst()
+                .map(ToolSpecsMcpServerSetting::toolMcpServerSetting)
+                .filter(Objects::nonNull)
+                .ifPresent(this.toolSpecService::setToolMcpServerSetting);
     }
 
     @Override
@@ -194,7 +202,8 @@ public class ToolSpecPersistenceService implements
             spec.withDraft(!active.contains(spec.name()));
         }
         this.toolSpecService.loadAll(() -> Stream.concat(defaultToolSpecs.stream(),
-                        toolSpecsMcpServerSettings.stream().map(ToolSpecsMcpServerSetting::toolSpecs).flatMap(List::stream))
+                        toolSpecsMcpServerSettings.stream().map(ToolSpecsMcpServerSetting::toolSpecs)
+                                .filter(Objects::nonNull).flatMap(List::stream))
                 .forEach(toolSpecService::update));
     }
 }
