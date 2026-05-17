@@ -63,14 +63,26 @@ public class McpClientService {
 
     private static final Logger logger = LoggerFactory.getLogger(McpClientService.class);
 
-    public enum ServerStatus { OK, OFFLINE, ERROR, AWAITING_AUTHORIZATION }
+    public enum ServerStatus { OK, OFFLINE, ERROR, AWAITING_AUTHORIZATION, MISSING_CONFIG }
 
-    public record StatusEntry(ServerStatus status, String error, String authorizationUrl) {
+    public record StatusEntry(ServerStatus status, String error, String authorizationUrl,
+                              java.util.Set<String> missingKeys) {
+        public StatusEntry {
+            missingKeys = missingKeys == null ? java.util.Set.of() : java.util.Set.copyOf(missingKeys);
+        }
+        public StatusEntry(ServerStatus status, String error, String authorizationUrl) {
+            this(status, error, authorizationUrl, java.util.Set.of());
+        }
         public static final StatusEntry OFFLINE = new StatusEntry(ServerStatus.OFFLINE, null, null);
         public static StatusEntry ok() { return new StatusEntry(ServerStatus.OK, null, null); }
         public static StatusEntry error(String error) { return new StatusEntry(ServerStatus.ERROR, error, null); }
         public static StatusEntry awaitingAuthorization(String authorizationUrl) {
             return new StatusEntry(ServerStatus.AWAITING_AUTHORIZATION, null, authorizationUrl);
+        }
+        public static StatusEntry missingConfig(java.util.Set<String> missingKeys) {
+            String summary = missingKeys == null || missingKeys.isEmpty() ? "Missing required config"
+                    : "Missing: " + String.join(", ", missingKeys);
+            return new StatusEntry(ServerStatus.MISSING_CONFIG, summary, null, missingKeys);
         }
     }
 
@@ -258,10 +270,19 @@ public class McpClientService {
     public void startMcpClient(McpServerInfo mcpServerInfo) {
         logger.info("Starting MCP client connection: serverName={}, transportType={}", mcpServerInfo.serverName(),
                 mcpServerInfo.mcpTransportType());
+        String key = clientKey(mcpServerInfo);
+
+        java.util.Set<String> missing = findMissingEnv(mcpServerInfo);
+        if (!missing.isEmpty()) {
+            logger.info("MCP client gated by missing config: serverName={}, missing={}",
+                    mcpServerInfo.serverName(), missing);
+            statusCache.put(key, StatusEntry.missingConfig(missing));
+            return;
+        }
+
         Implementation info =
                 new Implementation(mcpClientCommonProperties.getName() + " - " + mcpServerInfo.serverName(),
                         mcpClientCommonProperties.getVersion());
-        String key = clientKey(mcpServerInfo);
         try {
             McpClientOps mcpClientOps = mcpClientOpsBiFunction.apply(buildMcpClientTransport(mcpServerInfo), info);
             McpClientOps previous = connectingMcpClientOpsMap.put(key, mcpClientOps);
@@ -288,6 +309,13 @@ public class McpClientService {
             statusCache.put(key, StatusEntry.error(e.getMessage()));
             throw e;
         }
+    }
+
+    public java.util.Set<String> findMissingEnv(McpServerInfo mcpServerInfo) {
+        McpClientPropertiesService<?> propertiesService =
+                this.typeMcpClientPropertiesServiceMap.get(mcpServerInfo.mcpTransportType());
+        if (propertiesService == null) return java.util.Set.of();
+        return propertiesService.findMissingEnv(this.objectMapper, mcpServerInfo.connectionAsJson());
     }
 
     private static boolean isAuthorizationRequired(Throwable error) {

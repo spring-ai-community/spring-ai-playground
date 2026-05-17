@@ -21,6 +21,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
+import com.vaadin.flow.component.combobox.ComboBox;
+import com.vaadin.flow.component.combobox.MultiSelectComboBox;
+import com.vaadin.flow.component.confirmdialog.ConfirmDialog;
 import com.vaadin.flow.component.dependency.NpmPackage;
 import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.html.H4;
@@ -35,6 +38,9 @@ import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.textfield.TextField;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
+import org.springaicommunity.playground.service.mcp.catalog.CategoryDef;
+import org.springaicommunity.playground.service.mcp.catalog.McpCategoryService;
+import org.springaicommunity.playground.service.mcp.catalog.McpTagSuggestionService;
 import org.springaicommunity.playground.service.mcp.client.HttpConnectionParametersWithExtras;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.service.mcp.client.McpClientService.TestConnectionResult;
@@ -50,9 +56,11 @@ import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
@@ -96,6 +104,8 @@ public class McpServerConfigView extends VerticalLayout {
 
     private final TextField serverNameField = new TextField("Server name");
     private final TextField descField = new TextField("Description");
+    private final ComboBox<String> categoryField = new ComboBox<>("Category");
+    private final MultiSelectComboBox<String> tagsField = new MultiSelectComboBox<>("Tags");
     private final Span createdLabel = new Span();
     private final Span updatedLabel = new Span();
 
@@ -115,28 +125,39 @@ public class McpServerConfigView extends VerticalLayout {
     private final McpServerInfo mcpServerInfo;
     private final McpServerInfoService mcpServerInfoService;
     private final McpClientService mcpClientService;
+    private final McpCategoryService mcpCategoryService;
+    private final McpTagSuggestionService mcpTagSuggestionService;
     private final PropertyChangeSupport mcpServerInfoChangeSupport;
 
     private Button saveAndConnectButton;
     private Button testConnectionButton;
+    private Button deleteButton;
 
     private boolean nameChanged = false;
     private boolean descChanged = false;
     private boolean jsonChanged = false;
     private boolean transportChanged = false;
     private boolean extrasChanged = false;
+    private boolean categoryChanged = false;
+    private boolean tagsChanged = false;
 
     private String originalName;
     private String originalDesc;
     private McpTransportType originalTransport;
     private String originalJson;
+    private String originalCategory;
+    private Set<String> originalTags;
 
 
     public McpServerConfigView(McpServerInfo mcpServerInfo, McpServerInfoService mcpServerInfoService,
-            McpClientService mcpClientService, PropertyChangeSupport mcpServerInfoChangeSupport) {
+            McpClientService mcpClientService, McpCategoryService mcpCategoryService,
+            McpTagSuggestionService mcpTagSuggestionService,
+            PropertyChangeSupport mcpServerInfoChangeSupport) {
         this.mcpServerInfo = mcpServerInfo;
         this.mcpServerInfoService = mcpServerInfoService;
         this.mcpClientService = mcpClientService;
+        this.mcpCategoryService = mcpCategoryService;
+        this.mcpTagSuggestionService = mcpTagSuggestionService;
         this.mcpServerInfoChangeSupport = mcpServerInfoChangeSupport;
         buildLayout();
         populateFields();
@@ -150,12 +171,46 @@ public class McpServerConfigView extends VerticalLayout {
         createdLabel.getStyle().set("font-size", "0.8em").set("color", "gray");
         updatedLabel.getStyle().set("font-size", "0.8em").set("color", "gray");
 
-        FormLayout metaForm = new FormLayout(serverNameField, descField, createdLabel, updatedLabel);
+        // Category: built-in defs + user-defined accepted via custom value.
+        List<String> builtInIds = this.mcpCategoryService.getBuiltInCategories().stream()
+                .map(CategoryDef::id).toList();
+        categoryField.setItems(builtInIds);
+        categoryField.setAllowCustomValue(true);
+        categoryField.setHelperText("Pick a built-in or type a new label (e.g. 'personal').");
+        categoryField.setWidthFull();
+        categoryField.addCustomValueSetListener(e -> categoryField.setValue(e.getDetail().trim()));
+        categoryField.addValueChangeListener(e -> {
+            categoryChanged = !Objects.equals(normalizeCategory(e.getValue()), originalCategory);
+            updateSaveButtonState();
+        });
+
+        // Tags: suggested + user-observed; allow free-form additions.
+        List<String> suggestedTags = this.mcpTagSuggestionService.getSuggestedTags();
+        tagsField.setItems(suggestedTags);
+        tagsField.setAllowCustomValue(true);
+        tagsField.setHelperText("Pick suggested or type new (Enter to add).");
+        tagsField.setWidthFull();
+        tagsField.addCustomValueSetListener(e -> {
+            String fresh = e.getDetail() == null ? "" : e.getDetail().trim();
+            if (fresh.isEmpty()) return;
+            Set<String> next = new LinkedHashSet<>(tagsField.getValue() == null ? Set.of() : tagsField.getValue());
+            next.add(fresh);
+            tagsField.setValue(next);
+        });
+        tagsField.addValueChangeListener(e -> {
+            tagsChanged = !Objects.equals(snapshotTags(), originalTags);
+            updateSaveButtonState();
+        });
+
+        FormLayout metaForm = new FormLayout(serverNameField, categoryField, tagsField, descField,
+                createdLabel, updatedLabel);
         metaForm.setResponsiveSteps(
                 new FormLayout.ResponsiveStep("0", 1),
-                new FormLayout.ResponsiveStep("600px", 2)
+                new FormLayout.ResponsiveStep("600px", 3)
         );
-        metaForm.setColspan(descField, 2);
+        metaForm.setColspan(descField, 3);
+        metaForm.setColspan(createdLabel, 1);
+        metaForm.setColspan(updatedLabel, 2);
 
         transportRadioButtonGroup.setLabel("Transport type");
         transportRadioButtonGroup.setItems(McpTransportType.values());
@@ -200,6 +255,10 @@ public class McpServerConfigView extends VerticalLayout {
         testConnectionButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         testConnectionButton.setTooltipText("Try to initialize without saving — verifies URL, headers, and env vars");
 
+        deleteButton = new Button("Delete", VaadinIcon.TRASH.create(), e -> confirmDelete());
+        deleteButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_ERROR);
+        deleteButton.setVisible(isPersisted());
+
         serverNameField.addValueChangeListener(e -> {
             nameChanged = !Objects.equals(e.getValue(), originalName);
             validateNameField();
@@ -226,7 +285,33 @@ public class McpServerConfigView extends VerticalLayout {
         HorizontalLayout footer = new HorizontalLayout(saveAndConnectButton, testConnectionButton);
         footer.setWidthFull();
         footer.setSpacing(true);
+        Span spacer = new Span();
+        footer.add(spacer, deleteButton);
+        footer.setFlexGrow(1, spacer);
         add(footer);
+    }
+
+    private boolean isPersisted() {
+        if (mcpServerInfo == null || mcpServerInfo.serverName() == null) return false;
+        return mcpServerInfoService.getMcpServerInfos()
+                .getOrDefault(mcpServerInfo.mcpTransportType(), java.util.List.of())
+                .stream().anyMatch(saved -> saved.serverName().equals(mcpServerInfo.serverName()));
+    }
+
+    private void confirmDelete() {
+        ConfirmDialog dialog = new ConfirmDialog();
+        dialog.setHeader("Delete: " + mcpServerInfo.serverName());
+        dialog.setText("Are you sure you want to delete this connection permanently?");
+        dialog.setCancelable(true);
+        dialog.setConfirmText("Delete");
+        dialog.setConfirmButtonTheme("error primary");
+        dialog.addConfirmListener(e -> {
+            mcpClientService.deleteConnectingMcpServer(mcpServerInfo);
+            mcpServerInfoService.deleteMcpServerInfo(mcpServerInfo.mcpTransportType(), mcpServerInfo.serverName());
+            mcpServerInfoChangeSupport.firePropertyChange(McpServerView.MCP_CONNECTION_DELETE_EVENT, null,
+                    mcpServerInfo);
+        });
+        dialog.open();
     }
 
     private void buildHttpExtrasGroup() {
@@ -362,9 +447,22 @@ public class McpServerConfigView extends VerticalLayout {
     }
 
     private void updateSaveButtonState() {
-        boolean hasChanges = nameChanged || descChanged || jsonChanged || transportChanged || extrasChanged;
+        boolean hasChanges = nameChanged || descChanged || jsonChanged || transportChanged || extrasChanged
+                || categoryChanged || tagsChanged;
         boolean isValid = validateNameField();
         saveAndConnectButton.setEnabled(hasChanges && isValid);
+    }
+
+    private String normalizeCategory(String raw) {
+        return raw == null || raw.isBlank() ? McpServerInfo.DEFAULT_CATEGORY : raw.trim();
+    }
+
+    private Set<String> snapshotTags() {
+        Set<String> v = tagsField.getValue();
+        if (v == null) return Set.of();
+        Set<String> out = new LinkedHashSet<>();
+        v.forEach(t -> { if (t != null && !t.isBlank()) out.add(t.trim()); });
+        return out;
     }
 
     private boolean isFormValid() {
@@ -382,9 +480,13 @@ public class McpServerConfigView extends VerticalLayout {
         originalDesc = mcpServerInfo.description();
         originalTransport = mcpServerInfo.mcpTransportType();
         originalJson = mcpServerInfo.connectionAsJson();
+        originalCategory = normalizeCategory(mcpServerInfo.category());
+        originalTags = mcpServerInfo.tags() == null ? Set.of() : Set.copyOf(mcpServerInfo.tags());
 
         serverNameField.setValue(originalName != null ? originalName : "");
         descField.setValue(originalDesc != null ? originalDesc : "");
+        categoryField.setValue(originalCategory);
+        tagsField.setValue(new LinkedHashSet<>(originalTags));
 
         createdLabel.setText("Created : " + Instant.ofEpochMilli(mcpServerInfo.createTimestamp()));
         updatedLabel.setText("Updated : " + Instant.ofEpochMilli(mcpServerInfo.updateTimestamp()));
@@ -427,6 +529,8 @@ public class McpServerConfigView extends VerticalLayout {
         jsonChanged = false;
         transportChanged = false;
         extrasChanged = false;
+        categoryChanged = false;
+        tagsChanged = false;
         saveAndConnectButton.setEnabled(false);
     }
 
@@ -529,9 +633,11 @@ public class McpServerConfigView extends VerticalLayout {
         JsonEditorWrapper jsonEditorWrapper = editors.get(mcpTransportType);
         String serverNameField = this.serverNameField.getValue();
         String descField = this.descField.getValue();
+        String category = normalizeCategory(this.categoryField.getValue());
+        Set<String> tags = snapshotTags();
         jsonEditorWrapper.fetchJson(
                 json -> callback.accept(mcpServerInfo.mutate(mcpTransportType, serverNameField, descField,
-                        System.currentTimeMillis(), mergeExtras(mcpTransportType, json))));
+                        System.currentTimeMillis(), mergeExtras(mcpTransportType, json), category, tags)));
     }
 
     private String mergeExtras(McpTransportType transport, String editorJson) {

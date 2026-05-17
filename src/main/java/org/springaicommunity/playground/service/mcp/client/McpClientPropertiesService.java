@@ -118,6 +118,40 @@ public interface McpClientPropertiesService<P> {
         }
     }
 
+    default Set<String> findMissingEnv(ObjectMapper objectMapper, String parametersAsJson) {
+        if (parametersAsJson == null || parametersAsJson.isBlank()) return Set.of();
+        try {
+            Set<String> refs = switch (getTransportType()) {
+                case SSE -> {
+                    HttpConnectionParametersWithExtras.Sse params = objectMapper.readValue(parametersAsJson,
+                            HttpConnectionParametersWithExtras.Sse.class);
+                    yield collectHttpRefs(params.headers(), params.requiredEnv());
+                }
+                case STREAMABLE_HTTP -> {
+                    HttpConnectionParametersWithExtras.StreamableHttp params = objectMapper.readValue(
+                            parametersAsJson, HttpConnectionParametersWithExtras.StreamableHttp.class);
+                    yield collectHttpRefs(params.headers(), params.requiredEnv());
+                }
+                case STDIO -> {
+                    JsonNode root = objectMapper.readTree(parametersAsJson);
+                    Set<String> r = new LinkedHashSet<>();
+                    JsonNode envNode = root.isObject() ? root.get("env") : null;
+                    if (envNode != null && envNode.isObject()) {
+                        Iterator<Map.Entry<String, JsonNode>> it = envNode.fields();
+                        while (it.hasNext()) {
+                            Map.Entry<String, JsonNode> e = it.next();
+                            if (!e.getValue().isNull()) r.addAll(EnvVarResolver.findRefs(e.getValue().asText("")));
+                        }
+                    }
+                    yield r;
+                }
+            };
+            return EnvVarResolver.missing(refs);
+        } catch (JsonProcessingException e) {
+            return Set.of();
+        }
+    }
+
     private static String substituteStdioEnv(ObjectMapper objectMapper, String parametersAsJson)
             throws JsonProcessingException {
         JsonNode root = objectMapper.readTree(parametersAsJson);

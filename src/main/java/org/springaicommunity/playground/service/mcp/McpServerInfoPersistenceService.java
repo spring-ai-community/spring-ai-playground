@@ -92,8 +92,12 @@ public class McpServerInfoPersistenceService implements PersistenceServiceInterf
         long createTimestamp = ((Number) saveObjectMap.get("createTimestamp")).longValue();
         long updateTimestamp = ((Number) saveObjectMap.get("updateTimestamp")).longValue();
         String connectionAsJson = (String) saveObjectMap.get("connectionAsJson");
+        String category = (String) saveObjectMap.get("category");
+        @SuppressWarnings("unchecked")
+        java.util.Collection<String> tagCol = (java.util.Collection<String>) saveObjectMap.get("tags");
+        java.util.Set<String> tags = tagCol == null ? java.util.Set.of() : new java.util.LinkedHashSet<>(tagCol);
         return new McpServerInfo(mcpTransportType, serverName, description, createTimestamp, updateTimestamp,
-                connectionAsJson);
+                connectionAsJson, category, tags);
     }
 
     @Override
