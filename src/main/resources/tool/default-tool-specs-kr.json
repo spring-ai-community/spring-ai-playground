@@ -626,7 +626,7 @@
     "params": [
       {
         "name": "sidoName",
-        "description": "Korean string required — AirKorea province name. Allowed values: 전국 (nationwide), 서울, 부산, 대구, 인천, 광주, 대전, 울산, 경기, 강원, 충북, 충남, 전북, 전남, 경북, 경남, 제주, 세종.",
+        "description": "Korean string required — AirKorea province name. Allowed values: '전국' (nationwide), '서울', '부산', '대구', '인천', '광주', '대전', '울산', '경기', '강원', '충북', '충남', '전북', '전남', '경북', '경남', '제주', '세종'.",
         "required": true,
         "type": "STRING",
         "testValue": "서울"
@@ -873,21 +873,21 @@
       },
       {
         "name": "areaCode",
-        "description": "Optional. Province code (omit for nationwide). 서울=1, 인천=2, 대전=3, 대구=4, 광주=5, 부산=6, 울산=7, 세종=8, 경기=31, 강원=32, 충북=33, 충남=34, 경북=35, 경남=36, 전북=37, 전남=38, 제주=39.",
+        "description": "Optional. Province code (omit for nationwide). '서울'=1, '인천'=2, '대전'=3, '대구'=4, '광주'=5, '부산'=6, '울산'=7, '세종'=8, '경기'=31, '강원'=32, '충북'=33, '충남'=34, '경북'=35, '경남'=36, '전북'=37, '전남'=38, '제주'=39.",
         "required": false,
         "type": "STRING",
         "testValue": ""
       },
       {
         "name": "sigunguCode",
-        "description": "Optional. City/county/district code; use together with areaCode (metropolitan cities do not need sigungu). Common values — 전북(37): 전주=12, 군산=11, 익산=14, 남원=15; 경북(35): 경주=2, 안동=1, 포항=23; 제주(39): 제주시=4, 서귀포시=5.",
+        "description": "Optional. City/county/district code; use together with areaCode (metropolitan cities do not need sigungu). Common values — '전북'(37): '전주'=12, '군산'=11, '익산'=14, '남원'=15; '경북'(35): '경주'=2, '안동'=1, '포항'=23; '제주'(39): '제주시'=4, '서귀포시'=5.",
         "required": false,
         "type": "STRING",
         "testValue": ""
       },
       {
         "name": "contentTypeId",
-        "description": "Optional. Content type filter. 12=관광지, 14=문화시설, 15=축제공연행사, 25=여행코스, 28=레포츠, 32=숙박, 38=쇼핑, 39=음식점.",
+        "description": "Optional. Content type filter. 12='관광지', 14='문화시설', 15='축제공연행사', 25='여행코스', 28='레포츠', 32='숙박', 38='쇼핑', 39='음식점'.",
         "required": false,
         "type": "STRING",
         "testValue": ""
@@ -1070,7 +1070,7 @@
     "params": [
       {
         "name": "itemCode",
-        "description": "KAMIS product code. Common examples — Grains: 111=쌀, 112=찹쌀, 113=현미; Vegetables: 211=배추, 215=상추, 226=양파, 233=양배추; Fruits: 411=사과, 412=배, 418=포도, 422=감귤; Livestock: 514=한우(등심), 515=돼지(삼겹).",
+        "description": "KAMIS product code. Common examples — Grains: 111='쌀', 112='찹쌀', 113='현미'; Vegetables: 211='배추', 215='상추', 226='양파', 233='양배추'; Fruits: 411='사과', 412='배', 418='포도', 422='감귤'; Livestock: 514='한우(등심)', 515='돼지(삼겹)'.",
         "required": true,
         "type": "STRING",
         "testValue": "411"
@@ -1091,14 +1091,14 @@
       },
       {
         "name": "productClsCode",
-        "description": "Retail/wholesale. 01=소매 (retail), 02=도매 (wholesale). Default 02.",
+        "description": "Retail/wholesale. 01='소매' (retail), 02='도매' (wholesale). Default 02.",
         "required": false,
         "type": "STRING",
         "testValue": "02"
       },
       {
         "name": "itemCategoryCode",
-        "description": "Optional. Item category. 100=식량작물 (grain), 200=채소류 (vegetable), 300=특용작물 (specialty), 400=과일류 (fruit), 500=축산물 (livestock), 600=수산물 (fishery).",
+        "description": "Optional. Item category. 100='식량작물' (grain), 200='채소류' (vegetable), 300='특용작물' (specialty), 400='과일류' (fruit), 500='축산물' (livestock), 600='수산물' (fishery).",
         "required": false,
         "type": "STRING",
         "testValue": "400"
@@ -1181,21 +1181,21 @@
       },
       {
         "name": "multiMovieYn",
-        "description": "Optional. Y=다양성영화만 (diversity films only), N=상업영화만 (commercial films only). Omit for both.",
+        "description": "Optional. Y='다양성영화만' (diversity films only), N='상업영화만' (commercial films only). Omit for both.",
         "required": false,
         "type": "STRING",
         "testValue": ""
       },
       {
         "name": "repNationCd",
-        "description": "Optional. K=한국영화 (Korean), F=외국영화 (foreign). Omit for both.",
+        "description": "Optional. K='한국영화' (Korean), F='외국영화' (foreign). Omit for both.",
         "required": false,
         "type": "STRING",
         "testValue": ""
       },
       {
         "name": "wideAreaCd",
-        "description": "Optional. Screening region code (omit for nationwide; literal value 전국 = nationwide).",
+        "description": "Optional. Screening region code (omit for nationwide; literal value '전국' = nationwide).",
         "required": false,
         "type": "STRING",
         "testValue": ""
@@ -1463,14 +1463,14 @@
       },
       {
         "name": "nx",
-        "description": "KMA grid X coordinate. Examples: 서울=60, 부산=98, 제주=52. Use with ny (alternative to latitude + longitude).",
+        "description": "KMA grid X coordinate. Examples: '서울'=60, '부산'=98, '제주'=52. Use with ny (alternative to latitude + longitude).",
         "required": false,
         "type": "STRING",
         "testValue": ""
       },
       {
         "name": "ny",
-        "description": "KMA grid Y coordinate. Examples: 서울=127, 부산=76, 제주=38. Use with nx (alternative to latitude + longitude).",
+        "description": "KMA grid Y coordinate. Examples: '서울'=127, '부산'=76, '제주'=38. Use with nx (alternative to latitude + longitude).",
         "required": false,
         "type": "STRING",
         "testValue": ""
@@ -1553,7 +1553,7 @@
     "params": [
       {
         "name": "lawdCode",
-        "description": "5-digit legal-dong sigungu code (not a road address). Common values: 강남구=11680, 서초구=11650, 송파구=11710, 마포구=11440, 성동구=11200, 영등포구=11560, 용산구=11170, 종로구=11110, 중구=11140, 해운대구(부산)=26350, 수영구(부산)=26410, 분당구(성남)=41135, 일산동구(고양)=41281, 제주시=50110, 서귀포시=50130.",
+        "description": "5-digit legal-dong sigungu code (not a road address). Common values: '강남구'=11680, '서초구'=11650, '송파구'=11710, '마포구'=11440, '성동구'=11200, '영등포구'=11560, '용산구'=11170, '종로구'=11110, '중구'=11140, '해운대구(부산)'=26350, '수영구(부산)'=26410, '분당구(성남)'=41135, '일산동구(고양)'=41281, '제주시'=50110, '서귀포시'=50130.",
         "required": true,
         "type": "STRING",
         "testValue": "11680"

@@ -244,7 +244,7 @@ function getDefaultToolSpecsPaths() {
   const candidateDirs = [
     !isDev ? path.join(process.resourcesPath, 'catalog') : null,
     path.join(__dirname, 'resources', 'catalog'),
-    path.join(__dirname, '..', 'src', 'main', 'resources'),
+    path.join(__dirname, '..', 'src', 'main', 'resources', 'tool'),
   ].filter(Boolean);
   for (const dir of candidateDirs) {
     if (!fs.existsSync(dir)) continue;
@@ -264,7 +264,7 @@ function getCatalogDir() {
   const candidates = [
     !isDev ? path.join(process.resourcesPath, 'catalog') : null,
     path.join(__dirname, 'resources', 'catalog'),
-    path.join(__dirname, '..', 'src', 'main', 'resources'),
+    path.join(__dirname, '..', 'src', 'main', 'resources', 'tool'),
   ].filter(Boolean);
   return candidates.find(dir => fs.existsSync(dir)) || null;
 }
