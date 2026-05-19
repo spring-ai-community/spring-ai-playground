@@ -17,13 +17,10 @@ package org.springaicommunity.playground.service.mcp;
 
 import org.springaicommunity.playground.service.PersistenceExecutor;
 import org.springaicommunity.playground.service.PersistenceServiceInterface;
-import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.service.mcp.client.McpTransportType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.boot.web.context.WebServerInitializedEvent;
-import org.springframework.context.ApplicationListener;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -36,24 +33,21 @@ import java.util.Map;
 import java.util.Set;
 
 @Service
-public class McpServerInfoPersistenceService implements PersistenceServiceInterface<McpServerInfo>,
-        ApplicationListener<WebServerInitializedEvent> {
+public class McpServerInfoPersistenceService implements PersistenceServiceInterface<McpServerInfo> {
 
     private static final Logger logger = LoggerFactory.getLogger(McpServerInfoPersistenceService.class);
 
     private final Path saveDir;
     private final ObjectProvider<McpServerInfoService> mcpServerInfoServiceProvider;
-    private final McpClientService mcpClientService;
     private final List<McpServerInfo> mcpServerInfos;
     private final PersistenceExecutor persistenceExecutor;
 
     public McpServerInfoPersistenceService(Path springAiPlaygroundHomeDir,
             ObjectProvider<McpServerInfoService> mcpServerInfoServiceProvider,
-            McpClientService mcpClientService, PersistenceExecutor persistenceExecutor) throws IOException {
+            PersistenceExecutor persistenceExecutor) throws IOException {
         this.saveDir = springAiPlaygroundHomeDir.resolve("mcp").resolve("save");
         Files.createDirectories(this.saveDir);
         this.mcpServerInfoServiceProvider = mcpServerInfoServiceProvider;
-        this.mcpClientService = mcpClientService;
         this.mcpServerInfos = this.loads();
         this.persistenceExecutor = persistenceExecutor;
     }
@@ -109,18 +103,6 @@ public class McpServerInfoPersistenceService implements PersistenceServiceInterf
         mcpServerInfoService.loadAll(() -> this.mcpServerInfos.forEach(
                 mcpServerInfo -> mcpServerInfoService.updateMcpServerInfo(mcpServerInfo.mcpTransportType(),
                         mcpServerInfo.serverName(), mcpServerInfo)));
-    }
-
-    @Override
-    public void onApplicationEvent(WebServerInitializedEvent event) {
-        this.mcpServerInfos.forEach(mcpServerInfo -> {
-            try {
-                mcpClientService.startMcpClient(mcpServerInfo);
-            } catch (RuntimeException e) {
-                logger.error("Failed to start MCP client: serverName={}, transportType={}",
-                        mcpServerInfo.serverName(), mcpServerInfo.mcpTransportType(), e);
-            }
-        });
     }
 
 }

@@ -27,6 +27,7 @@ import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
 import org.springaicommunity.playground.service.oauth.McpOAuthAuthorizedEvent;
 import org.springaicommunity.playground.service.oauth.OAuthClientRegistrations;
+import org.springaicommunity.playground.service.util.SecretMasking;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.mcp.client.common.autoconfigure.NamedClientMcpTransport;
@@ -34,6 +35,7 @@ import org.springframework.ai.mcp.client.common.autoconfigure.configurer.McpAsyn
 import org.springframework.ai.mcp.client.common.autoconfigure.configurer.McpSyncClientConfigurer;
 import org.springframework.ai.mcp.client.common.autoconfigure.properties.McpClientCommonProperties;
 import org.springframework.ai.mcp.client.common.autoconfigure.properties.McpClientCommonProperties.ClientType;
+import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.event.ContextClosedEvent;
@@ -48,6 +50,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -306,9 +310,15 @@ public class McpClientService {
                 statusCache.put(key, StatusEntry.awaitingAuthorization(authorizationUrl));
                 return;
             }
-            statusCache.put(key, StatusEntry.error(e.getMessage()));
+            statusCache.put(key, StatusEntry.error(safeErrorMessage(mcpServerInfo, e)));
             throw e;
         }
+    }
+
+    private static String safeErrorMessage(McpServerInfo info, Throwable t) {
+        String msg = t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage();
+        if (info == null) return msg;
+        return SecretMasking.mask(msg, SecretMasking.collectFromTemplate(info.connectionAsJson()));
     }
 
     public java.util.Set<String> findMissingEnv(McpServerInfo mcpServerInfo) {
@@ -347,7 +357,7 @@ public class McpClientService {
             int toolCount = transientClient.listTools().tools().size();
             return TestConnectionResult.success(toolCount);
         } catch (Exception e) {
-            String msg = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+            String msg = safeErrorMessage(mcpServerInfo, e);
             logger.warn("Test connection failed: serverName={}, error={}", mcpServerInfo.serverName(), msg);
             return TestConnectionResult.failure(msg);
         } finally {
@@ -382,7 +392,7 @@ public class McpClientService {
             statusCache.put(key, ok);
             return ok;
         } catch (RuntimeException e) {
-            String msg = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+            String msg = safeErrorMessage(mcpServerInfo, e);
             StatusEntry err = StatusEntry.error(msg);
             statusCache.put(key, err);
             return err;
@@ -511,14 +521,42 @@ public class McpClientService {
 
     public Optional<McpSchema.CallToolResult> callTool(McpServerInfo mcpServerInfo, String toolName,
             Map<String, Object> args, Map<String, Object> meta) {
-        logger.info("Calling MCP tool: serverName={}, toolName={}", mcpServerInfo.serverName(), toolName);
-        return Optional.ofNullable(connectingMcpClientOpsMap.get(clientKey(mcpServerInfo)))
-                .map(mcpClientOps -> mcpClientOps.callTool(toolName, args, meta));
+        String cid = UUID.randomUUID().toString().substring(0, 8);
+        Set<String> secrets = SecretMasking.collectFromTemplate(mcpServerInfo.connectionAsJson());
+        logger.info("mcp.tool.start cid={} server={} tool={} via=inspector",
+                cid, mcpServerInfo.serverName(), toolName);
+        long startNs = System.nanoTime();
+        try {
+            Optional<McpSchema.CallToolResult> result =
+                    Optional.ofNullable(connectingMcpClientOpsMap.get(clientKey(mcpServerInfo)))
+                            .map(mcpClientOps -> mcpClientOps.callTool(toolName, args, meta));
+            long durMs = (System.nanoTime() - startNs) / 1_000_000L;
+            boolean ok = result.map(r -> !Boolean.TRUE.equals(r.isError())).orElse(false);
+            logger.info("mcp.tool.done cid={} server={} tool={} durationMs={} ok={} via=inspector",
+                    cid, mcpServerInfo.serverName(), toolName, durMs, ok);
+            return result;
+        } catch (RuntimeException e) {
+            long durMs = (System.nanoTime() - startNs) / 1_000_000L;
+            String msg = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+            logger.warn("mcp.tool.crash cid={} server={} tool={} durationMs={} via=inspector error={}",
+                    cid, mcpServerInfo.serverName(), toolName, durMs,
+                    SecretMasking.mask(msg, secrets));
+            throw e;
+        }
     }
 
     public List<ToolCallbackProvider> buildToolCallbackProviders(McpServerInfo... mcpServerInfos) {
-        return Arrays.stream(mcpServerInfos).map(this::clientKey).map(connectingMcpClientOpsMap::get)
-                .filter(Objects::nonNull).map(McpClientOps::toolCallbackProvider).toList();
+        return Arrays.stream(mcpServerInfos)
+                .filter(info -> connectingMcpClientOpsMap.containsKey(clientKey(info)))
+                .map(info -> {
+                    McpClientOps ops = connectingMcpClientOpsMap.get(clientKey(info));
+                    Set<String> secrets = SecretMasking.collectFromTemplate(info.connectionAsJson());
+                    ToolCallback[] wrapped = Arrays.stream(ops.toolCallbackProvider().getToolCallbacks())
+                            .map(cb -> (ToolCallback) new LoggingMcpToolCallback(cb, info.serverName(), secrets))
+                            .toArray(ToolCallback[]::new);
+                    return (ToolCallbackProvider) () -> wrapped;
+                })
+                .toList();
     }
 
     public void deleteConnectingMcpServer(McpServerInfo mcpServerInfo) {

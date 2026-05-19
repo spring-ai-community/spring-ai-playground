@@ -98,6 +98,7 @@ spring:
         models:
           - qwen3.5:2b
           - qwen3.5:9b
+          - qwen3.6:35b
           - gemma4:e4b
           - gpt-oss:20b
           - deepseek-r1:8b

@@ -18,6 +18,8 @@ package org.springaicommunity.playground.service.mcp;
 import org.junit.jupiter.api.Test;
 import org.springaicommunity.playground.service.mcp.client.McpTransportType;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -101,12 +103,12 @@ class McpServerInfoMigrationTest {
 
     private static McpServerInfoPersistenceService stubService() {
         try {
-            return new McpServerInfoPersistenceService(java.nio.file.Files.createTempDirectory("mcp-migration-test"),
-                    null, null, null) {
+            return new McpServerInfoPersistenceService(Files.createTempDirectory("mcp-migration-test"),
+                    null, null) {
                 @Override public void save(McpServerInfo s) {}
                 @Override public void onStart() {}
             };
-        } catch (java.io.IOException e) {
+        } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }

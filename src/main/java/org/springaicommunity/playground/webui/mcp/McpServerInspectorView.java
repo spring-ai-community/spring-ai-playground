@@ -20,6 +20,7 @@ import com.vaadin.flow.component.DetachEvent;
 import com.vaadin.flow.component.Text;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.dependency.CssImport;
+import com.vaadin.flow.component.html.H4;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
@@ -92,6 +93,15 @@ public class McpServerInspectorView extends VerticalLayout {
         setSizeFull();
         setPadding(false);
         setSpacing(false);
+
+        H4 logo = new H4("MCP Inspector");
+        logo.getStyle().set("font-size", "var(--lumo-font-size-l)").set("margin", "0");
+        HorizontalLayout headerLayout = new HorizontalLayout(logo);
+        headerLayout.setWidthFull();
+        headerLayout.setPadding(true);
+        headerLayout.setAlignItems(FlexComponent.Alignment.CENTER);
+        headerLayout.setJustifyContentMode(FlexComponent.JustifyContentMode.START);
+        add(headerLayout);
 
         for (VerticalLayout container : List.of(cardsContainer, resourcesContainer, promptsContainer, pingContainer, notificationsContainer, rootsContainer, samplingContainer, elicitationContainer)) {
             container.setPadding(false);

@@ -39,7 +39,6 @@ import org.springaicommunity.playground.service.mcp.catalog.McpCatalogEntry;
 import org.springaicommunity.playground.service.mcp.catalog.McpCatalogService;
 import org.springaicommunity.playground.service.mcp.catalog.McpCategoryService;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
-import org.springaicommunity.playground.service.mcp.client.McpClientService.ServerStatus;
 import org.springaicommunity.playground.service.mcp.client.McpClientService.StatusEntry;
 import org.springaicommunity.playground.webui.PersistentUiDataStorage;
 import org.springaicommunity.playground.webui.VaadinUtils;
@@ -216,7 +215,7 @@ public class McpServerConnectionView extends WorkspaceSidebar implements BeforeE
 
         Map<String, List<McpServerInfo>> catalogByCategory = new LinkedHashMap<>();
         for (McpCatalogEntry entry : this.mcpCatalogService.getCatalog()) {
-            if (userIds.contains(entry.id())) continue;
+            if (userIds.contains(McpCatalogService.stripOsSuffix(entry.id()))) continue;
             try {
                 McpServerInfo ghost = this.mcpCatalogService.instantiate(entry, null, Map.of());
                 catalogByCategory.computeIfAbsent(entry.category(), k -> new ArrayList<>()).add(ghost);
