@@ -29,7 +29,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class McpServerInfoMigrationTest {
 
     @Test
-    void compact_constructor_defaults_null_category_to_custom() {
+    void compactConstructorDefaultsNullCategoryToCustom() {
         McpServerInfo info = new McpServerInfo(McpTransportType.STREAMABLE_HTTP, "x", "d", 1L, 2L, "{}",
                 null, null);
         assertThat(info.category()).isEqualTo("CUSTOM");
@@ -37,14 +37,14 @@ class McpServerInfoMigrationTest {
     }
 
     @Test
-    void backward_compatible_six_arg_constructor_defaults_category_and_tags() {
+    void backwardCompatibleSixArgConstructorDefaultsCategoryAndTags() {
         McpServerInfo info = new McpServerInfo(McpTransportType.STREAMABLE_HTTP, "x", "d", 1L, 2L, "{}");
         assertThat(info.category()).isEqualTo("CUSTOM");
         assertThat(info.tags()).isEmpty();
     }
 
     @Test
-    void mutate_preserves_category_and_tags_on_five_arg_signature() {
+    void mutatePreservesCategoryAndTagsOnFiveArgSignature() {
         McpServerInfo original = new McpServerInfo(McpTransportType.STREAMABLE_HTTP, "x", "d", 1L, 2L, "{}",
                 "DEV", Set.of("global"));
         McpServerInfo mutated = original.mutate(McpTransportType.SSE, "y", "d2", 3L, "{\"u\":1}");
@@ -53,7 +53,7 @@ class McpServerInfoMigrationTest {
     }
 
     @Test
-    void mutate_with_seven_args_updates_category_and_tags() {
+    void mutateWithSevenArgsUpdatesCategoryAndTags() {
         McpServerInfo original = new McpServerInfo(McpTransportType.STREAMABLE_HTTP, "x", "d", 1L, 2L, "{}",
                 "DEV", Set.of("global"));
         McpServerInfo mutated = original.mutate(McpTransportType.STREAMABLE_HTTP, "x", "d", 4L, "{}",
@@ -63,7 +63,7 @@ class McpServerInfoMigrationTest {
     }
 
     @Test
-    void persistence_convertTo_defaults_missing_keys() {
+    void persistenceConvertToDefaultsMissingKeys() {
         McpServerInfoPersistenceService service = stubService();
         Map<String, Object> legacyMap = new HashMap<>();
         legacyMap.put("mcpTransportType", "STREAMABLE_HTTP");
@@ -81,7 +81,7 @@ class McpServerInfoMigrationTest {
     }
 
     @Test
-    void persistence_convertTo_round_trips_category_and_tags() {
+    void persistenceConvertToRoundTripsCategoryAndTags() {
         McpServerInfoPersistenceService service = stubService();
         Map<String, Object> map = new HashMap<>();
         map.put("mcpTransportType", "SSE");
@@ -112,7 +112,7 @@ class McpServerInfoMigrationTest {
     }
 
     @Test
-    void tags_set_is_immutable_after_construction() {
+    void tagsSetIsImmutableAfterConstruction() {
         Set<String> mutable = new LinkedHashSet<>();
         mutable.add("global");
         McpServerInfo info = new McpServerInfo(McpTransportType.STREAMABLE_HTTP, "x", "d", 1L, 2L, "{}",

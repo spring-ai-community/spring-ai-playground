@@ -29,8 +29,11 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 public class McpServerInfoPersistenceService implements PersistenceServiceInterface<McpServerInfo>,
@@ -94,8 +97,8 @@ public class McpServerInfoPersistenceService implements PersistenceServiceInterf
         String connectionAsJson = (String) saveObjectMap.get("connectionAsJson");
         String category = (String) saveObjectMap.get("category");
         @SuppressWarnings("unchecked")
-        java.util.Collection<String> tagCol = (java.util.Collection<String>) saveObjectMap.get("tags");
-        java.util.Set<String> tags = tagCol == null ? java.util.Set.of() : new java.util.LinkedHashSet<>(tagCol);
+        Collection<String> tagCol = (Collection<String>) saveObjectMap.get("tags");
+        Set<String> tags = tagCol == null ? Set.of() : new LinkedHashSet<>(tagCol);
         return new McpServerInfo(mcpTransportType, serverName, description, createTimestamp, updateTimestamp,
                 connectionAsJson, category, tags);
     }

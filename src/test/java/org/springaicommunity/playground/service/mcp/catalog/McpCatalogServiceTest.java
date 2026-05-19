@@ -21,6 +21,7 @@ import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.mcp.client.McpTransportType;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,7 +31,7 @@ class McpCatalogServiceTest {
     private final McpCatalogService service = new McpCatalogService(new ObjectMapper());
 
     @Test
-    void catalog_loads_with_minimum_expected_entries() {
+    void catalogLoadsWithMinimumExpectedEntries() {
         List<McpCatalogEntry> all = service.getCatalog();
         assertThat(all).hasSizeGreaterThanOrEqualTo(40);
         // Spot-check a few high-signal Tier 1 vendors are present.
@@ -39,7 +40,7 @@ class McpCatalogServiceTest {
     }
 
     @Test
-    void all_entries_carry_a_category_and_at_least_one_transport() {
+    void allEntriesCarryACategoryAndAtLeastOneTransport() {
         for (McpCatalogEntry e : service.getCatalog()) {
             assertThat(e.category()).as(e.id() + " category").isNotBlank();
             assertThat(e.transports()).as(e.id() + " transports").isNotEmpty();
@@ -50,13 +51,13 @@ class McpCatalogServiceTest {
     }
 
     @Test
-    void tier_split_includes_eighteen_tier1_and_thirty_tier2() {
+    void tierSplitIncludesEighteenTier1AndThirtyTier2() {
         assertThat(service.getByTier(1)).hasSize(18);
         assertThat(service.getByTier(2)).hasSize(30);
     }
 
     @Test
-    void instantiate_produces_ghost_with_correct_category_and_tags() {
+    void instantiateProducesGhostWithCorrectCategoryAndTags() {
         McpCatalogEntry github = service.findById("GitHub").orElseThrow();
         McpServerInfo ghost = service.instantiate(github, null, Map.of());
         assertThat(ghost.serverName()).isEqualTo("GitHub");
@@ -69,7 +70,7 @@ class McpCatalogServiceTest {
     }
 
     @Test
-    void instantiate_substitutes_url_placeholders() {
+    void instantiateSubstitutesUrlPlaceholders() {
         McpCatalogEntry outlookMail = service.findById("Outlook-Mail").orElseThrow();
         McpServerInfo ghost = service.instantiate(outlookMail, null,
                 Map.of("tenant_id", "contoso-tenant-uuid"));
@@ -78,7 +79,35 @@ class McpCatalogServiceTest {
     }
 
     @Test
-    void substitute_placeholders_handles_user_values_with_special_chars() {
+    void stdioEntriesLoadOnlyForCurrentOs() {
+        String name = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+        String expectedSuffix;
+        if (name.contains("mac") || name.contains("darwin")) expectedSuffix = "-macOS";
+        else if (name.contains("win")) expectedSuffix = "-Windows";
+        else expectedSuffix = "-Linux";
+
+        List<McpCatalogEntry> stdio = service.getCatalog().stream()
+                .filter(entry -> entry.transports().stream()
+                        .anyMatch(transport -> transport.type() == McpTransportType.STDIO))
+                .toList();
+        assertThat(stdio).as("stdio entries on " + name).hasSize(8);
+        assertThat(stdio).extracting(McpCatalogEntry::id)
+                .allSatisfy(id -> assertThat(id).endsWith(expectedSuffix));
+        assertThat(stdio).extracting(McpCatalogEntry::displayName)
+                .containsExactlyInAnyOrder("Git", "Memory (Knowledge Graph)", "Sequential Thinking",
+                        "Puppeteer", "MCP Everything (Reference Test Server)",
+                        "Playwright", "SQLite", "Brave Search");
+
+        for (McpCatalogEntry entry : stdio) {
+            assertThat(entry.description()).as(entry.id() + " description prefix")
+                    .startsWith("[" + expectedSuffix.substring(1) + "]");
+            assertThat(entry.description()).as(entry.id() + " description ends with Docs:")
+                    .contains("\nDocs: ");
+        }
+    }
+
+    @Test
+    void substitutePlaceholdersHandlesUserValuesWithSpecialChars() {
         String result = McpCatalogService.substitutePlaceholders("https://x/{API_KEY}/y",
                 Map.of("API_KEY", "abc$1\\def"));
         // Literal substitution — no regex interpretation of $ or backslash.

@@ -28,7 +28,7 @@ class McpCategoryServiceTest {
     private final McpCategoryService service = new McpCategoryService(new ObjectMapper());
 
     @Test
-    void built_in_categories_loaded_in_order() {
+    void builtInCategoriesLoadedInOrder() {
         List<CategoryDef> defs = service.getBuiltInCategories();
         assertThat(defs).extracting(CategoryDef::id)
                 .startsWith("PRODUCTIVITY", "STORAGE", "COMMUNICATION", "PROJECT_MGMT", "DEV", "SEARCH",
@@ -38,7 +38,7 @@ class McpCategoryServiceTest {
     }
 
     @Test
-    void user_defined_categories_appended_alphabetically_after_built_in() {
+    void userDefinedCategoriesAppendedAlphabeticallyAfterBuiltIn() {
         List<CategoryDef> all = service.getAllCategories(Set.of("personal", "PRODUCTIVITY", "experimental"));
         // Built-in defs stay in order
         assertThat(all).extracting(CategoryDef::id)
@@ -57,7 +57,7 @@ class McpCategoryServiceTest {
     }
 
     @Test
-    void resolve_def_returns_built_in_when_known_synthetic_otherwise() {
+    void resolveDefReturnsBuiltInWhenKnownSyntheticOtherwise() {
         assertThat(service.resolveDef("DEV").builtIn()).isTrue();
         CategoryDef synth = service.resolveDef("personal");
         assertThat(synth.builtIn()).isFalse();
@@ -65,7 +65,7 @@ class McpCategoryServiceTest {
     }
 
     @Test
-    void resolve_def_with_blank_falls_back_to_custom() {
+    void resolveDefWithBlankFallsBackToCustom() {
         assertThat(service.resolveDef(null).id()).isEqualTo("CUSTOM");
         assertThat(service.resolveDef("").id()).isEqualTo("CUSTOM");
     }

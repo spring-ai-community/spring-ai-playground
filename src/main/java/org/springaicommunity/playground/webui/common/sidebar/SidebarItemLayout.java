@@ -37,7 +37,10 @@ public final class SidebarItemLayout {
         HorizontalLayout titleRow = new HorizontalLayout();
         titleRow.setSpacing(false);
         titleRow.setAlignItems(HorizontalLayout.Alignment.CENTER);
-        titleRow.getStyle().set("gap", "0.4em");
+        titleRow.getStyle()
+                .set("gap", "0.4em")
+                .set("font-weight", "600")
+                .set("color", "var(--lumo-body-text-color)");
         titleRow.add(dot, title);
         row.add(titleRow);
 
