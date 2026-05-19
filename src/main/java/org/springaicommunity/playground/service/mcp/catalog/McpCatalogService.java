@@ -17,12 +17,12 @@ package org.springaicommunity.playground.service.mcp.catalog;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.mcp.client.HttpConnectionParametersWithExtras;
-import org.springaicommunity.playground.service.mcp.client.McpTransportType;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
@@ -31,6 +31,7 @@ import java.io.InputStream;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -39,6 +40,8 @@ public class McpCatalogService {
 
     private static final Logger logger = LoggerFactory.getLogger(McpCatalogService.class);
     private static final String DEFAULT_RESOURCE = "mcp/default-mcp-specs.json";
+    private static final String STDIO_RESOURCE_PREFIX = "mcp/default-mcp-specs-stdio-";
+    private static final String STDIO_RESOURCE_SUFFIX = ".json";
 
     private final ObjectMapper objectMapper;
     private final Map<String, McpCatalogEntry> entriesById;
@@ -46,24 +49,47 @@ public class McpCatalogService {
 
     public McpCatalogService(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
-        ClassPathResource resource = new ClassPathResource(DEFAULT_RESOURCE);
         Map<String, McpCatalogEntry> loaded = new LinkedHashMap<>();
-        if (resource.exists()) {
-            try (InputStream in = resource.getInputStream()) {
-                List<McpCatalogEntry> raw = objectMapper.readValue(in, new TypeReference<List<McpCatalogEntry>>() {});
-                for (McpCatalogEntry e : raw) {
-                    if (e.id() == null || e.id().isBlank()) continue;
-                    loaded.put(e.id(), e);
-                }
-            } catch (IOException e) {
-                throw new IllegalStateException("Failed to load MCP catalog from " + DEFAULT_RESOURCE, e);
-            }
+        loadEntries(DEFAULT_RESOURCE, loaded);
+
+        String stdioResource = resolveStdioResource();
+        if (stdioResource != null) {
+            loadEntries(stdioResource, loaded);
         } else {
-            logger.warn("MCP catalog resource missing at {}", DEFAULT_RESOURCE);
+            logger.warn("MCP stdio catalog skipped — unsupported OS: {}", System.getProperty("os.name"));
         }
+
         this.entriesById = Collections.unmodifiableMap(loaded);
         this.entriesOrdered = List.copyOf(loaded.values());
-        logger.info("Loaded {} MCP catalog entries from {}", this.entriesOrdered.size(), DEFAULT_RESOURCE);
+        logger.info("Loaded {} MCP catalog entries (stdio from {})", this.entriesOrdered.size(),
+                stdioResource == null ? "none" : stdioResource);
+    }
+
+    private void loadEntries(String resourcePath, Map<String, McpCatalogEntry> sink) {
+        ClassPathResource resource = new ClassPathResource(resourcePath);
+        if (!resource.exists()) {
+            logger.warn("MCP catalog resource missing at {}", resourcePath);
+            return;
+        }
+        try (InputStream in = resource.getInputStream()) {
+            List<McpCatalogEntry> raw = this.objectMapper.readValue(in, new TypeReference<List<McpCatalogEntry>>() {});
+            for (McpCatalogEntry entry : raw) {
+                if (entry.id() == null || entry.id().isBlank()) continue;
+                sink.put(entry.id(), entry);
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to load MCP catalog from " + resourcePath, e);
+        }
+    }
+
+    private static String resolveStdioResource() {
+        String name = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+        if (name.contains("mac") || name.contains("darwin")) return STDIO_RESOURCE_PREFIX + "mac" + STDIO_RESOURCE_SUFFIX;
+        if (name.contains("win")) return STDIO_RESOURCE_PREFIX + "windows" + STDIO_RESOURCE_SUFFIX;
+        if (name.contains("nix") || name.contains("nux") || name.contains("linux") || name.contains("bsd")) {
+            return STDIO_RESOURCE_PREFIX + "linux" + STDIO_RESOURCE_SUFFIX;
+        }
+        return null;
     }
 
     public List<McpCatalogEntry> getCatalog() {
@@ -73,6 +99,26 @@ public class McpCatalogService {
     public Optional<McpCatalogEntry> findById(String id) {
         return Optional.ofNullable(this.entriesById.get(id));
     }
+
+    public Optional<McpCatalogEntry> findByServerName(String serverName) {
+        Optional<McpCatalogEntry> direct = findById(serverName);
+        if (direct.isPresent()) return direct;
+        for (String osSuffix : OS_ID_SUFFIXES) {
+            Optional<McpCatalogEntry> osMatch = findById(serverName + osSuffix);
+            if (osMatch.isPresent()) return osMatch;
+        }
+        return Optional.empty();
+    }
+
+    public static String stripOsSuffix(String id) {
+        if (id == null) return null;
+        for (String osSuffix : OS_ID_SUFFIXES) {
+            if (id.endsWith(osSuffix)) return id.substring(0, id.length() - osSuffix.length());
+        }
+        return id;
+    }
+
+    private static final String[] OS_ID_SUFFIXES = {"-macOS", "-Linux", "-Windows"};
 
     public List<McpCatalogEntry> getByTier(int tier) {
         return this.entriesOrdered.stream().filter(e -> e.tier() == tier).toList();
@@ -85,7 +131,7 @@ public class McpCatalogService {
             if (entry.transports().isEmpty()) {
                 throw new IllegalArgumentException("Catalog entry has no transports: " + entry.id());
             }
-            transport = entry.transports().get(0);
+            transport = entry.transports().getFirst();
         }
         Map<String, String> values = userValues == null ? Map.of() : userValues;
         String url = substitutePlaceholders(transport.urlTemplate(), values);
@@ -98,7 +144,7 @@ public class McpCatalogService {
             throw new IllegalStateException("Failed to build connection JSON for catalog entry " + entry.id(), e);
         }
 
-        return new McpServerInfo(transport.type(), entry.id(), entry.description(),
+        return new McpServerInfo(transport.type(), stripOsSuffix(entry.id()), entry.description(),
                 now, now, connectionJson, entry.category(), entry.tags());
     }
 
@@ -129,6 +175,16 @@ public class McpCatalogService {
             case STDIO -> {
                 ObjectNode obj = objectMapper.createObjectNode();
                 obj.put("command", url == null ? "" : url);
+                if (transport.args() != null && !transport.args().isEmpty()) {
+                    ArrayNode argsArr = objectMapper.createArrayNode();
+                    for (String a : transport.args()) argsArr.add(substitutePlaceholders(a, values));
+                    obj.set("args", argsArr);
+                }
+                if (transport.env() != null && !transport.env().isEmpty()) {
+                    ObjectNode envObj = objectMapper.createObjectNode();
+                    transport.env().forEach((k, v) -> envObj.put(k, substitutePlaceholders(v, values)));
+                    obj.set("env", envObj);
+                }
                 yield obj;
             }
         };

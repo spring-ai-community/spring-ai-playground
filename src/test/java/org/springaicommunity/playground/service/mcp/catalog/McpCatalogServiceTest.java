@@ -51,9 +51,9 @@ class McpCatalogServiceTest {
     }
 
     @Test
-    void tierSplitIncludesEighteenTier1AndThirtyTier2() {
+    void tierSplitMatchesCatalogSeed() {
         assertThat(service.getByTier(1)).hasSize(18);
-        assertThat(service.getByTier(2)).hasSize(30);
+        assertThat(service.getByTier(2)).hasSize(39);
     }
 
     @Test
@@ -73,9 +73,9 @@ class McpCatalogServiceTest {
     void instantiateSubstitutesUrlPlaceholders() {
         McpCatalogEntry outlookMail = service.findById("Outlook-Mail").orElseThrow();
         McpServerInfo ghost = service.instantiate(outlookMail, null,
-                Map.of("tenant_id", "contoso-tenant-uuid"));
+                Map.of("MS_TENANT_ID", "contoso-tenant-uuid"));
         assertThat(ghost.connectionAsJson()).contains("contoso-tenant-uuid")
-                .doesNotContain("{tenant_id}");
+                .doesNotContain("{MS_TENANT_ID}");
     }
 
     @Test

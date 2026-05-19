@@ -68,7 +68,7 @@ public class McpServerView extends ContentWorkspaceView {
 
         this.mcpServerConnectionView =
                 new McpServerConnectionView(persistentUiDataStorage, mcpServerInfoService,
-                        mcpClientService, mcpCategoryService, mcpCatalogService, mcpTagSuggestionService,
+                        mcpClientService, mcpCategoryService, mcpCatalogService,
                         mcpServerInfoChangeSupport);
 
         this.mcpServerInfoChangeSupport.addPropertyChangeListener(event -> {

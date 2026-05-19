@@ -1,4 +1,5 @@
 [
+  { "id": "EXAMPLE",       "displayName": "Example",            "order": 5,   "icon": "flask",          "description": "Reference / test MCP servers (no real data)" },
   { "id": "PRODUCTIVITY",  "displayName": "Productivity",       "order": 10,  "icon": "envelope-open",  "description": "Email, calendar, notes" },
   { "id": "STORAGE",       "displayName": "Storage",            "order": 20,  "icon": "folder-open",    "description": "Cloud file storage" },
   { "id": "COMMUNICATION", "displayName": "Communication",      "order": 30,  "icon": "comments",       "description": "Chat and messaging" },

@@ -18,7 +18,9 @@ package org.springaicommunity.playground.service.mcp.catalog;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.springaicommunity.playground.service.mcp.client.McpTransportType;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -57,12 +59,16 @@ public record McpCatalogEntry(
             List<HeaderSpec> requiredHeaders,
             List<String> requiredEnv,
             List<String> urlPlaceholders,
-            OAuthDefaults oauthDefaults) {
+            OAuthDefaults oauthDefaults,
+            List<String> args,
+            Map<String, String> env) {
 
         public TransportSpec {
             requiredHeaders = requiredHeaders == null ? List.of() : List.copyOf(requiredHeaders);
             requiredEnv = requiredEnv == null ? List.of() : List.copyOf(requiredEnv);
             urlPlaceholders = urlPlaceholders == null ? List.of() : List.copyOf(urlPlaceholders);
+            args = args == null ? List.of() : List.copyOf(args);
+            env = env == null ? Map.of() : new LinkedHashMap<>(env);
         }
     }
 

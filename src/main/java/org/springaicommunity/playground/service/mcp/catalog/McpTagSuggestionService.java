@@ -15,17 +15,10 @@
  */
 package org.springaicommunity.playground.service.mcp.catalog;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.core.io.ClassPathResource;
+import org.springaicommunity.playground.service.mcp.McpServerInfo;
+import org.springaicommunity.playground.service.mcp.McpServerInfoService;
 import org.springframework.stereotype.Service;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -33,61 +26,25 @@ import java.util.Set;
 @Service
 public class McpTagSuggestionService {
 
-    private static final Logger logger = LoggerFactory.getLogger(McpTagSuggestionService.class);
-    private static final String DEFAULT_RESOURCE = "mcp/default-mcp-tags.json";
+    private final McpCatalogService mcpCatalogService;
+    private final McpServerInfoService mcpServerInfoService;
 
-    private final List<String> regions;
-    private final List<String> attributes;
+    public McpTagSuggestionService(McpCatalogService mcpCatalogService,
+            McpServerInfoService mcpServerInfoService) {
+        this.mcpCatalogService = mcpCatalogService;
+        this.mcpServerInfoService = mcpServerInfoService;
+    }
 
-    public McpTagSuggestionService(ObjectMapper objectMapper) {
-        ClassPathResource resource = new ClassPathResource(DEFAULT_RESOURCE);
-        List<String> r = List.of();
-        List<String> a = List.of();
-        if (resource.exists()) {
-            try (InputStream in = resource.getInputStream()) {
-                JsonNode root = objectMapper.readTree(in);
-                r = readStringArray(root, "regions");
-                a = readStringArray(root, "attributes");
-            } catch (IOException e) {
-                throw new IllegalStateException("Failed to load built-in MCP tags from " + DEFAULT_RESOURCE, e);
-            }
-        } else {
-            logger.warn("Built-in MCP tags resource missing at {}", DEFAULT_RESOURCE);
+    public Set<String> collectTags() {
+        Set<String> tags = new LinkedHashSet<>();
+        for (McpCatalogEntry entry : this.mcpCatalogService.getCatalog()) {
+            tags.addAll(entry.tags());
         }
-        this.regions = r;
-        this.attributes = a;
-        logger.info("Loaded MCP tag suggestions: regions={}, attributes={}", r, a);
-    }
-
-    private static List<String> readStringArray(JsonNode root, String fieldName) {
-        JsonNode node = root.get(fieldName);
-        if (node == null || !node.isArray()) return List.of();
-        List<String> out = new ArrayList<>();
-        node.forEach(n -> {
-            if (n.isTextual()) out.add(n.asText());
-        });
-        return List.copyOf(out);
-    }
-
-    public List<String> getSuggestedRegions() { return this.regions; }
-    public List<String> getSuggestedAttributes() { return this.attributes; }
-
-    public List<String> getSuggestedTags() {
-        Set<String> all = new LinkedHashSet<>();
-        all.addAll(this.regions);
-        all.addAll(this.attributes);
-        return List.copyOf(all);
-    }
-
-    public List<String> getAllTags(Collection<String> observed) {
-        Set<String> all = new LinkedHashSet<>();
-        all.addAll(this.regions);
-        all.addAll(this.attributes);
-        if (observed != null) {
-            for (String t : observed) {
-                if (t != null && !t.isBlank()) all.add(t);
+        for (List<McpServerInfo> list : this.mcpServerInfoService.getMcpServerInfos().values()) {
+            for (McpServerInfo info : list) {
+                if (info.tags() != null) tags.addAll(info.tags());
             }
         }
-        return List.copyOf(all);
+        return tags;
     }
 }

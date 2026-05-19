@@ -31,8 +31,8 @@ class McpCategoryServiceTest {
     void builtInCategoriesLoadedInOrder() {
         List<CategoryDef> defs = service.getBuiltInCategories();
         assertThat(defs).extracting(CategoryDef::id)
-                .startsWith("PRODUCTIVITY", "STORAGE", "COMMUNICATION", "PROJECT_MGMT", "DEV", "SEARCH",
-                        "CLOUD", "DATABASE", "FINANCE", "CRM", "DESIGN", "UTIL")
+                .startsWith("EXAMPLE", "PRODUCTIVITY", "STORAGE", "COMMUNICATION", "PROJECT_MGMT",
+                        "DEV", "SEARCH", "CLOUD", "DATABASE", "FINANCE", "CRM", "DESIGN", "UTIL")
                 .endsWith("CUSTOM");
         assertThat(defs).allMatch(CategoryDef::builtIn);
     }
@@ -40,11 +40,10 @@ class McpCategoryServiceTest {
     @Test
     void userDefinedCategoriesAppendedAlphabeticallyAfterBuiltIn() {
         List<CategoryDef> all = service.getAllCategories(Set.of("personal", "PRODUCTIVITY", "experimental"));
-        // Built-in defs stay in order
         assertThat(all).extracting(CategoryDef::id)
-                .startsWith("PRODUCTIVITY")
+                .startsWith("EXAMPLE", "PRODUCTIVITY")
                 .contains("CUSTOM")
-                .endsWith("personal");  // alphabetical: experimental then personal
+                .endsWith("personal");
         // Built-in PRODUCTIVITY must remain marked builtIn even though it was observed in user data
         assertThat(all.stream().filter(d -> d.id().equals("PRODUCTIVITY")).findFirst())
                 .hasValueSatisfying(d -> assertThat(d.builtIn()).isTrue());

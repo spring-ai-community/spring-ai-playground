@@ -1,4 +1,0 @@
-{
-  "regions": ["global", "kr", "jp", "cn", "us", "eu"],
-  "attributes": ["aggregator", "oss", "free-tier", "preview", "beta"]
-}
