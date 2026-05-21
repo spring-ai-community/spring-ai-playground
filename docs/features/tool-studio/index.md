@@ -1,4 +1,4 @@
-Description: Tool Studio — low-code JavaScript tool authoring environment with deny-first sandbox, Draft state, MCP server preset catalog, and per-tool sandbox capability overrides.
+description: Tool Studio — low-code JavaScript tool authoring with deny-first sandbox, Draft state, MCP server preset catalog, per-tool capability overrides.
 
 # Tool Studio
 
@@ -11,7 +11,7 @@ The authoring screen has two working halves that fold into a single page:
 1. **Tool spec form** at the top — name, description, parameters.
 2. **Tool Action** below it — JavaScript code editor, test run controls, and the collapsible **Sandbox & Capabilities** pane that controls how the tool's runtime differs from the default.
 
-![Tool spec form — tool name, description, structured parameters](../assets/images/tool-studio-form.png)
+![Tool spec form — tool name, description, structured parameters](../../assets/images/tool-studio-form.png)
 *Top of Tool Studio: tool name / category / tags, free-form tool description, and structured parameters (Parameter #1 with required flag, name, type, description, and a test value the local sandbox actually executes against).*
 
 ## What Tool Studio Does
@@ -35,7 +35,7 @@ Spring AI Playground treats the local test-run as a gate, not a polish step. Thi
 
 In practice this means the act of publishing is the act of testing. You never produce a tool whose first execution happens in front of an agent.
 
-Every one of the 86 bundled [Default Tools](default-tools/index.md) crossed this same gate before being shipped — they live as ready-to-fork reference for the workflow above.
+Every one of the 86 bundled [Default Tools](../default-tools/index.md) crossed this same gate before being shipped — they live as ready-to-fork reference for the workflow above.
 
 ## Built-in MCP Server
 
@@ -51,7 +51,7 @@ When you publish a tool from Tool Studio, it becomes available through that MCP 
 
 The lower half of the authoring page is the Tool Action area: the JavaScript code that actually runs when the tool is invoked, plus the controls and panels that surround it.
 
-![Tool Action — Sandbox collapsed, JS Code Editor with helper-rich sample](../assets/images/tool-studio-action.png)
+![Tool Action — Sandbox collapsed, JS Code Editor with helper-rich sample](../../assets/images/tool-studio-action.png)
 *Tool Action area top-to-bottom: **Sandbox & Capabilities** stays collapsed by default with a **Locked L0** badge so authoring focuses on the JS action itself; **Static Variables** sit just above the code, available to the action as globals and masked from logs if env-backed; the **JS Code Editor** ships with a sample that lists the cross-bridged globals (`fetch`, `URL`, `URLSearchParams`, `atob`/`btoa`, `crypto`, the `safety.*` helpers) so the author has a working reference without leaving the page; **Test Run / Clear / Format** drive execution; **Debug Console** captures `console.log` output with env-var masking; the bottom action bar — **Save Draft** / Local Pass badge / **Test & Publish** — closes the loop. The only way to expose a tool through MCP is to make its sandboxed test run pass.*
 
 ### JavaScript Runtime
@@ -73,7 +73,7 @@ The JS-on-JVM design is what lets every tool in this app — both the bundled de
 
 Concretely:
 
-- One artifact runs on all three OSes — the same JAR is repackaged into the Docker image and the Electron-packaged desktop launcher, all from one `pom.xml`. See [Getting Started](../getting-started.md) for the platform-specific launchers.
+- One artifact runs on all three OSes — the same JAR is repackaged into the Docker image and the Electron-packaged desktop launcher, all from one `pom.xml`. See [Getting Started](../../getting-started/index.md) for the platform-specific launchers.
 - All 86 default tools are pure JavaScript executed through GraalVM Polyglot. No native dependencies, no per-OS build step, no install-time compile.
 - Every cross-bridged helper resolves to a Java standard library or well-known JVM library, so platform quirks are handled at the JVM layer:
     - `safety.fs` rides on `java.nio.file.Path` / `Files` — `/` vs `\` and case folding are normalised before any I/O.
@@ -102,16 +102,16 @@ Tools call a small set of capability-scoped helpers instead of raw Java. These a
 | `safety.parser.csv` | Apache Commons CSV — optional `header` and `delimiter` opts. |
 | `console.log` | Captured into the Tool Studio debug pane and into the chat's tool-call trace. Environment-backed static variables are masked by substring replacement when their full resolved value appears in output. Only anchored full-string `$ENV_VAR` references are auto-collected as secrets — substring-inlined env vars are not. Log entries are capped at 1000 per execution. `console.error` is **not** installed in the current build. |
 
-Every helper above is exercised by one or more of the 86 [Default Tools](default-tools/index.md) — open one in Tool Studio to see the helper in working code, then use **Copy to New Tool** to fork it.
+Every helper above is exercised by one or more of the 86 [Default Tools](../default-tools/index.md) — open one in Tool Studio to see the helper in working code, then use **Copy to New Tool** to fork it.
 
 ## Sandbox & Capabilities
 
 **Sandbox & Capabilities** is the collapsible pane inside Tool Action that controls how a tool's effective runtime policy differs from the global default. Every tool starts at the baseline — no network, no filesystem, deny-first class allowlist — and earns an L0 badge. Opening this pane lets you widen specific dimensions per tool, and the **Risk Level** badge updates live as you do so.
 
-![Sandbox & Capabilities pane — expanded](../assets/images/tool-studio-sandbox.png)
-*Sandbox & Capabilities expanded: **Deny Classes** chips list packages user JS can never touch (removing chips lowers safety — removing reflection denies → L4, removing `System` / `Runtime` / `Process` → L5); **Allow Classes** chips list packages user JS can use (adding new chips can raise risk to L3+); **Network mode** radio chooses `blocked` / `allowlist` / `strict` (default, with SSRF four-layer guard) / `open`; **Filesystem mode** chooses `off` (hidden) / `read` (L3) / `read+write` (L4) / `readwrite`; **Base path** sets the per-tool `safety.fs` root, default `${TOOL_STUDIO_FS_BASE:${user.home}}`.*
+![Sandbox & Capabilities pane — expanded](../../assets/images/tool-studio-sandbox.png)
+*Sandbox & Capabilities expanded: **Deny Classes** chips list packages user JS can never touch (removing chips lowers safety — removing reflection denies → L4, removing `System` / `Runtime` / `Process` → L5); **Allow Classes** chips list packages user JS can use (adding new chips can raise risk to L3+); **Network mode** radio chooses `blocked` / `allowlist` / `strict` (default, with SSRF four-layer guard) / `open`; **Filesystem mode** chooses `off` (hidden) / `read` (L3) / `read+write` (L4) / `readwrite`; **Base path** sets the per-tool `safety.fs` root, default `${TOOL_STUDIO_FS_BASE:${user.home}/spring-ai-playground/fs-tool-workspace}`.*
 
-The Sandbox & Capabilities pane reads and writes a `SandboxOverrides` block on the tool's spec. None of the bundled defaults touch the class lists — they only set network mode and host list — but the full surface is available. The five subsections below document the baseline, the override shape, and the per-control semantics in detail.
+The Sandbox & Capabilities pane reads and writes a `SandboxOverrides` block on the tool's spec. None of the bundled defaults touch the class lists — they only set network mode and host list — but the full surface is available. The five subsections below document the baseline, the override shape, and the per-control semantics in detail. For the normative JSON contract of the spec this pane writes — every field, JSON Schema, resolution algorithm, and Risk Level rules — see **[Safe Tool Specification 1.0](../../safe-tool-specification.md)**.
 
 ### Default sandbox baseline (application.yaml)
 
@@ -124,7 +124,7 @@ spring:
       tool-studio:
         timeout-seconds: 30
         fs:
-          base-path: ${TOOL_STUDIO_FS_BASE:${user.home}}
+          base-path: ${TOOL_STUDIO_FS_BASE:${user.home}/spring-ai-playground/fs-tool-workspace}
         js-sandbox:
           allow-network-io: false
           allow-file-io: false           # single boolean — flips read and write together
@@ -204,7 +204,7 @@ The Filesystem radio chooses how `safety.fs` behaves for the tool. The baseline 
 | `read+write` | true | true | L4 — tool can also `writeText`, which auto-creates parent directories. |
 | `readwrite` | true | true | L4 (same posture as `read+write`; alternate label). |
 
-All file access is rooted at the configured **Base path** (default `${TOOL_STUDIO_FS_BASE:${user.home}}`, set per-app under `tool-studio.fs.base-path`). `SafeFs.resolveAndValidate` calls `normalize()` and rejects any path whose result does not `startsWith(base)`, so `../../etc/passwd` and absolute paths outside the root both fail. `safety.fs.find` walks with `FileVisitOption.FOLLOW_LINKS` — symbolic links are traversed, so consider that when sharing the base path with untrusted directory trees.
+All file access is rooted at the configured **Base path** (default `${TOOL_STUDIO_FS_BASE:${user.home}/spring-ai-playground/fs-tool-workspace}`, set per-app under `tool-studio.fs.base-path`). `SafeFs.resolveAndValidate` calls `normalize()` and rejects any path whose result does not `startsWith(base)`, so `../../etc/passwd` and absolute paths outside the root both fail. `safety.fs.find` walks with `FileVisitOption.FOLLOW_LINKS` — symbolic links are traversed, so consider that when sharing the base path with untrusted directory trees.
 
 ### SSRF four-layer guard
 
@@ -263,7 +263,7 @@ The three layers:
 
 The first two are about safety of execution. The third is about who can talk to the MCP server. Both matter; they fail to different threats.
 
-For the system-level reference — three-layer diagram, policy resolution flow, per-execution enforcement points, threat-to-layer mapping, and known limitations — see [AI Agent Tool Safety Architecture](../safety-architecture.md).
+For the system-level reference — three-layer diagram, policy resolution flow, per-execution enforcement points, threat-to-layer mapping, and known limitations — see [AI Agent Tool Safety Architecture](../../safety-architecture.md).
 
 ## Connect to the Built-in MCP Server
 
@@ -330,7 +330,7 @@ When a tool is created or updated in Tool Studio, it is dynamically discovered a
 
 - **Tool MCP Server Setting drawer** (toolbox icon in the Tool Studio header): the single surface controlling what the built-in MCP server exposes. Three sections — **Tools exposed** chip summary (current preset + the tools it resolves to); **Custom tools (you created)** with an **Auto-add new custom tools** toggle plus a **Manually exposed tools** MultiSelect for per-tool overrides on what you authored; **Default tools (built-in)** with the **Preset** radio (`Starter 5`, `Dev Essentials`, `Korea Toolkit (free)`, `File Toolkit`, `Everything`, `Custom`) and an **Advanced curation** block (include by tag / category / name, exclude by tag / name) layered on top.
 - **Draft state + MCP exposure gate**: a tool that has not earned a Local Pass stays in the **Drafts** section, is **not** exposed through the built-in MCP server, and is **not** callable from Agentic Chat. Only published (Local-Passed) tools cross the gate.
-- **Category-grouped sidebar**: tools group under a fixed taxonomy (Text, Data, Date/Time, Math, Encoding, Crypto, Security, Files, Web, Productivity, Messaging, AI APIs, Custom) with chip-based filters.
+- <a id="tool-list-sidebar"></a>**Tool list sidebar**: tools group under a fixed taxonomy (Text, Data, Date/Time, Math, Encoding, Crypto, Security, Files, Web, Productivity, Messaging, AI APIs, Custom) with chip-based filters. The sidebar uses the **same `SidebarFilterBar` + `CategoryGroupDetails` + `SidebarItemLayout` widgets the MCP Server view uses** (search + Categories MultiSelect + Tags MultiSelect + collapsible per-category groups + status dot · name · pills row). Filters compose identically on both screens — see [MCP Server → Filter bar](../mcp-server/index.md#filter-bar) for the same widget in the catalog context.
 - **Sandbox Capabilities view**: per-tool overrides for `addAllowClasses` / `removeAllowClasses` / `addDenyClasses` / `removeDenyClasses`, `hostsAllow`, `fileRead` / `fileWrite`, `fsBasePath`, and `networkMode` — with a live risk-level badge (L0–L5). See [Sandbox & Capabilities](#sandbox-capabilities).
 - **Tool Specification View**: inspect the generated JSON schema, metadata, parameter contract, and the resulting `McpToolDefinition` envelope (manifest hash, code hash, audit timestamps).
 - **Copy to New Tool**: clone an existing tool as a template instead of starting from scratch.
@@ -360,36 +360,36 @@ You can keep many tools in your workspace, expose only a controlled subset, vali
 
 ## Pre-built Example Tools
 
-!!! abstract "Full inventory lives in [Default Tools](default-tools/index.md)"
-    Per-tool reference — name, one-line description, params, env-var deps — is on the five pages under [Default Tools](default-tools/index.md). This section sticks to the **preset and curation** shape used inside Tool Studio — how the bundle is sliced for MCP exposure.
+!!! abstract "Full inventory lives in [Default Tools](../default-tools/index.md)"
+    Per-tool reference — name, one-line description, params, env-var deps — is on the five pages under [Default Tools](../default-tools/index.md). This section sticks to the **preset and curation** shape used inside Tool Studio — how the bundle is sliced for MCP exposure.
 
 <div class="grid cards" markdown>
 
--   :material-rocket-launch:{ .lg .middle } **[Examples](default-tools/examples.md)**
+-   :material-rocket-launch:{ .lg .middle } **[Examples](../default-tools/examples.md)**
 
     ---
 
     **7** · starter tools — fetch a web page, look up weather, search Google, call OpenAI, post to Slack.
 
--   :material-toolbox:{ .lg .middle } **[Utilities](default-tools/utilities.md)**
+-   :material-toolbox:{ .lg .middle } **[Utilities](../default-tools/utilities.md)**
 
     ---
 
     **26** · pure-compute — text, datetime, math, security, encoding, crypto, CSV. No I/O.
 
--   :material-folder-cog:{ .lg .middle } **[Filesystem](default-tools/filesystem.md)**
+-   :material-folder-cog:{ .lg .middle } **[Filesystem](../default-tools/filesystem.md)**
 
     ---
 
     **10** · `safety.fs` pipeline — read, list, grep, slice, sort, find, write — under the FS base path.
 
--   :material-web:{ .lg .middle } **[Global](default-tools/global.md)**
+-   :material-web:{ .lg .middle } **[Global](../default-tools/global.md)**
 
     ---
 
     **22** · public APIs — GitHub, Wikipedia, weather, finance, geo, search.
 
--   :flag_kr:{ .lg .middle } **[Korea](default-tools/korea.md)**
+-   :flag_kr:{ .lg .middle } **[Korea](../default-tools/korea.md)**
 
     ---
 
@@ -406,22 +406,22 @@ The app ships with a bundled catalog of **86 default tools** across five JSON so
 | `Starter 5` (default) | `getCurrentTime`, `getWeather`, `searchWikipedia`, `extractPageContent`, `evalExpression` | No setup, no API keys — works on a fresh install |
 | `Dev Essentials` | `getCurrentTime`, `evalExpression`, `uuid`, `hash`, `base64`, `jwtDecode`, `regexExtract` | Everyday local utilities |
 | `Korea Toolkit (free)` | `getCurrentTime`, `evalExpression`, `getUpbitTicker`, `getBithumbTicker`, `searchKpopOnItunes`, `searchKBeautyProducts` | Free Korean services |
-| `File Toolkit` | `getCurrentTime`, `evalExpression`, `readTextFile`, `listDir`, `grepFile`, `findFiles`, `sliceFile`, `sortFile`, `cutFileFields` | Filesystem pipeline — set `TOOL_STUDIO_FS_BASE` (or rely on the `${user.home}` default) |
+| `File Toolkit` | `getCurrentTime`, `evalExpression`, `readTextFile`, `listDir`, `grepFile`, `findFiles`, `sliceFile`, `sortFile`, `cutFileFields` | Filesystem pipeline — set `TOOL_STUDIO_FS_BASE` (or rely on the `${user.home}/spring-ai-playground/fs-tool-workspace` default) |
 | `Everything` | All 86 default tools | Heavy MCP catalog |
 | `Custom` | None initially | Active when you only want the include/exclude rules to decide what gets exposed |
 
 Per-tool **include / exclude rules** layer on top: name-add → tag-add → category-add → name-remove → tag-remove → category-remove. The Tool MCP Server Setting drawer exposes include-by-tag / -category / -name and exclude-by-tag / -name; `exclude.categories` is data-supported but currently only reachable via CLI / yaml override.
 
-Some default tools depend on environment-backed secrets — `OPENAI_API_KEY`, `GOOGLE_API_KEY` + `GOOGLE_PSE_ID`, `SLACK_WEBHOOK_URL`, the data.go.kr keychain, and the Korean provider keys — and stay inert until those are set. The consolidated list lives in [Default Tools → Environment variables](default-tools/index.md#environment-variables-short-list); per-page details are on each reference page. The `File Toolkit` preset additionally honours `TOOL_STUDIO_FS_BASE` (defaulting to `${user.home}`) for `safety.fs`. The desktop launcher's environment-variable workflow exists exactly to make this configuration ergonomic.
+Some default tools depend on environment-backed secrets — `OPENAI_API_KEY`, `GOOGLE_API_KEY` + `GOOGLE_PSE_ID`, `SLACK_WEBHOOK_URL`, the data.go.kr keychain, and the Korean provider keys — and stay inert until those are set. The consolidated list lives in [Default Tools → Environment variables](../default-tools/index.md#environment-variables-short-list); per-page details are on each reference page. The `File Toolkit` preset additionally honours `TOOL_STUDIO_FS_BASE` (defaulting to `${user.home}/spring-ai-playground/fs-tool-workspace`) for `safety.fs`. The desktop launcher's environment-variable workflow exists exactly to make this configuration ergonomic.
 
 ### Where preset choices live
 
-The same preset + rules shape can be edited from two surfaces, both writing to the same file `<home>/spring-ai-playground/tool/save/default-tools-preference.json`:
+The same preset + rules shape is editable from two UI surfaces (both mirror to the same persistence file under the home dir — that file is managed by the persistence layer, not a hand-edit target):
 
-1. **Default MCP Tools card** inside the desktop launcher's config editor — for picking the preset on first launch and adjusting it on any later configuration session. See [Getting Started → Default MCP Tools Curation](../getting-started.md#default-mcp-tools-curation).
+1. **Default MCP Tools card** inside the desktop launcher's config editor — for picking the preset on first launch and adjusting it on any later configuration session. See [Desktop App → Default MCP Tools Curation](../../getting-started/desktop.md#default-mcp-tools-curation).
 2. **Tool MCP Server Setting drawer** inside Tool Studio — for adjusting at any time after the app is running, no restart required.
 
-![Tool MCP Server Setting drawer — preset selector and override rules](../assets/images/tool-studio-mcp-setting.png)
+![Tool MCP Server Setting drawer — preset selector and override rules](../../assets/images/tool-studio-mcp-setting.png)
 *Tool MCP Server Setting drawer, top to bottom: **Tools exposed** chip summary (`Starter 5 · 5 of 86 tools` with the resolved tool list); **Custom tools (you created)** — **Auto-add new custom tools to the MCP server** toggle (on by default, so every Local-Passed tool you author goes live) plus the **Manually exposed tools** MultiSelect for per-tool overrides; **Default tools (built-in)** — the **Preset** radio (`Starter 5` selected here alongside `Dev Essentials`, `Korea Toolkit (free)`, `File Toolkit`, `Everything`, `Custom`) and the collapsible **Advanced curation — applied on top of the preset** block exposing Include by tag / category / name and Exclude by tag / name. **Confirm** writes the change to `default-tools-preference.json` and updates the live MCP server without a restart.*
 
 ### CLI / yaml override
@@ -438,12 +438,10 @@ CLI / yaml properties take precedence at boot but are **not persisted** back to 
 
 ### Migration note
 
-If a `defaultToolOverrides.json` file from an earlier milestone exists, the M6 build renames it to `defaultToolOverrides.json.deprecated` on startup once. The new file is `default-tools-preference.json` in the same `tool/save/` directory.
+If a `defaultToolOverrides.json` file from an earlier milestone (≤ M5) exists, the current build renames it to `defaultToolOverrides.json.deprecated` on startup once. The new file is `default-tools-preference.json` in the same `tool/save/` directory.
 
 ## Using Tools in Agentic Chat
 
 Tool Studio tools can be used in Agentic Chat through MCP integration. With a tool-capable model and the built-in MCP connection enabled, the model can call those built-in tools during agentic workflows.
 
 Agentic Chat can also call tools exposed by external MCP servers that you explicitly connect and trust.
-
-→ Next: [MCP Server](mcp-server.md) — inspect and validate tools exposed by the built-in MCP server or external connections.
