@@ -94,15 +94,6 @@ public class McpServerInspectorView extends VerticalLayout {
         setPadding(false);
         setSpacing(false);
 
-        H4 logo = new H4("MCP Inspector");
-        logo.getStyle().set("font-size", "var(--lumo-font-size-l)").set("margin", "0");
-        HorizontalLayout headerLayout = new HorizontalLayout(logo);
-        headerLayout.setWidthFull();
-        headerLayout.setPadding(true);
-        headerLayout.setAlignItems(FlexComponent.Alignment.CENTER);
-        headerLayout.setJustifyContentMode(FlexComponent.JustifyContentMode.START);
-        add(headerLayout);
-
         for (VerticalLayout container : List.of(cardsContainer, resourcesContainer, promptsContainer, pingContainer, notificationsContainer, rootsContainer, samplingContainer, elicitationContainer)) {
             container.setPadding(false);
             container.setSpacing(false);
@@ -141,29 +132,36 @@ public class McpServerInspectorView extends VerticalLayout {
             else if (selected == pingTab && !pingTabInitialized) {
                 pingTabInitialized = true;
                 pingContainer.add(new PingTab(serverInfo, clientService));
-            }
-            else if (selected == notificationsTabRef && notificationsTab == null) {
+            } else if (selected == notificationsTabRef && notificationsTab == null) {
                 notificationsTab = new NotificationsTab(serverInfo, clientService);
                 notificationsContainer.add(notificationsTab);
                 notificationsTab.attachListeners(UI.getCurrent());
-            }
-            else if (selected == rootsTabRef && rootsTab == null) {
+            } else if (selected == rootsTabRef && rootsTab == null) {
                 rootsTab = new RootsTab(serverInfo, clientService);
                 rootsContainer.add(rootsTab);
-            }
-            else if (selected == samplingTabRef && samplingTab == null) {
+            } else if (selected == samplingTabRef && samplingTab == null) {
                 samplingTab = new SamplingTab(serverInfo, clientService);
                 samplingContainer.add(samplingTab);
                 samplingTab.attachListeners(UI.getCurrent());
-            }
-            else if (selected == elicitationTabRef && elicitationTab == null) {
+            } else if (selected == elicitationTabRef && elicitationTab == null) {
                 elicitationTab = new ElicitationTab(serverInfo, clientService);
                 elicitationContainer.add(elicitationTab);
                 elicitationTab.attachListeners(UI.getCurrent());
             }
         });
 
-        add(tabSheet);
+        add(createHeader(), tabSheet);
+    }
+
+    private Component createHeader() {
+        H4 logo = new H4("MCP Inspector");
+        logo.getStyle().set("font-size", "var(--lumo-font-size-l)").set("margin", "0");
+        HorizontalLayout headerLayout = new HorizontalLayout(logo);
+        headerLayout.setWidthFull();
+        headerLayout.setPadding(true);
+        headerLayout.setAlignItems(FlexComponent.Alignment.CENTER);
+        headerLayout.setJustifyContentMode(FlexComponent.JustifyContentMode.START);
+        return headerLayout;
     }
 
     private static Tab tab(VaadinIcon icon, String caption) {

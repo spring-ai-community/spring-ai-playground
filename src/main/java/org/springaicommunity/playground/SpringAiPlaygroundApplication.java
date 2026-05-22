@@ -41,6 +41,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
+import org.springframework.scheduling.annotation.EnableScheduling;
+import reactor.core.publisher.Hooks;
 
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -52,9 +54,11 @@ import java.util.function.Predicate;
 @JavaScript("./playground/pwa-installer.js")
 @SpringBootApplication
 @ConfigurationPropertiesScan
+@EnableScheduling
 public class SpringAiPlaygroundApplication implements AppShellConfigurator {
 
     public static void main(String[] args) {
+        Hooks.enableAutomaticContextPropagation();
         SpringApplication.run(SpringAiPlaygroundApplication.class, args);
     }
 

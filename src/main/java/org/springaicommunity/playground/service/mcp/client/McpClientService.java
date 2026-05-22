@@ -16,6 +16,8 @@
 package org.springaicommunity.playground.service.mcp.client;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import io.modelcontextprotocol.client.McpAsyncClient;
 import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.McpSyncClient;
@@ -41,10 +43,12 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.event.ContextClosedEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.security.oauth2.client.ClientAuthorizationRequiredException;
+import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -53,11 +57,13 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import io.modelcontextprotocol.spec.McpClientTransport;
@@ -67,15 +73,17 @@ public class McpClientService {
 
     private static final Logger logger = LoggerFactory.getLogger(McpClientService.class);
 
+    public static final String SELF_LOOPBACK_SERVER_NAME = "spring-ai-playground-tool-mcp";
+
     public enum ServerStatus { OK, OFFLINE, ERROR, AWAITING_AUTHORIZATION, MISSING_CONFIG }
 
     public record StatusEntry(ServerStatus status, String error, String authorizationUrl,
-                              java.util.Set<String> missingKeys) {
+                              Set<String> missingKeys) {
         public StatusEntry {
-            missingKeys = missingKeys == null ? java.util.Set.of() : java.util.Set.copyOf(missingKeys);
+            missingKeys = missingKeys == null ? Set.of() : Set.copyOf(missingKeys);
         }
         public StatusEntry(ServerStatus status, String error, String authorizationUrl) {
-            this(status, error, authorizationUrl, java.util.Set.of());
+            this(status, error, authorizationUrl, Set.of());
         }
         public static final StatusEntry OFFLINE = new StatusEntry(ServerStatus.OFFLINE, null, null);
         public static StatusEntry ok() { return new StatusEntry(ServerStatus.OK, null, null); }
@@ -83,7 +91,7 @@ public class McpClientService {
         public static StatusEntry awaitingAuthorization(String authorizationUrl) {
             return new StatusEntry(ServerStatus.AWAITING_AUTHORIZATION, null, authorizationUrl);
         }
-        public static StatusEntry missingConfig(java.util.Set<String> missingKeys) {
+        public static StatusEntry missingConfig(Set<String> missingKeys) {
             String summary = missingKeys == null || missingKeys.isEmpty() ? "Missing required config"
                     : "Missing: " + String.join(", ", missingKeys);
             return new StatusEntry(ServerStatus.MISSING_CONFIG, summary, null, missingKeys);
@@ -99,6 +107,8 @@ public class McpClientService {
         }
     }
 
+    public record McpToolSource(String serverName, String transport) {}
+
     private final McpSyncClientConfigurer mcpSyncClientConfigurer;
     private final McpAsyncClientConfigurer mcpAsyncClientConfigurer;
     private final McpClientCommonProperties mcpClientCommonProperties;
@@ -107,6 +117,7 @@ public class McpClientService {
     @Nullable private final OAuth2AuthorizedClientService oauth2AuthorizedClientService;
     private final ObjectProvider<McpServerInfoService> mcpServerInfoServiceProvider;
     private final McpNotificationStore notificationStore;
+    private final MeterRegistry meterRegistry;
     private final Map<String, List<McpSchema.Root>> rootsByServer = new ConcurrentHashMap<>();
 
     private final Map<McpTransportType, McpClientPropertiesService<?>> typeMcpClientPropertiesServiceMap;
@@ -120,6 +131,8 @@ public class McpClientService {
 
     private final Map<String, StatusEntry> statusCache;
 
+    private final Map<String, McpToolSource> toolNameToSource = new ConcurrentHashMap<>();
+
     public McpClientService(@Nullable McpSyncClientConfigurer mcpSyncClientConfigurer,
             @Nullable McpAsyncClientConfigurer mcpAsyncClientConfigurer,
             McpClientCommonProperties mcpClientCommonProperties, ObjectMapper objectMapper,
@@ -127,7 +140,8 @@ public class McpClientService {
             @Nullable OAuth2AuthorizedClientManager oauth2ClientManager,
             @Nullable OAuth2AuthorizedClientService oauth2AuthorizedClientService,
             ObjectProvider<McpServerInfoService> mcpServerInfoServiceProvider,
-            McpNotificationStore notificationStore) {
+            McpNotificationStore notificationStore,
+            MeterRegistry meterRegistry) {
         this.mcpSyncClientConfigurer = mcpSyncClientConfigurer;
         this.mcpAsyncClientConfigurer = mcpAsyncClientConfigurer;
         this.mcpClientCommonProperties = mcpClientCommonProperties;
@@ -136,6 +150,7 @@ public class McpClientService {
         this.oauth2AuthorizedClientService = oauth2AuthorizedClientService;
         this.mcpServerInfoServiceProvider = mcpServerInfoServiceProvider;
         this.notificationStore = notificationStore;
+        this.meterRegistry = meterRegistry;
         this.typeMcpClientPropertiesServiceMap = Arrays.stream(mcpClientPropertiesServices)
                 .collect(Collectors.toMap(McpClientPropertiesService::getTransportType, Function.identity()));
         this.mcpClientOpsBiFunction = (namedClientMcpTransport, info) ->
@@ -244,15 +259,22 @@ public class McpClientService {
 
     private McpSchema.CreateMessageResult awaitSampling(String serverKey,
             McpSchema.CreateMessageRequest request) {
+        String outcome;
         try {
-            return notificationStore.awaitSamplingResponse(serverKey, request).get(2, TimeUnit.MINUTES);
+            McpSchema.CreateMessageResult result =
+                    notificationStore.awaitSamplingResponse(serverKey, request).get(2, TimeUnit.MINUTES);
+            outcome = "success";
+            recordServerHandler("sampling", serverKey, outcome);
+            return result;
         } catch (TimeoutException e) {
+            recordServerHandler("sampling", serverKey, "timeout");
             return McpSchema.CreateMessageResult.builder()
                     .role(McpSchema.Role.ASSISTANT)
                     .content(new McpSchema.TextContent("Timed out waiting for user response."))
                     .stopReason(McpSchema.CreateMessageResult.StopReason.END_TURN)
                     .build();
         } catch (Exception e) {
+            recordServerHandler("sampling", serverKey, "error");
             return McpSchema.CreateMessageResult.builder()
                     .role(McpSchema.Role.ASSISTANT)
                     .content(new McpSchema.TextContent("Error: " + e.getMessage()))
@@ -263,12 +285,25 @@ public class McpClientService {
 
     private McpSchema.ElicitResult awaitElicitation(String serverKey, McpSchema.ElicitRequest request) {
         try {
-            return notificationStore.awaitElicitationResponse(serverKey, request).get(2, TimeUnit.MINUTES);
+            McpSchema.ElicitResult result =
+                    notificationStore.awaitElicitationResponse(serverKey, request).get(2, TimeUnit.MINUTES);
+            recordServerHandler("elicitation",
+                    serverKey, result.action() == McpSchema.ElicitResult.Action.ACCEPT ? "accept" : "reject");
+            return result;
         } catch (TimeoutException e) {
+            recordServerHandler("elicitation", serverKey, "timeout");
             return new McpSchema.ElicitResult(McpSchema.ElicitResult.Action.CANCEL, Map.of());
         } catch (Exception e) {
+            recordServerHandler("elicitation", serverKey, "error");
             return new McpSchema.ElicitResult(McpSchema.ElicitResult.Action.CANCEL, Map.of());
         }
+    }
+
+    private void recordServerHandler(String kind, String serverName, String outcome) {
+        meterRegistry.counter("mcp.server.handler",
+                "kind", kind,
+                "server", serverName,
+                "outcome", outcome).increment();
     }
 
     public void startMcpClient(McpServerInfo mcpServerInfo) {
@@ -276,7 +311,7 @@ public class McpClientService {
                 mcpServerInfo.mcpTransportType());
         String key = clientKey(mcpServerInfo);
 
-        java.util.Set<String> missing = findMissingEnv(mcpServerInfo);
+        Set<String> missing = findMissingEnv(mcpServerInfo);
         if (!missing.isEmpty()) {
             logger.info("MCP client gated by missing config: serverName={}, missing={}",
                     mcpServerInfo.serverName(), missing);
@@ -291,6 +326,8 @@ public class McpClientService {
             McpClientOps mcpClientOps = mcpClientOpsBiFunction.apply(buildMcpClientTransport(mcpServerInfo), info);
             McpClientOps previous = connectingMcpClientOpsMap.put(key, mcpClientOps);
             statusCache.put(key, StatusEntry.ok());
+            refreshToolIndex(mcpServerInfo, mcpClientOps);
+            recordLifecycle("connect", mcpServerInfo);
             if (previous != null) {
                 logger.info("Replacing existing MCP client; closing previous: serverName={}",
                         mcpServerInfo.serverName());
@@ -308,9 +345,11 @@ public class McpClientService {
                 logger.info("MCP client awaiting OAuth authorization: serverName={}, authorizationUrl={}",
                         mcpServerInfo.serverName(), authorizationUrl);
                 statusCache.put(key, StatusEntry.awaitingAuthorization(authorizationUrl));
+                recordLifecycle("awaiting_auth", mcpServerInfo);
                 return;
             }
             statusCache.put(key, StatusEntry.error(safeErrorMessage(mcpServerInfo, e)));
+            recordLifecycle("error", mcpServerInfo);
             throw e;
         }
     }
@@ -321,11 +360,35 @@ public class McpClientService {
         return SecretMasking.mask(msg, SecretMasking.collectFromTemplate(info.connectionAsJson()));
     }
 
-    public java.util.Set<String> findMissingEnv(McpServerInfo mcpServerInfo) {
+    public Set<String> findMissingEnv(McpServerInfo mcpServerInfo) {
         McpClientPropertiesService<?> propertiesService =
                 this.typeMcpClientPropertiesServiceMap.get(mcpServerInfo.mcpTransportType());
-        if (propertiesService == null) return java.util.Set.of();
+        if (propertiesService == null) return Set.of();
         return propertiesService.findMissingEnv(this.objectMapper, mcpServerInfo.connectionAsJson());
+    }
+
+    private void recordLifecycle(String outcome, McpServerInfo mcpServerInfo) {
+        meterRegistry.counter("mcp.server.lifecycle",
+                "outcome", outcome,
+                "server", mcpServerInfo.serverName(),
+                "transport", String.valueOf(mcpServerInfo.mcpTransportType())).increment();
+    }
+
+    private <T> T timePrimitive(String kind, McpServerInfo mcpServerInfo, Supplier<T> action) {
+        Timer.Sample sample = Timer.start(meterRegistry);
+        String outcome = "success";
+        try {
+            return action.get();
+        } catch (RuntimeException e) {
+            outcome = "error";
+            throw e;
+        } finally {
+            sample.stop(meterRegistry.timer("mcp.primitive",
+                    "kind", kind,
+                    "server", mcpServerInfo.serverName(),
+                    "transport", String.valueOf(mcpServerInfo.mcpTransportType()),
+                    "outcome", outcome));
+        }
     }
 
     private static boolean isAuthorizationRequired(Throwable error) {
@@ -374,6 +437,10 @@ public class McpClientService {
         return statusCache.getOrDefault(clientKey(mcpServerInfo), StatusEntry.OFFLINE);
     }
 
+    public Map<String, StatusEntry> snapshotStatuses() {
+        return Map.copyOf(statusCache);
+    }
+
     public StatusEntry pingAndUpdateStatus(McpServerInfo mcpServerInfo) {
         String key = clientKey(mcpServerInfo);
         McpClientOps ops = connectingMcpClientOpsMap.get(key);
@@ -386,23 +453,27 @@ public class McpClientService {
             statusCache.remove(key);
             return StatusEntry.OFFLINE;
         }
-        try {
-            ops.ping();
-            StatusEntry ok = StatusEntry.ok();
-            statusCache.put(key, ok);
-            return ok;
-        } catch (RuntimeException e) {
-            String msg = safeErrorMessage(mcpServerInfo, e);
-            StatusEntry err = StatusEntry.error(msg);
-            statusCache.put(key, err);
-            return err;
-        }
+        return timePrimitive("ping", mcpServerInfo, () -> {
+            try {
+                ops.ping();
+                StatusEntry ok = StatusEntry.ok();
+                statusCache.put(key, ok);
+                return ok;
+            } catch (RuntimeException e) {
+                String msg = safeErrorMessage(mcpServerInfo, e);
+                StatusEntry err = StatusEntry.error(msg);
+                statusCache.put(key, err);
+                return err;
+            }
+        });
     }
 
     public Object pingMcpClient(McpServerInfo mcpServerInfo) {
         logger.info("Pinging MCP client: serverName={}", mcpServerInfo.serverName());
-        return Optional.ofNullable(connectingMcpClientOpsMap.get(clientKey(mcpServerInfo))).map(McpClientOps::ping)
-                .orElseThrow();
+        return timePrimitive("ping", mcpServerInfo, () ->
+                Optional.ofNullable(connectingMcpClientOpsMap.get(clientKey(mcpServerInfo)))
+                        .map(McpClientOps::ping)
+                        .orElseThrow());
     }
 
     public void stopMcpClient(McpServerInfo mcpServerInfo) {
@@ -410,53 +481,98 @@ public class McpClientService {
         McpClientOps mcpClientOps = connectingMcpClientOpsMap.get(key);
         logger.info("Stopping MCP client: serverName={}, mcpClientOps={}", mcpServerInfo.serverName(), mcpClientOps);
         statusCache.put(key, StatusEntry.OFFLINE);
-        if (Objects.nonNull(mcpClientOps))
+        evictToolIndex(mcpServerInfo);
+        if (Objects.nonNull(mcpClientOps)) {
             mcpClientOps.close();
+            recordLifecycle("disconnect", mcpServerInfo);
+        }
+    }
+
+    public Optional<McpToolSource> lookupToolSource(String toolName) {
+        if (toolName == null || toolName.isBlank()) return Optional.empty();
+        return Optional.ofNullable(toolNameToSource.get(toolName));
+    }
+
+    private void refreshToolIndex(McpServerInfo mcpServerInfo, McpClientOps ops) {
+        String serverName = mcpServerInfo.serverName();
+        String transport = String.valueOf(mcpServerInfo.mcpTransportType());
+        try {
+            List<McpSchema.Tool> tools = ops.listTools();
+            if (tools == null) return;
+            evictToolIndex(mcpServerInfo);
+            McpToolSource source = new McpToolSource(serverName, transport);
+            for (McpSchema.Tool tool : tools) {
+                if (tool.name() == null || tool.name().isBlank()) continue;
+                McpToolSource previous = toolNameToSource.put(tool.name(), source);
+                if (previous != null && !previous.serverName().equals(serverName)) {
+                    logger.warn("MCP tool name collision: tool={} previousServer={} newServer={}",
+                            tool.name(), previous.serverName(), serverName);
+                }
+            }
+        } catch (RuntimeException e) {
+            // index is best-effort — connect itself already succeeded
+            logger.warn("Failed to index MCP tools for observability: serverName={}, error={}",
+                    serverName, e.getMessage());
+        }
+    }
+
+    private void evictToolIndex(McpServerInfo mcpServerInfo) {
+        String serverName = mcpServerInfo.serverName();
+        toolNameToSource.entrySet().removeIf(e -> serverName.equals(e.getValue().serverName()));
     }
 
     public Optional<ServerCapabilities> getServerCapabilitiesAsOpt(McpServerInfo mcpServerInfo) {
-        return Optional.ofNullable(connectingMcpClientOpsMap.get(clientKey(mcpServerInfo)))
-                .map(McpClientOps::capabilities);
+        return timePrimitive("capabilities", mcpServerInfo, () ->
+                Optional.ofNullable(connectingMcpClientOpsMap.get(clientKey(mcpServerInfo)))
+                        .map(McpClientOps::capabilities));
     }
 
     public Optional<List<McpSchema.Tool>> getToolListAsOpt(McpServerInfo mcpServerInfo) {
-        return Optional.ofNullable(connectingMcpClientOpsMap.get(clientKey(mcpServerInfo)))
-                .map(McpClientOps::listTools);
+        return timePrimitive("tools.list", mcpServerInfo, () ->
+                Optional.ofNullable(connectingMcpClientOpsMap.get(clientKey(mcpServerInfo)))
+                        .map(McpClientOps::listTools));
     }
 
     public Optional<List<McpSchema.Resource>> getResourceListAsOpt(McpServerInfo mcpServerInfo) {
-        return Optional.ofNullable(connectingMcpClientOpsMap.get(clientKey(mcpServerInfo)))
-                .map(McpClientOps::listResources);
+        return timePrimitive("resources.list", mcpServerInfo, () ->
+                Optional.ofNullable(connectingMcpClientOpsMap.get(clientKey(mcpServerInfo)))
+                        .map(McpClientOps::listResources));
     }
 
     public Optional<McpSchema.ReadResourceResult> readResourceAsOpt(McpServerInfo mcpServerInfo, String uri) {
         logger.info("Reading MCP resource: serverName={}, uri={}", mcpServerInfo.serverName(), uri);
-        return Optional.ofNullable(connectingMcpClientOpsMap.get(clientKey(mcpServerInfo)))
-                .map(ops -> ops.readResource(uri));
+        return timePrimitive("resources.read", mcpServerInfo, () ->
+                Optional.ofNullable(connectingMcpClientOpsMap.get(clientKey(mcpServerInfo)))
+                        .map(ops -> ops.readResource(uri)));
     }
 
     public Optional<List<McpSchema.ResourceTemplate>> getResourceTemplateListAsOpt(McpServerInfo mcpServerInfo) {
-        return Optional.ofNullable(connectingMcpClientOpsMap.get(clientKey(mcpServerInfo)))
-                .map(McpClientOps::listResourceTemplates);
+        return timePrimitive("resources.templates", mcpServerInfo, () ->
+                Optional.ofNullable(connectingMcpClientOpsMap.get(clientKey(mcpServerInfo)))
+                        .map(McpClientOps::listResourceTemplates));
     }
 
     public Optional<List<McpSchema.Prompt>> getPromptListAsOpt(McpServerInfo mcpServerInfo) {
-        return Optional.ofNullable(connectingMcpClientOpsMap.get(clientKey(mcpServerInfo)))
-                .map(McpClientOps::listPrompts);
+        return timePrimitive("prompts.list", mcpServerInfo, () ->
+                Optional.ofNullable(connectingMcpClientOpsMap.get(clientKey(mcpServerInfo)))
+                        .map(McpClientOps::listPrompts));
     }
 
     public Optional<McpSchema.GetPromptResult> getPromptAsOpt(McpServerInfo mcpServerInfo, String name,
             Map<String, Object> args) {
         logger.info("Getting MCP prompt: serverName={}, name={}", mcpServerInfo.serverName(), name);
-        return Optional.ofNullable(connectingMcpClientOpsMap.get(clientKey(mcpServerInfo)))
-                .map(ops -> ops.getPrompt(name, args));
+        return timePrimitive("prompts.get", mcpServerInfo, () ->
+                Optional.ofNullable(connectingMcpClientOpsMap.get(clientKey(mcpServerInfo)))
+                        .map(ops -> ops.getPrompt(name, args)));
     }
 
     public boolean setLoggingLevel(McpServerInfo mcpServerInfo, McpSchema.LoggingLevel level) {
-        McpClientOps ops = connectingMcpClientOpsMap.get(clientKey(mcpServerInfo));
-        if (ops == null) return false;
-        ops.setLoggingLevel(level);
-        return true;
+        return timePrimitive("logging.set_level", mcpServerInfo, () -> {
+            McpClientOps ops = connectingMcpClientOpsMap.get(clientKey(mcpServerInfo));
+            if (ops == null) return false;
+            ops.setLoggingLevel(level);
+            return true;
+        });
     }
 
     public List<McpSchema.Root> getRoots(McpServerInfo mcpServerInfo) {
@@ -464,24 +580,30 @@ public class McpClientService {
     }
 
     public void addRoot(McpServerInfo mcpServerInfo, McpSchema.Root root) {
-        String key = mcpServerInfo.serverName();
-        rootsByServer.computeIfAbsent(key, k -> new java.util.concurrent.CopyOnWriteArrayList<>()).add(root);
-        McpClientOps ops = connectingMcpClientOpsMap.get(clientKey(mcpServerInfo));
-        if (ops != null) {
-            ops.addRoot(root);
-            ops.notifyRootsListChanged();
-        }
+        timePrimitive("roots.add", mcpServerInfo, () -> {
+            String key = mcpServerInfo.serverName();
+            rootsByServer.computeIfAbsent(key, k -> new CopyOnWriteArrayList<>()).add(root);
+            McpClientOps ops = connectingMcpClientOpsMap.get(clientKey(mcpServerInfo));
+            if (ops != null) {
+                ops.addRoot(root);
+                ops.notifyRootsListChanged();
+            }
+            return null;
+        });
     }
 
     public void removeRoot(McpServerInfo mcpServerInfo, String name) {
-        String key = mcpServerInfo.serverName();
-        List<McpSchema.Root> rs = rootsByServer.get(key);
-        if (rs != null) rs.removeIf(r -> name.equals(r.name()));
-        McpClientOps ops = connectingMcpClientOpsMap.get(clientKey(mcpServerInfo));
-        if (ops != null) {
-            ops.removeRoot(name);
-            ops.notifyRootsListChanged();
-        }
+        timePrimitive("roots.remove", mcpServerInfo, () -> {
+            String key = mcpServerInfo.serverName();
+            List<McpSchema.Root> rs = rootsByServer.get(key);
+            if (rs != null) rs.removeIf(r -> name.equals(r.name()));
+            McpClientOps ops = connectingMcpClientOpsMap.get(clientKey(mcpServerInfo));
+            if (ops != null) {
+                ops.removeRoot(name);
+                ops.notifyRootsListChanged();
+            }
+            return null;
+        });
     }
 
     public List<McpNotificationStore.Event> snapshotEvents(McpServerInfo mcpServerInfo) {
@@ -521,28 +643,30 @@ public class McpClientService {
 
     public Optional<McpSchema.CallToolResult> callTool(McpServerInfo mcpServerInfo, String toolName,
             Map<String, Object> args, Map<String, Object> meta) {
-        String cid = UUID.randomUUID().toString().substring(0, 8);
-        Set<String> secrets = SecretMasking.collectFromTemplate(mcpServerInfo.connectionAsJson());
-        logger.info("mcp.tool.start cid={} server={} tool={} via=inspector",
-                cid, mcpServerInfo.serverName(), toolName);
-        long startNs = System.nanoTime();
-        try {
-            Optional<McpSchema.CallToolResult> result =
-                    Optional.ofNullable(connectingMcpClientOpsMap.get(clientKey(mcpServerInfo)))
-                            .map(mcpClientOps -> mcpClientOps.callTool(toolName, args, meta));
-            long durMs = (System.nanoTime() - startNs) / 1_000_000L;
-            boolean ok = result.map(r -> !Boolean.TRUE.equals(r.isError())).orElse(false);
-            logger.info("mcp.tool.done cid={} server={} tool={} durationMs={} ok={} via=inspector",
-                    cid, mcpServerInfo.serverName(), toolName, durMs, ok);
-            return result;
-        } catch (RuntimeException e) {
-            long durMs = (System.nanoTime() - startNs) / 1_000_000L;
-            String msg = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
-            logger.warn("mcp.tool.crash cid={} server={} tool={} durationMs={} via=inspector error={}",
-                    cid, mcpServerInfo.serverName(), toolName, durMs,
-                    SecretMasking.mask(msg, secrets));
-            throw e;
-        }
+        return timePrimitive("tools.call", mcpServerInfo, () -> {
+            String cid = UUID.randomUUID().toString().substring(0, 8);
+            Set<String> secrets = SecretMasking.collectFromTemplate(mcpServerInfo.connectionAsJson());
+            logger.info("mcp.tool.start cid={} server={} tool={} via=inspector",
+                    cid, mcpServerInfo.serverName(), toolName);
+            long startNs = System.nanoTime();
+            try {
+                Optional<McpSchema.CallToolResult> result =
+                        Optional.ofNullable(connectingMcpClientOpsMap.get(clientKey(mcpServerInfo)))
+                                .map(mcpClientOps -> mcpClientOps.callTool(toolName, args, meta));
+                long durMs = (System.nanoTime() - startNs) / 1_000_000L;
+                boolean ok = result.map(r -> !Boolean.TRUE.equals(r.isError())).orElse(false);
+                logger.info("mcp.tool.done cid={} server={} tool={} durationMs={} ok={} via=inspector",
+                        cid, mcpServerInfo.serverName(), toolName, durMs, ok);
+                return result;
+            } catch (RuntimeException e) {
+                long durMs = (System.nanoTime() - startNs) / 1_000_000L;
+                String msg = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+                logger.warn("mcp.tool.crash cid={} server={} tool={} durationMs={} via=inspector error={}",
+                        cid, mcpServerInfo.serverName(), toolName, durMs,
+                        SecretMasking.mask(msg, secrets));
+                throw e;
+            }
+        });
     }
 
     public List<ToolCallbackProvider> buildToolCallbackProviders(McpServerInfo... mcpServerInfos) {
@@ -598,6 +722,8 @@ public class McpClientService {
                 .filter(server -> regId.equals(OAuthClientRegistrations.registrationId(server)))
                 .findFirst()
                 .ifPresent(server -> {
+                    meterRegistry.counter("mcp.oauth.authorized",
+                            "server", server.serverName()).increment();
                     StatusEntry currentStatus = getStatus(server);
                     if (currentStatus.status() != ServerStatus.AWAITING_AUTHORIZATION) return;
                     logger.info("OAuth authorized for serverName={}; restarting MCP client",
@@ -610,6 +736,40 @@ public class McpClientService {
                     }
                 });
     }
+
+    public List<OAuthSnapshot> snapshotOAuthState() {
+        McpServerInfoService infoService = mcpServerInfoServiceProvider.getIfAvailable();
+        if (infoService == null) return List.of();
+        List<OAuthSnapshot> out = new ArrayList<>();
+        for (McpServerInfo server : infoService.read()) {
+            String regId = OAuthClientRegistrations.registrationId(server);
+            if (regId == null) continue;
+            StatusEntry status = getStatus(server);
+            Long expiresAtMs = null;
+            boolean hasRefresh = false;
+            if (oauth2AuthorizedClientService != null) {
+                OAuth2AuthorizedClient client =
+                        oauth2AuthorizedClientService.loadAuthorizedClient(
+                                regId, "spring-ai-playground-mcp-client");
+                if (client != null) {
+                    if (client.getAccessToken() != null && client.getAccessToken().getExpiresAt() != null) {
+                        expiresAtMs = client.getAccessToken().getExpiresAt().toEpochMilli();
+                    }
+                    hasRefresh = client.getRefreshToken() != null;
+                }
+            }
+            out.add(new OAuthSnapshot(server.serverName(),
+                    String.valueOf(server.mcpTransportType()),
+                    status.status().name(),
+                    status.authorizationUrl(),
+                    expiresAtMs, hasRefresh));
+        }
+        return out;
+    }
+
+    public record OAuthSnapshot(String serverName, String transport, String status,
+                                String authorizationUrl, Long accessTokenExpiresAtMs,
+                                boolean hasRefreshToken) {}
 
     @EventListener(ContextClosedEvent.class)
     public void shutdownAllMcpClients() {
