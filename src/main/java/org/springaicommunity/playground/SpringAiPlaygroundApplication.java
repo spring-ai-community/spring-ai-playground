@@ -22,6 +22,7 @@ import com.vaadin.flow.component.page.Push;
 import com.vaadin.flow.component.page.TargetElement;
 import com.vaadin.flow.server.AppShellSettings;
 import com.vaadin.flow.server.PWA;
+import io.micrometer.observation.ObservationRegistry;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
@@ -126,8 +127,11 @@ public class SpringAiPlaygroundApplication implements AppShellConfigurator {
 
     @Bean
     @ConditionalOnMissingBean(VectorStore.class)
-    public SimpleVectorStore simpleVectorStore(EmbeddingModel embeddingModel) {
-        return SimpleVectorStore.builder(embeddingModel).build();
+    public SimpleVectorStore simpleVectorStore(EmbeddingModel embeddingModel,
+            ObservationRegistry observationRegistry) {
+        return SimpleVectorStore.builder(embeddingModel)
+                .observationRegistry(observationRegistry)
+                .build();
     }
 
     @Bean
