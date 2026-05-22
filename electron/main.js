@@ -2157,6 +2157,13 @@ function startSpringServer() {
     ? 'java'
     : path.join(process.resourcesPath, 'jre-bundle', 'bin', process.platform === 'win32' ? 'java.exe' : 'java');
 
+  if (!isDev && !fs.existsSync(jrePath)) {
+    handleFatalError(
+      `Bundled JRE not found at ${jrePath}. The installer may be corrupted or the JRE bundling step (electron/scripts/prepare-resources.mjs) did not run. Reinstall the application.`
+    );
+    return;
+  }
+
   const index = readConfigIndex();
   const selectedConfigId = currentConfigId || index.activeConfigId;
   const configPath = activeConfigPath || getConfigFilePath(selectedConfigId);
