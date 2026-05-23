@@ -6,7 +6,7 @@ on:
   pull_request:
 
 # A push and the matching pull_request event would otherwise both trigger
-# the same compile twice; cancel the older run when a newer one starts.
+# the same build twice; cancel the older run when a newer one starts.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -16,5 +16,5 @@ jobs:
     uses: spring-ai-community/community-workflows/.github/workflows/ci-build.yml@main
     with:
       java-version: "21"
-      maven-goals: clean compile -B
+      maven-goals: clean verify -B
       skip-tests: true
