@@ -109,16 +109,24 @@
     "tier": 1,
     "vendor": "Kakao",
     "vendorOfficial": true,
-    "description": "Kakao aggregator hub — KakaoTalk send-to-self, Talk Calendar, KakaoMap, Gift, Melon, plus 200+ third-party MCPs. KR-focused.\n\nDocs: https://playmcp.kakao.com/",
+    "description": "Kakao aggregator hub — KakaoTalk send-to-self, Talk Calendar, KakaoMap, Gift, Melon, plus 200+ third-party MCPs. KR-focused.\n\nPlayMCP does not support standard OAuth 2.1 (no redirect_uri, IP-gated DCR), so connect by Bearer header. Issue a One-Time Token (OTT) at https://playmcp.kakao.com/toolbox (OpenClaw Connect), exchange it for an access token, paste as KAKAO_PLAYMCP_TOKEN in the playground's Environment Variables, then activate this entry. Access token lasts 12 hours and the refresh token 90 days — manual refresh ritual.\n\nDocs: https://spring-ai-community.github.io/spring-ai-playground/features/default-mcp-catalog/productivity/#Kakao-PlayMCP",
     "stability": "GA",
     "tenantIdRequired": false,
     "transports": [{
       "type": "STREAMABLE_HTTP",
       "urlTemplate": "https://playmcp.kakao.com/mcp",
-      "auth": "OAUTH",
-      "oauthDefaults": {"issuerUri": "https://kauth.kakao.com", "scopes": []}
+      "auth": "BEARER",
+      "requiredHeaders": [
+        {
+          "key": "Authorization",
+          "value": "Bearer ${KAKAO_PLAYMCP_TOKEN}"
+        }
+      ],
+      "requiredEnv": [
+        "KAKAO_PLAYMCP_TOKEN"
+      ]
     }],
-    "docsUrl": "https://playmcp.kakao.com/",
+    "docsUrl": "https://spring-ai-community.github.io/spring-ai-playground/features/default-mcp-catalog/productivity/#Kakao-PlayMCP",
     "trustSignals": ["vendor-official"]
   },
   {
