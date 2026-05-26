@@ -125,6 +125,7 @@ public class ChatContentView extends VerticalLayout {
 
         this.messageScroller = new Scroller(this.messageListLayout);
         this.messageScroller.setSizeFull();
+        this.messageScroller.getStyle().set("overflow-anchor", "none");
 
         this.mcpToolProviderComboBox = new MultiSelectComboBox<>();
         this.mcpToolProviderComboBox.setPlaceholder("No MCP Connections for Tools");
@@ -302,9 +303,40 @@ public class ChatContentView extends VerticalLayout {
             this.currentStream.dispose();
             this.currentStream = null;
         }
-        this.scrollSpacer.getStyle().set("height", "0px");
-        this.messageScroller.scrollToBottom();
+        pinAfterStream(chatContentManager.userMessage);
         this.userPromptTextArea.focus();
+    }
+
+    private void pinAfterStream(MarkdownMessage userMessage) {
+        if (Objects.isNull(userMessage)) {
+            this.messageScroller.scrollToBottom();
+            return;
+        }
+        this.messageScroller.getElement().executeJs("""
+                const s = this;
+                const list = s.firstElementChild;
+                const userMsg = $0;
+                const spacer = $1;
+                const margin = $2;
+                const applyPin = () => {
+                    if (!userMsg.isConnected) return false;
+                    const lastReal = Array.from(list.children).reverse()
+                            .find(c => c !== spacer);
+                    const userTarget = Math.max(0, userMsg.offsetTop - margin);
+                    const lastEnd = lastReal
+                            ? (lastReal.offsetTop + lastReal.offsetHeight)
+                            : (userMsg.offsetTop + userMsg.offsetHeight);
+                    const overflowTarget = Math.max(0, lastEnd - s.clientHeight);
+                    const target = Math.max(userTarget, overflowTarget);
+                    const currentSpacerH = parseInt(spacer.style.height) || 0;
+                    const contentNoSpacer = list.scrollHeight - currentSpacerH;
+                    const requiredSpacer = Math.max(0, target + s.clientHeight - contentNoSpacer);
+                    spacer.style.height = requiredSpacer + 'px';
+                    s.scrollTop = target;
+                    return true;
+                };
+                if (!applyPin()) requestAnimationFrame(applyPin);
+                """, userMessage.getElement(), this.scrollSpacer.getElement(), PROMPT_TOP_MARGIN_PX);
     }
 
     public ChatOptions getChatOption() {
@@ -353,6 +385,7 @@ public class ChatContentView extends VerticalLayout {
         private VerticalLayout processListLayout;
         private long startTimestamp;
         private long responseTimestamp;
+        private MarkdownMessage userMessage;
         private MarkdownMessage botResponse;
         private boolean isFirstAssistantResponse;
         private MarkdownMessage ragProcessMessage;
@@ -387,15 +420,15 @@ public class ChatContentView extends VerticalLayout {
             this.messageListLayout = messageListLayout;
             this.startTimestamp = System.currentTimeMillis();
             chatHistory.updateLastMessageTimestamp(startTimestamp);
-            MarkdownMessage userMarkdownMessage = buildMarkdownMessage(userPrompt, USER, startTimestamp);
+            this.userMessage = buildMarkdownMessage(userPrompt, USER, startTimestamp);
             this.processListLayout = buildProcessListLayout();
             this.botResponse = buildMarkdownMessage(null, MessageType.ASSISTANT, System.currentTimeMillis());
             this.botResponse.addClassName("blink");
             this.isFirstAssistantResponse = true;
             this.messageListLayout.remove(ChatContentView.this.scrollSpacer);
-            this.messageListLayout.add(userMarkdownMessage, this.processListLayout, this.botResponse,
+            this.messageListLayout.add(this.userMessage, this.processListLayout, this.botResponse,
                     ChatContentView.this.scrollSpacer);
-            anchorPromptToTop(userMarkdownMessage);
+            anchorPromptToTop(this.userMessage);
         }
 
         private void anchorPromptToTop(MarkdownMessage userMessage) {

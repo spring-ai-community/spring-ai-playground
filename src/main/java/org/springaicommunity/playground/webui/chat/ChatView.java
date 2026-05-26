@@ -128,6 +128,10 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
         if (Objects.isNull(chatHistory))
             return;
 
+        if (Objects.nonNull(this.chatContentView)
+                && chatHistory.conversationId().equals(this.chatContentView.getConversationId()))
+            return;
+
         this.chatContentView = new ChatContentView(this.persistentUiDataStorage, this.chatService, chatHistory,
                 this.completeChatHistoryConsumer, this.mcpClientService);
         ChatOptions chatOptions = chatHistory.chatOptions();
