@@ -55,7 +55,7 @@ Three field constraints worth knowing before saving:
 - **Category** — defaults to `CUSTOM`. The combo accepts a typed value to create a new label, or picks from the 13 built-in catalog categories.
 - **Tags** — free-form; the chip picker suggests cohort tags already in use across the active list and catalog.
 
-The **Headers** section's **Insert auth header preset…** dropdown drops a templated row (Bearer / Basic / API Key / OAuth 2.1) with `${VAR}` substitution wired in.
+The **Headers** section's **Insert auth header preset…** dropdown drops a templated row (Bearer / Basic / API Key) with `${VAR}` substitution wired in; the **+** button next to it adds a blank row. OAuth 2.1 has its own checkbox-toggled sub-form further down.
 
 ### Browse the Default MCP Catalog
 
@@ -91,7 +91,11 @@ The config form has a **Test Connection** button next to **Save & Connect**. It 
 
 ### Custom HTTP headers and `${ENV_VAR}` substitution { #custom-http-headers-and-env_var-substitution }
 
-HTTP and SSE connections both expose a single **Headers** section in the config form, edited as key/value rows. The same row layout drives the auth-preset dropdown — picking **Authorization (Bearer Token)**, **Authorization (Basic Auth)**, or **API Key Header** inserts a templated row whose value you fill in. Picking **OAuth 2.1 Authorization Code (configure)** swaps in the dedicated OAuth sub-form covered in the next section.
+HTTP and SSE connections both expose a single **Headers** section in the config form, edited as key/value rows. The same row layout drives the auth-preset dropdown — picking **Authorization (Bearer Token)**, **Authorization (Basic Auth)**, or **API Key Header** inserts a templated row whose value you fill in. Picking a preset fills the first empty row if one exists, otherwise appends a new row. OAuth 2.1 servers use a dedicated checkbox-toggled sub-form covered in the next section.
+
+![Headers section with the auth-preset dropdown open showing Bearer / Basic / API Key, and the add-row button next to it](../../assets/images/tutorials/tutorial-2-auth-preset.png){ loading=lazy }
+
+STDIO connections' **Env** section uses the same add/delete row UI — the **+** button next to the section header adds a blank row, and each row's trash button removes it.
 
 Header values, STDIO `env` values, and any name listed in `requiredEnv` accept `${VAR}` placeholders that resolve from the OS environment at connect time (with a JVM system-property fallback). The persisted JSON stores the placeholder string literally; the actual value only enters memory when the connection is brought up. A missing reference throws at connect time instead of silently sending an empty header.
 
@@ -99,7 +103,9 @@ Connection-error notifications and per-call invocation logs are swept by the `Se
 
 ## OAuth 2.1 Authorization Code
 
-For servers that expect an OAuth dance instead of a static token (Notion, Linear, Atlassian Rovo, the Workspace catalog entries, …) the form exposes a dedicated **OAuth 2.1 Authorization Code** sub-form. Open it by ticking the `OAuth 2.1 Authorization` checkbox on the form, or pick **OAuth 2.1 Authorization Code (configure)** from the Headers preset dropdown.
+For servers that expect an OAuth dance instead of a static token (Notion, Linear, Atlassian Rovo, the Workspace catalog entries, …) the form exposes a dedicated **OAuth 2.1 Authorization Code** sub-form. Open it by ticking the **Use OAuth 2.1 authorization** checkbox on the form. Unticking it drops the OAuth block from the persisted config entirely.
+
+![OAuth 2.1 sub-form opened via the Use OAuth 2.1 authorization checkbox, showing Client ID, Issuer URI, Scopes, Advanced, Redirect URI, and the Authorize button](../../assets/images/tutorials/tutorial-2-oauth-subform.png){ loading=lazy }
 
 The sub-form has five fields plus an Advanced group:
 

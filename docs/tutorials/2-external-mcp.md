@@ -21,20 +21,20 @@ description: Tutorial 2 — connect an external MCP server (Streamable HTTP / ST
 
 ### Add an Authorization header
 
-Many remote MCP servers require an API key or bearer token. Use the **Insert auth header preset…** dropdown above the buttons to drop in a templated row instead of hand-typing the header name.
+Many remote MCP servers require an API key or bearer token. Use the **Insert auth header preset…** dropdown to drop in a templated row instead of hand-typing the header name, or click the **+** button next to it to add a blank row. Picking a preset fills the first empty row if one exists, otherwise appends a new row.
 
-![Auth header preset dropdown showing the four built-in templates](../assets/images/tutorials/tutorial-2-auth-preset.png)
-*① the **+** button adds a blank header row. ② **Authorization (Bearer Token)** templates `Authorization: Bearer <value>` — fill in the token. ③ **Authorization (Basic Auth)** templates a base64 user:pass row. ④ **API Key Header** templates a custom header (e.g. `X-API-Key`). ⑤ **OAuth 2.1 Authorization Code (configure)** swaps in the dedicated OAuth sub-form covered below.*
+![Auth header preset dropdown with the three built-in templates and the add-row button](../assets/images/tutorials/tutorial-2-auth-preset.png)
+*① **Insert auth header preset…** drops a templated row when you pick one. ② the **+** button next to it adds a blank row. ③ **Authorization (Bearer Token)** templates `Authorization: Bearer <value>` — fill in the token. ④ **Authorization (Basic Auth)** templates a base64 user:pass row. ⑤ **API Key Header** templates a custom header (e.g. `X-API-Key`). OAuth 2.1 lives in its own section below, behind a checkbox toggle.*
 
 !!! tip "Don't paste secrets into the form"
     The Headers section accepts `${ENV_VAR}` placeholders — set the secret in your shell or the desktop launcher's Environment Variables, then put `${MY_API_KEY}` in the form. The persisted JSON only stores the placeholder; the actual key is resolved at connect time. The same syntax works for STDIO `env` values and `requiredEnv` lists.
 
 ### OAuth 2.1 servers (Authorization Code flow)
 
-For servers that expect an OAuth dance instead of a static token (Atlassian's MCP server is a common example), pick **OAuth 2.1 Authorization Code (configure)** from the preset dropdown. The Headers section is replaced with a dedicated OAuth sub-form.
+For servers that expect an OAuth dance instead of a static token (Atlassian's MCP server is a common example), tick the **Use OAuth 2.1 authorization** checkbox on the form. The OAuth sub-form appears below the Headers section; unticking the checkbox drops the OAuth block from the persisted config entirely.
 
 ![OAuth 2.1 sub-form with Client ID, Issuer URI, Scopes, Advanced, Redirect URI, and Authorize button](../assets/images/tutorials/tutorial-2-oauth-subform.png)
-*① the OAuth sub-form, opened from the auth preset dropdown. ② **Client ID** (required) and **Issuer URI** — the issuer alone is enough for OIDC discovery (`.well-known`) to auto-resolve the authorization and token endpoints. ③ **Scopes** are comma-separated; leave blank to inherit the issuer's defaults. ④ **Advanced** discloses manual `authorization_uri` / `token_uri` / client-secret / client auth method overrides for non-OIDC providers. ⑤ the **Redirect URI** the playground listens on — register this URI as an allowed redirect on the issuer side. ⑥ **Authorize** opens your system browser to the consent screen — click it after **Save & Connect**.*
+*① the **Use OAuth 2.1 authorization** checkbox toggles the sub-form. ② **Client ID** (required) and **Issuer URI** — the issuer alone is enough for OIDC discovery (`.well-known`) to auto-resolve the authorization and token endpoints. ③ **Scopes** are comma-separated; leave blank to inherit the issuer's defaults. ④ **Advanced** discloses manual `authorization_uri` / `token_uri` / client-secret / client auth method overrides for non-OIDC providers. ⑤ the **Redirect URI** the playground listens on — register this URI as an allowed redirect on the issuer side. ⑥ **Authorize** opens your system browser to the consent screen — click it after **Save & Connect**.*
 
 The flow has three observable states:
 

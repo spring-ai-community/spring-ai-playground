@@ -6,35 +6,6 @@ Spring AI Playground ships with **57 default MCP server connections** spread acr
 
 The MCP Server sidebar does not connect them all by default — every entry starts in the sidebar's **Inactive MCP** section as a *ghost row*. Clicking one promotes it into the right-hand configuration form pre-filled with the catalog template, so you only fill in your local secret / tenant before **Save & Connect**. The catalog itself lives in `src/main/resources/mcp/default-mcp-specs*.json` and the activation/filter state lives entirely in the sidebar.
 
-## Sidebar filtering and form prefill { #sidebar-filtering-and-form-prefill }
-
-The MCP Server screen has two cooperating regions — a **filter bar** at the top of the left sidebar (①) and a **connection form** in the right pane (②). Clicking any catalog row in the sidebar prefills the form on the right without leaving the page.
-
-![MCP Server screen — ① numbered marker in the sidebar pointing to the filter bar (search + Categories + Tags multi-selects). ② numbered marker in the right pane pointing to the MCP Server Info connection form (Server name · Category · Tags · Description · Transport type · URL · Endpoint · Headers preset)](../../assets/images/default-mcp-catalog/sidebar-filter-callout.png){ width="640" loading=lazy }
-
-### ① Filter bar { #filter-bar-detail }
-
-Built from the shared `webui/common/sidebar/SidebarFilterBar` widget (Tool Studio uses the same one). Three controls that compose AND across groups, OR within a group:
-
-- **Search** — matches against server name, vendor, description, and — for active connections only — live tool names returned by `listTools`. 200 ms debounce before re-rendering.
-- **Categories** multi-select — the 13 built-in catalog categories plus `Custom` for user-added entries: `Example · Productivity · Storage · Communication · Project Management · Dev · Search · Cloud · Database · Finance · CRM · Design · Utility · Custom`.
-- **Tags** multi-select — drawn from the union of every catalog entry's tags and every active server's tags. Cohort vocabulary: `aggregator · beta · community · free-tier · geo · global · korea · legal · pipeline · preview · us`.
-
-For example, picking `Productivity` + `preview` narrows to Gmail and Google Calendar (the two preview-stability Workspace entries); a search term layered on top further trims the visible count. The sidebar header counter swaps between `(N)` and `(N filtered of M)` when a filter is active; an empty match offers a **Clear filters** button.
-
-### ② Connection form { #form-prefill-detail }
-
-Clicking any **Inactive MCP** entry copies the catalog template into the right pane:
-
-- **Transport** — `STREAMABLE_HTTP` for remote entries, `STDIO` for the per-OS entries
-- **URL** or **Command + Args** — with `${ENV_VAR}` placeholders for anything secret; STDIO arguments render as one row per argv element
-- **OAuth issuer URI + scopes** — pre-filled for OAuth-protected entries
-- **Category + Tag chips** — matching the catalog row
-- **Inline description** — carrying prerequisites and a `Docs:` link
-- **Headers preset** — Bearer / Basic / API Key / OAuth 2.1, with `${VAR}` substitution wired in
-
-The row stays in the Inactive layer until you click **Save & Connect**; on save it moves into the Active layer under the same category group and the playground spawns the child process (STDIO) or opens the HTTP transport. For OAuth entries this records the registration without yet connecting — see [MCP Server → OAuth 2.1 Authorization Code](../mcp-server/index.md#oauth-21-authorization-code) for the **Authorize** click.
-
 ## Browse all 57 catalog entries { #browse-all-entries }
 
 Click a card to jump to its full reference (with transport / auth defaults / required env / docs expanded) on the right sub-page — same UX as the **Default Tools** directory and the **MCP Server Setting** drawer in Tool Studio. Six reference pages organise the catalog by category cohort: [Productivity & Communication](productivity.md) · [Dev & Project Management](dev.md) · [Data & Cloud](data-cloud.md) · [Business](business.md) · [Search](search.md) · [Examples](examples.md).
@@ -918,6 +889,35 @@ AI-generated, structured wikis for any public GitHub repository — architecture
 
 </div>
 </div>
+
+## Sidebar filtering and form prefill { #sidebar-filtering-and-form-prefill }
+
+The MCP Server screen has two cooperating regions — a **filter bar** at the top of the left sidebar (①) and a **connection form** in the right pane (②). Clicking any catalog row in the sidebar prefills the form on the right without leaving the page.
+
+![MCP Server screen — ① numbered marker in the sidebar pointing to the filter bar (search + Categories + Tags multi-selects). ② numbered marker in the right pane pointing to the MCP Server Info connection form (Server name · Category · Tags · Description · Transport type · URL · Endpoint · Headers preset)](../../assets/images/default-mcp-catalog/sidebar-filter-callout.png){ width="640" loading=lazy }
+
+### ① Filter bar { #filter-bar-detail }
+
+Built from the shared `webui/common/sidebar/SidebarFilterBar` widget (Tool Studio uses the same one). Three controls that compose AND across groups, OR within a group:
+
+- **Search** — matches against server name, vendor, description, and — for active connections only — live tool names returned by `listTools`. 200 ms debounce before re-rendering.
+- **Categories** multi-select — the 13 built-in catalog categories plus `Custom` for user-added entries: `Example · Productivity · Storage · Communication · Project Management · Dev · Search · Cloud · Database · Finance · CRM · Design · Utility · Custom`.
+- **Tags** multi-select — drawn from the union of every catalog entry's tags and every active server's tags. Cohort vocabulary: `aggregator · beta · community · free-tier · geo · global · korea · legal · pipeline · preview · us`.
+
+For example, picking `Productivity` + `preview` narrows to Gmail and Google Calendar (the two preview-stability Workspace entries); a search term layered on top further trims the visible count. The sidebar header counter swaps between `(N)` and `(N filtered of M)` when a filter is active; an empty match offers a **Clear filters** button.
+
+### ② Connection form { #form-prefill-detail }
+
+Clicking any **Inactive MCP** entry copies the catalog template into the right pane:
+
+- **Transport** — `STREAMABLE_HTTP` for remote entries, `STDIO` for the per-OS entries
+- **URL** or **Command + Args** — with `${ENV_VAR}` placeholders for anything secret; STDIO arguments render as one row per argv element
+- **OAuth issuer URI + scopes** — pre-filled for OAuth-protected entries
+- **Category + Tag chips** — matching the catalog row
+- **Inline description** — carrying prerequisites and a `Docs:` link
+- **Headers preset** — Bearer / Basic / API Key, with `${VAR}` substitution wired in (OAuth 2.1 lives in its own checkbox-toggled sub-form)
+
+The row stays in the Inactive layer until you click **Save & Connect**; on save it moves into the Active layer under the same category group and the playground spawns the child process (STDIO) or opens the HTTP transport. For OAuth entries this records the registration without yet connecting — see [MCP Server → OAuth 2.1 Authorization Code](../mcp-server/index.md#oauth-21-authorization-code) for the **Authorize** click.
 
 ## Two ways to use these entries
 
