@@ -328,6 +328,8 @@ public class McpClientService {
             statusCache.put(key, StatusEntry.ok());
             refreshToolIndex(mcpServerInfo, mcpClientOps);
             recordLifecycle("connect", mcpServerInfo);
+            McpServerInfoService infoService = mcpServerInfoServiceProvider.getIfAvailable();
+            if (infoService != null) infoService.markUsed(mcpServerInfo);
             if (previous != null) {
                 logger.info("Replacing existing MCP client; closing previous: serverName={}",
                         mcpServerInfo.serverName());
@@ -657,6 +659,8 @@ public class McpClientService {
                 boolean ok = result.map(r -> !Boolean.TRUE.equals(r.isError())).orElse(false);
                 logger.info("mcp.tool.done cid={} server={} tool={} durationMs={} ok={} via=inspector",
                         cid, mcpServerInfo.serverName(), toolName, durMs, ok);
+                McpServerInfoService infoService = mcpServerInfoServiceProvider.getIfAvailable();
+                if (infoService != null) infoService.markUsed(mcpServerInfo);
                 return result;
             } catch (RuntimeException e) {
                 long durMs = (System.nanoTime() - startNs) / 1_000_000L;

@@ -28,6 +28,8 @@ import org.springaicommunity.playground.service.mcp.catalog.McpCatalogService;
 import org.springaicommunity.playground.service.mcp.catalog.McpCategoryService;
 import org.springaicommunity.playground.service.mcp.catalog.McpTagSuggestionService;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
+import org.springaicommunity.playground.service.mcp.risk.McpRegistrationRiskPreview;
+import org.springaicommunity.playground.service.mcp.risk.McpToolRiskAdvisor;
 import org.springaicommunity.playground.webui.PersistentUiDataStorage;
 import org.springaicommunity.playground.webui.SpringAiPlaygroundAppLayout;
 import org.springaicommunity.playground.webui.VaadinUtils;
@@ -53,17 +55,22 @@ public class McpServerView extends ContentWorkspaceView {
     private final McpClientService mcpClientService;
     private final McpCategoryService mcpCategoryService;
     private final McpTagSuggestionService mcpTagSuggestionService;
+    private final McpToolRiskAdvisor mcpToolRiskAdvisor;
+    private final McpRegistrationRiskPreview mcpRegistrationRiskPreview;
     private final McpServerConnectionView mcpServerConnectionView;
     private final PropertyChangeSupport mcpServerInfoChangeSupport;
     private McpContentView mcpContentView;
 
     public McpServerView(PersistentUiDataStorage persistentUiDataStorage, McpServerInfoService mcpServerInfoService,
             McpClientService mcpClientService, McpCategoryService mcpCategoryService,
-            McpCatalogService mcpCatalogService, McpTagSuggestionService mcpTagSuggestionService) {
+            McpCatalogService mcpCatalogService, McpTagSuggestionService mcpTagSuggestionService,
+            McpToolRiskAdvisor mcpToolRiskAdvisor, McpRegistrationRiskPreview mcpRegistrationRiskPreview) {
         this.mcpServerInfoService = mcpServerInfoService;
         this.mcpClientService = mcpClientService;
         this.mcpCategoryService = mcpCategoryService;
         this.mcpTagSuggestionService = mcpTagSuggestionService;
+        this.mcpToolRiskAdvisor = mcpToolRiskAdvisor;
+        this.mcpRegistrationRiskPreview = mcpRegistrationRiskPreview;
         this.mcpServerInfoChangeSupport = new PropertyChangeSupport(this);
 
         this.mcpServerConnectionView =
@@ -122,6 +129,7 @@ public class McpServerView extends ContentWorkspaceView {
         this.mcpContentView =
                 new McpContentView(mcpServerInfo, this.mcpServerInfoService, this.mcpClientService,
                         this.mcpCategoryService, this.mcpTagSuggestionService,
+                        this.mcpToolRiskAdvisor, this.mcpRegistrationRiskPreview,
                         this.mcpServerInfoChangeSupport);
 
         VaadinUtils.getUi(this).access(() -> setContent(this.mcpContentView));

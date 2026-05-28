@@ -182,6 +182,24 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
         }
     }
 
+    public McpServerInfo markUsed(McpServerInfo info) {
+        if (info == null || info.mcpTransportType() == null || info.serverName() == null) return info;
+        Map<String, McpServerInfo> infos = this.typeMcpServerInfosMap.get(info.mcpTransportType());
+        if (infos == null) return info;
+        McpServerInfo current = infos.get(info.serverName());
+        if (current == null) return info;
+        long now = System.currentTimeMillis();
+        if (current.lastUsedAtEpochMs() != null && now - current.lastUsedAtEpochMs() < 60_000L) {
+            return current;
+        }
+        McpServerInfo stamped = current.withLastUsedAt(now);
+        infos.put(info.serverName(), stamped);
+        if (!Boolean.TRUE.equals(this.skipPersist.get()) && !stamped.equals(this.defaultMcpServerInfo)) {
+            this.mcpServerInfoPersistenceServiceProvider.getObject().saveAsync(stamped);
+        }
+        return stamped;
+    }
+
     public McpServerInfo updateMcpServerInfo(McpTransportType transportType, String serverName,
             McpServerInfo updateMcpServerInfo) {
         boolean sameKey = transportType.equals(updateMcpServerInfo.mcpTransportType()) &&

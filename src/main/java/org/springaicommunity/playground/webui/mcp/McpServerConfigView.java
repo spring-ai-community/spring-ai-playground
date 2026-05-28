@@ -26,7 +26,9 @@ import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.combobox.MultiSelectComboBox;
 import com.vaadin.flow.component.dependency.NpmPackage;
 import com.vaadin.flow.component.checkbox.Checkbox;
+import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.formlayout.FormLayout;
+import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H4;
 import com.vaadin.flow.component.html.Hr;
 import com.vaadin.flow.component.html.Span;
@@ -47,7 +49,10 @@ import org.springaicommunity.playground.service.mcp.client.HttpConnectionParamet
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.service.mcp.client.McpClientService.TestConnectionResult;
 import org.springaicommunity.playground.service.mcp.client.McpTransportType;
+import org.springaicommunity.playground.service.mcp.risk.McpAuthMode;
+import org.springaicommunity.playground.service.mcp.risk.McpRegistrationRiskPreview;
 import org.springaicommunity.playground.service.tool.ChipListBinding;
+import org.springaicommunity.playground.service.tool.ToolManifest.Sandbox.RiskLevel;
 import org.springaicommunity.playground.service.util.SecretMasking;
 import org.springaicommunity.playground.webui.JsonEditorWrapper;
 import org.springaicommunity.playground.webui.VaadinUtils;
@@ -142,7 +147,11 @@ public class McpServerConfigView extends VerticalLayout {
     private final McpClientService mcpClientService;
     private final McpCategoryService mcpCategoryService;
     private final McpTagSuggestionService mcpTagSuggestionService;
+    private final McpRegistrationRiskPreview mcpRegistrationRiskPreview;
     private final PropertyChangeSupport mcpServerInfoChangeSupport;
+
+    private final Div riskPreviewPanel = new Div();
+    private RiskLevel lastPreviewedLevel = RiskLevel.L1;
 
     private Button saveAndConnectButton;
     private Button testConnectionButton;
@@ -166,15 +175,18 @@ public class McpServerConfigView extends VerticalLayout {
     public McpServerConfigView(McpServerInfo mcpServerInfo, McpServerInfoService mcpServerInfoService,
             McpClientService mcpClientService, McpCategoryService mcpCategoryService,
             McpTagSuggestionService mcpTagSuggestionService,
+            McpRegistrationRiskPreview mcpRegistrationRiskPreview,
             PropertyChangeSupport mcpServerInfoChangeSupport) {
         this.mcpServerInfo = mcpServerInfo;
         this.mcpServerInfoService = mcpServerInfoService;
         this.mcpClientService = mcpClientService;
         this.mcpCategoryService = mcpCategoryService;
         this.mcpTagSuggestionService = mcpTagSuggestionService;
+        this.mcpRegistrationRiskPreview = mcpRegistrationRiskPreview;
         this.mcpServerInfoChangeSupport = mcpServerInfoChangeSupport;
         buildLayout();
         populateFields();
+        refreshRiskPreview();
     }
 
     private void buildLayout() {
@@ -291,7 +303,37 @@ public class McpServerConfigView extends VerticalLayout {
         buildOauthGroup();
         buildStdioGroup();
 
-        add(metaForm, new Hr(), connectionHeader, transportRadioButtonGroup, httpUrlGroup);
+        riskPreviewPanel.getStyle()
+                .set("display", "inline-flex")
+                .set("align-items", "center")
+                .set("gap", "var(--lumo-space-s)")
+                .set("flex-wrap", "wrap")
+                .set("padding", "0")
+                .set("border", "none")
+                .set("background", "transparent");
+
+        Span transportLabel = new Span("Transport type");
+        transportLabel.getStyle()
+                .set("color", "var(--lumo-secondary-text-color)")
+                .set("font-size", "var(--lumo-font-size-s)")
+                .set("font-weight", "500")
+                .set("margin-bottom", "var(--lumo-space-xs)");
+        transportRadioButtonGroup.setLabel(null);
+        transportRadioButtonGroup.getStyle().set("padding-top", "0");
+
+        HorizontalLayout transportInlineRow = new HorizontalLayout(transportRadioButtonGroup, riskPreviewPanel);
+        transportInlineRow.setPadding(false);
+        transportInlineRow.setSpacing(true);
+        transportInlineRow.setAlignItems(FlexComponent.Alignment.CENTER);
+        transportInlineRow.getStyle().set("flex-wrap", "wrap").set("row-gap", "var(--lumo-space-s)");
+        transportInlineRow.setWidthFull();
+
+        VerticalLayout transportBlock = new VerticalLayout(transportLabel, transportInlineRow);
+        transportBlock.setPadding(false);
+        transportBlock.setSpacing(false);
+        transportBlock.setWidthFull();
+
+        add(metaForm, new Hr(), connectionHeader, transportBlock, httpUrlGroup);
 
         editors.values().forEach(ed -> {
             ed.setVisible(false);
@@ -303,7 +345,77 @@ public class McpServerConfigView extends VerticalLayout {
         HorizontalLayout footer = new HorizontalLayout(saveAndConnectButton, testConnectionButton);
         footer.setSpacing(true);
         footer.setAlignItems(FlexComponent.Alignment.CENTER);
+
         add(footer);
+    }
+
+    private void refreshRiskPreview() {
+        riskPreviewPanel.setVisible(true);
+        riskPreviewPanel.removeAll();
+        if (McpClientService.SELF_LOOPBACK_SERVER_NAME.equalsIgnoreCase(serverNameField.getValue())) {
+            lastPreviewedLevel = RiskLevel.L0;
+            McpRiskChip chip = new McpRiskChip(RiskLevel.L0, null, "Server")
+                    .withTooltip("Built-in MCP server — risk model bypassed (spec § 5.4)");
+            riskPreviewPanel.add(chip);
+            return;
+        }
+        try {
+            McpRegistrationRiskPreview.WizardInput input = buildWizardInputFromForm();
+            McpRegistrationRiskPreview.PreviewResult result = mcpRegistrationRiskPreview.preview(input);
+            lastPreviewedLevel = result.serverResult().level();
+            StringBuilder why = new StringBuilder("Why ").append(lastPreviewedLevel.name()).append(": ");
+            boolean first = true;
+            for (Map.Entry<String, String> rationale : result.rationale().entrySet()) {
+                if (!first) why.append(" · ");
+                why.append(rationale.getKey()).append('=').append(rationale.getValue());
+                first = false;
+            }
+            McpRiskChip chip = new McpRiskChip(lastPreviewedLevel,
+                    result.serverResult().floorTrigger(), "Server").withTooltip(why.toString());
+            riskPreviewPanel.add(chip);
+        } catch (RuntimeException ex) {
+            Span hint = new Span("Risk preview unavailable: " + ex.getMessage());
+            hint.getStyle().set("color", "var(--lumo-error-text-color)");
+            riskPreviewPanel.add(hint);
+        }
+    }
+
+    private McpRegistrationRiskPreview.WizardInput buildWizardInputFromForm() {
+        McpTransportType transport = transportRadioButtonGroup.getValue();
+        String url = transport == McpTransportType.STDIO ? null : urlField.getValue();
+        McpAuthMode authMode = resolveAuthModeFromForm();
+        return new McpRegistrationRiskPreview.WizardInput(
+                serverNameField.getValue(),
+                transport,
+                url,
+                authMode,
+                null,
+                null,
+                null,
+                true,
+                true,
+                null,
+                List.of());
+    }
+
+    private McpAuthMode resolveAuthModeFromForm() {
+        if (Boolean.TRUE.equals(oauthEnabledCheckbox.getValue())) {
+            return McpAuthMode.OAUTH_STANDARD;
+        }
+        for (StaticVariableForm row : headerRows) {
+            String key = row.getKey();
+            if (key == null) continue;
+            String lower = key.toLowerCase();
+            if (lower.equals("authorization")) {
+                String value = row.getValue();
+                if (value != null && value.toLowerCase().startsWith("bearer")) return McpAuthMode.BEARER;
+                return McpAuthMode.API_KEY;
+            }
+            if (lower.contains("api-key") || lower.contains("apikey") || lower.contains("x-api-key")) {
+                return McpAuthMode.API_KEY;
+            }
+        }
+        return McpAuthMode.NONE;
     }
 
     private boolean isPersisted() {
@@ -662,6 +774,7 @@ public class McpServerConfigView extends VerticalLayout {
         boolean isNewOrGhost = !isPersisted();
         boolean isValid = validateNameField();
         saveAndConnectButton.setEnabled((hasChanges || isNewOrGhost) && isValid);
+        refreshRiskPreview();
     }
 
     private String normalizeCategory(String raw) {
@@ -939,6 +1052,32 @@ public class McpServerConfigView extends VerticalLayout {
     }
 
     private void saveAndConnect() {
+        if (lastPreviewedLevel != null
+                && lastPreviewedLevel.ordinal() >= RiskLevel.L4.ordinal()) {
+            showHighRiskConfirmation(this::doSaveAndConnect);
+            return;
+        }
+        doSaveAndConnect();
+    }
+
+    private void showHighRiskConfirmation(Runnable onConfirm) {
+        Dialog dialog = new Dialog();
+        dialog.setHeaderTitle("High risk server (" + lastPreviewedLevel.name() + ")");
+        Span body = new Span("This server registration carries a "
+                + lastPreviewedLevel.name() + " risk level based on transport/auth/trust signals. "
+                + "Proceed only if you accept the rationale above.");
+        dialog.add(body);
+        Button cancel = new Button("Cancel", e -> dialog.close());
+        Button proceed = new Button("I understand, proceed", e -> {
+            dialog.close();
+            onConfirm.run();
+        });
+        proceed.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_ERROR);
+        dialog.getFooter().add(cancel, proceed);
+        dialog.open();
+    }
+
+    private void doSaveAndConnect() {
         McpTransportType transportForValidation = transportRadioButtonGroup.getValue();
         if (transportForValidation != null && isHttpTransport(transportForValidation)
                 && !StringUtils.hasText(urlField.getValue())) {

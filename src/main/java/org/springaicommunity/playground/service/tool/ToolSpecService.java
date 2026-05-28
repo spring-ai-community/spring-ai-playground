@@ -34,6 +34,7 @@ import org.springaicommunity.playground.service.tool.policy.EffectivePolicyResol
 import org.springaicommunity.playground.service.tool.policy.EffectivePolicyResolver.EffectivePolicy;
 import org.springaicommunity.playground.service.tool.policy.EffectivePolicyResolver.Overrides;
 import org.springaicommunity.playground.service.tool.policy.SandboxPostureCalculator;
+import org.springaicommunity.playground.service.tool.ToolManifest.Sandbox.RiskLevel;
 import org.springaicommunity.playground.service.tool.ToolSpec.ToolParamSpec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -356,6 +357,13 @@ public class ToolSpecService {
         }
         logger.debug("tool.exec.result cid={} result={}", cid, jsExecutionResult);
         return jsExecutionResult;
+    }
+
+    public RiskLevel getSandboxRiskLevel(String toolName) {
+        return getToolSpecAsOpt(toolName)
+                .map(spec -> riskLevelFor(spec.sandboxOverrides()))
+                .map(RiskLevel::valueOf)
+                .orElse(RiskLevel.L0);
     }
 
     private String riskLevelFor(ToolSpec.SandboxOverrides sbo) {
