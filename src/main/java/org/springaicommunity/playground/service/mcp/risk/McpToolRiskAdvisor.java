@@ -93,8 +93,9 @@ public class McpToolRiskAdvisor {
         Optional<McpToolDescriptor> catalogTool = entry.flatMap(e -> e.tools().stream()
                 .filter(t -> toolName.equals(t.name())).findFirst());
         JsonNode schemaNode = toSchemaNode(propertySchemas);
+        boolean trustedServer = entry.isPresent() && !entry.get().trustSignals().isEmpty();
         McpToolPublishRiskCalculator.Inputs toolInputs = this.inputsResolver.resolveToolInputs(info.serverName(),
-                toolName, description, schemaNode, catalogTool);
+                toolName, description, schemaNode, catalogTool, trustedServer);
         McpToolPublishRiskCalculator.Result toolResult = this.publishCalc.compute(toolInputs);
 
         McpToolRiskComposer.Composed composed = this.composer.composeWrappedExternal(serverResult, toolResult);

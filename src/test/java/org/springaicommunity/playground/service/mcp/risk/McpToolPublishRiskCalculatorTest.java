@@ -104,6 +104,19 @@ class McpToolPublishRiskCalculatorTest {
     }
 
     @Test
+    void trustedServerWaivesDocPenaltyDroppingLevel() {
+        Inputs trusted = new Inputs("server", "short_tool", "short", true, 0.0,
+                McpToolDescriptor.Annotations.EMPTY, McpRiskFactors.SAFE_READ_ONLY,
+                SideEffectScope.LOCAL_ONLY, false,
+                new CuratorChecklist(false, false, false), true);
+        Result r = calc.compute(trusted);
+        assertEquals(0, r.axisScores().get(McpToolPublishRiskCalculator.AXIS_DOC_PENALTY).intValue(),
+                "trusted server waives the per-tool documentation penalty entirely");
+        assertEquals(RiskLevel.L2, r.level(),
+                "doc penalty waived leaves only base action (+1): L2 instead of the untrusted L5");
+    }
+
+    @Test
     void idempotentDownscoreFloorsAtZero() {
         McpToolDescriptor.Annotations annotations = new McpToolDescriptor.Annotations(null, true, false, true, false);
         Inputs in = new Inputs("server", "ping", "Ping the upstream and return latency", true, 1.0,

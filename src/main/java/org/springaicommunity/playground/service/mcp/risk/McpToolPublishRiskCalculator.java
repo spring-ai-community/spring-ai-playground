@@ -66,7 +66,8 @@ public class McpToolPublishRiskCalculator {
             McpRiskFactors riskFactors,
             SideEffectScope sideEffectScope,
             boolean sendsUserData,
-            CuratorChecklist curatorChecklist) {
+            CuratorChecklist curatorChecklist,
+            boolean trustedServer) {
 
         public Inputs {
             if (annotations == null) annotations = McpToolDescriptor.Annotations.EMPTY;
@@ -75,6 +76,14 @@ public class McpToolPublishRiskCalculator {
             if (curatorChecklist == null) curatorChecklist = CuratorChecklist.fullyComplete();
             if (description == null) description = "";
             if (toolName == null) toolName = "";
+        }
+
+        public Inputs(String serverId, String toolName, String description, boolean inputSchemaPresent,
+                double inputSchemaPropertyDescriptionCoverage, McpToolDescriptor.Annotations annotations,
+                McpRiskFactors riskFactors, SideEffectScope sideEffectScope, boolean sendsUserData,
+                CuratorChecklist curatorChecklist) {
+            this(serverId, toolName, description, inputSchemaPresent, inputSchemaPropertyDescriptionCoverage,
+                    annotations, riskFactors, sideEffectScope, sendsUserData, curatorChecklist, false);
         }
     }
 
@@ -110,7 +119,8 @@ public class McpToolPublishRiskCalculator {
 
         Map<String, Integer> scores = new LinkedHashMap<>();
         scores.put(AXIS_BASE_ACTION, baseActionScore(in));
-        scores.put(AXIS_DOC_PENALTY, Math.min(DOC_CAP, docPenalty(in)));
+        // Trusted servers' curation substitutes for per-tool docs, so the doc penalty is waived.
+        scores.put(AXIS_DOC_PENALTY, in.trustedServer() ? 0 : Math.min(DOC_CAP, docPenalty(in)));
 
         int total = scores.values().stream().mapToInt(Integer::intValue).sum();
         RiskLevel level;

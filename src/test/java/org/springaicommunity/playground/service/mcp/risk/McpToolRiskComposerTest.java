@@ -29,6 +29,14 @@ class McpToolRiskComposerTest {
     private final McpToolRiskComposer composer = new McpToolRiskComposer();
 
     @Test
+    void hitlMitigationLowersLevelByOneFlooredAtL1() {
+        assertEquals(RiskLevel.L4, McpToolRiskComposer.applyHitlMitigation(RiskLevel.L5, true));
+        assertEquals(RiskLevel.L2, McpToolRiskComposer.applyHitlMitigation(RiskLevel.L3, true));
+        assertEquals(RiskLevel.L1, McpToolRiskComposer.applyHitlMitigation(RiskLevel.L1, true), "floored at L1");
+        assertEquals(RiskLevel.L5, McpToolRiskComposer.applyHitlMitigation(RiskLevel.L5, false), "no change without HITL");
+    }
+
+    @Test
     void serverL1PlusPublishL1ResolvesToL1() {
         McpServerRiskCalculator.Result server = new McpServerRiskCalculator.Result(RiskLevel.L1, 0, Map.of(), null);
         McpToolPublishRiskCalculator.Result publish = new McpToolPublishRiskCalculator.Result(RiskLevel.L1, 0, Map.of(), null);

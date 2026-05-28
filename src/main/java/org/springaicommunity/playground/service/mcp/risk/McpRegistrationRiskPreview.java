@@ -93,9 +93,7 @@ public class McpRegistrationRiskPreview {
     }
 
     Optional<McpCatalogEntry> findCatalogMatch(WizardInput input) {
-        // STDIO transports carry no host — match by catalog id via server name, same as the
-        // runtime resolver (McpToolRiskAdvisor#findByServerName), so catalog STDIO servers are
-        // recognised instead of falling through to the user-typed path.
+        // STDIO carries no host, so match by server name like the runtime resolver does.
         if (input.transport() == McpTransportType.STDIO) {
             return notBlank(input.displayName())
                     ? catalogService.findByServerName(input.displayName().trim())

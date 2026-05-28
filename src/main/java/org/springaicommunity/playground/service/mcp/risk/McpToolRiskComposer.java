@@ -50,6 +50,13 @@ public class McpToolRiskComposer {
         return new Composed(sandboxLevel, null, sandboxLevel, null);
     }
 
+    // HITL review of every call lowers risk by one band, floored at L1.
+    public static RiskLevel applyHitlMitigation(RiskLevel level, boolean hitl) {
+        if (!hitl || level == null) return level;
+        int lowered = Math.max(RiskLevel.L1.ordinal(), level.ordinal() - 1);
+        return RiskLevel.values()[lowered];
+    }
+
     static RiskLevel bucketWrapped(int score) {
         if (score <= 0) return RiskLevel.L1;
         if (score == 1) return RiskLevel.L2;

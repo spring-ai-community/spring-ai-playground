@@ -66,6 +66,12 @@ public class McpRiskInputsResolver {
 
     public McpToolPublishRiskCalculator.Inputs resolveToolInputs(String serverId, String toolName,
             String toolDescription, JsonNode inputSchema, Optional<McpToolDescriptor> catalogToolOpt) {
+        return resolveToolInputs(serverId, toolName, toolDescription, inputSchema, catalogToolOpt, false);
+    }
+
+    public McpToolPublishRiskCalculator.Inputs resolveToolInputs(String serverId, String toolName,
+            String toolDescription, JsonNode inputSchema, Optional<McpToolDescriptor> catalogToolOpt,
+            boolean trustedServer) {
         McpToolDescriptor catalogTool = catalogToolOpt.orElse(null);
         McpToolDescriptor.Annotations annotations = catalogTool == null
                 ? McpToolDescriptor.Annotations.EMPTY : catalogTool.annotations();
@@ -80,9 +86,9 @@ public class McpRiskInputsResolver {
                 : inferSideEffectScope(riskFactors);
         boolean sendsUserData = riskFactors.sendsUserData();
 
-        McpToolPublishRiskCalculator.CuratorChecklist checklist = catalogTool == null
-                ? new McpToolPublishRiskCalculator.CuratorChecklist(false, false, false)
-                : McpToolPublishRiskCalculator.CuratorChecklist.fullyComplete();
+        // Curator checklist is a catalog-author metric; waived for live external tools (no descriptor).
+        McpToolPublishRiskCalculator.CuratorChecklist checklist =
+                McpToolPublishRiskCalculator.CuratorChecklist.fullyComplete();
 
         return new McpToolPublishRiskCalculator.Inputs(
                 serverId,
@@ -94,7 +100,8 @@ public class McpRiskInputsResolver {
                 riskFactors,
                 scope,
                 sendsUserData,
-                checklist);
+                checklist,
+                trustedServer);
     }
 
     String extractUrl(String connectionJson) {
