@@ -18,15 +18,25 @@ package org.springaicommunity.playground.service.mcp.risk;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class McpCompositionMemberTest {
 
     @Test
     void defaultAliasGeneratedWhenNullOrBlank() {
         McpComposition.Member m = new McpComposition.Member("github", "list_repos", null, "h1");
-        assertEquals("github__list_repos", m.exposedAlias());
+        assertEquals("github_list_repos", m.exposedAlias());
         McpComposition.Member m2 = new McpComposition.Member("github", "list_repos", "", "h1");
-        assertEquals("github__list_repos", m2.exposedAlias());
+        assertEquals("github_list_repos", m2.exposedAlias());
+    }
+
+    @Test
+    void hitlDefaultsFalseAndIsCarriedWhenSet() {
+        McpComposition.Member off = new McpComposition.Member("github", "list_repos", null, "h1");
+        assertFalse(off.hitl());
+        McpComposition.Member on = new McpComposition.Member("github", "list_repos", null, null, true, "h1");
+        assertTrue(on.hitl());
     }
 
     @Test
@@ -38,19 +48,19 @@ class McpCompositionMemberTest {
     @Test
     void serverIdSanitizedInDefaultAlias() {
         McpComposition.Member m = new McpComposition.Member("My-Server.123", "do_thing", null, "h1");
-        assertEquals("my_server_123__do_thing", m.exposedAlias());
+        assertEquals("my_server_123_do_thing", m.exposedAlias());
     }
 
     @Test
     void unknownFallbacksAreSafe() {
         McpComposition.Member m = new McpComposition.Member(null, null, null, null);
-        assertEquals("unknown__unknown", m.exposedAlias());
+        assertEquals("unknown_unknown", m.exposedAlias());
     }
 
     @Test
     void defaultAliasStaticHelper() {
-        assertEquals("server__tool", McpComposition.Member.defaultAlias("server", "tool"));
-        assertEquals("special_chars___t", McpComposition.Member.defaultAlias("special.chars!", "t"),
-                "'.' and '!' both sanitized to '_', so 'special.chars!' → 'special_chars_'");
+        assertEquals("server_tool", McpComposition.Member.defaultAlias("server", "tool"));
+        assertEquals("special_chars_t", McpComposition.Member.defaultAlias("special.chars!", "t"),
+                "'.' and '!' sanitized to '_', trailing underscores trimmed, single '_' separator added");
     }
 }

@@ -35,6 +35,9 @@ public class McpCompositionService {
 
     private static final Logger logger = LoggerFactory.getLogger(McpCompositionService.class);
 
+    // Fixed-id singleton backing the "expose tools" feature; the UI edits this one set.
+    public static final String EXPOSED_ID = "__exposed__";
+
     private final McpCompositionPersistenceService persistence;
     private final McpCompositionShadowingRules shadowingRules;
     private final McpRiskSignalSink sink;
@@ -61,6 +64,24 @@ public class McpCompositionService {
 
     public List<McpComposition> getEnabled() {
         return this.compositionsById.values().stream().filter(McpComposition::enabled).toList();
+    }
+
+    public Optional<McpComposition> getExposed() {
+        return findById(EXPOSED_ID);
+    }
+
+    public synchronized McpComposition upsertExposed(List<McpComposition.Member> members, RiskLevel maxRiskLevel) {
+        long now = Instant.now().toEpochMilli();
+        RiskLevel cap = maxRiskLevel == null ? RiskLevel.L5 : maxRiskLevel;
+        McpComposition existing = this.compositionsById.get(EXPOSED_ID);
+        McpComposition exposed = existing == null
+                ? new McpComposition(EXPOSED_ID, "Exposed Tools",
+                        "External tools exposed on the built-in MCP server", members, true, cap, now, now, now)
+                : existing.withMembers(members, now).withEnabled(true, now).withMetadata(null, null, cap, now);
+        this.compositionsById.put(EXPOSED_ID, exposed);
+        persistSnapshot();
+        emit(exposed, McpRiskEvents.CompositionLifecycle.Action.UPDATED, null);
+        return exposed;
     }
 
     public synchronized McpComposition create(String name, String description, List<McpComposition.Member> members,

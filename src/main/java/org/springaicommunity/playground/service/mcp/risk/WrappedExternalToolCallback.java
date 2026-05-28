@@ -27,6 +27,7 @@ import org.springframework.ai.tool.metadata.ToolMetadata;
 import org.springframework.lang.Nullable;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -51,6 +52,13 @@ public final class WrappedExternalToolCallback implements ToolCallback {
     public WrappedExternalToolCallback(ToolCallback delegate, String compositionId, String compositionName,
             String exposedAlias, String upstreamServerId, String upstreamTransport,
             McpToolRiskComposer.Composed risk, Set<String> secrets) {
+        this(delegate, compositionId, compositionName, exposedAlias, null, upstreamServerId, upstreamTransport,
+                risk, secrets);
+    }
+
+    public WrappedExternalToolCallback(ToolCallback delegate, String compositionId, String compositionName,
+            String exposedAlias, String descriptionOverride, String upstreamServerId, String upstreamTransport,
+            McpToolRiskComposer.Composed risk, Set<String> secrets) {
         this.delegate = delegate;
         this.compositionId = compositionId;
         this.compositionName = compositionName;
@@ -62,7 +70,7 @@ public final class WrappedExternalToolCallback implements ToolCallback {
         this.publishRiskLevel = risk.publishLevel();
         this.floorTrigger = risk.floorTrigger();
         this.secrets = secrets;
-        this.aliasedDefinition = buildAliasedDefinition(delegate.getToolDefinition(), exposedAlias);
+        this.aliasedDefinition = buildAliasedDefinition(delegate.getToolDefinition(), exposedAlias, descriptionOverride);
     }
 
     @Override
@@ -94,10 +102,11 @@ public final class WrappedExternalToolCallback implements ToolCallback {
         Map<String, String> previousMdc = context.pushMdc();
         long startNs = System.nanoTime();
         try {
-            logger.info("mcp.tool.start cid={} via={} origin={} composition={} alias={} upstream={} risk={}",
+            logger.info("mcp.tool.start cid={} via={} origin={} composition={} alias={} upstream={} "
+                            + "upstreamTool={} risk={}",
                     cid, context.via(), context.origin(),
                     this.compositionName, this.exposedAlias, this.upstreamServerId,
-                    this.finalRiskLevel);
+                    this.delegate.getToolDefinition().name(), this.finalRiskLevel);
             String result = action.get();
             long durMs = (System.nanoTime() - startNs) / 1_000_000L;
             logger.info("mcp.tool.done cid={} via={} alias={} durationMs={} risk={}",
@@ -115,12 +124,18 @@ public final class WrappedExternalToolCallback implements ToolCallback {
         }
     }
 
-    static ToolDefinition buildAliasedDefinition(ToolDefinition source, String alias) {
+    // Input schema is always passed through unchanged so the upstream contract stays intact.
+    static ToolDefinition buildAliasedDefinition(ToolDefinition source, String alias, String descriptionOverride) {
         if (source == null) return null;
-        if (alias == null || alias.equals(source.name())) return source;
+        String name = (alias == null || alias.isBlank()) ? source.name() : alias;
+        String description = (descriptionOverride == null || descriptionOverride.isBlank())
+                ? source.description() : descriptionOverride;
+        if (name.equals(source.name()) && Objects.equals(description, source.description())) {
+            return source;
+        }
         return DefaultToolDefinition.builder()
-                .name(alias)
-                .description(source.description())
+                .name(name)
+                .description(description)
                 .inputSchema(source.inputSchema())
                 .build();
     }

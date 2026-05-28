@@ -39,6 +39,7 @@ import org.springaicommunity.playground.service.tool.ToolSpec.ToolParamSpec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.mcp.McpToolUtils;
+import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.execution.ToolExecutionException;
 import org.springframework.ai.tool.definition.DefaultToolDefinition;
 import org.springframework.ai.tool.function.FunctionToolCallback;
@@ -86,6 +87,7 @@ public class ToolSpecService {
     private final SandboxPostureCalculator postureCalculator;
     private final ObservationRegistry observationRegistry;
     private final ThreadLocal<Boolean> skipPersist = ThreadLocal.withInitial(() -> Boolean.FALSE);
+    private final Set<String> externalMcpToolNames = ConcurrentHashMap.newKeySet();
 
     private ToolMcpServerSetting toolMcpServerSetting;
 
@@ -258,6 +260,41 @@ public class ToolSpecService {
     public List<McpSchema.Tool> getMcpToolList() {
         return Objects.nonNull(this.mcpSyncServer) ? this.mcpSyncServer.listTools() : this.mcpAsyncServer.listTools()
                 .toStream().toList();
+    }
+
+    // Tracked apart from ToolSpec-backed tools so sync can add/remove without touching our own tools.
+    public void addExternalMcpTool(ToolCallback callback) {
+        String name = callback.getToolDefinition().name();
+        if (this.externalMcpToolNames.contains(name)) return;
+        logger.info("Adding external MCP tool to built-in server: name={}", name);
+        try {
+            if (Objects.nonNull(this.mcpSyncServer)) {
+                this.mcpSyncServer.addTool(McpToolUtils.toSyncToolSpecification(callback));
+            } else if (Objects.nonNull(this.mcpAsyncServer)) {
+                this.mcpAsyncServer.addTool(McpToolUtils.toAsyncToolSpecification(callback));
+            }
+            this.externalMcpToolNames.add(name);
+        } catch (RuntimeException e) {
+            logger.warn("Failed to add external MCP tool: name={}, error={}", name, e.getMessage());
+        }
+    }
+
+    public void removeExternalMcpTool(String toolName) {
+        logger.info("Removing external MCP tool from built-in server: name={}", toolName);
+        try {
+            if (Objects.nonNull(this.mcpSyncServer)) {
+                this.mcpSyncServer.removeTool(toolName);
+            } else if (Objects.nonNull(this.mcpAsyncServer)) {
+                this.mcpAsyncServer.removeTool(toolName);
+            }
+        } catch (RuntimeException e) {
+            logger.warn("Failed to remove external MCP tool: name={}, error={}", toolName, e.getMessage());
+        }
+        this.externalMcpToolNames.remove(toolName);
+    }
+
+    public Set<String> getExternalMcpToolNames() {
+        return Set.copyOf(this.externalMcpToolNames);
     }
 
     public Optional<ToolSpec> getToolSpecAsOpt(String name) {

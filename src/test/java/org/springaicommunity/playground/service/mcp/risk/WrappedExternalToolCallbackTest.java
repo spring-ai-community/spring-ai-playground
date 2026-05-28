@@ -70,6 +70,26 @@ class WrappedExternalToolCallbackTest {
     }
 
     @Test
+    void descriptionOverrideReplacesUpstreamDescriptionKeepingInputSchema() {
+        ToolCallback delegate = delegate("create_issue", in -> "ok");
+        WrappedExternalToolCallback wrapped = new WrappedExternalToolCallback(
+                delegate, "comp-1", "dev-toolbox", "github__create_issue", "Friendlier description",
+                "github", "streamable_http", composedL3(), Set.of());
+        assertEquals("Friendlier description", wrapped.getToolDefinition().description());
+        assertEquals("github__create_issue", wrapped.getToolDefinition().name());
+        assertEquals("{\"type\":\"object\"}", wrapped.getToolDefinition().inputSchema());
+    }
+
+    @Test
+    void nullDescriptionOverrideKeepsUpstreamDescription() {
+        ToolCallback delegate = delegate("create_issue", in -> "ok");
+        WrappedExternalToolCallback wrapped = new WrappedExternalToolCallback(
+                delegate, "comp-1", "dev-toolbox", "github__create_issue", null,
+                "github", "streamable_http", composedL3(), Set.of());
+        assertEquals("dummy", wrapped.getToolDefinition().description());
+    }
+
+    @Test
     void delegateOriginalNameWhenAliasMatches() {
         ToolCallback delegate = delegate("create_issue", in -> "ok");
         WrappedExternalToolCallback wrapped = new WrappedExternalToolCallback(

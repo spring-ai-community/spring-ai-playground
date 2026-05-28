@@ -76,6 +76,27 @@ class McpCompositionServiceTest {
     }
 
     @Test
+    void upsertExposedCreatesEnabledSingletonWithFixedId() {
+        McpComposition exposed = service.upsertExposed(List.of(member("github", "search_issues")), RiskLevel.L3);
+        assertEquals(McpCompositionService.EXPOSED_ID, exposed.id());
+        assertTrue(exposed.enabled());
+        assertEquals(1, exposed.members().size());
+        assertEquals(RiskLevel.L3, exposed.maxRiskLevel());
+        assertTrue(service.getExposed().isPresent());
+    }
+
+    @Test
+    void upsertExposedReplacesMembersAndCapKeepingSingletonId() {
+        service.upsertExposed(List.of(member("github", "a"), member("github", "b")), RiskLevel.L3);
+        McpComposition updated = service.upsertExposed(List.of(member("tavily", "search")), RiskLevel.L2);
+        assertEquals(McpCompositionService.EXPOSED_ID, updated.id());
+        assertEquals(1, updated.members().size());
+        assertEquals("tavily", updated.members().getFirst().serverId());
+        assertEquals(RiskLevel.L2, updated.maxRiskLevel());
+        assertTrue(updated.enabled());
+    }
+
+    @Test
     void createReturnsDisabledCompositionAndEmitsCreatedEvent() {
         McpComposition created = service.create("dev-toolbox", "developer tools",
                 List.of(member("github", "list_repos")), RiskLevel.L3);

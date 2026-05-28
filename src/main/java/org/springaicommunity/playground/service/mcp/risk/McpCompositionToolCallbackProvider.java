@@ -73,6 +73,14 @@ public class McpCompositionToolCallbackProvider implements ToolCallbackProvider 
         return wrapped.toArray(new ToolCallback[0]);
     }
 
+    public ToolCallback[] getToolCallbacksFor(McpComposition composition) {
+        List<ToolCallback> wrapped = new ArrayList<>();
+        for (McpComposition.Member member : composition.members()) {
+            wrapMember(composition, member).ifPresent(wrapped::add);
+        }
+        return wrapped.toArray(new ToolCallback[0]);
+    }
+
     private Optional<ToolCallback> wrapMember(McpComposition composition, McpComposition.Member member) {
         Optional<McpServerInfo> serverInfo = findServerByName(member.serverId());
         if (serverInfo.isEmpty()) {
@@ -98,7 +106,7 @@ public class McpCompositionToolCallbackProvider implements ToolCallbackProvider 
                 ? "" : serverInfo.get().mcpTransportType().name();
 
         return Optional.of(new WrappedExternalToolCallback(upstream.get(),
-                composition.id(), composition.name(), member.exposedAlias(),
+                composition.id(), composition.name(), member.exposedAlias(), member.descriptionOverride(),
                 member.serverId(), transport, risk, secrets));
     }
 

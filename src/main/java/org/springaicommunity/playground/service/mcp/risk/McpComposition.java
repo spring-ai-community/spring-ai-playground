@@ -61,6 +61,8 @@ public record McpComposition(
             String serverId,
             String toolName,
             String exposedAlias,
+            String descriptionOverride,
+            boolean hitl,
             String contentHash) {
 
         public Member {
@@ -70,10 +72,16 @@ public record McpComposition(
             if (contentHash == null) contentHash = "";
         }
 
+        public Member(String serverId, String toolName, String exposedAlias, String contentHash) {
+            this(serverId, toolName, exposedAlias, null, false, contentHash);
+        }
+
         public static String defaultAlias(String serverId, String toolName) {
             if (serverId == null) serverId = "unknown";
             if (toolName == null) toolName = "unknown";
-            return sanitize(serverId) + "__" + toolName;
+            String prefix = sanitize(serverId).replaceAll("_+$", "");
+            if (prefix.isEmpty()) prefix = "unknown";
+            return prefix + "_" + toolName;
         }
 
         static String sanitize(String s) {

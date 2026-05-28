@@ -68,7 +68,7 @@ class McpCompositionPersistenceServiceTest {
         assertTrue(reloadedC1.enabled());
         assertEquals(RiskLevel.L3, reloadedC1.maxRiskLevel());
         assertEquals(1, reloadedC1.members().size());
-        assertEquals("github__list_repos", reloadedC1.members().getFirst().exposedAlias());
+        assertEquals("github_list_repos", reloadedC1.members().getFirst().exposedAlias());
     }
 
     @Test

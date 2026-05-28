@@ -28,12 +28,15 @@ import org.springaicommunity.playground.service.mcp.catalog.McpCatalogService;
 import org.springaicommunity.playground.service.mcp.catalog.McpCategoryService;
 import org.springaicommunity.playground.service.mcp.catalog.McpTagSuggestionService;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
+import org.springaicommunity.playground.service.mcp.risk.McpCompositionService;
+import org.springaicommunity.playground.service.mcp.risk.McpExposedToolService;
 import org.springaicommunity.playground.service.mcp.risk.McpRegistrationRiskPreview;
 import org.springaicommunity.playground.service.mcp.risk.McpToolRiskAdvisor;
 import org.springaicommunity.playground.webui.PersistentUiDataStorage;
 import org.springaicommunity.playground.webui.SpringAiPlaygroundAppLayout;
 import org.springaicommunity.playground.webui.VaadinUtils;
 import org.springaicommunity.playground.webui.common.ContentWorkspaceView;
+import org.springaicommunity.playground.webui.common.WorkspaceSettingsDrawer;
 
 import java.beans.PropertyChangeSupport;
 import java.util.Objects;
@@ -57,6 +60,8 @@ public class McpServerView extends ContentWorkspaceView {
     private final McpTagSuggestionService mcpTagSuggestionService;
     private final McpToolRiskAdvisor mcpToolRiskAdvisor;
     private final McpRegistrationRiskPreview mcpRegistrationRiskPreview;
+    private final McpExposedToolService mcpExposedToolService;
+    private final McpCompositionService mcpCompositionService;
     private final McpServerConnectionView mcpServerConnectionView;
     private final PropertyChangeSupport mcpServerInfoChangeSupport;
     private McpContentView mcpContentView;
@@ -64,13 +69,16 @@ public class McpServerView extends ContentWorkspaceView {
     public McpServerView(PersistentUiDataStorage persistentUiDataStorage, McpServerInfoService mcpServerInfoService,
             McpClientService mcpClientService, McpCategoryService mcpCategoryService,
             McpCatalogService mcpCatalogService, McpTagSuggestionService mcpTagSuggestionService,
-            McpToolRiskAdvisor mcpToolRiskAdvisor, McpRegistrationRiskPreview mcpRegistrationRiskPreview) {
+            McpToolRiskAdvisor mcpToolRiskAdvisor, McpRegistrationRiskPreview mcpRegistrationRiskPreview,
+            McpExposedToolService mcpExposedToolService, McpCompositionService mcpCompositionService) {
         this.mcpServerInfoService = mcpServerInfoService;
         this.mcpClientService = mcpClientService;
         this.mcpCategoryService = mcpCategoryService;
         this.mcpTagSuggestionService = mcpTagSuggestionService;
         this.mcpToolRiskAdvisor = mcpToolRiskAdvisor;
         this.mcpRegistrationRiskPreview = mcpRegistrationRiskPreview;
+        this.mcpExposedToolService = mcpExposedToolService;
+        this.mcpCompositionService = mcpCompositionService;
         this.mcpServerInfoChangeSupport = new PropertyChangeSupport(this);
 
         this.mcpServerConnectionView =
@@ -106,6 +114,14 @@ public class McpServerView extends ContentWorkspaceView {
         Button newMcpConnectionButton = styledButton("Add Custom Server", VaadinIcon.CONNECT.create(),
                 event -> addNewMcpServerDetails());
         addHeaderAction(newMcpConnectionButton);
+
+        WorkspaceSettingsDrawer exposeToolsDrawer = installSettingsDrawer(VaadinIcon.COG_O, "Expose Tools",
+                "Expose external tools on the built-in MCP server");
+        McpExposedToolsPanel exposeToolsPanel = new McpExposedToolsPanel(this.mcpExposedToolService,
+                this.mcpCompositionService, this.mcpServerInfoService, this.mcpClientService,
+                this.mcpToolRiskAdvisor);
+        exposeToolsDrawer.setBodyFactory(exposeToolsPanel::build);
+        exposeToolsDrawer.setApplyButton("Apply", exposeToolsPanel::apply);
 
         setHeaderLabel("MCP Server Info");
 
