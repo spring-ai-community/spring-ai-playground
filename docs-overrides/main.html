@@ -110,7 +110,8 @@
       }
     })();
   </script>
-  {% set ga_measurement_id = "G-QGJEJ4NXQ8" %}
+  {# Docs-only Google tag (routes only to the G-QGJEJ4NXQ8 stream). Use the GT- tag id, NOT the G- measurement id — gtag/js?id=G-QGJEJ4NXQ8 has no installable loader (404). #}
+  {% set ga_tag_id = "GT-MJKRMQZH" %}
   {% set page_title = page.title ~ " - " ~ config.site_name if page and page.title else config.site_name %}
   {% set ga_page_title = "Doc - " ~ page.title if page and page.title else "Doc - " ~ config.site_name %}
   {% set page_description = page.meta.description if page and page.meta and page.meta.description else config.site_description %}
@@ -121,18 +122,31 @@
       if (window.location.hostname !== 'spring-ai-community.github.io') return;
       var s = document.createElement('script');
       s.async = true;
-      s.src = 'https://www.googletagmanager.com/gtag/js?id={{ ga_measurement_id }}';
+      s.src = 'https://www.googletagmanager.com/gtag/js?id={{ ga_tag_id }}';
       document.head.appendChild(s);
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       window.gtag = gtag;
       gtag('js', new Date());
       gtag('set', 'user_properties', { app_surface: 'docs' });
-      gtag('config', '{{ ga_measurement_id }}', {
+      gtag('config', '{{ ga_tag_id }}', {
         app_name: 'spring-ai-playground-docs',
         app_surface: 'docs',
         page_title: '{{ ga_page_title | e }}'
       });
+
+      // navigation.instant has no reload, so re-fire page_view per in-site nav (skip first; the config above counts the entry page).
+      var firstEmit = true;
+      (function hookInstantNav(tries) {
+        if (window.document$ && typeof window.document$.subscribe === 'function') {
+          window.document$.subscribe(function () {
+            if (firstEmit) { firstEmit = false; return; }
+            gtag('event', 'page_view', { page_title: document.title, page_location: location.href });
+          });
+        } else if (tries > 0) {
+          setTimeout(function () { hookInstantNav(tries - 1); }, 100);
+        }
+      })(50);
     })();
   </script>
   {# Open Graph and Twitter Card meta — kept here as a fallback when the

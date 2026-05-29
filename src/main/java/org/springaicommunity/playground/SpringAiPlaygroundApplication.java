@@ -65,7 +65,11 @@ public class SpringAiPlaygroundApplication implements AppShellConfigurator {
 
     @Override
     public void configurePage(AppShellSettings settings) {
-        if (!isTelemetryEnabled()) return;
+        if (!isTelemetryEnabled()) {
+            settings.addInlineWithContents(Inline.Position.PREPEND,
+                    "window['ga-disable-G-52TGT1G9B3'] = true;", Inline.Wrapping.JAVASCRIPT);
+            return;
+        }
         String gtmContainerId = "GTM-PVX8227Q";
         String gtmDataLayerInit = """
                 window.dataLayer = window.dataLayer || [];
