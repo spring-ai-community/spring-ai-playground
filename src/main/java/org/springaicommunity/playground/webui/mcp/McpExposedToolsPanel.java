@@ -30,7 +30,6 @@ import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.shared.Tooltip;
 import com.vaadin.flow.component.textfield.TextArea;
 import com.vaadin.flow.component.textfield.TextField;
-import com.vaadin.flow.data.value.ValueChangeMode;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
@@ -41,36 +40,39 @@ import org.springaicommunity.playground.service.mcp.risk.McpExposedToolService;
 import org.springaicommunity.playground.service.mcp.risk.McpToolRiskAdvisor;
 import org.springaicommunity.playground.service.mcp.risk.McpToolRiskComposer;
 import org.springaicommunity.playground.service.tool.ToolManifest.Sandbox.RiskLevel;
+import org.springaicommunity.playground.service.tool.ToolSpecService;
+import org.springaicommunity.playground.service.tool.ToolSpecService.ExposureMode;
 import org.springaicommunity.playground.webui.mcp.inspector.InspectorHelpers;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
 public class McpExposedToolsPanel {
-
-    private static final int FILTER_THRESHOLD = 8;
 
     private final McpExposedToolService exposedToolService;
     private final McpCompositionService compositionService;
     private final McpServerInfoService serverInfoService;
     private final McpClientService clientService;
     private final McpToolRiskAdvisor riskAdvisor;
+    private final ToolSpecService toolSpecService;
 
     private final Map<String, McpComposition.Member> selected = new LinkedHashMap<>();
+    private Select<ExposureMode> modeField;
     private Select<RiskLevel> capField;
     private VerticalLayout exposedArea;
 
     public McpExposedToolsPanel(McpExposedToolService exposedToolService, McpCompositionService compositionService,
-            McpServerInfoService serverInfoService, McpClientService clientService, McpToolRiskAdvisor riskAdvisor) {
+            McpServerInfoService serverInfoService, McpClientService clientService, McpToolRiskAdvisor riskAdvisor,
+            ToolSpecService toolSpecService) {
         this.exposedToolService = exposedToolService;
         this.compositionService = compositionService;
         this.serverInfoService = serverInfoService;
         this.clientService = clientService;
         this.riskAdvisor = riskAdvisor;
+        this.toolSpecService = toolSpecService;
     }
 
     public Component build() {
@@ -80,12 +82,21 @@ public class McpExposedToolsPanel {
                 this.selected.put(key(member.serverId(), member.toolName()), member)));
         RiskLevel cap = existing.map(McpComposition::maxRiskLevel).orElse(RiskLevel.L3);
 
-        Span intro = new Span("Pick a server, select its tools, and they are merged into the built-in server "
-                + "(spring-ai-playground-tool-mcp) — exposed on /mcp and in chat. Selected tools expand for "
-                + "renaming and description editing; the input schema is passed through unchanged. Requiring "
-                + "approval (HITL) lowers a tool's effective risk by one band.");
+        Span intro = new Span("Pick what the built-in MCP server exposes; compose external tools below.");
         intro.getStyle().set("color", "var(--lumo-secondary-text-color)")
                 .set("font-size", "var(--lumo-font-size-s)");
+
+        this.exposedArea = new VerticalLayout();
+        this.exposedArea.setPadding(false);
+        this.exposedArea.setSpacing(false);
+
+        this.modeField = new Select<>();
+        this.modeField.setLabel("What the built-in server exposes");
+        this.modeField.setItems(ExposureMode.BUILTIN_ONLY, ExposureMode.COMPOSED_ONLY, ExposureMode.BOTH);
+        this.modeField.setItemLabelGenerator(McpExposedToolsPanel::modeLabel);
+        this.modeField.setValue(this.toolSpecService.exposureMode());
+        this.modeField.setHelperText("Built-in = your default + custom tools. Composed = the external tools below.");
+        this.modeField.setWidthFull();
 
         this.capField = new Select<>();
         this.capField.setLabel("Max risk to expose (tools above this can't be selected)");
@@ -96,9 +107,11 @@ public class McpExposedToolsPanel {
         Checkbox hitlAll = new Checkbox("Require approval (HITL) for all selected tools");
         hitlAll.addValueChangeListener(event -> applyHitlToAllSelected(Boolean.TRUE.equals(event.getValue())));
 
-        VerticalLayout root = new VerticalLayout(intro, this.capField, hitlAll);
+        VerticalLayout root = new VerticalLayout(intro, this.exposedArea,
+                this.modeField, this.capField, hitlAll);
         root.setPadding(false);
         root.setSpacing(true);
+        refreshExposedArea();
 
         List<McpServerInfo> active = activeServers();
         if (active.isEmpty()) {
@@ -112,19 +125,25 @@ public class McpExposedToolsPanel {
         for (McpServerInfo server : active) {
             root.add(buildServerAccordion(server));
         }
-
-        this.exposedArea = new VerticalLayout();
-        this.exposedArea.setPadding(false);
-        this.exposedArea.setSpacing(false);
-        root.add(sectionLabel("Exposed on built-in server"), this.exposedArea);
-        refreshExposedArea();
         return root;
     }
 
     public void apply() {
+        ExposureMode mode = this.modeField.getValue();
+        this.toolSpecService.setExposureMode(mode);
         this.exposedToolService.apply(new ArrayList<>(this.selected.values()), this.capField.getValue());
-        Notification.show(this.selected.size() + " tool(s) exposed on the built-in MCP server", 3000,
+        String composed = mode.includesComposed()
+                ? this.selected.size() + " composed tool(s) exposed" : "composed tools off";
+        Notification.show("Built-in server exposure: " + modeLabel(mode) + " — " + composed, 3000,
                 Notification.Position.BOTTOM_END);
+    }
+
+    private static String modeLabel(ExposureMode mode) {
+        return switch (mode) {
+            case BUILTIN_ONLY -> "Built-in tools only";
+            case COMPOSED_ONLY -> "Composed tools only";
+            case BOTH -> "Both built-in and composed";
+        };
     }
 
     // Lazy build: tools/list is a network round-trip and each tool runs a risk scan, so defer to first expand.
@@ -149,13 +168,16 @@ public class McpExposedToolsPanel {
             if (!event.isOpened() || built[0]) return;
             built[0] = true;
             List<McpSchema.Tool> tools = this.clientService.getToolListAsOpt(server).orElseGet(List::of);
-            info.setText(transport + " · " + tools.size() + " tools · " + exposedCountFor(server) + " exposed");
-            details.add(buildServerContent(server, tools));
+            Runnable refreshSummary = () -> info.setText(transport + " · " + tools.size() + " tools · "
+                    + exposedCountFor(server) + " exposed");
+            refreshSummary.run();
+            details.add(buildServerContent(server, tools, refreshSummary));
         });
         return details;
     }
 
-    private Component buildServerContent(McpServerInfo server, List<McpSchema.Tool> tools) {
+    private Component buildServerContent(McpServerInfo server, List<McpSchema.Tool> tools,
+            Runnable refreshServerSummary) {
         VerticalLayout content = new VerticalLayout();
         content.setPadding(false);
         content.setSpacing(false);
@@ -176,32 +198,16 @@ public class McpExposedToolsPanel {
         head.setAlignItems(FlexComponent.Alignment.CENTER);
         content.add(head);
 
-        List<RowEntry> rowEntries = new ArrayList<>();
-        if (tools.size() > FILTER_THRESHOLD) {
-            TextField filter = new TextField();
-            filter.setPlaceholder("Filter tools by name");
-            filter.setClearButtonVisible(true);
-            filter.setValueChangeMode(ValueChangeMode.LAZY);
-            filter.setWidthFull();
-            filter.setPrefixComponent(VaadinIcon.SEARCH.create());
-            filter.addValueChangeListener(event -> {
-                String query = event.getValue() == null ? "" : event.getValue().trim().toLowerCase(Locale.ROOT);
-                rowEntries.forEach(entry -> entry.row().setVisible(query.isEmpty() || entry.name().contains(query)));
-            });
-            content.add(filter);
-        }
         for (McpSchema.Tool tool : tools) {
             if (tool.name() == null || tool.name().isBlank()) continue;
-            Component row = buildToolRow(server, tool, count, rowChecks, tools.size());
-            rowEntries.add(new RowEntry(tool.name().toLowerCase(Locale.ROOT), row));
-            content.add(row);
+            content.add(buildToolRow(server, tool, count, rowChecks, tools.size(), refreshServerSummary));
         }
         updateServerCount(count, server, tools.size());
         return content;
     }
 
     private Component buildToolRow(McpServerInfo server, McpSchema.Tool tool, Span count, List<Checkbox> rowChecks,
-            int toolTotal) {
+            int toolTotal, Runnable refreshServerSummary) {
         String rowKey = key(server.serverName(), tool.name());
         InspectorHelpers.ToolInfo toolInfo = InspectorHelpers.toToolInfo(tool);
         String originalDescription = tool.description() == null ? "" : tool.description();
@@ -288,6 +294,7 @@ public class McpExposedToolsPanel {
             rebuildMember.run();
             updateExpansion.run();
             updateServerCount(count, server, toolTotal);
+            refreshServerSummary.run();
             refreshExposedArea();
         });
         hitl.addValueChangeListener(event -> {
@@ -339,22 +346,29 @@ public class McpExposedToolsPanel {
     private void refreshExposedArea() {
         if (this.exposedArea == null) return;
         this.exposedArea.removeAll();
-        if (this.selected.isEmpty()) {
-            Span none = new Span("Nothing exposed yet.");
-            none.getStyle().set("color", "var(--lumo-secondary-text-color)").set("font-size", "var(--lumo-font-size-s)");
-            this.exposedArea.add(none);
-            return;
-        }
+        Div box = new Div();
+        box.getStyle().set("display", "flex").set("flex-wrap", "wrap").set("align-items", "center")
+                .set("gap", "5px").set("padding", "var(--lumo-space-s) var(--lumo-space-m)")
+                .set("background", "var(--lumo-shade-5pct)").set("border-radius", "var(--lumo-border-radius-m)")
+                .set("line-height", "1.9").set("width", "100%").set("box-sizing", "border-box");
+        Span label = new Span("COMPOSED TOOLS");
+        label.getStyle().set("font-size", "var(--lumo-font-size-xxs)").set("color", "var(--lumo-secondary-text-color)")
+                .set("text-transform", "uppercase").set("letter-spacing", "0.08em")
+                .set("margin-right", "var(--lumo-space-s)");
+        Span summary = new Span(this.selected.isEmpty() ? "none" : this.selected.size() + " exposed");
+        summary.getStyle().set("font-size", "var(--lumo-font-size-s)")
+                .set("font-weight", "var(--lumo-font-weight-semibold)").set("margin-right", "var(--lumo-space-s)");
+        box.add(label, summary);
         for (McpComposition.Member member : this.selected.values()) {
-            String label = member.exposedAlias() + "  ·  " + member.serverId() + "/" + member.toolName()
-                    + (member.hitl() ? "  · HITL" : "");
-            Span chip = new Span(label);
-            chip.getStyle().set("font-size", "var(--lumo-font-size-s)")
-                    .set("background-color", "var(--lumo-contrast-5pct)")
-                    .set("border-radius", "var(--lumo-border-radius-s)")
-                    .set("padding", "2px 8px").set("margin", "2px 0").set("display", "inline-block");
-            this.exposedArea.add(chip);
+            Span chip = new Span(member.exposedAlias() + (member.hitl() ? " · HITL" : ""));
+            chip.getStyle().set("display", "inline-block").set("padding", "2px 9px")
+                    .set("background", "rgba(31, 122, 90, 0.10)").set("color", "var(--lumo-primary-color)")
+                    .set("border-radius", "999px")
+                    .set("font-family", "'SF Mono', 'Monaco', 'Cascadia Code', 'Consolas', monospace")
+                    .set("font-size", "var(--lumo-font-size-xxs)").set("line-height", "1.4");
+            box.add(chip);
         }
+        this.exposedArea.add(box);
     }
 
     private long exposedCountFor(McpServerInfo server) {
@@ -379,6 +393,4 @@ public class McpExposedToolsPanel {
     private static String key(String serverId, String toolName) {
         return serverId + "::" + toolName;
     }
-
-    private record RowEntry(String name, Component row) {}
 }

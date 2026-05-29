@@ -17,6 +17,8 @@ package org.springaicommunity.playground.service.mcp.risk;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springaicommunity.playground.SpringAiPlaygroundOptions;
+import org.springaicommunity.playground.SpringAiPlaygroundOptions.ComposedTool;
 import org.springaicommunity.playground.service.tool.ToolManifest.Sandbox.RiskLevel;
 import org.springframework.stereotype.Service;
 
@@ -35,7 +37,6 @@ public class McpCompositionService {
 
     private static final Logger logger = LoggerFactory.getLogger(McpCompositionService.class);
 
-    // Fixed-id singleton backing the "expose tools" feature; the UI edits this one set.
     public static final String EXPOSED_ID = "__exposed__";
 
     private final McpCompositionPersistenceService persistence;
@@ -44,14 +45,31 @@ public class McpCompositionService {
     private final Map<String, McpComposition> compositionsById = new ConcurrentHashMap<>();
 
     public McpCompositionService(McpCompositionPersistenceService persistence,
-            McpCompositionShadowingRules shadowingRules, McpRiskSignalSink sink) {
+            McpCompositionShadowingRules shadowingRules, McpRiskSignalSink sink,
+            SpringAiPlaygroundOptions playgroundOptions) {
         this.persistence = persistence;
         this.shadowingRules = shadowingRules;
         this.sink = sink;
         for (McpComposition composition : persistence.loadAll()) {
             this.compositionsById.put(composition.id(), composition);
         }
-        logger.info("Loaded {} compositions from disk", this.compositionsById.size());
+        this.compositionsById.put(EXPOSED_ID, seedExposedFromConfig(playgroundOptions.mcpServer().composedTools(),
+                playgroundOptions.mcpServer().composedToolsMaxRisk()));
+        logger.info("Loaded {} compositions; exposed set seeded with {} member(s) from application.yaml",
+                this.compositionsById.size(), this.compositionsById.get(EXPOSED_ID).members().size());
+    }
+
+    private static McpComposition seedExposedFromConfig(List<ComposedTool> composedTools, RiskLevel maxRisk) {
+        long now = Instant.now().toEpochMilli();
+        List<McpComposition.Member> members = composedTools.stream()
+                .filter(ct -> ct.server() != null && !ct.server().isBlank()
+                        && ct.tool() != null && !ct.tool().isBlank())
+                .map(ct -> new McpComposition.Member(ct.server(), ct.tool(), ct.alias(),
+                        ct.description(), ct.hitl(), ""))
+                .toList();
+        return new McpComposition(EXPOSED_ID, "Exposed Tools",
+                "External tools exposed on the built-in MCP server (from application.yaml)",
+                members, !members.isEmpty(), maxRisk == null ? RiskLevel.L5 : maxRisk, now, now, now);
     }
 
     public Collection<McpComposition> getAll() {
@@ -79,7 +97,6 @@ public class McpCompositionService {
                         "External tools exposed on the built-in MCP server", members, true, cap, now, now, now)
                 : existing.withMembers(members, now).withEnabled(true, now).withMetadata(null, null, cap, now);
         this.compositionsById.put(EXPOSED_ID, exposed);
-        persistSnapshot();
         emit(exposed, McpRiskEvents.CompositionLifecycle.Action.UPDATED, null);
         return exposed;
     }
@@ -191,7 +208,9 @@ public class McpCompositionService {
     }
 
     private void persistSnapshot() {
-        this.persistence.saveAllAsync(new ArrayList<>(this.compositionsById.values()));
+        List<McpComposition> toPersist = this.compositionsById.values().stream()
+                .filter(composition -> !EXPOSED_ID.equals(composition.id())).toList();
+        this.persistence.saveAllAsync(new ArrayList<>(toPersist));
     }
 
     private void emit(McpComposition composition, McpRiskEvents.CompositionLifecycle.Action action, String reason) {

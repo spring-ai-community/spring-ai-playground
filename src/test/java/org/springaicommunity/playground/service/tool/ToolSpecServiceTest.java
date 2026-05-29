@@ -34,9 +34,12 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
+import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.execution.ToolExecutionException;
+import org.springframework.ai.tool.function.FunctionToolCallback;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
@@ -44,6 +47,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -68,6 +72,7 @@ class ToolSpecServiceTest {
         toolSpecService.getToolSpecList().stream()
                 .map(ToolSpec::toolId)
                 .forEach(toolSpecService::deleteToolSpec);
+        toolSpecService.setExposureMode(ToolSpecService.ExposureMode.BOTH);
         this.toolSpecLogger = (Logger) LoggerFactory.getLogger(ToolSpecService.class);
         this.logAppender = new ListAppender<>();
         this.logAppender.start();
@@ -301,6 +306,49 @@ class ToolSpecServiceTest {
 
         assertThat(toolSpecService.getMcpToolList().stream().map(McpSchema.Tool::name).toList())
                 .contains("pubOne");
+    }
+
+    private List<String> currentMcpNames() {
+        return toolSpecService.getMcpToolList().stream().map(McpSchema.Tool::name).toList();
+    }
+
+    private static ToolCallback externalCallback(String name) {
+        return FunctionToolCallback
+                .builder(name, (Function<Map<String, Object>, Object>) params -> "ok")
+                .description("external " + name)
+                .inputSchema("{\"type\":\"object\",\"properties\":{}}")
+                .inputType(new ParameterizedTypeReference<Map<String, Object>>() {})
+                .build();
+    }
+
+    @Test
+    void composedOnlyModeBlocksNativeExposureAndBothRestoresIt() {
+        toolSpecService.update(freshSpec("mode-1", "modeToolOne", false));
+        assertThat(currentMcpNames()).contains("modeToolOne");
+
+        toolSpecService.setExposureMode(ToolSpecService.ExposureMode.COMPOSED_ONLY);
+        assertThat(currentMcpNames()).doesNotContain("modeToolOne");
+
+        // A tool created while composed-only stays off the server but its exposure intent is remembered.
+        toolSpecService.update(freshSpec("mode-2", "modeToolTwo", false));
+        assertThat(currentMcpNames()).doesNotContain("modeToolTwo");
+
+        toolSpecService.setExposureMode(ToolSpecService.ExposureMode.BOTH);
+        assertThat(currentMcpNames()).contains("modeToolOne").contains("modeToolTwo");
+    }
+
+    @Test
+    void nativeReconcileLeavesExternalWrappedToolsUntouched() {
+        toolSpecService.update(freshSpec("nat-1", "nativeOne", false));
+        toolSpecService.addExternalMcpTool(externalCallback("extTool"));
+        assertThat(currentMcpNames()).contains("nativeOne").contains("extTool");
+
+        toolSpecService.updateToolMcpServerSetting(
+                new ToolSpecService.ToolMcpServerSetting(true, Set.of()));
+
+        assertThat(currentMcpNames()).doesNotContain("nativeOne");
+        assertThat(currentMcpNames()).contains("extTool");
+        assertThat(toolSpecService.getExternalMcpToolNames()).contains("extTool");
     }
 
     @Test

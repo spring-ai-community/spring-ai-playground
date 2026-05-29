@@ -65,7 +65,7 @@ public class ToolSpecPersistenceService implements
     private final DefaultToolsPreferenceResolver preferenceResolver;
 
     public ToolSpecPersistenceService(Path springAiPlaygroundHomeDir, ToolSpecService toolSpecService,
-            @Value("${spring.ai.playground.default-tool-location:}")
+            @Value("${spring.ai.playground.tool-studio.spec-location:}")
             String defaultToolSpecsLocation, ObjectMapper objectMapper, ResourceLoader resourceLoader,
             PersistenceExecutor persistenceExecutor,
             DefaultToolsPreferenceService preferenceService,

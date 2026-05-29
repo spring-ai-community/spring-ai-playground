@@ -115,13 +115,13 @@ public class ToolStudioView extends ContentWorkspaceView {
                         openToolSpecDialog(exportTitle, json)));
         getHeaderEndMenuBar().addItem(exportToolSpecButton);
 
-        String mcpTitle = "Tool MCP Server Setting";
+        String mcpTitle = "Built-in MCP Server Native Tools";
         this.toolMcpServerSettingView = new ToolMcpServerSettingView(
                 this.toolSpecService.getToolSpecList(),
                 this.toolSpecService.getToolMcpServerSetting(),
                 toolSpecPersistenceService, defaultToolPresetCatalog,
                 defaultToolsPreferenceResolver, toolCategoryCatalog);
-        this.mcpServerSettingsDrawer = installSettingsDrawer(VaadinIcon.TOOLBOX, mcpTitle, mcpTitle);
+        this.mcpServerSettingsDrawer = installSettingsDrawer(VaadinIcon.COG_O, mcpTitle, mcpTitle);
         this.mcpServerSettingsDrawer.setBody(this.toolMcpServerSettingView);
         this.mcpServerSettingsDrawer.setOnOpen(() -> this.toolMcpServerSettingView.update(
                 this.toolSpecService.getToolSpecList(),

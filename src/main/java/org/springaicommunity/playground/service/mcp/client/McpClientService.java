@@ -73,8 +73,6 @@ public class McpClientService {
 
     private static final Logger logger = LoggerFactory.getLogger(McpClientService.class);
 
-    public static final String SELF_LOOPBACK_SERVER_NAME = "spring-ai-playground-tool-mcp";
-
     public enum ServerStatus { OK, OFFLINE, ERROR, AWAITING_AUTHORIZATION, MISSING_CONFIG }
 
     public record StatusEntry(ServerStatus status, String error, String authorizationUrl,
@@ -122,11 +120,7 @@ public class McpClientService {
 
     private final Map<McpTransportType, McpClientPropertiesService<?>> typeMcpClientPropertiesServiceMap;
     private final BiFunction<NamedClientMcpTransport, Implementation, McpClientOps> mcpClientOpsBiFunction;
-    /**
-     * Keyed by transportType + ":" + serverName so updates that only change description / connection
-     * payload still resolve to the same live client. Using the full {@link McpServerInfo} record as
-     * the key would treat updated entries as different servers and leak the previous client.
-     */
+    // Keyed by transport:serverName so description/connection-only edits reuse the same live client.
     private final Map<String, McpClientOps> connectingMcpClientOpsMap;
 
     private final Map<String, StatusEntry> statusCache;
@@ -158,6 +152,17 @@ public class McpClientService {
                         info) : newAsync(namedClientMcpTransport, info);
         this.connectingMcpClientOpsMap = new ConcurrentHashMap<>();
         this.statusCache = new ConcurrentHashMap<>();
+    }
+
+    public String selfLoopbackServerName() {
+        McpServerInfoService infoService = this.mcpServerInfoServiceProvider.getIfAvailable();
+        McpServerInfo defaultInfo = infoService == null ? null : infoService.getDefaultMcpServerInfo();
+        return defaultInfo == null ? null : defaultInfo.serverName();
+    }
+
+    public boolean isSelfLoopback(String serverName) {
+        String self = selfLoopbackServerName();
+        return self != null && self.equalsIgnoreCase(serverName);
     }
 
     private McpSyncClientOps newSync(NamedClientMcpTransport namedClientMcpTransport, Implementation info) {

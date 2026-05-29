@@ -55,6 +55,14 @@ public class McpExposedToolService {
 
     // Offline servers' tools don't resolve to a callback, so they register later (re-apply or restart).
     public synchronized void sync() {
+        if (!this.toolSpecService.exposureMode().includesComposed()) {
+            Set<String> current = this.toolSpecService.getExternalMcpToolNames();
+            current.forEach(this.toolSpecService::removeExternalMcpTool);
+            if (!current.isEmpty()) this.toolSpecService.refreshDefaultMcpTool();
+            logger.info("Exposed-tool sync skipped (composed tools off by exposure mode); removed {} external tool(s)",
+                    current.size());
+            return;
+        }
         ToolCallback[] wrapped = this.compositionService.getExposed()
                 .map(this.compositionProvider::getToolCallbacksFor)
                 .orElseGet(() -> new ToolCallback[0]);
@@ -66,6 +74,7 @@ public class McpExposedToolService {
         Arrays.stream(wrapped)
                 .filter(callback -> !current.contains(callback.getToolDefinition().name()))
                 .forEach(this.toolSpecService::addExternalMcpTool);
+        this.toolSpecService.refreshDefaultMcpTool();
         logger.info("Exposed-tool sync complete: exposedToolCount={}", desired.size());
     }
 

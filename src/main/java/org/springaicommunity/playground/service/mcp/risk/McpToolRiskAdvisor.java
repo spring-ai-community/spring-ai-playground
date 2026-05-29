@@ -17,11 +17,11 @@ package org.springaicommunity.playground.service.mcp.risk;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springaicommunity.playground.SpringAiPlaygroundOptions;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.mcp.catalog.McpCatalogEntry;
 import org.springaicommunity.playground.service.mcp.catalog.McpCatalogService;
 import org.springaicommunity.playground.service.mcp.catalog.McpToolDescriptor;
-import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.service.tool.ToolManifest.Sandbox.RiskLevel;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
 import org.springframework.stereotype.Component;
@@ -41,11 +41,13 @@ public class McpToolRiskAdvisor {
     private final McpToolPoisoningScanner poisoningScanner;
     private final ObjectMapper objectMapper;
     private final ToolSpecService toolSpecService;
+    private final SpringAiPlaygroundOptions playgroundOptions;
 
     public McpToolRiskAdvisor(McpCatalogService catalogService, McpRiskInputsResolver inputsResolver,
             McpServerRiskCalculator serverCalc, McpToolPublishRiskCalculator publishCalc,
             McpToolRiskComposer composer, McpToolPoisoningScanner poisoningScanner,
-            ObjectMapper objectMapper, ToolSpecService toolSpecService) {
+            ObjectMapper objectMapper, ToolSpecService toolSpecService,
+            SpringAiPlaygroundOptions playgroundOptions) {
         this.catalogService = catalogService;
         this.inputsResolver = inputsResolver;
         this.serverCalc = serverCalc;
@@ -54,6 +56,7 @@ public class McpToolRiskAdvisor {
         this.poisoningScanner = poisoningScanner;
         this.objectMapper = objectMapper;
         this.toolSpecService = toolSpecService;
+        this.playgroundOptions = playgroundOptions;
     }
 
     public record ServerRiskView(RiskLevel level, Map<String, Integer> axisScores, String floorTrigger) {}
@@ -104,7 +107,7 @@ public class McpToolRiskAdvisor {
 
     public boolean isSelfBuiltin(McpServerInfo info) {
         return info != null
-                && McpClientService.SELF_LOOPBACK_SERVER_NAME.equalsIgnoreCase(info.serverName());
+                && this.playgroundOptions.builtInMcpServer().name().equalsIgnoreCase(info.serverName());
     }
 
     private JsonNode toSchemaNode(Map<String, Map<String, Object>> propertySchemas) {

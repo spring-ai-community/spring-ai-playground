@@ -20,6 +20,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springaicommunity.playground.SpringAiPlaygroundOptions;
 import org.springaicommunity.playground.service.PersistenceExecutor;
 import org.springaicommunity.playground.service.tool.ToolManifest.Sandbox.RiskLevel;
 
@@ -63,7 +64,8 @@ class McpCompositionServiceTest {
             }
             @Override public void onPoisoningHit(McpRiskEvents.PoisoningHit event) {}
         };
-        this.service = new McpCompositionService(persistence, new McpCompositionShadowingRules(), sink);
+        SpringAiPlaygroundOptions options = new SpringAiPlaygroundOptions(null, false, null, null, null, null);
+        this.service = new McpCompositionService(persistence, new McpCompositionShadowingRules(), sink, options);
     }
 
     @AfterEach

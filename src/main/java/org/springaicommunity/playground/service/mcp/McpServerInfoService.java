@@ -19,6 +19,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springaicommunity.playground.SpringAiPlaygroundOptions;
 import org.springaicommunity.playground.service.SharedDataReader;
 import org.springaicommunity.playground.service.mcp.catalog.McpCatalogEntry;
 import org.springaicommunity.playground.service.mcp.catalog.McpCatalogService;
@@ -60,6 +61,7 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
     private final ObjectProvider<McpServerInfoPersistenceService> mcpServerInfoPersistenceServiceProvider;
     private final McpClientRegistrationRepository mcpClientRegistrationRepository;
     private final String defaultMcpServerName;
+    private final String builtInServerDescription;
     private final boolean stdioServerMode;
     private final ThreadLocal<Boolean> skipPersist = ThreadLocal.withInitial(() -> Boolean.FALSE);
     private volatile boolean applicationReady = false;
@@ -69,19 +71,16 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
             McpClientService mcpClientService, McpCatalogService mcpCatalogService,
             ObjectProvider<McpServerInfoPersistenceService> mcpServerInfoPersistenceServiceProvider,
             McpClientRegistrationRepository mcpClientRegistrationRepository,
-            @Value("${server.port:8282}") int serverPort, McpServerProperties mcpServerProperties) {
+            @Value("${server.port:8282}") int serverPort, McpServerProperties mcpServerProperties,
+            SpringAiPlaygroundOptions playgroundOptions) {
         this.objectMapper = objectMapper;
         this.mcpClientService = mcpClientService;
         this.mcpCatalogService = mcpCatalogService;
         this.mcpServerInfoPersistenceServiceProvider = mcpServerInfoPersistenceServiceProvider;
         this.mcpClientRegistrationRepository = mcpClientRegistrationRepository;
-        this.defaultMcpServerName = mcpServerProperties.getName();
-        // When the embedded MCP server is configured for stdio transport, the
-        // app has no HTTP /mcp endpoint to introspect itself through. The
-        // default MCP server entry is still kept for UI display, but the
-        // self-connecting MCP client (`updateDefaultMcpTool`) must be a no-op
-        // in stdio mode — otherwise boot crashes with "Unknown media type:
-        // text/html" when the client hits the Vaadin index page instead.
+        this.defaultMcpServerName = playgroundOptions.builtInMcpServer().name();
+        this.builtInServerDescription = playgroundOptions.builtInMcpServer().description();
+        // Stdio transport has no HTTP /mcp to self-introspect; the loopback client must no-op (else boot crashes).
         this.stdioServerMode = mcpServerProperties.isStdio();
         this.typeMcpServerInfosMap = Arrays.stream(mcpClientPropertiesServices)
                 .collect(Collectors.toMap(McpClientPropertiesService::getTransportType,
@@ -128,16 +127,26 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
     private McpServerInfo buildDefaultMcpServerInfo(int serverPort) {
         return buildMcpServerInfo(McpTransportType.STREAMABLE_HTTP, this.defaultMcpServerName,
                 new McpStreamableHttpClientProperties.ConnectionParameters("http://127.0.0.1:" + serverPort,
-                        "/mcp"));
+                        "/mcp"), this.builtInServerDescription);
     }
 
     private McpServerInfo buildMcpServerInfo(McpTransportType transportType, String serverName, Object connection) {
+        return buildMcpServerInfo(transportType, serverName, connection, null);
+    }
+
+    private McpServerInfo buildMcpServerInfo(McpTransportType transportType, String serverName, Object connection,
+            String descriptionOverride) {
         try {
             long timestamp = System.currentTimeMillis();
             Optional<McpCatalogEntry> entry = this.mcpCatalogService.findByServerName(serverName);
-            String description = entry.map(McpCatalogEntry::description)
-                    .filter(d -> d != null && !d.isBlank())
-                    .orElse("[Default Connection] " + serverName);
+            String description;
+            if (descriptionOverride != null && !descriptionOverride.isBlank()) {
+                description = descriptionOverride;
+            } else {
+                description = entry.map(McpCatalogEntry::description)
+                        .filter(d -> d != null && !d.isBlank())
+                        .orElse("[Default Connection] " + serverName);
+            }
             String category = entry.map(McpCatalogEntry::category).orElse(McpServerInfo.DEFAULT_CATEGORY);
             Set<String> tags = entry.<Set<String>>map(McpCatalogEntry::tags).orElseGet(Set::of);
             return new McpServerInfo(transportType, serverName, description,
@@ -254,11 +263,6 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
     }
 
     public void updateDefaultMcpTool() {
-        // In stdio server mode the app exposes its tools over process stdio,
-        // not HTTP, so trying to start an MCP client against the local
-        // /mcp endpoint would either hit nothing or get the Vaadin HTML.
-        // Skipping the loopback-client setup avoids the misleading error log
-        // that the broader try/catch below would otherwise emit on every call.
         if (this.stdioServerMode || this.defaultMcpServerInfo == null) {
             return;
         }

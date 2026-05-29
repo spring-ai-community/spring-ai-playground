@@ -18,6 +18,7 @@ package org.springaicommunity.playground.service.mcp.risk;
 import org.junit.jupiter.api.Test;
 import org.springaicommunity.playground.service.tool.ToolManifest.Sandbox.RiskLevel;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
+import org.springaicommunity.playground.service.tool.ToolSpecService.ExposureMode;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.definition.ToolDefinition;
 
@@ -25,6 +26,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -50,6 +52,7 @@ class McpExposedToolServiceTest {
                 "", List.of(), true, RiskLevel.L5, 0L, 0L, 0L);
         ToolCallback freshTool = callback("x");
         ToolCallback alreadyExposed = callback("y");
+        when(toolSpecService.exposureMode()).thenReturn(ExposureMode.BOTH);
         when(compositionService.getExposed()).thenReturn(Optional.of(exposed));
         when(provider.getToolCallbacksFor(exposed)).thenReturn(new ToolCallback[]{freshTool, alreadyExposed});
         when(toolSpecService.getExternalMcpToolNames()).thenReturn(Set.of("y", "z"));
@@ -67,6 +70,7 @@ class McpExposedToolServiceTest {
         McpCompositionService compositionService = mock(McpCompositionService.class);
         McpCompositionToolCallbackProvider provider = mock(McpCompositionToolCallbackProvider.class);
         ToolSpecService toolSpecService = mock(ToolSpecService.class);
+        when(toolSpecService.exposureMode()).thenReturn(ExposureMode.BOTH);
         when(compositionService.getExposed()).thenReturn(Optional.empty());
         when(toolSpecService.getExternalMcpToolNames()).thenReturn(Set.of("a", "b"));
 
@@ -74,5 +78,21 @@ class McpExposedToolServiceTest {
 
         verify(toolSpecService).removeExternalMcpTool("a");
         verify(toolSpecService).removeExternalMcpTool("b");
+    }
+
+    @Test
+    void syncWithComposedDisabledRemovesAllExternalToolsAndSkipsProvider() {
+        McpCompositionService compositionService = mock(McpCompositionService.class);
+        McpCompositionToolCallbackProvider provider = mock(McpCompositionToolCallbackProvider.class);
+        ToolSpecService toolSpecService = mock(ToolSpecService.class);
+        when(toolSpecService.exposureMode()).thenReturn(ExposureMode.BUILTIN_ONLY);
+        when(toolSpecService.getExternalMcpToolNames()).thenReturn(Set.of("p", "q"));
+
+        new McpExposedToolService(compositionService, provider, toolSpecService).sync();
+
+        verify(toolSpecService).removeExternalMcpTool("p");
+        verify(toolSpecService).removeExternalMcpTool("q");
+        verify(provider, never()).getToolCallbacksFor(any());
+        verify(toolSpecService, never()).addExternalMcpTool(any());
     }
 }

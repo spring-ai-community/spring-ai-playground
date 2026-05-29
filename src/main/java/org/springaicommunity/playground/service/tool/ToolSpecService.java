@@ -70,7 +70,23 @@ import java.util.stream.Collectors;
 @Service
 public class ToolSpecService {
 
-    public record ToolMcpServerSetting(boolean autoAdd, Set<String> exposedToolIds) {}
+    public enum ExposureMode {
+        BUILTIN_ONLY, COMPOSED_ONLY, BOTH;
+
+        public boolean includesBuiltin() {
+            return this != COMPOSED_ONLY;
+        }
+
+        public boolean includesComposed() {
+            return this != BUILTIN_ONLY;
+        }
+    }
+
+    public record ToolMcpServerSetting(boolean autoAdd, Set<String> exposedToolIds) {
+        public ToolMcpServerSetting {
+            if (exposedToolIds == null) exposedToolIds = Set.of();
+        }
+    }
 
     private static final Logger logger = LoggerFactory.getLogger(ToolSpecService.class);
     private static final ParameterizedTypeReference<Map<String, Object>>
@@ -90,6 +106,7 @@ public class ToolSpecService {
     private final Set<String> externalMcpToolNames = ConcurrentHashMap.newKeySet();
 
     private ToolMcpServerSetting toolMcpServerSetting;
+    private volatile ExposureMode exposureMode;
 
     public ToolSpecService(ObjectProvider<McpSyncServer> syncServerProvider,
             ObjectProvider<McpAsyncServer> asyncServerProvider, McpServerInfoService mcpServerInfoService,
@@ -103,6 +120,7 @@ public class ToolSpecService {
         this.mcpServerInfoService = mcpServerInfoService;
         this.toolSpecPersistenceServiceProvider = toolSpecPersistenceServiceProvider;
         this.toolMcpServerSetting = new ToolMcpServerSetting(true, Set.of());
+        this.exposureMode = playgroundOptions.builtInMcpServer().exposureMode();
         this.toolIdSpecs = new ConcurrentHashMap<>();
         this.sandboxBaseline = playgroundOptions.toolStudio().jsSandbox();
         this.policyResolver = policyResolver;
@@ -239,6 +257,9 @@ public class ToolSpecService {
     }
 
     public void addMcpTool(ToolSpec toolSpec) {
+        if (!this.exposureMode.includesBuiltin()) {
+            return;
+        }
         logger.info("Adding MCP tool to server: name={}", toolSpec.name());
         if (Objects.nonNull(this.mcpSyncServer)) {
             this.mcpSyncServer.addTool(McpToolUtils.toSyncToolSpecification(toolSpec.toolCallback()));
@@ -360,11 +381,7 @@ public class ToolSpecService {
                 cid, toolName, level, caps, hosts,
                 overrideBase == null ? "-" : overrideBase, safeParams);
 
-        // Augment the in-flight Spring AI `spring.ai.tool` observation (if any)
-        // with sandbox attributes so the Observability dashboards can plot the
-        // sandbox tier of each call. Skipped when this runs outside a chat
-        // tool callback (e.g. Tool Studio Test Run) — no current observation,
-        // no observation orphan to clean up.
+        // Tag the in-flight spring.ai.tool observation with sandbox attrs (skipped outside a chat tool callback).
         Observation current = observationRegistry.getCurrentObservation();
         if (current != null) {
             current.lowCardinalityKeyValue("sandbox.level", level);
@@ -508,17 +525,39 @@ public class ToolSpecService {
         logger.info("Updating Tool MCP server setting: autoAdd={}, exposedToolCount={}",
                 toolMcpServerSetting.autoAdd(), toolMcpServerSetting.exposedToolIds().size());
         setToolMcpServerSetting(toolMcpServerSetting);
-        Set<String> toExposeToolNames =
-                toolMcpServerSetting.exposedToolIds().stream().map(toolIdSpecs::get).map(ToolSpec::name)
-                        .collect(Collectors.toSet());
-        Set<String> currentExposedToolNames =
-                getMcpToolList().stream().map(McpSchema.Tool::name).collect(Collectors.toSet());
-        currentExposedToolNames.stream().filter(name -> !toExposeToolNames.contains(name)).forEach(this::removeMcpTool);
-        toExposeToolNames.stream().filter(name -> !currentExposedToolNames.contains(name))
-                .map(name -> toolIdSpecs.values().stream().filter(spec -> name.equals(spec.name())).findFirst())
-                .flatMap(Optional::stream).forEach(this::addMcpTool);
-        logger.info("Tool MCP server setting updated: exposedToolNames={}", toExposeToolNames);
+        reconcileNativeExposure();
         persistAsync();
+    }
+
+    public ExposureMode exposureMode() {
+        return this.exposureMode;
+    }
+
+    public synchronized void setExposureMode(ExposureMode mode) {
+        ExposureMode next = mode == null ? ExposureMode.BOTH : mode;
+        if (this.exposureMode == next) return;
+        this.exposureMode = next;
+        reconcileNativeExposure();
+    }
+
+    public synchronized void reconcileNativeExposure() {
+        Set<String> desired = this.exposureMode.includesBuiltin()
+                ? this.toolMcpServerSetting.exposedToolIds().stream().map(this.toolIdSpecs::get)
+                        .filter(Objects::nonNull).map(ToolSpec::name).collect(Collectors.toSet())
+                : Set.of();
+        Set<String> external = getExternalMcpToolNames();
+        Set<String> currentNative = getMcpToolList().stream().map(McpSchema.Tool::name)
+                .filter(name -> !external.contains(name)).collect(Collectors.toSet());
+        currentNative.stream().filter(name -> !desired.contains(name)).forEach(this::removeMcpTool);
+        desired.stream().filter(name -> !currentNative.contains(name))
+                .map(name -> this.toolIdSpecs.values().stream().filter(spec -> name.equals(spec.name())).findFirst())
+                .flatMap(Optional::stream).forEach(this::addMcpTool);
+        refreshDefaultMcpTool();
+        logger.info("Native exposure reconciled: mode={}, exposedNativeCount={}", this.exposureMode, desired.size());
+    }
+
+    public void refreshDefaultMcpTool() {
+        this.mcpServerInfoService.updateDefaultMcpTool();
     }
 
     @EventListener(ContextClosedEvent.class)

@@ -79,7 +79,7 @@ import static org.springaicommunity.playground.webui.mcp.McpServerView.MCP_CONNE
 @NpmPackage(value = "ace-builds", version = "1.43.2")
 public class McpServerConfigView extends VerticalLayout {
 
-    /** Restricts server names to safe characters so they cannot escape the persistence directory. */
+    // Restrict to safe chars so a server name can't escape the persistence directory.
     private static final Pattern SAFE_SERVER_NAME = Pattern.compile("[A-Za-z0-9._-]+");
 
     private static final String HEADERS_KEY = "headers";
@@ -199,7 +199,6 @@ public class McpServerConfigView extends VerticalLayout {
         createdLabel.getStyle().set("font-size", "0.8em").set("color", "gray");
         updatedLabel.getStyle().set("font-size", "0.8em").set("color", "gray");
 
-        // Category: built-in defs + user-defined accepted via custom value.
         List<String> builtInIds = this.mcpCategoryService.getBuiltInCategories().stream()
                 .map(CategoryDef::id).toList();
         categoryField.setItems(builtInIds);
@@ -352,7 +351,7 @@ public class McpServerConfigView extends VerticalLayout {
     private void refreshRiskPreview() {
         riskPreviewPanel.setVisible(true);
         riskPreviewPanel.removeAll();
-        if (McpClientService.SELF_LOOPBACK_SERVER_NAME.equalsIgnoreCase(serverNameField.getValue())) {
+        if (this.mcpClientService.isSelfLoopback(serverNameField.getValue())) {
             lastPreviewedLevel = RiskLevel.L0;
             McpRiskChip chip = new McpRiskChip(RiskLevel.L0, null, "Server")
                     .withTooltip("Built-in MCP server — risk model bypassed (spec § 5.4)");
