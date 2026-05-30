@@ -5,13 +5,14 @@ description: How Spring AI Playground vets external MCP servers and the tools it
 
 [AI Agent Tool Safety](safety-architecture.md) covers the *inward* problem — keeping a locally-authored JavaScript tool from harming the host. **This page covers the *outward* problem** — how the playground vets the **external MCP servers it connects to** and the **upstream tools it re-exposes** on its own built-in server, before an agent can reach any of them.
 
-This is one of five architecture documents that complement each other:
+This is one of six architecture documents that complement each other:
 
-- [Application Architecture](architecture.md) — runtime layers, feature modules, data flows
-- [Safe Tool Specification 1.0](safe-tool-specification.md) — normative spec for *authoring* local tools
-- [AI Agent Tool Safety Architecture](safety-architecture.md) — the **sandbox** that contains locally-authored JS tools
+- [Application](architecture.md) — runtime layers, feature modules, data flows
+- [Safe Tool Specification](safe-tool-specification.md) — normative spec for *authoring* local tools
+- [AI Agent Tool Safety](safety-architecture.md) — the **sandbox** that contains locally-authored JS tools
 - **MCP Server Safety** (this page) — the **client-side risk model** for external servers and re-exposed tools
-- [AI Agent Observability Architecture](observability-architecture.md) — the visibility layer that makes prevention auditable
+- [Human-in-the-Loop Approval](hitl-architecture.md) — the runtime per-call approval gate that honors the per-tool HITL flag
+- [AI Agent Observability](observability-architecture.md) — the visibility layer that makes prevention auditable
 
 The engine lives in [`service/mcp/risk`](https://github.com/spring-ai-community/spring-ai-playground/tree/main/src/main/java/org/springaicommunity/playground/service/mcp/risk); its decisions surface as a colored **risk chip** wherever an external server or tool appears, and as structured events for the audit trail.
 
@@ -133,7 +134,7 @@ Three tool **floor overrides**: an irreversible verb in the tool name (`delete_`
 
 ## Composed risk and HITL mitigation { #composed-risk }
 
-When an upstream tool is re-exposed on the built-in server, [`McpToolRiskComposer`](https://github.com/spring-ai-community/spring-ai-playground/blob/main/src/main/java/org/springaicommunity/playground/service/mcp/risk/McpToolRiskComposer.java) combines the two scores: if either side tripped a floor, the composed level is the **higher** of the two; otherwise the axis totals add and re-bucket. Marking the exposed tool **HITL** (require human approval) then lowers the effective level by **one band** (`applyHitlMitigation`, floored at L1) — a risk-accounting reflection that a human gates each call. The flag is persisted on the exposed member; the runtime approval gate itself is the MCP-elicitation checkpoint described in [AI Agent Tool Safety → Human-in-the-loop checkpoints](safety-architecture.md#human-in-the-loop-checkpoints) (shipping next), which honors the same flag.
+When an upstream tool is re-exposed on the built-in server, [`McpToolRiskComposer`](https://github.com/spring-ai-community/spring-ai-playground/blob/main/src/main/java/org/springaicommunity/playground/service/mcp/risk/McpToolRiskComposer.java) combines the two scores: if either side tripped a floor, the composed level is the **higher** of the two; otherwise the axis totals add and re-bucket. Marking the exposed tool **HITL** (require human approval) then lowers the effective level by **one band** (`applyHitlMitigation`, floored at L1) — a risk-accounting reflection that a human gates each call. The flag is persisted on the exposed member; the runtime approval gate itself is the MCP-elicitation checkpoint described in [Human-in-the-Loop Approval](hitl-architecture.md), which honors the same flag.
 
 This is why exposing `read_wiki_structure` with HITL shows `L1 — Safe` with a `HITL −1` annotation while its un-gated siblings stay `L2 — Low`:
 
@@ -150,13 +151,13 @@ Re-exposing an upstream tool does not copy it — it **wraps** it in a [`Wrapped
 | **Logging & tracing** | Emits `mcp.tool.start` / `mcp.tool.done` / `mcp.tool.crash` with call duration on every invocation |
 | **Risk MDC context** | Pushes `mcp.cid`, `mcp.origin`, `mcp.composition.*`, `mcp.upstream.*`, `mcp.risk.*`, and `mcp.risk.floor_trigger` for the duration of the call — so a chat tool call traces back to its upstream origin and computed risk (see [Observability → MCP Servers](features/observability/ai-stack/mcp-servers.md)) |
 | **Secret masking** | Redacts upstream connection secrets from error messages before they reach logs or chat |
-| **HITL gate (intent)** | Records the per-tool human-approval flag; the runtime [elicitation gate](safety-architecture.md#human-in-the-loop-checkpoints) (shipping next) honors it |
+| **HITL gate** | Records the per-tool human-approval flag; the runtime [elicitation gate](hitl-architecture.md#server-gate) honors it |
 
 This is what makes *"any-language MCP server → wrap → safe"* concrete: a tool you did not author and cannot inspect becomes one that is identified, risk-rated, approval-gated, logged, traced, and secret-masked at the boundary — without touching the upstream implementation.
 
 ## Tool-description poisoning scan { #poisoning-scan }
 
-A tool description is attacker-controlled text that the model reads as instructions. [`McpToolPoisoningScanner`](https://github.com/spring-ai-community/spring-ai-playground/blob/main/src/main/java/org/springaicommunity/playground/service/mcp/risk/McpToolPoisoningScanner.java) scans every name and description for nine injection signatures; any hit makes `shouldBlockPublish()` true and emits a `PoisoningHit` event.
+A tool description is attacker-controlled text that the model reads as instructions. [`McpToolPoisoningScanner`](https://github.com/spring-ai-community/spring-ai-playground/blob/main/src/main/java/org/springaicommunity/playground/service/mcp/risk/McpToolPoisoningScanner.java) scans every name and description for nine injection signatures. A hit surfaces a **poisoning warning chip** on the tool in the MCP Inspector and the Expose Tools drawer, so a tampered description is visible before you re-expose it. (The scanner exposes a `shouldBlockPublish()` helper, but the current runtime treats the scan as advisory — it warns rather than hard-blocking, and emits no separate risk-signal event for a hit.)
 
 | Pattern | Catches |
 |---|---|
@@ -172,7 +173,7 @@ A tool description is attacker-controlled text that the model reads as instructi
 
 ## Tool fingerprint ledger — change detection { #fingerprint-ledger }
 
-[`McpToolHashLedger`](https://github.com/spring-ai-community/spring-ai-playground/blob/main/src/main/java/org/springaicommunity/playground/service/mcp/risk/McpToolHashLedger.java) stores a SHA-256 of each tool's canonical content (name + description + input schema + annotations). A re-check returns `NEW` (first sight), `UNCHANGED` (hash matches), or `MISMATCH` — a silently redefined upstream tool flips the fingerprint status to `AWAITING_REREVIEW` and emits `HashLedgerMismatch`, so a "rug-pull" redefinition cannot ride in on a prior approval. Fingerprint lifecycle states are `ACTIVE` / `AWAITING_REREVIEW` / `REVOKED`.
+[`McpToolHashLedger`](https://github.com/spring-ai-community/spring-ai-playground/blob/main/src/main/java/org/springaicommunity/playground/service/mcp/risk/McpToolHashLedger.java) stores a SHA-256 of each tool's canonical content (name + description + input schema; the live composition path does not include upstream annotations, so an annotation-only redefinition is a known blind spot). A re-check returns `NEW` (first sight), `UNCHANGED` (hash matches), or `MISMATCH` — a silently redefined upstream tool flips the fingerprint status to `AWAITING_REREVIEW` and emits `HashLedgerMismatch`, so a "rug-pull" redefinition cannot ride in on a prior approval. Fingerprint lifecycle states are `ACTIVE` / `AWAITING_REREVIEW` / `REVOKED`.
 
 ## Composition shadowing rules { #shadowing-rules }
 
@@ -193,7 +194,7 @@ Before a composition is enabled, [`McpCompositionShadowingRules`](https://github
 
 ## Further reading
 
-- [AI Agent Tool Safety Architecture](safety-architecture.md) — the sandbox that contains locally-authored JS tools (the inward counterpart to this page)
+- [AI Agent Tool Safety](safety-architecture.md) — the sandbox that contains locally-authored JS tools (the inward counterpart to this page)
 - [MCP Server feature guide](features/mcp-server/index.md) — the screens this model drives
 - [Default MCP Servers → How catalog trust feeds the risk score](features/default-mcp-catalog/index.md#trust-and-risk)
-- [AI Agent Observability Architecture](observability-architecture.md) — how risk-tagged tool calls become auditable
+- [AI Agent Observability](observability-architecture.md) — how risk-tagged tool calls become auditable

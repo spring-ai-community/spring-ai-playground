@@ -3,6 +3,8 @@ description: Twelve in-app dashboards that surface what a Spring AI Playground a
 
 # Observability
 
+**Where:** top navigation → **Observability**.
+
 The observability layer is the **visibility arm** of Spring AI Playground's safety model — the user-facing surface that answers *what the agent did, in what order, against which integration, at what cost*. Where the [sandbox](../../safety-architecture.md) prevents unsafe actions at the call boundary, this layer captures every action that did happen and presents it through **twelve dashboards** in the desktop app.
 
 The pages under this section document the user surface. For the trace pipeline, storage tiers, configuration, and external export paths, see [AI Agent Observability Architecture](../../observability-architecture.md).
@@ -135,7 +137,7 @@ So clicking through MCP Inspector primitives, running a Tool Studio test, or upl
 
     ---
 
-    Single-page summary of every other dashboard's headline number — eight KPI cards, sixteen charts across five sections, recent activity grid.
+    Single-page summary of every other dashboard's headline number — eight KPI cards, fifteen charts across six sections, recent activity grid.
 
 -   :material-cash-multiple:{ .lg .middle } **[AI Usage](ai-usage/index.md)**
 

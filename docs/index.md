@@ -24,18 +24,19 @@ Unlike many playgrounds that stop at prompt testing, this project connects AI co
 - connect external surfaces in one click with **57 preset MCP server connections** (Gmail · Outlook · Notion · Slack · GitHub · Linear · Atlassian · Stripe · Figma · BigQuery · Cloudflare · Tavily · MCP Everything · …) — same spotlight section below covers the full per-category browse
 - validate retrieval pipelines against your own documents
 - run agentic chat that combines tool use and grounded context (e.g. *"Get today's weather and send it to Slack"*)
-- run every tool through a **defense-in-depth GraalVM sandbox** with a deny-first class allowlist, SSRF-guarded `fetch`, rooted `safety.fs`, statement + wall-clock limits, and a visible per-tool **Risk Level** (L0–L5) — see [AI Agent Tool Safety Architecture](safety-architecture.md)
+- run every tool through a **defense-in-depth GraalVM sandbox** with a deny-first class allowlist, SSRF-guarded `fetch`, rooted `safety.fs`, statement + wall-clock limits, and a visible per-tool **Risk Level** (L0–L5) — with a parallel **risk score** scoring every external MCP server you connect (and a description poisoning scan on tools you re-expose) — see [AI Agent Tool Safety Architecture](safety-architecture.md)
 - **see every chat, tool call, vector query, and MCP invocation** in the twelve built-in [Observability dashboards](features/observability/index.md) — drill into span timelines, jump back to the source conversation, watch token cost and latency live, deep-link from a trace into Agentic Chat
 
 <div style="text-align: center;">
-  <b>Agentic Chat Demo</b><br/>
-  Tool-enabled agentic AI built with Spring AI and MCP
+  <b>Spring AI Playground — Demo</b><br/>
+  Connect an MCP server · compose a safe proxy · human-in-the-loop approval · full observability
 </div>
 
 <div style="text-align: center;">
-  <a href="assets/images/agentic-chat-demo.gif">
-    <img src="assets/images/agentic-chat-demo.gif" width="800" alt="Spring AI Playground Agentic Chat Demo"/>
-  </a>
+  <video src="assets/images/spring-ai-playground-demo.mp4" width="820" autoplay loop muted playsinline controls
+         poster="assets/images/spring-ai-playground-demo-poster.png">
+    <a href="assets/images/spring-ai-playground-demo.mp4">Watch the demo</a>
+  </video>
 </div>
 
 ## :material-rocket-launch: Quick Start
@@ -377,21 +378,21 @@ Installing an external MCP server normally means cloning a repo, installing the 
 <a class="tcg-stretched-link" href="features/default-tools/examples/#getWeather" aria-label="Open getWeather"></a>
 <span class="tcg-home-icon">:material-weather-partly-cloudy:</span>
 <span class="tcg-home-name">getWeather</span>
-<span class="tcg-home-pill risk-l0">L0</span>
+<span class="tcg-home-pill risk-l3">L3</span>
 </div>
 
 <div class="tcg-card--home" markdown>
 <a class="tcg-stretched-link" href="features/default-tools/global/#searchWikipedia" aria-label="Open searchWikipedia"></a>
 <span class="tcg-home-icon">:material-book-search-outline:</span>
 <span class="tcg-home-name">searchWikipedia</span>
-<span class="tcg-home-pill risk-l0">L0</span>
+<span class="tcg-home-pill risk-l3">L3</span>
 </div>
 
 <div class="tcg-card--home" markdown>
 <a class="tcg-stretched-link" href="features/default-tools/examples/#extractPageContent" aria-label="Open extractPageContent"></a>
 <span class="tcg-home-icon">:material-text-box-search-outline:</span>
 <span class="tcg-home-name">extractPageContent</span>
-<span class="tcg-home-pill risk-l0">L0</span>
+<span class="tcg-home-pill risk-l3">L3</span>
 </div>
 
 <div class="tcg-card--home" markdown>
@@ -432,7 +433,7 @@ Installing an external MCP server normally means cloning a repo, installing the 
 
 <div class="tcg-card--home t-slack" markdown>
 <a class="tcg-stretched-link" href="features/default-mcp-catalog/productivity/#Slack" aria-label="Open Slack"></a>
-<span class="tcg-home-icon">![Slack](https://cdn.simpleicons.org/slack){ width="20" }</span>
+<span class="tcg-home-icon">:material-slack:</span>
 <span class="tcg-home-name">Slack</span>
 <span class="tcg-home-oauth" title="OAuth 2.1">🔐</span>
 </div>
@@ -474,8 +475,8 @@ Installing an external MCP server normally means cloning a repo, installing the 
 
 - [:material-robot-outline: AI Models](getting-started/index.md#model-configuration): switch between Ollama, OpenAI, and OpenAI-compatible runtime paths.
 - [:material-tools: Tool Studio](features/tool-studio/index.md): build low-code tools in JavaScript and expose them instantly through MCP.
-- [:material-connection: MCP Server](features/mcp-server/index.md): inspect external MCP servers and consume built-in MCP tools.
-- [:material-server-network: Default MCP Catalog](features/default-mcp-catalog/index.md): 49 preset external MCP server connections (Gmail, Notion, Slack, GitHub, Tavily, ...) gated on `${ENV_VAR}` placeholders.
+- [:material-connection: MCP Server](features/mcp-server/index.md): inspect external MCP servers, read a live **risk score** (L0–L5) before connecting, and **proxy** their tools onto the built-in server — compose multiple servers into one surface — each gated by per-tool human-in-the-loop.
+- [:material-server-network: Default MCP Servers](features/default-mcp-catalog/index.md): 57 preset external MCP server connections (Gmail, Notion, Slack, GitHub, Tavily, ...) gated on `${ENV_VAR}` placeholders.
 - [:material-database-search: RAG](features/vector-database.md): upload content, chunk it, embed it, index it, and validate retrieval quality.
 - [:material-chat-processing: Agentic Chat](features/agentic-chat.md): combine grounded context, built-in tools, and explicitly trusted MCP connections in one interaction flow.
 - [:material-chart-line: Observability](features/observability/index.md): twelve in-app dashboards covering token economics, tool and MCP behaviour, RAG quality, host runtime, and a live trace tail.

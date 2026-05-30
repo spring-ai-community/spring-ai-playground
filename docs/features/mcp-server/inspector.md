@@ -2,6 +2,8 @@ description: MCP Inspector — what each MCP primitive is (Model Context Protoco
 
 # MCP Inspector
 
+**Where:** top navigation → **MCP Server** → select an active connection → the **MCP Inspector** pane.
+
 The MCP **Inspector** is the right-hand pane of the MCP Server screen for an *active* connection. It exposes every primitive the connected server speaks — and every client primitive the server can call back into — as a per-card surface you can drive in isolation from chat.
 
 There are **eight primitives** in the [Model Context Protocol specification](https://spec.modelcontextprotocol.io/) that this Inspector covers, split by *direction*:
@@ -14,7 +16,7 @@ There are **eight primitives** in the [Model Context Protocol specification](htt
 Spring AI's MCP support exposes both sides through `spring-ai-starter-mcp-client` (which the playground uses to talk to every active connection) and `spring-ai-starter-mcp-server` (which the playground itself implements as the built-in MCP server). The Inspector is a thin Vaadin Flow surface around the **client** half — it consumes server primitives, and it answers the inverted ones.
 
 !!! tip "Want to see every primitive light up at once?"
-    Activate the **MCP Everything** catalog row — it's the official MCP working group's reference test server, and it intentionally implements every primitive listed below. See [Default MCP Catalog → Examples → MCP-Everything](../default-mcp-catalog/examples.md#MCP-Everything) for the activation spec, per-OS command, Docker alternative, and a one-tool-per-tab walkthrough.
+    Activate the **MCP Everything** catalog row — it's the official MCP working group's reference test server, and it intentionally implements every primitive listed below. See [Default MCP Servers → Examples → MCP-Everything](../default-mcp-catalog/examples.md#MCP-Everything) for the activation spec, per-OS command, Docker alternative, and a one-tool-per-tab walkthrough.
 
 ## Server primitives
 
@@ -22,11 +24,17 @@ Spring AI's MCP support exposes both sides through `spring-ai-starter-mcp-client
 
 **What it is** — In the MCP spec, a tool is a callable function the server publishes. Each tool has a stable `name`, an optional human-readable `displayTitle`, a model-facing `description`, an input schema (JSON Schema), an optional output schema, and a set of declarative `annotations` (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`). The client discovers the set with `tools/list` and invokes one with `tools/call`. Spring AI's `McpSyncClient` (or `McpAsyncClient`) is the Java entry point; the playground holds one per active connection inside `McpClientService`.
 
-**How the playground surfaces it** — `webui/mcp/inspector/primitives/server/ToolPrimitive.java` renders each tool the server returns from `tools/list` as a full-width card. The card lays out the **Run** action button, the display title (with the raw `tool.name` as a sub-label when `displayTitle` differs), badges for every annotation the server declared, the model-facing description, and an **inputs panel** built per the tool's JSON-Schema property map — `InspectorHelpers` picks the right Vaadin control per JSON-Schema `type` (boolean → checkbox, number → number field, array/object → JSON editor, enum → dropdown, string → text field with format-aware placeholder). Clicking **Run** calls `McpClientService.callTool(serverInfo, name, args)` through the live transport — not a sandbox — and the result lands inline via `InlineResultPanel` (OK / ERROR badge · elapsed ms · ISO timestamp · REQUEST / RESPONSE blocks · Raw toggle to the JSON-RPC envelope · Copy · dismiss).
+**How the playground surfaces it** — `webui/mcp/inspector/primitives/server/ToolPrimitive.java` renders each tool the server returns from `tools/list` as a full-width card. The card lays out the **Run** action button, the display title (with the raw `tool.name` as a sub-label when `displayTitle` differs), a **risk chip** scoring the tool on the [MCP risk rubric](../../mcp-server-safety.md) (`L0`–`L5`, e.g. `L2 — Low`), badges for every annotation the server declared, the model-facing description, and an **inputs panel** built per the tool's JSON-Schema property map — `InspectorHelpers` picks the right Vaadin control per JSON-Schema `type` (boolean → checkbox, number → number field, array/object → JSON editor, enum → dropdown, string → text field with format-aware placeholder). Clicking **Run** calls `McpClientService.callTool(serverInfo, name, args)` through the live transport — not a sandbox — and the result lands inline via `InlineResultPanel` (OK / ERROR badge · elapsed ms · ISO timestamp · REQUEST / RESPONSE blocks · Raw toggle to the JSON-RPC envelope · Copy · dismiss).
 
 ![Excerpt of the Tools tab on MCP Everything — first card "Echo Tool" with its message input row, second card "Get Annotated Message Tool" with messageType Select and includeImage checkbox showing how JSON-Schema-typed inputs render](../../assets/images/mcp-inspector/inspector-01-tools.png)
 
 *Tools tab — Echo card on top (`message` input) and Get Annotated Message just below (Select for `messageType`, checkbox for `includeImage`). Each card is `ToolPrimitive` rendering one entry from `tools/list`. The full per-tool walkthrough lives on the [MCP Everything page](../default-mcp-catalog/examples.md#MCP-Everything).*
+
+Every card also carries its own **risk chip** next to the tool name. On the DeepWiki connection, both read tools score `L2 — Low`:
+
+![Tools tab on the DeepWiki connection — read_wiki_structure and read_wiki_contents each carry a green L2 — Low risk chip beside the tool name, above their repoName parameter row](../../assets/images/mcp-server/inspector-tools-risk.png){ loading=lazy }
+
+*The per-tool chip is the [MCP tool risk](../../mcp-server-safety.md#tool-risk) level, scored independently of the server. The same upstream tool re-exposed on the built-in server shows `L0 — Verified` instead, since the built-in self-loopback server bypasses the risk model.*
 
 ### Resources { #resources }
 
@@ -106,4 +114,4 @@ These three are **inverted**: the server initiates the call and the playground (
 
 Every per-primitive card — `ToolPrimitive`, `ResourcePrimitive`, `PromptPrimitive`, `PingCard`, `SamplingRequestPrimitive`, `ElicitationRequestPrimitive`, `RootPrimitive` — applies `PrimitiveCardLayout.applyCardStyle` and uses `PrimitiveCardLayout.titleRow` for the icon + title + action-button header. Result panels are all `InlineResultPanel`. That consistency is intentional — once you understand how one card behaves, every other tab works the same way: title row → optional badges → description → typed inputs → action → inline result. The eight tabs differ only in which primitive they exercise.
 
-Hands-on walkthrough against a server that implements all eight primitives: [Default MCP Catalog → Examples → MCP-Everything](../default-mcp-catalog/examples.md#MCP-Everything).
+Hands-on walkthrough against a server that implements all eight primitives: [Default MCP Servers → Examples → MCP-Everything](../default-mcp-catalog/examples.md#MCP-Everything).

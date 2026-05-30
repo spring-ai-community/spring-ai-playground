@@ -1,5 +1,5 @@
 title: Overview
-description: The Observability landing dashboard — eight KPI cards, sixteen charts across five sections (LLM · Tokens & Cost · Tools/MCP · Vector/RAG · System · Logs), and a live activity grid. The single page that summarises every other tab's headline number.
+description: The Observability landing dashboard — eight KPI cards, fifteen charts across six sections (LLM · Tokens & Cost · Tools/MCP · Vector/RAG · System · Logs), and a live activity grid. The single page that summarises every other tab's headline number.
 
 # Overview
 
@@ -37,7 +37,7 @@ Each headline metric carries a 60-sample sparkline showing the trend:
 | Process CPU | Current process CPU percentage (live gauge) | `MeterRegistry` `process.cpu.usage` |
 | Active LLM ops | Number of in-flight Spring AI operations | `MeterRegistry` `LongTaskTimer` active counts (ChatClient + Advisor + Vector store) |
 
-## Charts — five sections, sixteen charts
+## Charts — six sections, fifteen charts
 
 Each section maps to one dedicated tab.
 
@@ -54,7 +54,6 @@ Each section maps to one dedicated tab.
 
 | Chart | Type | Reading |
 |---|---|---|
-| Cost over time | Area, per-minute USD | Sharp upward step → expensive model invoked unexpectedly |
 | Tokens (input + output) | Stacked bar, 2-series | Disproportionate output → verbose model; disproportionate input → context-stuffing |
 
 ### Tools / MCP section → [Tool Studio](ai-stack/tool-studio.md) · [MCP Servers](ai-stack/mcp-servers.md)
@@ -99,7 +98,7 @@ The bottom of the page is a grid of the **most recent 10 traces**, refreshed in 
 | Model | `TraceRecord.model` (from `gen_ai.response.model` or `gen_ai.request.model`) |
 | In / Out | Input and output tokens, slash-separated |
 | Duration | `TraceRecord.durationMs`, human-formatted |
-| Status | OK / ERROR / TIMEOUT / CANCELLED |
+| Status | OK / ERROR / CANCELLED |
 
 **Click any row → opens the Trace Detail dialog.** This is the fastest path from "something looks off in the overview" to the full span timeline. The same dialog is reachable from the [Traces](runtime/traces.md) tab.
 

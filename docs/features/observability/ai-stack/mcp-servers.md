@@ -5,7 +5,7 @@ description: External MCP server health and traffic — latency by transport, OA
 
 ![MCP Servers dashboard — sections labelled SERVERS — VOLUME & QUALITY and OAUTH STATE; six KPI cards on the volume row (MCP servers, Servers up, MCP tool calls, Distinct tools, p95 latency, Error rate), four KPI cards in the OAuth row (OAuth authorized, OAuth awaiting, OAuth errored/offline, OAuth expiring <5 min), and the MCP calls / minute stacked-by-transport chart](../../../assets/images/observability/mcp-servers-full.png)
 
-*MCP Servers — `Servers up 1 / 1` and `OAuth authorized 1` reflect the built-in `spring-ai-playground-tool-mcp` server registered over streamable-http. Tool-call volume bars surface as soon as an external MCP catalog entry is activated and the agent reaches a tool through it.*
+*MCP Servers — `Servers up 1 / 1` and `OAuth authorized 1` reflect the built-in `spring-ai-playground-built-in-mcp` server registered over streamable-http. Tool-call volume bars surface as soon as an external MCP catalog entry is activated and the agent reaches a tool through it.*
 
 **Purpose** — external MCP server health and traffic. Latency by transport, OAuth state across servers, lifecycle events.
 
@@ -20,6 +20,8 @@ description: External MCP server health and traffic — latency by transport, OA
 ## Span filter
 
 `spring.ai.tool` spans where `mcp.transport` is present and not `in-process`.
+
+Each such span is enriched by `McpToolObservationFilter` with **risk and composition dimensions** lifted from the call's MDC context: `mcp.origin` (`internal_js` / `wrapped_external`), `mcp.composition.id` / `.name`, `mcp.tool.exposed_alias`, `mcp.upstream.server` / `.tool` / `.transport`, the three risk levels `mcp.risk.final` / `.server` / `.publish`, and `mcp.risk.floor_trigger` when a floor rule tripped. So a tool re-exposed through [composition](../../mcp-server/index.md#expose-external-tools) is traceable back to its upstream server and its computed risk — not just its exposed alias.
 
 ## Controls
 

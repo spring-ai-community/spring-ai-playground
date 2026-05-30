@@ -1,6 +1,6 @@
-description: Default MCP Catalog — Productivity & Communication reference: 8 preset MCP connections with transport, auth, required env, and full description per card.
+description: Default MCP Servers — Productivity & Communication reference: 8 preset MCP connections with transport, auth, required env, and full description per card.
 
-# Default MCP Catalog — Productivity & Communication
+# Default MCP Servers — Productivity & Communication
 
 Email, calendar, notes, chat, team messaging — the surfaces an agent most often reaches into on behalf of a user. Every entry is a vendor-official remote MCP server and uses OAuth 2.1 Authorization Code; the Microsoft entries route through Microsoft 365 Agent365 and need `MS_TENANT_ID` set as an OS environment variable before connect.
 
@@ -24,7 +24,7 @@ Read, search, and send Gmail messages, manage labels and drafts. Google Workspac
 <div class="tcg-cta">Click for transport · auth · required env · description · docs</div>
 <div class="tcg-detail-template" hidden markdown>
 
-**Vendor** — Google (vendor-official (Tier 1))
+**Vendor** — Google (vendor-official)
 
 **Transport** — Streamable HTTP
 
@@ -33,17 +33,31 @@ Read, search, and send Gmail messages, manage labels and drafts. Google Workspac
 **Auth** — OAuth 2.1
 
 **OAuth 2.1** — runs the [Authorization Code flow](../mcp-server/index.md#oauth-21-authorization-code) on Save & Connect → **Authorize**.
+
 **Stability** — PREVIEW · **Tier** — Tier 1
 
 **Required env** — —
 
 **Tags** — global · preview
 
+**Tools** — 10 tools published by the vendor (per its [MCP docs](https://developers.google.com/workspace/guides/configure-mcp-servers)); no static per-tool levels — the live set varies by plan / scopes / release, so confirm it and the recomputed levels on the [Inspector](../mcp-server/inspector.md#tools):
+
+??? note "Tools (10) — search_threads · get_thread · create_draft · list_drafts · create_label · list_labels · label_message · label_thread · unlabel_message · unlabel_thread"
+    - `search_threads`
+    - `get_thread`
+    - `create_draft`
+    - `list_drafts`
+    - `create_label`
+    - `list_labels`
+    - `label_message`
+    - `label_thread`
+    - `unlabel_message`
+    - `unlabel_thread`
+
 **Description**
 
 Read, search, and send Gmail messages, manage labels and drafts. Google Workspace MCP (Preview).
 
-Docs: https://developers.google.com/workspace/guides/configure-mcp-servers
 
 **Docs** — [https://developers.google.com/workspace/guides/configure-mcp-servers](https://developers.google.com/workspace/guides/configure-mcp-servers)
 
@@ -64,7 +78,7 @@ Read, send, and organise Outlook mail across folders. Routed through Microsoft 3
 <div class="tcg-cta">Click for transport · auth · required env · description · docs</div>
 <div class="tcg-detail-template" hidden markdown>
 
-**Vendor** — Microsoft (vendor-official (Tier 1))
+**Vendor** — Microsoft (vendor-official)
 
 **Transport** — Streamable HTTP
 
@@ -73,17 +87,31 @@ Read, send, and organise Outlook mail across folders. Routed through Microsoft 3
 **Auth** — OAuth 2.1
 
 **OAuth 2.1** — runs the [Authorization Code flow](../mcp-server/index.md#oauth-21-authorization-code) on Save & Connect → **Authorize**.
+
 **Stability** — GA · **Tier** — Tier 1
 
 **Required env** — `MS_TENANT_ID`
 
 **Tags** — global
 
+**Tools** — 10 tools published by the vendor (per its [MCP docs](https://learn.microsoft.com/en-us/microsoft-agent-365/mcp-server-reference/mail)); no static per-tool levels — the live set varies by plan / scopes / release, so confirm it and the recomputed levels on the [Inspector](../mcp-server/inspector.md#tools):
+
+??? note "Tools (10) — mcp_MailTools_graph_mail_searchMessages · mcp_MailTools_graph_mail_getMessage · mcp_MailTools_graph_mail_createMessage · mcp_MailTools_graph_mail_sendMail · mcp_MailTools_graph_mail_sendDraft · mcp_MailTools_graph_mail_reply · mcp_MailTools_graph_mail_replyAll · mcp_MailTools_graph_mail_updateMessage · mcp_MailTools_graph_mail_deleteMessage · mcp_MailTools_graph_mail_listSent"
+    - `mcp_MailTools_graph_mail_searchMessages`
+    - `mcp_MailTools_graph_mail_getMessage`
+    - `mcp_MailTools_graph_mail_createMessage`
+    - `mcp_MailTools_graph_mail_sendMail`
+    - `mcp_MailTools_graph_mail_sendDraft`
+    - `mcp_MailTools_graph_mail_reply`
+    - `mcp_MailTools_graph_mail_replyAll`
+    - `mcp_MailTools_graph_mail_updateMessage`
+    - `mcp_MailTools_graph_mail_deleteMessage`
+    - `mcp_MailTools_graph_mail_listSent`
+
 **Description**
 
 Read, send, and organise Outlook mail across folders. Routed through Microsoft 365 Agent365 — requires your tenant ID (MS_TENANT_ID).
 
-Docs: https://github.com/microsoft/mcp
 
 **Docs** — [https://github.com/microsoft/mcp](https://github.com/microsoft/mcp)
 
@@ -104,7 +132,7 @@ Create, list, and manage Google Calendar events, attendees, reminders, and recur
 <div class="tcg-cta">Click for transport · auth · required env · description · docs</div>
 <div class="tcg-detail-template" hidden markdown>
 
-**Vendor** — Google (vendor-official (Tier 1))
+**Vendor** — Google (vendor-official)
 
 **Transport** — Streamable HTTP
 
@@ -113,17 +141,29 @@ Create, list, and manage Google Calendar events, attendees, reminders, and recur
 **Auth** — OAuth 2.1
 
 **OAuth 2.1** — runs the [Authorization Code flow](../mcp-server/index.md#oauth-21-authorization-code) on Save & Connect → **Authorize**.
+
 **Stability** — PREVIEW · **Tier** — Tier 1
 
 **Required env** — —
 
 **Tags** — global · preview
 
+**Tools** — 8 tools published by the vendor (per its [MCP docs](https://developers.google.com/workspace/guides/configure-mcp-servers)); no static per-tool levels — the live set varies by plan / scopes / release, so confirm it and the recomputed levels on the [Inspector](../mcp-server/inspector.md#tools):
+
+??? note "Tools (8) — list_calendars · list_events · get_event · create_event · update_event · delete_event · respond_to_event · suggest_time"
+    - `list_calendars`
+    - `list_events`
+    - `get_event`
+    - `create_event`
+    - `update_event`
+    - `delete_event`
+    - `respond_to_event`
+    - `suggest_time`
+
 **Description**
 
 Create, list, and manage Google Calendar events, attendees, reminders, and recurring schedules. Google Workspace MCP (Preview).
 
-Docs: https://developers.google.com/workspace/guides/configure-mcp-servers
 
 **Docs** — [https://developers.google.com/workspace/guides/configure-mcp-servers](https://developers.google.com/workspace/guides/configure-mcp-servers)
 
@@ -144,7 +184,7 @@ Browse Outlook calendars, schedule and update meetings, manage availability via 
 <div class="tcg-cta">Click for transport · auth · required env · description · docs</div>
 <div class="tcg-detail-template" hidden markdown>
 
-**Vendor** — Microsoft (vendor-official (Tier 1))
+**Vendor** — Microsoft (vendor-official)
 
 **Transport** — Streamable HTTP
 
@@ -153,17 +193,32 @@ Browse Outlook calendars, schedule and update meetings, manage availability via 
 **Auth** — OAuth 2.1
 
 **OAuth 2.1** — runs the [Authorization Code flow](../mcp-server/index.md#oauth-21-authorization-code) on Save & Connect → **Authorize**.
+
 **Stability** — GA · **Tier** — Tier 1
 
 **Required env** — `MS_TENANT_ID`
 
 **Tags** — global
 
+**Tools** — 11 tools published by the vendor (per its [MCP docs](https://learn.microsoft.com/en-us/microsoft-agent-365/mcp-server-reference/calendar)); no static per-tool levels — the live set varies by plan / scopes / release, so confirm it and the recomputed levels on the [Inspector](../mcp-server/inspector.md#tools):
+
+??? note "Tools (11) — mcp_CalendarTools_graph_listEvents · mcp_CalendarTools_graph_getEvent · mcp_CalendarTools_graph_createEvent · mcp_CalendarTools_graph_updateEvent · mcp_CalendarTools_graph_deleteEvent · mcp_CalendarTools_graph_acceptEvent · mcp_CalendarTools_graph_declineEvent · mcp_CalendarTools_graph_cancelEvent · mcp_CalendarTools_graph_findMeetingTimes · mcp_CalendarTools_graph_getSchedule · mcp_CalendarTools_graph_listCalendarView"
+    - `mcp_CalendarTools_graph_listEvents`
+    - `mcp_CalendarTools_graph_getEvent`
+    - `mcp_CalendarTools_graph_createEvent`
+    - `mcp_CalendarTools_graph_updateEvent`
+    - `mcp_CalendarTools_graph_deleteEvent`
+    - `mcp_CalendarTools_graph_acceptEvent`
+    - `mcp_CalendarTools_graph_declineEvent`
+    - `mcp_CalendarTools_graph_cancelEvent`
+    - `mcp_CalendarTools_graph_findMeetingTimes`
+    - `mcp_CalendarTools_graph_getSchedule`
+    - `mcp_CalendarTools_graph_listCalendarView`
+
 **Description**
 
 Browse Outlook calendars, schedule and update meetings, manage availability via Microsoft 365 Agent365. Requires MS_TENANT_ID.
 
-Docs: https://github.com/microsoft/mcp
 
 **Docs** — [https://github.com/microsoft/mcp](https://github.com/microsoft/mcp)
 
@@ -184,7 +239,7 @@ Browse, create, and edit Notion pages, databases, and properties. Vendor-hosted 
 <div class="tcg-cta">Click for transport · auth · required env · description · docs</div>
 <div class="tcg-detail-template" hidden markdown>
 
-**Vendor** — Notion (vendor-official (Tier 1))
+**Vendor** — Notion (vendor-official)
 
 **Transport** — Streamable HTTP
 
@@ -193,17 +248,31 @@ Browse, create, and edit Notion pages, databases, and properties. Vendor-hosted 
 **Auth** — OAuth 2.1
 
 **OAuth 2.1** — runs the [Authorization Code flow](../mcp-server/index.md#oauth-21-authorization-code) on Save & Connect → **Authorize**.
+
 **Stability** — GA · **Tier** — Tier 1
 
 **Required env** — —
 
 **Tags** — global
 
+**Tools** — 18 tools published by the vendor (per its [MCP docs](https://developers.notion.com/guides/mcp/mcp-supported-tools)); no static per-tool levels — the live set varies by plan / scopes / release, so confirm it and the recomputed levels on the [Inspector](../mcp-server/inspector.md#tools):
+
+??? note "Tools (10 of 18) — notion-search · notion-fetch · notion-create-pages · notion-update-page · notion-move-pages · notion-duplicate-page · notion-create-database · notion-query-data-sources · notion-create-comment · notion-get-users"
+    - `notion-search`
+    - `notion-fetch`
+    - `notion-create-pages`
+    - `notion-update-page`
+    - `notion-move-pages`
+    - `notion-duplicate-page`
+    - `notion-create-database`
+    - `notion-query-data-sources`
+    - `notion-create-comment`
+    - `notion-get-users`
+
 **Description**
 
 Browse, create, and edit Notion pages, databases, and properties. Vendor-hosted remote MCP with OAuth 2.1 + PKCE.
 
-Docs: https://developers.notion.com/guides/mcp/overview
 
 **Docs** — [https://developers.notion.com/guides/mcp/overview](https://developers.notion.com/guides/mcp/overview)
 
@@ -224,7 +293,7 @@ Kakao aggregator hub — KakaoTalk send-to-self, Talk Calendar, KakaoMap, Gift, 
 <div class="tcg-cta">Click for transport · auth · setup · required env · description · docs</div>
 <div class="tcg-detail-template" hidden markdown>
 
-**Vendor** — Kakao (vendor-official (Tier 1))
+**Vendor** — Kakao (vendor-official)
 
 **Transport** — Streamable HTTP at `https://playmcp.kakao.com/mcp`
 
@@ -290,6 +359,8 @@ The grant endpoint returns snake_case `access_token` / `refresh_token` at the to
 
 The refresh token expires after 90 days. When that happens, the 12-hour grant returns an error — start over from step 1 (issue a new OTT, exchange it, paste into Environment Variables).
 
+**Tools** — published by the vendor and discovered live on connect; open the [Inspector](../mcp-server/inspector.md#tools) after Save & Connect for the live tools and their recomputed levels.
+
 **Description**
 
 Kakao aggregator hub — KakaoTalk send-to-self, Talk Calendar, KakaoMap, Gift, Melon, plus 200+ third-party MCPs. KR-focused.
@@ -303,7 +374,7 @@ Kakao aggregator hub — KakaoTalk send-to-self, Talk Calendar, KakaoMap, Gift, 
 
 <div class="tcg-card tcg-card--clickable t-slack" id="Slack" data-tool-id="Slack" data-tool-title="Slack" markdown>
 <div class="tcg-name"><span class="tcg-name__text">Slack</span> <span class="cost">🔐</span></div>
-<div class="tcg-art" markdown>:material-pound-box-outline:</div>
+<div class="tcg-art" markdown>:material-slack:</div>
 <div class="tcg-type">communication · global <span class="risk risk-l0">ga</span></div>
 <div class="tcg-body" markdown>
 Read and post Slack messages across channels and DMs, search the workspace, manage user/channel metadata. Slack's official remote MCP.
@@ -315,7 +386,7 @@ Read and post Slack messages across channels and DMs, search the workspace, mana
 <div class="tcg-cta">Click for transport · auth · required env · description · docs</div>
 <div class="tcg-detail-template" hidden markdown>
 
-**Vendor** — Slack (vendor-official (Tier 1))
+**Vendor** — Slack (vendor-official)
 
 **Transport** — Streamable HTTP
 
@@ -324,17 +395,19 @@ Read and post Slack messages across channels and DMs, search the workspace, mana
 **Auth** — OAuth 2.1
 
 **OAuth 2.1** — runs the [Authorization Code flow](../mcp-server/index.md#oauth-21-authorization-code) on Save & Connect → **Authorize**.
+
 **Stability** — GA · **Tier** — Tier 1
 
 **Required env** — —
 
 **Tags** — global
 
+**Tools** — published by the vendor and discovered live on connect; its [MCP docs](https://docs.slack.dev/ai/slack-mcp-server/) don't enumerate tool names, so open the [Inspector](../mcp-server/inspector.md#tools) after Save & Connect for the live tools and their recomputed levels.
+
 **Description**
 
 Read and post Slack messages across channels and DMs, search the workspace, manage user/channel metadata. Slack's official remote MCP.
 
-Docs: https://docs.slack.dev/ai/slack-mcp-server/
 
 **Docs** — [https://docs.slack.dev/ai/slack-mcp-server/](https://docs.slack.dev/ai/slack-mcp-server/)
 
@@ -355,7 +428,7 @@ Send messages to Teams chats and channels, search conversations, manage meetings
 <div class="tcg-cta">Click for transport · auth · required env · description · docs</div>
 <div class="tcg-detail-template" hidden markdown>
 
-**Vendor** — Microsoft (vendor-official (Tier 1))
+**Vendor** — Microsoft (vendor-official)
 
 **Transport** — Streamable HTTP
 
@@ -364,17 +437,31 @@ Send messages to Teams chats and channels, search conversations, manage meetings
 **Auth** — OAuth 2.1
 
 **OAuth 2.1** — runs the [Authorization Code flow](../mcp-server/index.md#oauth-21-authorization-code) on Save & Connect → **Authorize**.
+
 **Stability** — GA · **Tier** — Tier 1
 
 **Required env** — `MS_TENANT_ID`
 
 **Tags** — global
 
+**Tools** — 25 tools published by the vendor (per its [MCP docs](https://learn.microsoft.com/en-us/microsoft-agent-365/mcp-server-reference/teams)); no static per-tool levels — the live set varies by plan / scopes / release, so confirm it and the recomputed levels on the [Inspector](../mcp-server/inspector.md#tools):
+
+??? note "Tools (10 of 25) — mcp_graph_chat_createChat · mcp_graph_chat_postMessage · mcp_graph_chat_listChatMessages · mcp_graph_chat_addChatMember · mcp_graph_teams_createChannel · mcp_graph_teams_postChannelMessage · mcp_graph_teams_replyToChannelMessage · mcp_graph_teams_listChannels · mcp_graph_teams_addChannelMember · mcp_graph_teams_listTeams"
+    - `mcp_graph_chat_createChat`
+    - `mcp_graph_chat_postMessage`
+    - `mcp_graph_chat_listChatMessages`
+    - `mcp_graph_chat_addChatMember`
+    - `mcp_graph_teams_createChannel`
+    - `mcp_graph_teams_postChannelMessage`
+    - `mcp_graph_teams_replyToChannelMessage`
+    - `mcp_graph_teams_listChannels`
+    - `mcp_graph_teams_addChannelMember`
+    - `mcp_graph_teams_listTeams`
+
 **Description**
 
 Send messages to Teams chats and channels, search conversations, manage meetings via Microsoft 365 Agent365. Requires MS_TENANT_ID.
 
-Docs: https://github.com/microsoft/mcp
 
 **Docs** — [https://github.com/microsoft/mcp](https://github.com/microsoft/mcp)
 

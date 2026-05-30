@@ -1,5 +1,5 @@
 ---
-title: Safe Tool Specification 1.0
+title: Safe Tool Specification
 description: Normative JSON spec for tools runnable in Spring AI Playground's Safe Local Execution Layer — two-field safety model, Risk Level L0–L5, lifecycle, JSON Schema.
 ---
 
@@ -11,8 +11,9 @@ The Safe Tool Specification (this document) defines the on-disk JSON document fo
 
 This document complements but does not replace:
 
-- [Application Architecture](architecture.md) — where the spec fits in the system
-- [AI Agent Tool Safety Architecture](safety-architecture.md) — defense-in-depth model, threat-to-layer mapping, known limitations
+- [Application](architecture.md) — where the spec fits in the system
+- [AI Agent Tool Safety](safety-architecture.md) — defense-in-depth model, threat-to-layer mapping, known limitations
+- [Human-in-the-Loop Approval](hitl-architecture.md) — the runtime per-call approval gate that honors this spec's `humanInTheLoop` block
 - [Tool Studio → Sandbox & Capabilities](features/tool-studio/index.md#sandbox-capabilities) — the UI surface that edits one of these documents
 
 ## 1. Introduction
@@ -27,6 +28,16 @@ A Safe Tool Spec is a self-contained JSON document. It declares:
 - **Cataloging metadata** (`category`, `tags`, `toolId`, timestamps)
 
 The spec is not concerned with how a tool is *invoked* through MCP, only with how a tool is *defined*. Invocation semantics belong to the [MCP `tools/list` and `tools/call` schemas](https://modelcontextprotocol.io).
+
+At a glance, a Safe Tool Spec is one JSON document that binds three concerns, which together earn a Local Pass before publish:
+
+```mermaid
+flowchart LR
+    SPEC["Safe Tool Spec<br/>one JSON document"] --> ID["Identity<br/>name · description<br/>params"]
+    SPEC --> CODE["Code<br/>JS + staticVariables"]
+    SPEC --> SAFE["Safety posture<br/>sandboxOverrides<br/>→ Risk Level"]
+    ID & CODE & SAFE --> PASS["Local Pass<br/>then /mcp"]
+```
 
 ### 1.2 Terminology
 
@@ -137,6 +148,7 @@ flowchart TB
         S1["sandboxOverrides<br/>(author intent)"]
         S2["toolSafety<br/>(resolved posture)"]
         S3["draft"]
+        S4["humanInTheLoop"]
     end
 
     BK["createTimestamp · updateTimestamp"]
@@ -189,6 +201,7 @@ The spec is a JSON object. Each field is defined in its own section. Defaults in
 | `codeType` | enum string | MUST | — (only `"Javascript"` today) | § 8.1 |
 | `sandboxOverrides` | object | MAY | empty overrides (baseline) | § 10.1 |
 | `toolSafety` | object | SHOULD | empty `{}` | § 10.3 |
+| `humanInTheLoop` | object | MAY | `null` (= DISABLED) | § 10.7 |
 | `draft` | boolean | MAY | `true` (catalog), `false` after Local Pass | § 11 |
 | `createTimestamp` | integer (epoch ms) | SHOULD | now | § 12.2 |
 | `updateTimestamp` | integer (epoch ms) | SHOULD | now | § 12.2 |
@@ -387,7 +400,7 @@ When the resolved posture grants the corresponding capability, the runtime expos
 | `safety.fs/v1` (read group) | `capabilities.fileRead = true` | `readText`, `list`, `exists`, `stat`, `grep`, `lineCount`, `slice`, `cut`, `sort`, `find` — all rooted at `fsBasePath` with path-escape protection |
 | `safety.fs/v1` (write) | `capabilities.fileWrite = true` | `writeText` only |
 | `safety.parser/v1` (or `tool-safety-helpers/v1#parser`) | always available | Jsoup HTML, SnakeYAML `load`, RFC 4180 CSV, DTD/XXE-hardened XML — see § 8.4 for the per-helper contract and known security caveats |
-| `safety.http/v1` | `capabilities.network.mode != "blocked"` | Outbound HTTP via `fetch` with the SSRF four-layer guard active in `strict` and `allowlist` modes |
+| `safety.http/v1` | `capabilities.network.mode != "blocked"` | Outbound HTTP via `fetch` with the SSRF four-layer guard active in `strict` mode (in `allowlist` mode only the explicit host allow-list is enforced — no IP/DNS-rebind guard) |
 | `tool-safety-helpers/v1#crypto` | always available | The `crypto.subtle` API and related primitives |
 | `tool-safety-helpers/v1#encoding` | always available | `atob` / `btoa` plus `TextEncoder` / `TextDecoder` |
 
@@ -415,7 +428,7 @@ The four parser entry points live under `safety.parser.*` and are exposed whenev
 
 `category` is a single-string label used for UI grouping in the catalog browser. It is *not* enforced as an enum at the document level — consumers MUST accept arbitrary string values — but the bundled catalog defines and uses the following 13 values:
 
-`WEB` · `FILE` · `CRYPTO` · `DATETIME` · `TEXT` · `ENCODING` · `DATA` · `SECURITY` · `MATH` · `NETWORK` · `SYSTEM` · `UTILS` · `OTHER`
+`TEXT` · `DATA` · `DATETIME` · `MATH` · `ENCODING` · `CRYPTO` · `SECURITY` · `FILE` · `WEB` · `PRODUCTIVITY` · `MESSAGING` · `AI` · `CUSTOM`
 
 Catalog-conformant authors SHOULD pick from the list above. Authors publishing private specs MAY introduce new categories; consumers presenting an unknown category MUST render it as a string verbatim.
 
@@ -438,7 +451,7 @@ Specs published in a multilingual catalog MUST follow these locale rules. The ru
 
 ## 10. Safety
 
-The two safety-related blocks are the core of this specification. They look similar but serve opposite directions:
+The two sandbox-related blocks below are the core of this specification, plus a third per-call approval block (`humanInTheLoop`, §10.7). The first two look similar but serve opposite directions:
 
 | Block | Direction | Editable by | Stored verbatim |
 |---|---|---|---|
@@ -509,7 +522,7 @@ flowchart LR
 
 Pseudocode:
 
-```
+```text
 input:  overrides : SandboxOverrides
         baseline  : { allowClasses, denyClasses, fsBasePath, networkMode, allowedHosts, fileRead, fileWrite }
 
@@ -582,12 +595,12 @@ The algorithm is **monotonic with respect to risk**: nothing in `sandboxOverride
 
 ### 10.4 Network mode behavioral table
 
-`capabilities.network.mode` takes one of four values. Each defines a distinct `fetch` behavior; the SSRF four-layer guard (DNS pinning, IP-range filter, redirect-chain pinning, response-body size cap) is active in `strict` and `allowlist`, and bypassed in `open`:
+`capabilities.network.mode` takes one of four values. Each defines a distinct `fetch` behavior. The SSRF four-layer guard (DNS pinning, IP-range filter, redirect-chain pinning, response-body size cap) is active in `strict` only. `allowlist` enforces an explicit host allow-list — internal-network hosts may be included — but does **not** perform IP-range / DNS-rebind guarding; `open` bypasses everything. For a local single-user tool this is the right split: use `allowlist` for hosts you trust (vendor APIs, an internal service) and `strict` for untrusted public hosts:
 
 | Mode | `fetch` exposed? | Host gate | SSRF guard | When to use |
 |---|---|---|---|---|
 | `blocked` | no | n/a | n/a | Tool does no network — the safe default; the `fetch` global is not installed at all. |
-| `allowlist` | yes | only hosts in `capabilities.network.hosts` | active | Tool talks to one or more known vendor APIs. Recommended for catalog publication. |
+| `allowlist` | yes | only hosts in `capabilities.network.hosts` (internal-network hosts allowed) | off — host allow-list only, no IP/DNS-rebind guard | Tool talks to one or more **trusted** hosts (vendor APIs or an internal service). For untrusted public hosts use `strict`. |
 | `strict` | yes | any public host | active | Tool talks to arbitrary public hosts but the playground enforces SSRF guards on every request. |
 | `open` | yes | any host including private networks | **bypassed** | Strongly discouraged; should never appear in a published catalog spec. Authoring private tools on a trusted host only. |
 
@@ -608,7 +621,7 @@ The default at the *baseline* level is `blocked`. Authors who do not declare `ne
 
 `toolSafety` is human-readable; Risk Level is the UI-friendly distillation. Levels run from `L0` (no detected risk) to `L5` (escape-class allowed). The reference resolver computes Risk Level as a **monotonic max-merge**:
 
-```
+```text
 risk := L0
 if capabilities.network.mode == "allowlist":
     risk := max(risk, hosts contains "*" ? L4 : L3)
@@ -630,6 +643,31 @@ for cls in (sandboxOverrides.addAllowClasses − baseline.allow):
 ```
 
 The Risk Level is computed for UI badging and audit-log decoration. Implementations MUST NOT store the computed level in `toolSafety` itself — Risk Level is a *view* on the posture, not a property of it. If the algorithm changes, recomputing yields a different answer from the same `toolSafety`; this is intentional.
+
+### 10.7 Human-in-the-loop approval { #human-in-the-loop }
+
+The optional `humanInTheLoop` block declares whether a tool call must be confirmed by a person **at call time**. It is independent of the sandbox (which decides *what* a tool may do) and of the Risk Level (which is observational): this block decides *whether a specific call runs at all*. Where the sandbox and risk score are evaluated before publication, this gate fires on every invocation.
+
+```json
+{
+  "humanInTheLoop": {
+    "mode": "REQUIRED",
+    "promptTemplate": "Allow '{toolName}' to run with {args}?"
+  }
+}
+```
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `mode` | enum | no | `DISABLED` · `REQUIRED`. Absent or the whole block `null` ⇒ `DISABLED`. |
+| `promptTemplate` | string \| null | no | Approval-prompt text. `{toolName}` and `{args}` are substituted at call time (flat substitution — `{args}` is the whole argument map; there is no dotted-path form like `{args.path}`). Null ⇒ a built-in default prompt. |
+
+The two modes:
+
+- **`REQUIRED`** — every call is gated. In Agentic Chat the user sees an approve/decline dialog; an external MCP client is asked through MCP `elicitation/create`. A decline (or timeout, or a client that cannot ask) means the tool does **not** run — approval is deny-by-default.
+- **`DISABLED`** — the tool runs without any approval step (the sandbox still applies).
+
+Enabling this block does **not** change the tool's computed Risk Level — the two are orthogonal. The runtime enforcement (the two gates, the loopback de-duplication, and the fail-safe behavior) is specified in **[Human-in-the-Loop Approval](hitl-architecture.md)**; this section only defines the on-disk shape.
 
 ## 11. Lifecycle
 
@@ -704,7 +742,7 @@ The audit record is the source of truth for "what was actually enforced." Implem
 
 The reference implementation persists user-authored specs into a **single bundle file** under the playground's home directory:
 
-```
+```text
 ~/spring-ai-playground/tool/save/toolSpecsMcpSetting.json
 ```
 
@@ -886,11 +924,15 @@ Tool fetches arbitrary user-supplied URLs; SSRF guard runs in `strict` mode.
   "params": [
     { "name": "url", "type": "STRING", "required": true, "testValue": "https://example.com" }
   ],
-  "sandboxOverrides": { "networkMode": "strict" }
+  "sandboxOverrides": { "networkMode": "strict" },
+  "humanInTheLoop": {
+    "mode": "REQUIRED",
+    "promptTemplate": "The assistant wants to fetch and read a web page. Allow '{toolName}' with {args}?"
+  }
 }
 ```
 
-Risk Level: **L3** (`strict`).
+Risk Level: **L3** (`strict`). This is the bundled `extractPageContent`, which ships `humanInTheLoop.mode = REQUIRED` — every call is confirmed before the fetch runs (§10.7).
 
 ### 17.5 Filesystem read — `readTextFile`
 
@@ -959,7 +1001,8 @@ A spec freshly imported from the catalog ships with `draft: true`. Until activat
 - [RFC 4122 § 4.3](https://www.rfc-editor.org/rfc/rfc4122#section-4.3) — UUID v5
 - [JSON Schema 2020-12](https://json-schema.org/draft/2020-12/release-notes.html)
 - [Model Context Protocol](https://modelcontextprotocol.io) — `tools/list` and `tools/call`
-- [AI Agent Tool Safety Architecture](safety-architecture.md) — defense-in-depth, threat-to-layer mapping, known limitations
+- [Human-in-the-Loop Approval](hitl-architecture.md) — the runtime per-call approval gate that honors `humanInTheLoop`
+- [AI Agent Tool Safety](safety-architecture.md) — defense-in-depth, threat-to-layer mapping, known limitations
 - [Application Architecture § Safe Tool Spec](architecture.md#safe-tool-spec) — where the spec fits in the system
 
 ## 19. Document history

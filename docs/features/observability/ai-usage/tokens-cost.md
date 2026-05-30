@@ -48,7 +48,7 @@ All dashboards share the [Observability global settings](../index.md#global-sett
 
 ## Tables
 
-**Per-model breakdown grid** — `Model · Calls · In tok · Out tok · Cost · Avg / call`. Sortable by any column. The Cost column is hidden when pricing has not been configured (a dim `—` placeholder appears instead).
+**Per-model breakdown grid** — `Model · Calls · In tok · Out tok · Cost · Avg / call`. Sortable by any column. When pricing has not been configured the Cost column still shows, reading `$0.00` for unpriced models.
 
 **Top 10 most expensive traces** — `Time · Model · In · Out · Cost · Trace`. Each row is the click-through to the [Trace Detail dialog](../runtime/traces.md#drilldown-trace-detail-dialog) for that single turn. Useful when one outlier dragged the average up.
 

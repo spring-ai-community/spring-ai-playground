@@ -12,7 +12,7 @@ This tutorial differs from [Tutorial 7](7-weather-to-slack.md) in *where* the ch
 The pattern (every recipe follows it):
 
 1. Open the closest default tool in Tool Studio.
-2. **Copy to New Tool** — gives you the same parameter shape with a fresh `toolId` and a `Draft` badge.
+2. **Copy And New Tool** — gives you the same parameter shape with a fresh `toolId` and a `Draft` badge.
 3. Rewrite the JS action to chain the helpers you need.
 4. Adjust the test value so Local Pass exercises the new logic.
 5. **Test & Publish**. The new tool joins the built-in MCP server the same moment Local Pass succeeds — Agentic Chat sees it on the next turn.

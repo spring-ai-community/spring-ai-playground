@@ -72,7 +72,7 @@ spring:
       built-in-mcp-server:
         name: my-team-tools                 # SPRING_AI_PLAYGROUND_MCP_NAME
         description: Curated tools for my team   # SPRING_AI_PLAYGROUND_MCP_DESCRIPTION
-        exposure-mode: both                  # builtin_only | composed_only | both
+        exposure-mode: both                  # builtin-only | composed-only | both
 ```
 
 Defaults are `spring-ai-playground-built-in-mcp` and a generated description. You can also pin the composed tool set declaratively — see [Configuration → MCP built-in server & exposure](../getting-started/configuration.md#mcp) and [Proxy → Configure exposure via YAML](../features/mcp-server/proxy.md#yaml-exposure).

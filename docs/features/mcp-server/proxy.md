@@ -41,7 +41,7 @@ The **gear icon** on the MCP Server Info header opens the **Expose Tools** drawe
 ![Expose Tools drawer with the max-risk cap set to L3, a HITL-all toggle, a DeepWiki server row carrying a Server: L1 — Safe chip, and the list of tools currently exposed on the built-in server](../../assets/images/mcp-server/expose-tools-drawer.png){ loading=lazy }
 
 - **Max risk to expose** caps which tools can be selected — any tool whose effective risk exceeds the cap (default `L3`) is disabled in the list.
-- **Require approval (HITL)** can be set per tool, or for all selected tools at once via the header checkbox. Marking a tool HITL lowers its effective risk by one band, reflecting that a human approves each call.
+- **Require approval (HITL)** can be set per tool, or for all selected tools at once via the header checkbox. Marking a tool HITL lowers its effective risk by one band and **gates the call at runtime** — external clients are asked via MCP elicitation, and chat on this device shows an approval dialog (see [Human-in-the-Loop](../human-in-the-loop.md)).
 - Each server row expands to its tools; every tool shows its own **risk chip** plus an alias / description editor. The exposed alias defaults to `<server>_<tool>` and the input schema passes through unchanged.
 
 ![DeepWiki expanded in the drawer — three tools each with a risk chip; read_wiki_structure shows L1 — Safe with a HITL −1 mitigation badge and a ticked HITL box, while read_wiki_contents and ask_question stay L2 — Low](../../assets/images/mcp-server/expose-tools-expanded.png){ loading=lazy }
@@ -82,7 +82,7 @@ spring:
       built-in-mcp-server:
         name: spring-ai-playground-built-in-mcp   # identity external /mcp clients see
         description: Curated tools for my team     # shown in clients' server list
-        exposure-mode: both          # builtin_only | composed_only | both
+        exposure-mode: both          # builtin-only | composed-only | both
       mcp-server:
         composed-tools-max-risk: L3  # cap; tools whose risk exceeds this are skipped
         composed-tools:

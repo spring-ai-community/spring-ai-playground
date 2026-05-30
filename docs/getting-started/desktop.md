@@ -101,7 +101,7 @@ Preset selection for the built-in MCP server happens **inside the configuration 
 ![Default MCP Tools card on the configuration editor — collapsed view: TOOLS EXPOSED line shows the active preset (Starter 5 · 5 of 86 tools) + per-tool chips, a preset dropdown, and an Advanced curation section with a Show toggle](../assets/images/launcher/launcher-default-tools-card.png)
 *The Default MCP Tools card, collapsed — preset chooser with the active preset's tools listed as chips. `Advanced curation` is folded by default.*
 
-The card and Tool Studio's **Tool MCP Server Setting drawer** (toolbox icon, available once the app is running) write to the same `default-tools-preference.json` file. Two surfaces, one source of truth.
+The card writes `default-tools-preference.json`; the same preference can also be pinned via CLI / yaml. The app reads it at startup to decide which built-in tools are **Local-Passed (active)**. Tool Studio's **Built-in MCP Server Native Tools** drawer is a separate concern — it picks which Local-Passed tools the built-in MCP server *exposes*, not which are active.
 
 The five presets:
 
@@ -113,7 +113,7 @@ The five presets:
 
 The non-Starter presets each carry only `getCurrentTime` and `evalExpression` from Starter 5 by design — they do not stack on top of it.
 
-Clicking **Advanced curation → Show** expands an Include / Exclude pair that mirrors Tool Studio's **Tool MCP Server Setting** drawer: add tools by tag, by category, or by name; remove tools by tag or by name. The chip pickers populate from the live catalog when the section opens (a brief flash of `Loading…` is normal — that's the IPC fetch).
+Clicking **Advanced curation → Show** expands an Include / Exclude pair: add tools by tag, by category, or by name; remove tools by tag or by name. The chip pickers populate from the live catalog when the section opens (a brief flash of `Loading…` is normal — that's the IPC fetch).
 
 ![Default MCP Tools card with Advanced curation expanded — two columns (Include / Exclude) with By tag chips, By category chips, and a By name picker on each side](../assets/images/launcher/launcher-default-tools-card-expanded.png)
 *The same card with `Advanced curation` expanded — Include (`+`) on the left adds tools matching any rule; Exclude (`−`) on the right removes them. Rules layer in this order: name-add → tag-add → category-add → name-remove → tag-remove → category-remove.*
@@ -224,7 +224,7 @@ This section is currently shown for the `Ollama` config type. Even if an `OpenAI
 ??? note "Show details"
 
 
-    When the selected setting or bundled tools need secrets, the launcher shows an **Environment Variables** section. This is where you keep API keys and tool secrets out of YAML.
+    When the selected setting or bundled tools need secrets, the launcher shows an **Environment Variables** section. This is where you keep API keys and tool secrets out of YAML. For the full list of configuration knobs (beyond secrets) and how each maps to a property or env var, see the [Configuration reference](configuration.md).
 
     ![Environment variables card](../assets/images/launcher/launcher-env-card.png)
 
@@ -365,6 +365,7 @@ This makes the model manager useful both for first-time setup and for cleaning u
 ## Further Reading
 
 - [Getting Started](index.md) — universal post-install steps, model configuration, telemetry
+- [Configuration](configuration.md) — every property / env var / default, and how to set it per launch mode
 - [Alternative Runtimes](alternative-runtimes.md) — Docker and source / fat-JAR alternatives
 - [Features → Tool Studio](../features/tool-studio/index.md) — author tools that the built-in MCP server exposes
 - [Tutorials](../tutorials/index.md) — end-to-end workflows

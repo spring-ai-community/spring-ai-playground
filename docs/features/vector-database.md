@@ -2,6 +2,8 @@ description: Vector Database — RAG ingestion and retrieval-validation. Documen
 
 # Vector Database
 
+**Where:** top navigation → **Vector Database**.
+
 Vector Database is the RAG preparation and retrieval-validation area.
 
 ![Vector Database surface — document ingestion form, chunking and embedding pipeline, store selector (Chroma / PGVector / Redis / etc.), and a similarity-search panel for retrieval validation](../assets/images/vectordb.gif)

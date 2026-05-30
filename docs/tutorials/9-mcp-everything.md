@@ -5,10 +5,10 @@ description: Tutorial 9 — activate MCP Everything from the catalog and drive e
 **Time** 12 min · **Difficulty** ★★☆ · **Surfaces** MCP Server (catalog + Inspector)
 
 !!! abstract "Goal"
-    Activate **MCP Everything** from the Default MCP Catalog and drive every Inspector primitive — Tools, Resources, Prompts, Ping, Notifications, Roots, Sampling, Elicitation — against a single server in one sitting. No credentials, no tenant setup; everything in this tutorial runs against a server that has no auth surface.
+    Activate **MCP Everything** from the Default MCP Servers and drive every Inspector primitive — Tools, Resources, Prompts, Ping, Notifications, Roots, Sampling, Elicitation — against a single server in one sitting. No credentials, no tenant setup; everything in this tutorial runs against a server that has no auth surface.
 
 !!! info "Why MCP Everything"
-    MCP Everything is the official MCP working group's reference test server. It is the **only** publicly available server that intentionally implements every protocol primitive — including the inverted client-side ones (Sampling, Elicitation) that real-world servers usually skip. If a primitive doesn't light up here, the bug is almost certainly on the *client* side (the playground), which is exactly why it's catalogued in the first place. For the per-primitive matrix and the catalog template, see [Default MCP Catalog → Examples → MCP-Everything](../features/default-mcp-catalog/examples.md#MCP-Everything). For the spec-level "what each primitive is" explanation, see [MCP Inspector](../features/mcp-server/inspector.md).
+    MCP Everything is the official MCP working group's reference test server. It is the **only** publicly available server that intentionally implements every protocol primitive — including the inverted client-side ones (Sampling, Elicitation) that real-world servers usually skip. If a primitive doesn't light up here, the bug is almost certainly on the *client* side (the playground), which is exactly why it's catalogued in the first place. For the per-primitive matrix and the catalog template, see [Default MCP Servers → Examples → MCP-Everything](../features/default-mcp-catalog/examples.md#MCP-Everything). For the spec-level "what each primitive is" explanation, see [MCP Inspector](../features/mcp-server/inspector.md).
 
 ## Prerequisites — Node.js 18+ (or Docker)
 
@@ -239,7 +239,7 @@ A *root* is a file or URI the playground (acting as the MCP client) advertises t
 *The Sampling tab is where the two inverted primitives surface — incoming `sampling/createMessage` requests render as cards with Approve / Reject. Elicitation has the same shape under the **Elicitation** tab, except the response area is a JSON-Schema-typed form instead of a model turn.*
 
 !!! note "Sampling and Elicitation routing"
-    The playground's MCP client must advertise the `sampling` and `elicitation` capabilities during `initialize` for the server-side trigger to actually deliver a card here. Like roots, capability advertisement is on the M7+ roadmap; the tab + protocol path is wired and the trigger fires, but the round-trip to a Pending-card depends on the same negotiation pass.
+    The playground's MCP client must advertise the `sampling` and `elicitation` capabilities during `initialize` for the server-side trigger to actually deliver a card here. Like roots, capability advertisement is on the roadmap; the tab + protocol path is wired and the trigger fires, but the round-trip to a Pending-card depends on the same negotiation pass.
 
 !!! warning "Sampling is a human-in-the-loop gate"
     Approving a sampling request runs the server's chosen prompt against *your* configured model — it costs tokens and produces a response the server then acts on. Approve only what you would have approved if you had typed the prompt yourself.
@@ -268,8 +268,8 @@ The persisted JSON for this connection lives under `~/spring-ai-playground/mcp/s
 ## Where to go next
 
 - [MCP Inspector reference](../features/mcp-server/inspector.md) — every primitive explained against the MCP spec, with the Spring AI MCP SDK entry points.
-- [Default MCP Catalog → Examples](../features/default-mcp-catalog/examples.md) — full catalog spec, including DeepWiki (the other Examples-category entry).
+- [Default MCP Servers → Examples](../features/default-mcp-catalog/examples.md) — full catalog spec, including DeepWiki (the other Examples-category entry).
 - [Tutorial 2 — Connect an External MCP Server](2-external-mcp.md) — the manual path for anything *not* in the catalog (custom URL, custom STDIO command, custom OAuth issuer).
-- [Default MCP Catalog directory](../features/default-mcp-catalog/index.md) — browse all 57 preset connections across the six category cohorts.
+- [Default MCP Servers directory](../features/default-mcp-catalog/index.md) — browse all 57 preset connections across the six category cohorts.
 - [Tool Studio](../features/tool-studio/index.md) — once you trust the playground's MCP client wiring against MCP Everything, build your own server-side tools that other clients will consume the same way.
 

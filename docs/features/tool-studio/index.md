@@ -1,6 +1,8 @@
-description: Tool Studio — low-code JavaScript tool authoring with deny-first sandbox, Draft state, MCP server preset catalog, per-tool capability overrides.
+description: Tool Studio — low-code JavaScript tool authoring with deny-first sandbox, Draft state, built-in MCP exposure control, per-tool capability overrides.
 
 # Tool Studio
+
+**Where:** top navigation → **Tool Studio**.
 
 Tool Studio is the low-code authoring environment for JavaScript-based tools. It is the part of the product that turns the Playground from a read-only testing interface into an executable tool runtime.
 
@@ -43,7 +45,7 @@ Tool Studio is tightly integrated with the built-in MCP server.
 
 - endpoint: `http://localhost:8282/mcp`
 - protocol: Streamable HTTP
-- default server name: `spring-ai-playground-tool-mcp`
+- default server name: `spring-ai-playground-built-in-mcp`
 
 When you publish a tool from Tool Studio, it becomes available through that MCP endpoint immediately.
 
@@ -102,7 +104,7 @@ Tools call a small set of capability-scoped helpers instead of raw Java. These a
 | `safety.parser.csv` | Apache Commons CSV — optional `header` and `delimiter` opts. |
 | `console.log` | Captured into the Tool Studio debug pane and into the chat's tool-call trace. Environment-backed static variables are masked by substring replacement when their full resolved value appears in output. Only anchored full-string `$ENV_VAR` references are auto-collected as secrets — substring-inlined env vars are not. Log entries are capped at 1000 per execution. `console.error` is **not** installed in the current build. |
 
-Every helper above is exercised by one or more of the 86 [Default Tools](../default-tools/index.md) — open one in Tool Studio to see the helper in working code, then use **Copy to New Tool** to fork it.
+Every helper above is exercised by one or more of the 86 [Default Tools](../default-tools/index.md) — open one in Tool Studio to see the helper in working code, then use **Copy And New Tool** to fork it.
 
 ## Sandbox & Capabilities
 
@@ -251,6 +253,10 @@ Practical interpretation:
 - **L4** = broad network, file-write, or substantial deny-list relaxation — review carefully before exposing through MCP.
 - **L5** = critical class re-enabled — process spawn, reflection escape, or raw file write. Treat as effectively unsandboxed and reserve for trusted authors only.
 
+### Human-in-the-loop approval
+
+The pane also sets the tool's **Human-in-the-loop** approval mode — **Required** (ask on every call) or **Disabled — no prompt**. It defaults to **Required** above `L0`. An optional **Approval prompt** customizes the question, with `{toolName}` and `{args}` substituted at call time, and lowering the mode opens a *Reduce human oversight?* confirmation. This is the runtime gate that pauses a call until you approve it — see **[Human-in-the-Loop Approval](../human-in-the-loop.md)**.
+
 ## Safety — defense in depth {#safety}
 
 The terminology matters: this is *safety* in the GraalVM sandbox sense — keeping a small JavaScript action from doing things its author did not intend — not *security* in the sense of authenticating outside callers. The two are layered but separate, and the code makes the same distinction (`safety.fs`, `safety.parser.*` for the sandbox surface; Spring Security on top for the endpoint).
@@ -328,19 +334,19 @@ When a tool is created or updated in Tool Studio, it is dynamically discovered a
 
 ## Key Tool Studio Capabilities
 
-- **Tool MCP Server Setting drawer** (toolbox icon in the Tool Studio header): the single surface controlling what the built-in MCP server exposes. Three sections — **Tools exposed** chip summary (current preset + the tools it resolves to); **Custom tools (you created)** with an **Auto-add new custom tools** toggle plus a **Manually exposed tools** MultiSelect for per-tool overrides on what you authored; **Default tools (built-in)** with the **Preset** radio (`Starter 5`, `Dev Essentials`, `Korea Toolkit (free)`, `File Toolkit`, `Everything`, `Custom`) and an **Advanced curation** block (include by tag / category / name, exclude by tag / name) layered on top.
+- **Built-in MCP Server Native Tools drawer** (gear icon in the Tool Studio header): the single surface controlling **which Local-Passed tools the built-in MCP server exposes**. Three sections — **Tools exposed** chip summary for the confirmed setting; **Custom tools** selector for tools you authored; **Built-in tools** selector listing the **Local-Passed** built-in tools so you can tick which to expose. The **Auto-expose newly published tools** toggle controls whether newly published (Local-Passed) tools join the server automatically. Which built-in tools are Local-Passed in the first place is decided at **setup** (desktop launcher / CLI) and per-tool via **Publish** in the tool list — not here.
 - **Draft state + MCP exposure gate**: a tool that has not earned a Local Pass stays in the **Drafts** section, is **not** exposed through the built-in MCP server, and is **not** callable from Agentic Chat. Only published (Local-Passed) tools cross the gate.
 - <a id="tool-list-sidebar"></a>**Tool list sidebar**: tools group under a fixed taxonomy (Text, Data, Date/Time, Math, Encoding, Crypto, Security, Files, Web, Productivity, Messaging, AI APIs, Custom) with chip-based filters. The sidebar uses the **same `SidebarFilterBar` + `CategoryGroupDetails` + `SidebarItemLayout` widgets the MCP Server view uses** (search + Categories MultiSelect + Tags MultiSelect + collapsible per-category groups + status dot · name · pills row). Filters compose identically on both screens — see [MCP Server → Filter bar](../mcp-server/index.md#filter-bar) for the same widget in the catalog context.
 - **Sandbox Capabilities view**: per-tool overrides for `addAllowClasses` / `removeAllowClasses` / `addDenyClasses` / `removeDenyClasses`, `hostsAllow`, `fileRead` / `fileWrite`, `fsBasePath`, and `networkMode` — with a live risk-level badge (L0–L5). See [Sandbox & Capabilities](#sandbox-capabilities).
 - **Tool Specification View**: inspect the generated JSON schema, metadata, parameter contract, and the resulting `McpToolDefinition` envelope (manifest hash, code hash, audit timestamps).
-- **Copy to New Tool**: clone an existing tool as a template instead of starting from scratch.
+- **Copy And New Tool**: clone an existing tool as a template instead of starting from scratch.
 - **Structured Parameters**: define required inputs, descriptions, and test values for model-side tool calling.
 - **Static Variables**: inject configuration values and environment-backed secrets — masked in logs.
 - **Test Run and Debug Console**: validate console output, status, elapsed time, and result before publishing.
 
 In the UI these capabilities show up as the practical authoring workflow:
 
-- curate which subset of the bundled catalog is exposed through MCP
+- select which Local-Passed tools are exposed through MCP
 - inspect the generated tool specification before publishing
 - override sandbox capabilities only where a specific tool needs them, with the risk level visible
 - copy a working tool into a new template instead of starting from a blank definition
@@ -361,7 +367,7 @@ You can keep many tools in your workspace, expose only a controlled subset, vali
 ## Pre-built Example Tools
 
 !!! abstract "Full inventory lives in [Default Tools](../default-tools/index.md)"
-    Per-tool reference — name, one-line description, params, env-var deps — is on the five pages under [Default Tools](../default-tools/index.md). This section sticks to the **preset and curation** shape used inside Tool Studio — how the bundle is sliced for MCP exposure.
+    Per-tool reference — name, one-line description, params, env-var deps — is on the five pages under [Default Tools](../default-tools/index.md). This section describes the **preset and curation** shape — how the bundle is sliced into the Local-Passed (active) set at setup.
 
 <div class="grid cards" markdown>
 
@@ -399,7 +405,7 @@ You can keep many tools in your workspace, expose only a controlled subset, vali
 
 The app ships with a bundled catalog of **86 default tools** across five JSON source bundles. They are ready to call from chat the moment a model provider is connected, and they also serve as editable references when you start writing your own.
 
-**The MCP server does not expose all of them by default.** A **preset** decides the starting subset, and **include / exclude rules** layer per-tool tweaks on top. Each preset stands on its own — `Dev Essentials`, `Korea Toolkit`, and `File Toolkit` do **not** automatically inherit Starter 5 (only `getCurrentTime` and `evalExpression` carry through deliberately).
+**Not all of them are Local-Passed (active) by default.** A **preset** decides the starting Local-Passed subset, and **include / exclude rules** layer per-tool tweaks on top. Each preset stands on its own — `Dev Essentials`, `Korea Toolkit`, and `File Toolkit` do **not** automatically inherit Starter 5 (only `getCurrentTime` and `evalExpression` carry through deliberately).
 
 | Preset | Tools exposed | Notes |
 |---|---|---|
@@ -410,19 +416,21 @@ The app ships with a bundled catalog of **86 default tools** across five JSON so
 | `Everything` | All 86 default tools | Heavy MCP catalog |
 | `Custom` | None initially | Active when you only want the include/exclude rules to decide what gets exposed |
 
-Per-tool **include / exclude rules** layer on top: name-add → tag-add → category-add → name-remove → tag-remove → category-remove. The Tool MCP Server Setting drawer exposes include-by-tag / -category / -name and exclude-by-tag / -name; `exclude.categories` is data-supported but currently only reachable via CLI / yaml override.
+Per-tool **include / exclude rules** layer on top: name-add → tag-add → category-add → name-remove → tag-remove → category-remove. These rules are configured at setup — the desktop launcher's **Default MCP Tools** card (include-by-tag / -category / -name, exclude-by-tag / -name) or CLI / yaml; `exclude.categories` is data-supported but currently only reachable via CLI / yaml override.
 
 Some default tools depend on environment-backed secrets — `OPENAI_API_KEY`, `GOOGLE_API_KEY` + `GOOGLE_PSE_ID`, `SLACK_WEBHOOK_URL`, the data.go.kr keychain, and the Korean provider keys — and stay inert until those are set. The consolidated list lives in [Default Tools → Environment variables](../default-tools/index.md#environment-variables-short-list); per-page details are on each reference page. The `File Toolkit` preset additionally honours `TOOL_STUDIO_FS_BASE` (defaulting to `${user.home}/spring-ai-playground/fs-tool-workspace`) for `safety.fs`. The desktop launcher's environment-variable workflow exists exactly to make this configuration ergonomic.
 
 ### Where preset choices live
 
-The same preset + rules shape is editable from two UI surfaces (both mirror to the same persistence file under the home dir — that file is managed by the persistence layer, not a hand-edit target):
+The preset + rules shape decides which built-in tools are **Local-Passed (active)**. It is chosen at **setup** — not from inside the running app's MCP drawer:
 
-1. **Default MCP Tools card** inside the desktop launcher's config editor — for picking the preset on first launch and adjusting it on any later configuration session. See [Desktop App → Default MCP Tools Curation](../../getting-started/desktop.md#default-mcp-tools-curation).
-2. **Tool MCP Server Setting drawer** inside Tool Studio — for adjusting at any time after the app is running, no restart required.
+1. **Default MCP Tools card** inside the desktop launcher's config editor — pick the preset on first launch and adjust it on any later configuration session. See [Desktop App → Default MCP Tools Curation](../../getting-started/desktop.md#default-mcp-tools-curation).
+2. **CLI / yaml override** — pin the preset and include/exclude rules at boot (below).
 
-![Tool MCP Server Setting drawer — preset selector and override rules](../../assets/images/tool-studio-mcp-setting.png)
-*Tool MCP Server Setting drawer, top to bottom: **Tools exposed** chip summary (`Starter 5 · 5 of 86 tools` with the resolved tool list); **Custom tools (you created)** — **Auto-add new custom tools to the MCP server** toggle (on by default, so every Local-Passed tool you author goes live) plus the **Manually exposed tools** MultiSelect for per-tool overrides; **Default tools (built-in)** — the **Preset** radio (`Starter 5` selected here alongside `Dev Essentials`, `Korea Toolkit (free)`, `File Toolkit`, `Everything`, `Custom`) and the collapsible **Advanced curation — applied on top of the preset** block exposing Include by tag / category / name and Exclude by tag / name. **Confirm** writes the change to `default-tools-preference.json` and updates the live MCP server without a restart.*
+Both write the same `default-tools-preference.json` under the home dir (managed by the persistence layer, not a hand-edit target), which the app reads at startup to set the Local-Passed set. After startup you Local-Pass or unpublish individual built-in tools from the **Tool Studio tool list** (Publish / Draft), and choose which Local-Passed tools the MCP server **exposes** from the **Built-in MCP Server Native Tools drawer**.
+
+![Built-in MCP Server Native Tools drawer — Local-Passed exposure selection](../../assets/images/tool-studio-mcp-setting.png)
+*Built-in MCP Server Native Tools drawer, top to bottom: **Tools exposed** confirmed-summary chips; **Auto-expose newly published tools**; **Custom tools** selector for authored tools; **Built-in tools** selector listing the Local-Passed built-in tools — tick which to expose. **Confirm** writes the exposure change and updates the live MCP server without a restart.*
 
 ### CLI / yaml override
 
@@ -442,6 +450,6 @@ If a `defaultToolOverrides.json` file from an earlier milestone (≤ M5) exists,
 
 ## Using Tools in Agentic Chat
 
-Tool Studio tools can be used in Agentic Chat through MCP integration. With a tool-capable model and the built-in MCP connection enabled, the model can call those built-in tools during agentic workflows.
+Tool Studio tools can be used in Agentic Chat through MCP integration. With a tool-capable model and **Use built-in MCP server in this chat** enabled, the model can call the tools exposed by the built-in server during agentic workflows.
 
 Agentic Chat can also call tools exposed by external MCP servers that you explicitly connect and trust.

@@ -21,7 +21,7 @@ The bundled catalog ships 86 default tools. The **Starter 5** preset is exposed 
 | `extractPageContent` | `fetch` + `safety.parser.html` to extract clean main text |
 | `evalExpression` | Pure expression evaluator, no network |
 
-Other presets in the **Tool MCP Server Setting** drawer (`Dev Essentials`, `Korea Toolkit (free)`, `File Toolkit`, `Everything`, `Custom`) unlock more of the catalog when you need it.
+Other presets (`Dev Essentials`, `Korea Toolkit (free)`, `File Toolkit`, `Everything`, `Custom`), chosen at setup in the desktop launcher (or via CLI / yaml), unlock more of the catalog when you need it.
 
 ## Steps
 
@@ -41,7 +41,7 @@ After the test passes, you'll see a confirmation banner. Tool name and descripti
 ![Test passed and the tool is registered](../assets/images/tutorials/tutorial-1-test-run-success.png)
 *The Local Pass is what gates publication. Tools that haven't earned it never reach an MCP client.*
 
-5. Switch to **MCP Server**. The built-in connection `spring-ai-playground-tool-mcp` is selected by default. Scroll down to the **MCP Inspector** section to see the tools as any MCP client would.
+5. Switch to **MCP Server**. The built-in connection `spring-ai-playground-built-in-mcp` is selected by default. Scroll down to the **MCP Inspector** section to see the tools as any MCP client would.
 
 ![MCP Inspector listing the built-in tools, with the play button on each row to call through MCP](../assets/images/tutorials/tutorial-1-mcp-inspector-tool.png)
 *① the **Call Tool** play icon (here on the `getCurrentTime` row, the same tool Tutorial 4 will call from chat) runs the tool through the full MCP transport — not just the local sandbox. Your `getWeather` from step 4 lives in the same list; scroll the inspector to find it.*

@@ -5,7 +5,7 @@ description: Run Spring AI Playground via Docker container or direct source / fa
 
 The desktop installer is the recommended path (see [Desktop App](desktop.md)). When you can't or don't want to install the desktop bundle — containerised deployment, development workflow, MCP stdio integration for Claude Desktop or Claude Code — Docker or a direct source / fat-JAR run is the alternative. Both expose the same Vaadin UI on `http://localhost:8282` and the same built-in MCP server; both honour the same `mcp-stdio` profile.
 
-For universal post-install steps (Your First Five Tasks, model configuration, telemetry), see [Getting Started](index.md).
+For universal post-install steps (Your First Five Tasks, model configuration, telemetry), see [Getting Started](index.md). For the **complete list of configuration knobs** — every property, environment variable, and default, and how to set it in each mode — see the [Configuration reference](configuration.md).
 
 ## When to use which
 
@@ -186,6 +186,7 @@ For OpenAI-compatible servers and the YAML overrides each one expects, see [Gett
 ## Further Reading
 
 - [Getting Started](index.md) — universal post-install steps, model configuration, telemetry
+- [Configuration](configuration.md) — every property / env var / default, and how to set it per launch mode
 - [Desktop App](desktop.md) — recommended path with installer + configuration walkthrough
 - [Features → MCP Server](../features/mcp-server/index.md) — what the built-in MCP server does, the Inspector, the external catalog
 - [Tutorials](../tutorials/index.md) — end-to-end workflows

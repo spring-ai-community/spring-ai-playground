@@ -77,6 +77,7 @@ nav:
       - "Safe Tool Specification": safe-tool-specification.md
       - "AI Agent Tool Safety": safety-architecture.md
       - "MCP Server Safety": mcp-server-safety.md
+      - "Human-in-the-Loop Approval": hitl-architecture.md
       - "AI Agent Observability": observability-architecture.md
   - "Features":
       - features/index.md
@@ -103,6 +104,7 @@ nav:
           - "MCP Server Proxy": features/mcp-server/proxy.md
       - "Vector Database": features/vector-database.md
       - "Agentic Chat": features/agentic-chat.md
+      - "Human-in-the-Loop": features/human-in-the-loop.md
       - "Observability":
           - features/observability/index.md
           - "Overview": features/observability/overview.md
@@ -135,6 +137,7 @@ nav:
       - "8. Default Tool Recipes": tutorials/8-default-tool-recipes.md
       - "9. MCP Everything Walkthrough": tutorials/9-mcp-everything.md
       - "10. Proxy an MCP Server": tutorials/10-proxy-external-tool.md
+      - "11. Approve a Tool in Chat": tutorials/11-human-approval.md
   # Changelog is published in the repo as CHANGELOG.md (and rendered at
   # /changelog/ when reached by URL via the docs/changelog.md include).
   # Intentionally omitted from main nav to avoid duplicating GitHub-hosted

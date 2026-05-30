@@ -746,6 +746,26 @@ body.dl-confirm-open {
 [data-md-color-scheme="slate"] .risk-l3 { --risk-bg: rgba(255,193,7,0.22); --risk-fg: #ffd54f; }
 [data-md-color-scheme="slate"] .risk-l4 { --risk-bg: rgba(255,152,0,0.22); --risk-fg: #ffb74d; }
 [data-md-color-scheme="slate"] .risk-l5 { --risk-bg: rgba(244,67,54,0.22); --risk-fg: #e57373; }
+
+/* Risk-level chip — mirrors the in-app McpRiskChip (L0–L5) exactly.
+   Use inline:  <span class="rl rl-l2">L2 — Low</span>  */
+.rl {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 12px;
+  padding: 2px 9px;
+  font-size: 0.78em;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.rl-l0 { background: #1b5e20; color: #fff; }
+.rl-l1 { background: #2e7d32; color: #fff; }
+.rl-l2 { background: #9ccc65; color: #1b1b1b; }
+.rl-l3 { background: #fdd835; color: #1b1b1b; }
+.rl-l4 { background: #fb8c00; color: #fff; }
+.rl-l5 { background: #e53935; color: #fff; }
 .tcg-body {
   padding: 0.8em 0.9em;
   font-size: 0.85em;

@@ -1,18 +1,39 @@
-title: Application Architecture
+title: Application
 description: Spring AI Playground architecture — runtime layers, feature modules, data flows, and extension points across Tool Studio, MCP, RAG, and Agentic Chat.
 
-# Application Architecture
+# Application
 
 Spring AI Playground is a **tool-first Spring Boot application** with several UI surfaces layered on top of a shared runtime. The primary packaged experience is a cross-platform desktop app; Docker and source execution are supported as alternative runtimes.
 
 This page explains how the system is organized, how requests flow through it, and where to extend it. It is intended for contributors, integrators, and anyone evaluating how the product is built under the hood.
 
-This is one of four architecture documents that complement each other:
+This is one of six architecture documents that complement each other:
 
-- **Application Architecture** (this page) — runtime layers, feature modules, data flows, extension points
-- **[Safe Tool Specification 1.0](safe-tool-specification.md)** — normative JSON spec for tool authoring (fields, JSON Schema, resolution algorithm, lifecycle)
-- **[AI Agent Tool Safety Architecture](safety-architecture.md)** — defense-in-depth sandbox model, policy resolution, threat-to-layer mapping, known limitations
-- **[AI Agent Observability Architecture](observability-architecture.md)** — the visibility layer that captures every action the agent took and surfaces it through twelve dashboards
+- **Application** (this page) — runtime layers, feature modules, data flows, extension points
+- **[Safe Tool Specification](safe-tool-specification.md)** — normative JSON spec for tool authoring (fields, JSON Schema, resolution algorithm, lifecycle)
+- **[AI Agent Tool Safety](safety-architecture.md)** — defense-in-depth sandbox model, policy resolution, threat-to-layer mapping, known limitations
+- **[MCP Server Safety](mcp-server-safety.md)** — client-side risk model for external MCP servers and re-exposed tools
+- **[Human-in-the-Loop Approval](hitl-architecture.md)** — the runtime per-call approval gate (chat dialog + MCP elicitation)
+- **[AI Agent Observability](observability-architecture.md)** — the visibility layer that captures every action the agent took and surfaces it through twelve dashboards
+
+## Overview { #overview }
+
+The whole product is one local desktop app built on the idea of **"no pass, no run"**: a tool is authored, tested in a sandbox against its own values, and only then published to the built-in MCP server where an agent can call it. **External MCP servers are reached two ways** — Agentic Chat and the MCP Inspector connect to them *directly*, and selected upstream tools are also *composed/proxied* onto the built-in server so they reach every consumer (Chat, Inspector, external `/mcp` clients) wrapped and governed. Agentic Chat composes tools with RAG grounding, served by a local model by default.
+
+```mermaid
+flowchart TB
+    AUTH["Authored tools<br/>Tool Studio → Local Pass"] -->|"publish"| BUILTIN["Built-in MCP server<br/>/mcp · governed hub"]
+    EXT["External MCP servers"] -->|"compose / proxy"| BUILTIN
+
+    BUILTIN --> CHAT["Agentic Chat"]
+    BUILTIN --> INSP["MCP Server — Inspector"]
+    BUILTIN --> EXTC["External /mcp clients"]
+
+    EXT -.->|"direct"| CHAT
+    EXT -.->|"direct"| INSP
+```
+
+Solid arrows are the built-in server path (authored tools + proxied external tools); dotted arrows are direct external connections. The rest of this page expands that flow into runtime layers, feature modules, and data flows.
 
 ## Design Goals
 
@@ -30,7 +51,7 @@ That framing drives every other choice on this page:
 
 The application is easiest to think about as five layers. Each layer has a well-defined responsibility and a narrow interface with the one above it.
 
-![Runtime layer diagram — five stacked layers from Electron launcher down to data stores, with feature modules and JS sandbox annotated](assets/images/architecture-layers.svg){ loading=lazy }
+![Runtime layer diagram — five stacked layers from Electron launcher down to external runtimes, with the Spring AI integration layer showing the four-advisor ChatClient chain, the built-in and client MCP adapters, the human-in-the-loop approval gates, and encrypted OAuth token storage](assets/images/architecture-layers.svg){ loading=lazy }
 
 ### Layer 1 — Desktop Launcher (Electron)
 
@@ -39,12 +60,13 @@ Located in `electron/`. Responsible for packaging, configuration, and process li
 - `main.js` spawns the bundled Spring Boot JAR, polls for readiness, opens the main `BrowserWindow`, and terminates the JVM on quit.
 - `launcher-config.js` holds YAML templates per provider (Ollama, OpenAI, OpenAI-compatible).
 - `ollama-manager.js` drives the Ollama model manager window.
+- **OS secure storage** — provider API keys and `${ENV}` secrets entered in the launcher are sealed with Electron `safeStorage` (Keychain on macOS, DPAPI on Windows, libsecret/kwallet on Linux) and written to an encrypted `secrets` store, never as plaintext when OS encryption is available.
 
 The launcher is optional. Running the JAR directly or the Docker image skips this layer entirely.
 
 ### Layer 2 — UI Surfaces
 
-Hand-written **Vaadin 24** views under `src/main/java/org/springaicommunity/playground/webui/`. Not Hilla-generated. Each feature area has a root view (`@Route`, `@SpringComponent`, `@UIScope`) and smaller component views composed inside it.
+Hand-written **Vaadin Flow** views under `src/main/java/org/springaicommunity/playground/webui/`. Not Hilla-generated. Each feature area has a root view (`@Route`, `@SpringComponent`, `@UIScope`) and smaller component views composed inside it.
 
 | Package | Root view | Purpose |
 |---|---|---|
@@ -58,23 +80,26 @@ Hand-written **Vaadin 24** views under `src/main/java/org/springaicommunity/play
 
 Streaming responses (chat, tool execution traces) are pushed to the browser over Vaadin's WebSocket push.
 
-### Layer 3 — Service Layer
+### Layer 3 — Backend Services
 
-Under `src/main/java/org/springaicommunity/playground/service/`. One service per feature area, each owning its persistence and runtime concerns.
+Per-feature services under `src/main/java/org/springaicommunity/playground/service/`, each owning its persistence and runtime concerns. (The observability backend is a separate top-level `observability/` package — its UI sits in Layer 2 and its pipeline is documented in [AI Agent Observability](observability-architecture.md).)
 
 | Package | Key services | Owns |
 |---|---|---|
 | `service/chat` | `ChatService`, `ChatHistoryService` | Chat execution, history, tool/RAG composition |
 | `service/tool` | `ToolSpecService`, `ToolCategoryCatalog`, `ChipListBinding`, `DefaultToolPresetCatalog`, `DefaultToolsPreference{Resolver,Service}`, `ToolActivationCalculator`, `McpToolDefinition` + `ToolManifest` envelope | Tool definitions, preset/preference resolution, draft/exposure state |
 | `service/tool/runtime` | `JsToolExecutor`, `JsRuntimeGlobals`, `SafeHttpFetch`, `SafeFs`, `JsHelperException` | GraalVM sandbox, `fetch` SSRF guard, `safety.fs`, `safety.parser.*` |
-| `service/tool/policy` | `EffectivePolicyResolver`, `SandboxPostureCalculator` | Per-tool capability overrides + risk-level (L0–L5) calculation |
-| `service/mcp` | `McpServerInfoService`, `McpToolCallingManager` | Built-in MCP server metadata, tool-call eventing |
-| `service/mcp/catalog` | `McpCatalogService`, `McpCategoryService`, `McpTagSuggestionService` | 57-entry preset catalog (49 remote + 8 stdio per OS) — loaded from `default-mcp-specs.json` and `default-mcp-specs-stdio-{mac,linux,windows}.json`, plus the 14-row `default-mcp-categories.json` taxonomy (13 catalog-facing categories + `CUSTOM` reserved for user-added entries), plus dynamic tag suggestions for the Config form |
+| `service/tool/policy` | `EffectivePolicyResolver`, `SandboxPostureCalculator` | Per-tool capability overrides + **sandbox** risk-level (L0–L5) calculation (distinct from the MCP connection/exposure risk in `service/mcp/risk`) |
+| `service/mcp` | `McpServerInfoService`, `McpToolCallingManager`, `HitlToolCallAdvisor`, `McpServerHitlToolGate` | Built-in MCP server metadata, tool-call eventing, and the two human-in-the-loop approval gates (chat-side advisor + server-side elicitation) — see [Human-in-the-Loop Approval](hitl-architecture.md) |
+| `service/oauth` | `EncryptedFileOAuth2AuthorizedClientRepository`, `OAuthTokenEncryptor`, `McpClientRegistrationRepository`, `McpOAuth2AuthorizationCodeRequestCustomizer` | OAuth 2.1 for external MCP connections — encrypted-at-rest token store, dynamic client registration, authorization-code customizer |
+| `service/mcp/catalog` | `McpCatalogService`, `McpCategoryService`, `McpTagSuggestionService` | 57-entry preset catalog (49 remote + 8 stdio per OS) — loaded from `default-mcp-specs.json` and `default-mcp-specs-stdio-{mac,linux,windows}.json`, plus the 14-row `default-mcp-categories.json` taxonomy (13 catalog-facing categories + `CUSTOM` reserved for user-added entries), plus dynamic tag suggestions for the Config form; each entry carries `trustSignals` + `docsAdequate` metadata consumed by the risk model |
 | `service/mcp/client` | `McpClientService`, `Mcp*PropertiesService` | External MCP clients across STDIO / HTTP / SSE |
+| `service/mcp/risk` | `McpServerRiskCalculator`, `McpToolPublishRiskCalculator`, `McpToolRiskComposer`, `McpToolPoisoningScanner`, `McpToolHashLedger`, `McpCompositionService`, `McpCompositionShadowingRules`, `McpExposedToolService`, `WrappedExternalToolCallback` | L0–L5 risk scoring for external servers/tools (transport · auth · trust · doc axes + floor rules), tool-description poisoning scan, fingerprint ledger for change detection, and tool **composition** that re-exposes upstream tools on the built-in server with alias / description / HITL overrides — see [MCP Server Safety](mcp-server-safety.md) |
 | `service/util` | `SecretMasking`, `EnvVarResolver` | Resolve `${ENV_VAR}` placeholders against the OS env; sweep connection-error notifications + per-call logs to replace any resolved secret value with `***` |
 | `service/vectorstore` | `VectorStoreService`, `VectorStoreDocumentService` | Tika ingestion, chunking, embedding, search |
-| `observability` | `ObservabilityCollector`, `ObservabilityRingBuffer`, `ObservabilityTimeSeries`, `ObservabilityPersistenceService`, `ConversationAggregator`, `ConversationMessageExtractor`, `SystemMetricsCollector`, `McpToolObservationFilter`, `TraceRecord` / `SpanRecord` | Micrometer `ObservationHandler` pipeline that captures every `gen_ai.*`, `spring.ai.tool`, and `db.vector.client.operation` span into per-turn `TraceRecord`s; ring buffer + on-demand time series + opt-in JSONL persistence; live `Sinks.Many` for the Traces tab |
-| `observability/pricing` | `ModelPricingService`, `CurrencyService`, `ModelPricing` | Per-model rate lookup (`pricing.json`), USD-pegged display currencies (`currency.json`); cost computation `BigDecimal` HALF_UP 6-decimal at read time |
+| `service/identity` | `DeviceIdProvider`, `UserIdentityService`, `MdcIdentityFilter` (in `config`) | Stable per-device id — salted SHA-256 of the OS machine id, persisted to `identity/installation.json`; injected into MDC as `userId` / `sessionId` for log + trace correlation (see [Observability → Device-based identity](observability-architecture.md#device-identity)) |
+| `observability` *(top-level)* | `ObservabilityCollector`, `ObservabilityRingBuffer`, `ObservabilityTimeSeries`, `ModelPricingService` | Micrometer `ObservationHandler` pipeline + ring buffer / time series / JSONL persistence that backs the Observability dashboards — a sibling of `service/`, shown here because it is runtime backend. Full design: [AI Agent Observability](observability-architecture.md) |
+
 
 Persistence is pluggable via `PersistenceServiceInterface` and coordinated by `SpringAiPlaygroundPersistenceManager` on startup / shutdown. The default writes JSON files under the user home directory.
 
@@ -82,12 +107,13 @@ Persistence is pluggable via `PersistenceServiceInterface` and coordinated by `S
 
 Thin adapter layer configured in `SpringAiPlaygroundApplication` and related Spring `@Configuration` classes.
 
-- `ChatClient` is built once with an advisor chain: **MessageChatMemoryAdvisor → SpringAiPlaygroundRagAdvisor → SimpleLoggerAdvisor**.
+- `ChatClient` is built once from **all `Advisor` beans injected as an array** (`chatClientBuilder.defaultAdvisors(Advisor[])`), ordered by each advisor's `getOrder()`. The four are **`MessageChatMemoryAdvisor`**, **`SpringAiPlaygroundRagAdvisor`** (`LOWEST_PRECEDENCE − 1`), **`SimpleLoggerAdvisor`**, and **`HitlToolCallAdvisor`** (`HIGHEST_PRECEDENCE + 300`) — the last extends Spring AI's `ToolCallAdvisor`, so it owns the tool-calling loop: it wraps `McpToolCallingManager`, which runs the [human-in-the-loop approval gate](hitl-architecture.md) before any tool executes.
 - `ChatMemory` defaults to `MessageWindowChatMemory` (last 10 messages) backed by `InMemoryChatMemoryRepository`.
 - `VectorStore` defaults to `SimpleVectorStore` (in-memory). Swap via Spring profile or user configuration.
 - `EmbeddingModel` is resolved from the active model profile (Ollama by default, OpenAI optional).
 - **Built-in MCP Server** — wired through `spring-ai-starter-mcp-server` and exposes published Tool Studio tools over **Streamable HTTP at `/mcp`**. Runs in-process inside the JVM.
 - **MCP Client** — wired through `spring-ai-starter-mcp-client` to connect out to external MCP servers.
+- **McpToolCallingManager** — the project's `ToolCallingManager` implementation that drives the chat tool-calling loop. It wraps the Spring AI default manager and is where the per-tool human-in-the-loop approval check runs before a tool executes.
 
 ### Layer 5 — External Runtimes
 
@@ -108,6 +134,7 @@ flowchart LR
     EXT[External MCP Servers]
     VDB[Vector Database]
     CHAT[Agentic Chat]
+    HITL[Human-in-the-Loop<br/>approval gate]
     OBS[Observability]
 
     TS -- "publishes tools" --> BUILTIN
@@ -116,19 +143,23 @@ flowchart LR
     BUILTIN -- "exposes tools" --> CHAT
     EXT -- "exposes tools" --> CHAT
     VDB -- "retrieves grounded context" --> CHAT
+    CHAT -- "gates each call" --> HITL
+    BUILTIN -- "gates external callers" --> HITL
     CHAT -. "spans" .-> OBS
     BUILTIN -. "spans" .-> OBS
     EXT -. "spans" .-> OBS
     VDB -. "spans" .-> OBS
+    HITL -. "spans" .-> OBS
 ```
 
-The five main surfaces are **connected parts of one workflow**, not isolated demos:
+The main surfaces are **connected parts of one workflow**, not isolated demos:
 
 - **Tool Studio** creates and publishes tools into the **Built-in MCP Server**.
 - **MCP Server** is the validation boundary — register, inspect, and test external MCP connections before trusting them; the Built-in MCP Server is included there by default.
 - **Vector Database** prepares indexed knowledge for retrieval.
 - **Agentic Chat** composes tools (from the Built-in MCP Server or External MCP Servers) and retrieved documents into one conversational runtime.
-- **Observability** is the read-only visibility layer — every other surface emits `gen_ai.*` / `spring.ai.tool` / `db.vector.client.operation` spans into the `ObservabilityCollector`, which assembles per-turn `TraceRecord`s and exposes them through twelve dashboards. See [AI Agent Observability Architecture](observability-architecture.md) for the pipeline.
+- **Human-in-the-Loop** is a cross-cutting runtime gate — a tool flagged for approval pauses before it runs, asking the user in Chat (dialog) or the calling client (MCP elicitation). See [Human-in-the-Loop Approval](hitl-architecture.md).
+- **Observability** is the read-only visibility layer — every other surface emits `gen_ai.*` / `spring.ai.tool` / `db.vector.client.operation` spans into the `ObservabilityCollector`, which assembles per-turn `TraceRecord`s and exposes them through twelve dashboards. See [AI Agent Observability](observability-architecture.md) for the pipeline.
 
 ## Key Data Flows
 
@@ -138,13 +169,13 @@ A tool defined in Tool Studio is a `FunctionToolCallback` whose executor delegat
 
 ```mermaid
 flowchart TB
-    UI["ToolStudioView<br/>(code · params · static vars)"]
-    SVC["ToolSpecService.update()"]
-    CB["FunctionToolCallback(name, executor)"]
-    EXE["JsToolExecutor.execute()"]
-    POLY["GraalVM Polyglot Context<br/>Host allowlist · IOAccess<br/>Statement limit · timeout"]
-    MCPSRV["McpSyncServer.addTool()"]
-    MCPEP["Built-in MCP @ /mcp<br/>(Streamable HTTP)"]
+    UI["Tool Studio view<br/>code · params · vars"]
+    SVC["ToolSpecService<br/>update"]
+    CB["FunctionToolCallback"]
+    EXE["JsToolExecutor<br/>sandbox run"]
+    POLY["GraalVM context<br/>allowlist · limits"]
+    MCPSRV["addTool<br/>(McpSyncServer)"]
+    MCPEP["Built-in /mcp<br/>Streamable HTTP"]
 
     UI --> SVC
     SVC --> CB
@@ -156,7 +187,7 @@ flowchart TB
 
 Sandbox policy is configurable under `spring.ai.playground.tool-studio.js-sandbox`. The defaults are deny-first: raw network I/O, file I/O, native access, and thread creation are all blocked at the Java level. A `deny-classes` list (System, Runtime, Process, Class, reflect, invoke, Thread, ClassLoader, ServiceLoader, spi) is evaluated before any allow-class match, so deny always wins. The allow-classes are limited to pure-compute packages (`java.lang/math/time/util/text.*`). Tools talk to the outside world through built-in helpers — `fetch` (four-layer SSRF guard, `strict` egress), `safety.fs` (rooted at `tool-studio.fs.base-path`), and `safety.parser.{html,yaml,csv,xml}` — and a tool that genuinely needs more opens specific capabilities through per-tool overrides on its `SandboxOverrides` block (`addAllowClasses`, `hostsAllow`, `networkMode`, `fileRead`/`fileWrite`, `fsBasePath`), which raise its visible risk level (L0–L5) computed by `SandboxPostureCalculator`. See [Tool Studio → Sandbox & Capabilities](features/tool-studio/index.md#sandbox-capabilities) for the full override shape, egress mode behavior, and risk-level rules.
 
-Publishing has two states. A new or unverified tool is a **Draft** — it lives in Tool Studio and is **not** registered with the built-in MCP server. A Local Pass (a successful test run with the declared test values) flips the `McpToolDefinition` exposure flag and `ToolActivationCalculator` registers the callback with `McpSyncServer`. Which Local-Passed tools ship to MCP on boot is decided by `DefaultToolPresetCatalog` + `DefaultToolsPreferenceResolver` (configurable through Tool Studio's Tool MCP Server Setting drawer, the launcher's Default MCP Tools card, or a CLI override).
+Publishing has two states. A new or unverified tool is a **Draft** — it lives in Tool Studio and is **not** registered with the built-in MCP server. A Local Pass (a successful test run with the declared test values) flips the `McpToolDefinition` exposure flag and `ToolActivationCalculator` registers the callback with `McpSyncServer`. Which built-in tools are Local-Passed (active) on boot is decided by `DefaultToolPresetCatalog` + `DefaultToolsPreferenceResolver`, configured at setup (the launcher's Default MCP Tools card or a CLI override). Tool Studio's Built-in MCP Server Native Tools drawer then selects which Local-Passed tools the server exposes.
 
 ### Flow 2 — External MCP server connection
 
@@ -164,16 +195,18 @@ Publishing has two states. A new or unverified tool is a **Draft** — it lives 
 
 ```mermaid
 flowchart TB
-    FORM["McpServerConnectionView<br/>(transport + connection JSON)"]
-    START["McpClientService.startMcpClient()"]
-    MAP{{"McpTransportType"}}
-    STDIO["StdioClientPropertiesService<br/>(spawn process)"]
-    HTTP["StreamableHttpClient<br/>PropertiesService<br/>(HTTP transport)"]
-    SSE["SseClientPropertiesService<br/>(SSE transport)"]
-    INIT["McpClient.sync() / async()<br/>→ initialize() handshake"]
-    REG["connectingMcpClientOpsMap<br/>(serverInfo → McpClientOps)"]
-    INSP["McpServerInspectorView<br/>(list tools · test execution)"]
+    FORM["Connection view<br/>transport + JSON"]
+    START["McpClientService<br/>start client"]
+    MAP{{"Transport type"}}
+    STDIO["STDIO<br/>spawn process"]
+    HTTP["Streamable HTTP<br/>transport"]
+    SSE["SSE<br/>transport"]
+    INIT["McpClient<br/>initialize handshake"]
+    REG["Connected clients<br/>serverInfo → ops"]
+    INSP["Inspector view<br/>list · test tools"]
+    RISK["Risk calculator<br/>live risk chip"]
 
+    FORM -.->|live preview| RISK
     FORM --> START
     START --> MAP
     MAP --> STDIO & HTTP & SSE
@@ -182,19 +215,36 @@ flowchart TB
     REG --> INSP
 ```
 
-Once registered, the same connection becomes available as a tool source in Agentic Chat.
+Once registered, the same connection becomes available as a tool source in Agentic Chat. While the form is open, `McpServerRiskCalculator` scores the in-progress connection and renders a live **risk chip** beside the transport selector (see [MCP Server Safety](mcp-server-safety.md)).
+
+### Flow 2b — Exposing external tools (composition)
+
+Beyond inspecting a connection, the operator can **re-expose** selected upstream tools on the built-in MCP server through the Expose Tools drawer. `McpCompositionService` persists the selection (exposed alias, description override, per-tool HITL, max-risk cap); on enable, `McpCompositionShadowingRules` validates the set (alias collisions, cross-server references), `McpToolRiskComposer` combines server + tool risk (lowered one band when HITL is set), and `McpExposedToolService` wraps each chosen tool in a `WrappedExternalToolCallback` registered with `McpSyncServer` — so it joins the Tool Studio tools published at `/mcp`.
+
+```mermaid
+flowchart LR
+    DRAWER["Expose Tools drawer<br/>select · alias · HITL · cap"]
+    SVC["Composition service<br/>persist selection"]
+    RULES{"Shadowing rules<br/>R1 · R2 · R3"}
+    WRAP["Wrapped tool<br/>alias + risk MDC"]
+    BUILTIN["Built-in /mcp<br/>(McpSyncServer)"]
+
+    DRAWER --> SVC --> RULES
+    RULES -->|ok| WRAP --> BUILTIN
+    RULES -->|violation| SVC
+```
 
 ### Flow 3 — Document ingestion and RAG
 
 ```mermaid
 flowchart LR
-    UP["Upload<br/>(PDF · DOCX · HTML · ...)"]
-    TIKA["TikaDocumentReader"]
-    SPLIT["TokenTextSplitter<br/>(chunk=800, min=350)"]
+    UP["Upload<br/>PDF · DOCX · HTML"]
+    TIKA["Tika reader"]
+    SPLIT["Text splitter<br/>chunk 800 · min 350"]
     TAG["Tag with docInfoId"]
-    EMBED["EmbeddingModel.embed()"]
-    STORE["VectorStore.add()"]
-    DI["VectorStoreDocumentInfo<br/>(metadata · lazy supplier)"]
+    EMBED["Embedding model"]
+    STORE["Vector store<br/>add"]
+    DI["Document info<br/>metadata · lazy"]
 
     UP --> TIKA --> SPLIT --> TAG --> EMBED --> STORE
     STORE --> DI
@@ -204,17 +254,17 @@ Searches go through `VectorStoreService.search(query, filterExpression)` which b
 
 ### Flow 4 — Chat advisor chain (memory + RAG)
 
-Every chat request passes through the `ChatClient` advisor chain before it reaches the model. The chain is built once with three default advisors — **MessageChatMemoryAdvisor → SpringAiPlaygroundRagAdvisor → SimpleLoggerAdvisor** — and runs in order for every call.
+Every chat request passes through the `ChatClient` advisor chain before it reaches the model. The chain is assembled from all `Advisor` beans injected as an array (`defaultAdvisors(Advisor[])`) and ordered by each advisor's `getOrder()` — **MessageChatMemoryAdvisor**, **SpringAiPlaygroundRagAdvisor**, **SimpleLoggerAdvisor**, and **HitlToolCallAdvisor** (which owns the tool-calling loop and runs the [human-in-the-loop gate](hitl-architecture.md); see Flow 5).
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant CS as ChatService
     participant CCL as ChatClient
-    participant MEM as MessageChatMemoryAdvisor
+    participant MEM as Memory advisor
     participant CMEM as ChatMemory<br/>(MessageWindow, last 10)
-    participant RAG as SpringAiPlaygroundRagAdvisor
-    participant RAA as RetrievalAugmentationAdvisor<br/>(built per-request)
+    participant RAG as RAG advisor (ours)
+    participant RAA as Spring AI RAG
     participant VSS as VectorStoreService
     participant LOG as SimpleLoggerAdvisor
     participant MODEL as ChatModel
@@ -246,8 +296,8 @@ Tool callbacks come from MCP clients, not from code you compile in. When a user 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant CCV as ChatContentView
-    participant MCS as McpClientService
+    participant CCV as Chat view
+    participant MCS as MCP client
     participant PROV as Sync · Async<br/>ToolCallbackProvider
     participant CCL as ChatClient
     participant MODEL as ChatModel
@@ -285,7 +335,7 @@ Agentic Chat is the compose step: it drives Flow 4 and Flow 5 in one streaming r
 sequenceDiagram
     autonumber
     participant U as User
-    participant CCV as ChatContentView
+    participant CCV as Chat view
     participant CS as ChatService
     participant CCL as ChatClient
     participant ADV as Advisor chain<br/>(Flow 4)
@@ -338,7 +388,7 @@ A safe tool spec carries two safety-related blocks that look similar but serve o
 
 The split exists so that (1) the editable intent and the enforced posture cannot drift, (2) verifying a foreign spec's safety properties only needs reading `toolSafety`, and (3) the audit log captures what was *actually enforced*, not what the author *asked for*.
 
-For the full document grammar — every field, JSON Schema, resolution algorithm, network mode behavioral table, Risk Level computation, versioning policy, validation error model, and canonical examples — see [**Safe Tool Specification 1.0**](safe-tool-specification.md). For the resolver internals and threat-to-layer mapping, see [AI Agent Tool Safety Architecture](safety-architecture.md). For the Tool Studio UI form that writes this JSON, see [Tool Studio → Sandbox & Capabilities](features/tool-studio/index.md#sandbox-capabilities).
+For the full document grammar — every field, JSON Schema, resolution algorithm, network mode behavioral table, Risk Level computation, versioning policy, validation error model, and canonical examples — see [**Safe Tool Specification 1.0**](safe-tool-specification.md). For the resolver internals and threat-to-layer mapping, see [AI Agent Tool Safety](safety-architecture.md). For the Tool Studio UI form that writes this JSON, see [Tool Studio → Sandbox & Capabilities](features/tool-studio/index.md#sandbox-capabilities).
 
 ## Sandbox Safety
 

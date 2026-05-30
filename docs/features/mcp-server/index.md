@@ -1,6 +1,8 @@
-description: MCP Server — sidebar catalog + manual connections, multi-transport runtime, OAuth 2.1, and Inspector for tools, resources, prompts, client primitives.
+description: MCP Server — sidebar catalog + manual connections, multi-transport runtime, OAuth 2.1, live connection risk scoring, tool exposure (composition), and Inspector for tools, resources, prompts, client primitives.
 
 # MCP Server
+
+**Where:** top navigation → **MCP Server**.
 
 The MCP Server screen is where you pick, configure, and inspect a single MCP connection. The **left rail** is a 3-layer sidebar (Built-in / Active / Inactive) under a sticky `MCP Server Connections (N)` header and a shared filter bar. The **right pane** is `MCP Server Info` — a connection form whose content swaps in to match whichever row is selected on the left, without ever leaving the page. The screen serves two audiences at once:
 
@@ -23,7 +25,7 @@ Just below the sidebar title sits a three-control filter bar (shared `webui/comm
 
 ![MCP Server screen layout — left rail with the sidebar (filter bar + 3-layer list) and right pane with the MCP Server Info connection form](../../assets/images/default-mcp-catalog/sidebar.png){ width="640" loading=lazy }
 
-For the per-control behaviour, full categories/tags vocabulary, AND/OR composition examples, and how the right-pane connection form prefills when you click a row, see [Default MCP Catalog → Sidebar filtering and form prefill](../default-mcp-catalog/index.md#sidebar-filtering-and-form-prefill).
+For the per-control behaviour, full categories/tags vocabulary, AND/OR composition examples, and how the right-pane connection form prefills when you click a row, see [Default MCP Servers → Sidebar filtering and form prefill](../default-mcp-catalog/index.md#sidebar-filtering-and-form-prefill).
 
 ### Live status in the sidebar
 
@@ -43,7 +45,7 @@ For example, clicking **MCP-Everything** under `Example` lands an STDIO row pre-
 
 The row stays in the Inactive layer until you click **Save & Connect**; on save the row moves into the Active layer under the same category group and the playground spawns the child process. For OAuth entries this records the registration without yet connecting — see [OAuth 2.1 Authorization Code](#oauth-21-authorization-code) below for the **Authorize** click.
 
-For the full per-category browse of the 57 catalog entries, see the [Default MCP Catalog directory](../default-mcp-catalog/index.md).
+For the full per-category browse of the 57 catalog entries, see the [Default MCP Servers directory](../default-mcp-catalog/index.md).
 
 ### Add Custom Server
 
@@ -57,9 +59,9 @@ Three field constraints worth knowing before saving:
 
 The **Headers** section's **Insert auth header preset…** dropdown drops a templated row (Bearer / Basic / API Key) with `${VAR}` substitution wired in; the **+** button next to it adds a blank row. OAuth 2.1 has its own checkbox-toggled sub-form further down.
 
-### Browse the Default MCP Catalog
+### Browse the Default MCP Servers
 
-The 57 catalog entries are documented in their own directory under Features. Use the [Default MCP Catalog index](../default-mcp-catalog/index.md) for a full searchable card grid (Category / Tag / Transport chips), or jump directly to a category-cohort sub-page:
+The 57 catalog entries are documented in their own directory under Features. Use the [Default MCP Servers index](../default-mcp-catalog/index.md) for a full searchable card grid (Category / Tag / Transport chips), or jump directly to a category-cohort sub-page:
 
 | Sub-page | Categories merged | Entries | What lives there |
 |---|---|---|---|
@@ -127,21 +129,46 @@ Tokens are kept in an encrypted file store under `${user.home}/spring-ai-playgro
 !!! tip "Use `${ENV_VAR}` for client secrets"
     The OAuth sub-form's **Client secret** field accepts placeholders the same way header values do. Storing `${SOME_OAUTH_CLIENT_SECRET}` in the form keeps the secret out of the persisted JSON; the actual value is read from the OS environment at connect time.
 
+## Connection risk preview { #connection-risk-preview }
+
+Every server config form carries a live **risk chip** beside the transport selector. It recomputes as you edit — pick a catalog entry or type a URL, and the chip updates before you ever click **Save & Connect**. The chip reflects the [MCP server risk rubric](../../mcp-server-safety.md): four axes (transport, auth, trust, documentation) bucketed into `L0`–`L5`, with three floor rules that jump straight to **L5 — Critical**.
+
+![The DeepWiki connection form — the green Server: L1 — Safe chip sits beside the Transport type radios, above the URL and Headers fields](../../assets/images/mcp-server/connection-form.png){ loading=lazy }
+
+The chip sits beside the transport selector. A vendor-official catalog entry over HTTPS computes low:
+
+![Risk preview chip reading Server: L1 — Safe next to the transport radios](../../assets/images/mcp-server/risk-preview-safe.png){ loading=lazy }
+
+Typing an unknown public URL with no auth trips the `no-auth-unknown` floor and the chip turns red — a prompt to add auth or re-check the host before connecting:
+
+![Risk preview chip reading Server: L5 — Critical with floor no-auth-unknown](../../assets/images/mcp-server/risk-preview-critical.png){ loading=lazy }
+
+The built-in `spring-ai-playground` server is the one exception — it shows **L0 — Verified**, since the risk model is bypassed for the self-loopback server. For the axis-by-axis scoring, floor conditions, the description poisoning scan, and the fingerprint ledger, see [MCP Server Safety](../../mcp-server-safety.md).
+
 ## MCP Inspector
 
 Once a connection is up, the **MCP Inspector** is where you exercise every primitive the server (or your client) exposes, isolated from chat. The eight tabs split into **server primitives** (Tools, Resources, Prompts, Ping, Notifications) and **client primitives** (Roots, Sampling, Elicitation — inverted: the *server* asks the playground to act as the client).
 
 See the [MCP Inspector sub-page](inspector.md) for the full per-tab walkthrough, including the `InlineResultPanel` request/response/raw-toggle behaviour, JSON-Schema-typed input controls, and how to verify push notifications and OAuth-protected reads end-to-end.
 
+## Expose external tools — the MCP Server Proxy { #expose-external-tools }
+
+The **gear icon** on the MCP Server Info header opens the **Expose Tools** drawer, which **re-publishes selected tools from your external connections through the built-in server** (`spring-ai-playground-built-in-mcp`) — so they're callable from Agentic Chat *and* external `/mcp` clients, each wrapped with a risk level, optional HITL approval, logging, and secret masking.
+
+This is the **MCP Server Proxy**. Its dedicated page covers the full walkthrough — the per-composition risk cap, per-tool HITL and alias/description overrides, the safe-wrapping contract, the poisoning/shadowing guards, and how external clients reach the proxied tools:
+
+[:material-arrow-right: MCP Server Proxy](proxy.md){ .md-button }
+
 ## Getting Started With MCP
 
-1. **Pick a server** — open the sidebar's **Inactive MCP** section and click a catalog entry, or click **Add Custom Server** for anything not in the catalog. See the [Default MCP Catalog directory](../default-mcp-catalog/index.md) for the full per-category browse.
-2. **Fill the connection form** — for catalog rows the form is pre-filled; supply only the local bits (API key via `${VAR}` placeholders, tenant ID, OAuth Authorize click). For custom rows, type the URL or command + auth.
+1. **Pick a server** — open the sidebar's **Inactive MCP** section and click a catalog entry, or click **Add Custom Server** for anything not in the catalog. See the [Default MCP Servers directory](../default-mcp-catalog/index.md) for the full per-category browse.
+2. **Fill the connection form** — for catalog rows the form is pre-filled; supply only the local bits (API key via `${VAR}` placeholders, tenant ID, OAuth Authorize click). For custom rows, type the URL or command + auth. Watch the **[risk chip](#connection-risk-preview)** beside the transport selector — it scores the connection live before you save.
 3. **Validate before saving** — click **Test Connection** to spin up a transient client and confirm `initialize` + one-shot `listTools` work without touching the running connection map.
 4. **Save & Connect** — the row moves into the **Active MCP** sidebar layer; the status dot turns green when the playground gets a successful ping.
 5. **For OAuth-protected servers** — complete the **Authorize** browser handoff once; the AWAITING_AUTHORIZATION counter on Home tracks half-finished flows.
 6. **Inspect the live connection** — exercise tools, resources, prompts, ping, notifications, roots, sampling, elicitation in the [MCP Inspector](inspector.md).
-7. **Use it from chat** — the validated connection is now available to Agentic Chat as a tool / resource source.
+7. **(Optional) Expose its tools on the built-in server** — open the **[Expose Tools](#expose-external-tools)** gear drawer to merge selected upstream tools into `spring-ai-playground-built-in-mcp`, with a per-composition risk cap and per-tool HITL.
+8. **Use it from chat** — the validated connection is now available to Agentic Chat as a tool / resource source.
 
 ## Relationship to Tool Studio
 
@@ -154,4 +181,4 @@ Tool Studio and MCP Server are designed to work together:
 
 This is one of the cleanest parts of the overall product flow.
 
-The two surfaces also **share a sidebar widget**. The MCP Server view and Tool Studio's tool list both render through `webui/common/sidebar/SidebarFilterBar` (search + Categories MultiSelect + Tags MultiSelect) + `CategoryGroupDetails` (collapsible per-category groups) + `SidebarItemLayout` (status dot · name · category pill · tag pills). Filters compose identically on both screens — see [Tool Studio → Tool list sidebar](../tool-studio/index.md#tool-list-sidebar) for the same widget in its tool-authoring context.
+The two surfaces also **share a sidebar widget**. The MCP Server view and Tool Studio's tool list both render through `webui/common/sidebar/SidebarFilterBar` (search + Categories MultiSelect + Tags MultiSelect) + `CategoryGroupDetails` (collapsible per-category groups) + `SidebarItemLayout` (status dot · name · category pill · tag pills). Filters compose identically on both screens — see [Tool Studio](../tool-studio/index.md) for the same widget in its tool-authoring context.

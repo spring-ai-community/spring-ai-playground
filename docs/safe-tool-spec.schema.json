@@ -56,6 +56,22 @@
     },
     "sandboxOverrides": { "$ref": "#/$defs/SandboxOverrides" },
     "toolSafety":       { "$ref": "#/$defs/ToolSafety" },
+    "humanInTheLoop": {
+      "type": ["object", "null"],
+      "description": "Per-tool human approval policy. Absent or null = DISABLED (no approval). See §10.7.",
+      "additionalProperties": true,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["DISABLED", "REQUIRED"],
+          "description": "DISABLED = run without asking; REQUIRED = ask on every call."
+        },
+        "promptTemplate": {
+          "type": ["string", "null"],
+          "description": "Optional approval-prompt text. {toolName} and {args} are substituted at call time. Null = default prompt."
+        }
+      }
+    },
     "draft": {
       "type": "boolean",
       "default": false,

@@ -13,7 +13,7 @@ Before sending the prompt, make sure you have:
 
 - a tool you trust — any built-in (`getCurrentTime`, `getWeather`, …) is fine, or one you authored in Tool Studio
 - an indexed document from Tutorial 3
-- a tool-capable model — `qwen3.5:latest` or `gemma4:latest`
+- a tool-capable model — `qwen3.5:9b` or `gemma4:e4b`
 
 ## Steps
 
@@ -31,7 +31,7 @@ Before sending the prompt, make sure you have:
 
 - The trace shows **both** a retrieval step and an MCP tool call.
 - The final answer references concrete document content (not generic) **and** uses the tool result (not made up).
-- If only one happens, that's a model-quality signal — switch to `gemma4:latest` and try again.
+- If only one happens, that's a model-quality signal — switch to `gemma4:e4b` and try again.
 
 !!! tip "Why this is the most important tutorial"
     Spring AI Playground is built around composition. Tool Studio creates capabilities, MCP Server validates them, Vector Database prepares grounded knowledge, and Agentic Chat composes all of that. This tutorial is where the architecture becomes visible from a single chat turn.

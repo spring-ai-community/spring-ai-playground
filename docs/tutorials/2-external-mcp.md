@@ -52,7 +52,7 @@ Tokens are encrypted on disk under `~/spring-ai-playground/mcp/oauth-tokens/`. R
 
 The eight tabs split into **server primitives** the server exposes (Tools, Resources, Prompts, Ping, Notifications) and **client primitives** the server can ask *your* playground to handle (Roots, Sampling, Elicitation). For most "use this server's tools in chat" workflows you'll spend your time on Tools and Resources; the others are mostly useful when developing or debugging an MCP server.
 
-5. Click **Tools**. Each tool is a full-width card with its description, schema-typed inputs, and a **Run** button that calls the tool through the live transport.
+5. Click **Tools**. Each tool is a full-width card with its description, a **risk chip** (L0–L5) scoring the tool, schema-typed inputs, and a **Run** button that calls the tool through the live transport.
 
 ![Tools tab with the new card layout — search, run, schema-typed inputs](../assets/images/tutorials/tutorial-2-inspector-tools.png)
 *① the selected tab — Tools is the default. ② all eight tabs are visible side by side. ③ search filters cards by name or description, with the live count. ④ the **Run** button on each card calls the tool through the actual transport (not just a sandbox). ⑤ the tool name. ⑥ parameter rows rendered per the JSON Schema (string / number / boolean / enum each get the matching control).*
@@ -66,4 +66,18 @@ The eight tabs split into **server primitives** the server exposes (Tools, Resou
     - Claude Desktop / Claude Code via Streamable HTTP
     - Cursor's MCP server entry
     - Awesome MCP Servers list — a directory of community servers
+
+### Expose its tools on the built-in server (optional)
+
+Once a server is connected and its tools check out, you can **re-expose** selected tools on the playground's *built-in* MCP server, so they are published on `/mcp` and become selectable in Agentic Chat alongside your Tool Studio tools.
+
+7. Click the **gear icon** on the MCP Server Info header to open the **Expose Tools** drawer. Set a **Max risk to expose** cap (default `L3`), optionally tick **Require approval (HITL)**, then expand a server and tick the tools you want.
+
+![Expose Tools drawer — max-risk cap, HITL toggle, a server row with its risk chip, and the list of tools currently exposed on the built-in server](../assets/images/mcp-server/expose-tools-drawer.png)
+
+8. Each tool shows its own risk chip; rename the exposed alias or edit the description inline if you like. Ticking **HITL** on a tool lowers its effective risk by one band (shown as a `HITL −1` badge).
+
+![DeepWiki expanded — read_wiki_structure shows L1 — Safe with a HITL −1 badge and a ticked HITL box; read_wiki_contents and ask_question stay L2 — Low](../assets/images/mcp-server/expose-tools-expanded.png)
+
+9. Click **Apply**. The selected tools join the built-in server — visible at the top of the sidebar and callable from chat. See [MCP Server → Expose external tools](../features/mcp-server/index.md#expose-external-tools) for the composition rules, shadowing checks, and risk math.
 

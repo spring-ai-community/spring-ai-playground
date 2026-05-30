@@ -14,7 +14,7 @@ This is the canonical *"try an agentic workflow"* task on the Home checklist. No
 
 ## Steps
 
-1. In **Agentic Chat**, switch to a tool-capable model (`qwen3.5:latest` works; `gemma4:latest` chains more reliably for longer prompts) and enable the built-in MCP connection.
+1. In **Agentic Chat**, switch to a tool-capable model (`qwen3.5:9b` works; `gemma4:e4b` chains more reliably for longer prompts), tick **Use built-in MCP server in this chat**, and confirm `getWeather` and `sendSlackMessage` are selected in the exposed-tools list.
 2. Send this prompt verbatim:
 
     ```text
@@ -22,7 +22,7 @@ This is the canonical *"try an agentic workflow"* task on the Home checklist. No
     ```
 
 ![Tool-chain prompt ready with MCP enabled](../assets/images/tutorials/tutorial-7-tool-chain.png)
-*① MCP connection enabled — `getWeather` and `sendSlackMessage` are both in the inventory, ② one prompt that requires two tool calls in the right order.*
+*① Built-in MCP enabled — `getWeather` and `sendSlackMessage` are both in the inventory, ② one prompt that requires two tool calls in the right order.*
 
 3. Watch the chat stream:
     - the assistant calls `getWeather` with `Seoul`
@@ -42,4 +42,3 @@ This is the canonical *"try an agentic workflow"* task on the Home checklist. No
 
 - Replace `sendSlackMessage` with a Tool Studio tool of your own. The moment it passes its Local Pass, it's live on the built-in MCP server and the chat can use it the same way.
 - Combine this flow with a RAG document — *"summarize this policy document and post the summary to Slack"* — and you've got Tutorial 6's composition phrased as a real task.
-

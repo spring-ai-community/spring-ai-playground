@@ -2,13 +2,36 @@ description: Default Tools — 86 ready-to-call JavaScript tools across 5 source
 
 # Default Tools
 
+**Where:** top navigation → **Tool Studio** — the default tools ship pre-loaded; tune the exposed subset in the **Built-in MCP Server Native Tools** drawer.
+
 Spring AI Playground ships with **86 default tools** spread across five JSON source bundles. They are ready to call the moment a model provider is connected — you do not need to author anything yourself to see agentic workflows work end-to-end. They also serve as editable references when you start writing your own tools.
 
-The MCP server does not expose all of them by default — a **preset** decides the starting subset, and per-tool include / exclude rules layer on top. That preference lives in `<home>/spring-ai-playground/tool/save/default-tools-preference.json` and is editable from two surfaces (the desktop launcher's Default MCP Tools card, and Tool Studio's Tool MCP Server Setting drawer — full breakdown in [Tool Studio → Where preset choices live](../tool-studio/index.md#where-preset-choices-live)).
+Tools that reach an external API read their keys from **environment variables** — each tool's card below lists the variables it needs. How to supply env vars (desktop launcher, Docker `-e`, or a source run) is covered once in the [Configuration reference](../../getting-started/configuration.md#how).
+
+Not all of them are Local-Passed (active) by default — a **preset** decides the starting subset, and per-tool include / exclude rules layer on top. That preference lives in `<home>/spring-ai-playground/tool/save/default-tools-preference.json` and is chosen at setup — the desktop launcher's Default MCP Tools card, or CLI / yaml (full breakdown in [Tool Studio → Where preset choices live](../tool-studio/index.md#where-preset-choices-live)). Tool Studio's **Built-in MCP Server Native Tools** drawer then selects which Local-Passed tools the MCP server exposes.
+
+## Risk Level { #risk-level }
+
+Every tool carries a **Risk Level** (`L0`–`L5`) — the sandbox posture the [Safe Tool Specification](../../safe-tool-specification.md) computes from the tool's declared capabilities (`sandboxOverrides`). Lower = more sandboxed. Each tool's reference card shows its level; the same chip appears in Tool Studio's **Sandbox & Capabilities** pane.
+
+!!! note "Two L0–L5 scales"
+    This is the **sandbox** rubric (how far a JavaScript tool widens the local sandbox). External MCP servers reuse the same enum for a different question — see [MCP Server Safety](../../mcp-server-safety.md#risk-chip). The two never mix.
+
+| Level | What it means for a tool | What ships here |
+|---|---|---|
+| <span class="rl rl-l0">L0 — Safest</span> | Pure compute — no declared network or filesystem widening | helper / utility tools with no I/O |
+| <span class="rl rl-l3">L3 — Scoped widening</span> | Allowlisted-host `fetch`, `strict` egress, or file *read* | the network, Korea, and most filesystem tools |
+| <span class="rl rl-l4">L4 — Broad access</span> | File *write*, `*` allowlist / `open` egress, or reflection class added | the file-write filesystem tool |
+| <span class="rl rl-l5">L5 — Unsandboxed</span> | `System` / `Runtime` / `Process` re-enabled, or raw file-write class | none ship by default |
+
+Levels are derived from each tool's declared `sandboxOverrides` (by `SandboxPostureCalculator`); the full bullet-by-bullet rule set is in [AI Agent Tool Safety → Risk Level decision matrix](../../safety-architecture.md#risk-level-decision-matrix). Across the 86 default tools: **28 are L0**, **57 are L3** (allowlisted-host `fetch` or file read), and **1 is L4** (file write) — none ship at L5.
+
+!!! question "Why no L1 or L2 here?"
+    The **sandbox** rubric only ever produces **L0 / L3 / L4 / L5** — the calculator jumps from the `L0` baseline straight to `L3` the moment a tool declares *any* widening (network, file, or class change), so a tool is never L1 or L2. `L1` (*Safe*) and `L2` (*Low*) exist only in the [MCP server rubric](../../mcp-server-safety.md#risk-chip), which scores a different thing (connecting to an external server) on the same `L0`–`L5` enum.
 
 ## Browse all 86 tools { #browse-all-tools }
 
-Click a card to jump to its full reference (with the JS source pre-expanded) on the right sub-page — same UX as the **Tool MCP Server Setting** drawer in Tool Studio. Five reference pages organise the catalog by source bundle and concern: [Examples](examples.md) · [Utilities](utilities.md) · [Filesystem](filesystem.md) · [Global](global.md) · [Korea](korea.md).
+Click a card to jump to its full reference (with the JS source pre-expanded) on the right sub-page — same UX as the **Built-in MCP Server Native Tools** drawer in Tool Studio. Five reference pages organise the catalog by source bundle and concern: [Examples](examples.md) · [Utilities](utilities.md) · [Filesystem](filesystem.md) · [Global](global.md) · [Korea](korea.md).
 
 **Filter modes**: pick a **Preset** for an exclusive view (just the tools in that preset, all other filters cleared); or combine a **search** keyword with one or more **Tag** / **Category** chips — search is AND, tag and category are OR (a card is shown when it matches *any* selected tag OR category and also matches the search keyword).
 
@@ -34,7 +57,7 @@ Click a card to jump to its full reference (with the JS source pre-expanded) on 
 <a class="tcg-stretched-link" href="examples/#extractPageContent" aria-label="Open extractPageContent in Examples">extractPageContent</a>
 <div class="tcg-name"><span class="tcg-name__text">extractPageContent</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:material-language-html5:</div>
-<div class="tcg-type">web · example <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · example <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 Fetches a web page and extracts its main readable content + outbound links. Uses the host-injected fetch (SSRF-defended in `strict` mode) and safety.parser.html for parsing.
 </div>
@@ -79,7 +102,7 @@ Builds a Google Calendar "Add Event" URL with prefilled fields.
 <a class="tcg-stretched-link" href="examples/#getWeather" aria-label="Open getWeather in Examples">getWeather</a>
 <div class="tcg-name"><span class="tcg-name__text">getWeather</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:material-weather-partly-cloudy:</div>
-<div class="tcg-type">web · example · weather <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · example · weather <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 Free public weather lookup via wttr.in (no API key). Returns a small JSON summary: { location, tempC, humidity, windSpeed, windDirection }.
 </div>
@@ -94,7 +117,7 @@ Free public weather lookup via wttr.in (no API key). Returns a small JSON summar
 <a class="tcg-stretched-link" href="examples/#googlePseSearch" aria-label="Open googlePseSearch in Examples">googlePseSearch</a>
 <div class="tcg-name"><span class="tcg-name__text">googlePseSearch</span> <span class="cost">🔑 × 2</span></div>
 <div class="tcg-art" markdown>:simple-google:</div>
-<div class="tcg-type">web · example · search <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · example · search <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 Google Programmable Search Engine query (Custom Search API). Requires `GOOGLE_API_KEY` and `GOOGLE_PSE_ID` env vars.
 </div>
@@ -109,7 +132,7 @@ Google Programmable Search Engine query (Custom Search API). Requires `GOOGLE_AP
 <a class="tcg-stretched-link" href="examples/#openaiResponseGenerator" aria-label="Open openaiResponseGenerator in Examples">openaiResponseGenerator</a>
 <div class="tcg-name"><span class="tcg-name__text">openaiResponseGenerator</span> <span class="cost">🔑 × 1</span></div>
 <div class="tcg-art" markdown>:material-creation:</div>
-<div class="tcg-type">ai · example <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">ai · example <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 Calls OpenAI's Responses API. Requires `OPENAI_API_KEY` env var.
 </div>
@@ -124,7 +147,7 @@ Calls OpenAI's Responses API. Requires `OPENAI_API_KEY` env var.
 <a class="tcg-stretched-link" href="examples/#sendSlackMessage" aria-label="Open sendSlackMessage in Examples">sendSlackMessage</a>
 <div class="tcg-name"><span class="tcg-name__text">sendSlackMessage</span> <span class="cost">🔑 × 1</span></div>
 <div class="tcg-art" markdown>:material-pound-box-outline:</div>
-<div class="tcg-type">messaging · example <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">messaging · example <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 Posts a text message to a Slack channel via Incoming Webhook. Requires `SLACK_WEBHOOK_URL` env var (the full https://hooks.slack.com/services/... URL).
 </div>
@@ -679,7 +702,7 @@ Writes a UTF-8 text file inside the FS base path (creating parent directories as
 <a class="tcg-stretched-link" href="global/#getGithubRepo" aria-label="Open getGithubRepo in Global">getGithubRepo</a>
 <div class="tcg-name"><span class="tcg-name__text">getGithubRepo</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:simple-github:</div>
-<div class="tcg-type">web · github <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · github <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 Fetches public metadata for a GitHub repository (no authentication needed; subject to GitHub's 60 requests/hour anonymous rate limit).
 </div>
@@ -694,7 +717,7 @@ Fetches public metadata for a GitHub repository (no authentication needed; subje
 <a class="tcg-stretched-link" href="global/#searchWikipedia" aria-label="Open searchWikipedia in Global">searchWikipedia</a>
 <div class="tcg-name"><span class="tcg-name__text">searchWikipedia</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:simple-wikipedia:</div>
-<div class="tcg-type">web · search <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · search <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 Looks up a Wikipedia page summary by title. No authentication required. Uses the public REST API at en.wikipedia.org/api/rest_v1/page/summary.
 </div>
@@ -709,7 +732,7 @@ Looks up a Wikipedia page summary by title. No authentication required. Uses the
 <a class="tcg-stretched-link" href="global/#searchHackerNews" aria-label="Open searchHackerNews in Global">searchHackerNews</a>
 <div class="tcg-name"><span class="tcg-name__text">searchHackerNews</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:simple-ycombinator:</div>
-<div class="tcg-type">web · search <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · search <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 Searches Hacker News stories via the public Algolia HN Search API (no auth needed).
 </div>
@@ -724,7 +747,7 @@ Searches Hacker News stories via the public Algolia HN Search API (no auth neede
 <a class="tcg-stretched-link" href="global/#searchStackOverflow" aria-label="Open searchStackOverflow in Global">searchStackOverflow</a>
 <div class="tcg-name"><span class="tcg-name__text">searchStackOverflow</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:simple-stackoverflow:</div>
-<div class="tcg-type">web · search <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · search <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 Searches Stack Overflow questions via the public Stack Exchange API (anonymous, capped at 300 requests / IP / day).
 </div>
@@ -739,7 +762,7 @@ Searches Stack Overflow questions via the public Stack Exchange API (anonymous, 
 <a class="tcg-stretched-link" href="global/#getGithubUser" aria-label="Open getGithubUser in Global">getGithubUser</a>
 <div class="tcg-name"><span class="tcg-name__text">getGithubUser</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:simple-github:</div>
-<div class="tcg-type">web · github <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · github <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 Fetches public profile information for a GitHub user or organisation (no auth — 60 req/h anonymous).
 </div>
@@ -754,7 +777,7 @@ Fetches public profile information for a GitHub user or organisation (no auth �
 <a class="tcg-stretched-link" href="global/#listGithubRepoIssues" aria-label="Open listGithubRepoIssues in Global">listGithubRepoIssues</a>
 <div class="tcg-name"><span class="tcg-name__text">listGithubRepoIssues</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:simple-github:</div>
-<div class="tcg-type">web · github <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · github <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 Lists issues on a public GitHub repository (no auth). Excludes pull requests by default. Anonymous quota 60 req/h.
 </div>
@@ -769,7 +792,7 @@ Lists issues on a public GitHub repository (no auth). Excludes pull requests by 
 <a class="tcg-stretched-link" href="global/#listGithubRepoReleases" aria-label="Open listGithubRepoReleases in Global">listGithubRepoReleases</a>
 <div class="tcg-name"><span class="tcg-name__text">listGithubRepoReleases</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:simple-github:</div>
-<div class="tcg-type">web · github <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · github <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 Lists releases on a public GitHub repository (no auth).
 </div>
@@ -784,7 +807,7 @@ Lists releases on a public GitHub repository (no auth).
 <a class="tcg-stretched-link" href="global/#getGithubLatestRelease" aria-label="Open getGithubLatestRelease in Global">getGithubLatestRelease</a>
 <div class="tcg-name"><span class="tcg-name__text">getGithubLatestRelease</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:simple-github:</div>
-<div class="tcg-type">web · github <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · github <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 Fetches the latest non-draft, non-prerelease release of a public GitHub repository (no auth).
 </div>
@@ -799,7 +822,7 @@ Fetches the latest non-draft, non-prerelease release of a public GitHub reposito
 <a class="tcg-stretched-link" href="global/#getGithubFileContent" aria-label="Open getGithubFileContent in Global">getGithubFileContent</a>
 <div class="tcg-name"><span class="tcg-name__text">getGithubFileContent</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:simple-github:</div>
-<div class="tcg-type">web · github <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · github <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 Fetches the raw text content of a file from a public GitHub repository (no auth).
 </div>
@@ -814,7 +837,7 @@ Fetches the raw text content of a file from a public GitHub repository (no auth)
 <a class="tcg-stretched-link" href="global/#searchGithubRepos" aria-label="Open searchGithubRepos in Global">searchGithubRepos</a>
 <div class="tcg-name"><span class="tcg-name__text">searchGithubRepos</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:simple-github:</div>
-<div class="tcg-type">web · github · search <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · github · search <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 Searches public GitHub repositories by query (no auth — anonymous limit 10 requests/minute).
 </div>
@@ -829,7 +852,7 @@ Searches public GitHub repositories by query (no auth — anonymous limit 10 req
 <a class="tcg-stretched-link" href="global/#listGithubRepoContributors" aria-label="Open listGithubRepoContributors in Global">listGithubRepoContributors</a>
 <div class="tcg-name"><span class="tcg-name__text">listGithubRepoContributors</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:simple-github:</div>
-<div class="tcg-type">web · github <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · github <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 Lists top contributors to a public GitHub repository (no auth).
 </div>
@@ -844,7 +867,7 @@ Lists top contributors to a public GitHub repository (no auth).
 <a class="tcg-stretched-link" href="global/#getCryptoPrice" aria-label="Open getCryptoPrice in Global">getCryptoPrice</a>
 <div class="tcg-name"><span class="tcg-name__text">getCryptoPrice</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:material-currency-btc:</div>
-<div class="tcg-type">web · finance <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · finance <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 Fetches current crypto prices from CoinGecko's public Simple Price API (no auth, generous rate limit). Pass coin ids like 'bitcoin,ethereum' and currency ids like 'usd,krw'.
 </div>
@@ -859,7 +882,7 @@ Fetches current crypto prices from CoinGecko's public Simple Price API (no auth,
 <a class="tcg-stretched-link" href="global/#convertCurrency" aria-label="Open convertCurrency in Global">convertCurrency</a>
 <div class="tcg-name"><span class="tcg-name__text">convertCurrency</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:material-currency-usd:</div>
-<div class="tcg-type">web · finance <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · finance <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 Converts between fiat currencies using exchangerate.host (no key, no rate limit listed).
 </div>
@@ -874,7 +897,7 @@ Converts between fiat currencies using exchangerate.host (no key, no rate limit 
 <a class="tcg-stretched-link" href="global/#getIpInfo" aria-label="Open getIpInfo in Global">getIpInfo</a>
 <div class="tcg-name"><span class="tcg-name__text">getIpInfo</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:material-ip-network-outline:</div>
-<div class="tcg-type">web · geo <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · geo <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 Returns geolocation and ASN info for an IP address (or the caller's IP if `ip` is omitted) via ipapi.co (no auth, 1000 req/day).
 </div>
@@ -889,7 +912,7 @@ Returns geolocation and ASN info for an IP address (or the caller's IP if `ip` i
 <a class="tcg-stretched-link" href="global/#getCountryInfo" aria-label="Open getCountryInfo in Global">getCountryInfo</a>
 <div class="tcg-name"><span class="tcg-name__text">getCountryInfo</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:material-earth:</div>
-<div class="tcg-type">web · geo <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · geo <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 Fetches country information from restcountries.com (no auth) by partial or full name.
 </div>
@@ -904,7 +927,7 @@ Fetches country information from restcountries.com (no auth) by partial or full 
 <a class="tcg-stretched-link" href="global/#searchArxiv" aria-label="Open searchArxiv in Global">searchArxiv</a>
 <div class="tcg-name"><span class="tcg-name__text">searchArxiv</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:simple-arxiv:</div>
-<div class="tcg-type">web · search <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · search <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 Searches arXiv preprints via the public Atom-feed API (no auth). Results are parsed from XML.
 </div>
@@ -919,7 +942,7 @@ Searches arXiv preprints via the public Atom-feed API (no auth). Results are par
 <a class="tcg-stretched-link" href="global/#getPublicHolidays" aria-label="Open getPublicHolidays in Global">getPublicHolidays</a>
 <div class="tcg-name"><span class="tcg-name__text">getPublicHolidays</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:material-calendar-star-outline:</div>
-<div class="tcg-type">web <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 Returns public holidays for a given country and year via Nager.Date (no auth).
 </div>
@@ -934,7 +957,7 @@ Returns public holidays for a given country and year via Nager.Date (no auth).
 <a class="tcg-stretched-link" href="global/#searchReddit" aria-label="Open searchReddit in Global">searchReddit</a>
 <div class="tcg-name"><span class="tcg-name__text">searchReddit</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:simple-reddit:</div>
-<div class="tcg-type">web · search <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · search <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 Searches a public subreddit via Reddit's JSON API (no auth, but rate-limited and User-Agent required).
 </div>
@@ -949,7 +972,7 @@ Searches a public subreddit via Reddit's JSON API (no auth, but rate-limited and
 <a class="tcg-stretched-link" href="global/#getOpenMeteoForecast" aria-label="Open getOpenMeteoForecast in Global">getOpenMeteoForecast</a>
 <div class="tcg-name"><span class="tcg-name__text">getOpenMeteoForecast</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:material-weather-cloudy-clock:</div>
-<div class="tcg-type">web · weather <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · weather <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 Fetches a multi-day weather forecast from Open-Meteo (no auth, 10k req/day for non-commercial). Open-Meteo serves official ECMWF/GFS/ICON model output — far richer than wttr.in but requires lat/lon (use `geocodeAddress` first if you only have a city name).
 </div>
@@ -964,7 +987,7 @@ Fetches a multi-day weather forecast from Open-Meteo (no auth, 10k req/day for n
 <a class="tcg-stretched-link" href="global/#geocodeAddress" aria-label="Open geocodeAddress in Global">geocodeAddress</a>
 <div class="tcg-name"><span class="tcg-name__text">geocodeAddress</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:simple-openstreetmap:</div>
-<div class="tcg-type">web · geo <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · geo <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 Forward-geocodes a free-form address to coordinates via OpenStreetMap Nominatim (no key). Nominatim's usage policy requires a descriptive User-Agent and at most 1 req/s — we set both.
 </div>
@@ -979,7 +1002,7 @@ Forward-geocodes a free-form address to coordinates via OpenStreetMap Nominatim 
 <a class="tcg-stretched-link" href="global/#getSunriseSunset" aria-label="Open getSunriseSunset in Global">getSunriseSunset</a>
 <div class="tcg-name"><span class="tcg-name__text">getSunriseSunset</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:material-weather-sunset:</div>
-<div class="tcg-type">web · geo <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · geo <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 Returns sunrise / sunset / twilight times for a given lat-lon and date via sunrise-sunset.org (no auth).
 </div>
@@ -994,7 +1017,7 @@ Returns sunrise / sunset / twilight times for a given lat-lon and date via sunri
 <a class="tcg-stretched-link" href="global/#getRecentEarthquakes" aria-label="Open getRecentEarthquakes in Global">getRecentEarthquakes</a>
 <div class="tcg-name"><span class="tcg-name__text">getRecentEarthquakes</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:material-vibrate:</div>
-<div class="tcg-type">web · geo <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · geo <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 Fetches recent earthquakes from the USGS public catalog (no auth).
 </div>
@@ -1009,7 +1032,7 @@ Fetches recent earthquakes from the USGS public catalog (no auth).
 <a class="tcg-stretched-link" href="korea/#getUpbitTicker" aria-label="Open getUpbitTicker in Korea">getUpbitTicker</a>
 <div class="tcg-name"><span class="tcg-name__text">getUpbitTicker</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:material-currency-btc:</div>
-<div class="tcg-type">web · korea · finance <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · korea · finance <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 Fetches the current KRW ticker(s) from Upbit, a major Korean crypto exchange (no auth). `markets` is comma-separated, e.g. 'KRW-BTC,KRW-ETH'. Returns an array of { market, tradePrice, openingPrice, highPrice, lowPrice, change, changeRate, accTradeVolume24h, timestamp }.
 </div>
@@ -1024,7 +1047,7 @@ Fetches the current KRW ticker(s) from Upbit, a major Korean crypto exchange (no
 <a class="tcg-stretched-link" href="korea/#getUpbitOrderbook" aria-label="Open getUpbitOrderbook in Korea">getUpbitOrderbook</a>
 <div class="tcg-name"><span class="tcg-name__text">getUpbitOrderbook</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:material-chart-box-outline:</div>
-<div class="tcg-type">web · korea · finance <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · korea · finance <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 Fetches Upbit live orderbook (bids/asks) for one or more KRW markets (no auth). `markets` is comma-separated like 'KRW-BTC,KRW-ETH'. Optional `level` controls price aggregation upstream. Returns an array of { market, timestamp, totalAskSize, totalBidSize, units:[{askPrice,bidPrice,askSize,bidSize}] }.
 </div>
@@ -1039,7 +1062,7 @@ Fetches Upbit live orderbook (bids/asks) for one or more KRW markets (no auth). 
 <a class="tcg-stretched-link" href="korea/#getUpbitCandles" aria-label="Open getUpbitCandles in Korea">getUpbitCandles</a>
 <div class="tcg-name"><span class="tcg-name__text">getUpbitCandles</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:material-chart-line:</div>
-<div class="tcg-type">web · korea · finance <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · korea · finance <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 Fetches Upbit OHLCV candles for a market (no auth). `interval` accepts 'days' (default), 'weeks', 'months', or 'minutes/N' where N is one of 1, 3, 5, 10, 15, 30, 60, 240. `count` is capped at 200 upstream. Returns an array (most recent first) of { market, candleDateTimeKst, candleDateTimeUtc, openingPrice, highPrice, lowPrice, tradePrice, candleAccTradeVolume, candleAccTradePrice }.
 </div>
@@ -1054,7 +1077,7 @@ Fetches Upbit OHLCV candles for a market (no auth). `interval` accepts 'days' (d
 <a class="tcg-stretched-link" href="korea/#listUpbitMarkets" aria-label="Open listUpbitMarkets in Korea">listUpbitMarkets</a>
 <div class="tcg-name"><span class="tcg-name__text">listUpbitMarkets</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:material-format-list-bulleted:</div>
-<div class="tcg-type">web · korea · finance <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · korea · finance <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 Lists all tradable markets on Upbit (no auth). Pass `quote` (e.g. 'KRW', 'BTC', 'USDT') to filter by quote currency. Returns { count, markets: [{ market, koreanName, englishName }] }.
 </div>
@@ -1069,7 +1092,7 @@ Lists all tradable markets on Upbit (no auth). Pass `quote` (e.g. 'KRW', 'BTC', 
 <a class="tcg-stretched-link" href="korea/#getBithumbTicker" aria-label="Open getBithumbTicker in Korea">getBithumbTicker</a>
 <div class="tcg-name"><span class="tcg-name__text">getBithumbTicker</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:material-currency-btc:</div>
-<div class="tcg-type">web · korea · finance <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · korea · finance <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 Fetches the current KRW ticker for a symbol from Bithumb (no auth). Used as an Upbit alternative or for cross-exchange checks. Returns: { symbol, openingPrice, closingPrice, minPrice, maxPrice, unitsTraded24h, accTradeValue24h, change24h, changeRate24h, fluctate24h, fluctateRate24h }.
 </div>
@@ -1084,7 +1107,7 @@ Fetches the current KRW ticker for a symbol from Bithumb (no auth). Used as an U
 <a class="tcg-stretched-link" href="korea/#getBithumbOrderbook" aria-label="Open getBithumbOrderbook in Korea">getBithumbOrderbook</a>
 <div class="tcg-name"><span class="tcg-name__text">getBithumbOrderbook</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:material-chart-box-outline:</div>
-<div class="tcg-type">web · korea · finance <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · korea · finance <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 Fetches Bithumb public orderbook depth for a KRW pair (no auth). `count` defaults to 5, max 30. Returns { symbol, paymentCurrency, orderCurrency, timestamp, bids:[{price,quantity}], asks:[{price,quantity}] }.
 </div>
@@ -1099,7 +1122,7 @@ Fetches Bithumb public orderbook depth for a KRW pair (no auth). `count` default
 <a class="tcg-stretched-link" href="korea/#searchNaver" aria-label="Open searchNaver in Korea">searchNaver</a>
 <div class="tcg-name"><span class="tcg-name__text">searchNaver</span> <span class="cost">🔑 × 2</span></div>
 <div class="tcg-art" markdown>:simple-naver:</div>
-<div class="tcg-type">web · korea · search <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · korea · search <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 Naver Search API (KR; key required). Searches across blog, news, webkr, encyc, book, image, shop, kin, or cafearticle. Issue Client-Id + Client-Secret at https://developers.naver.com/apps/ and set NAVER_CLIENT_ID + NAVER_CLIENT_SECRET on the tool's staticVariables, or inject as env vars. Returns: { type, total, start, display, items:[{title, description, link, pubDate, bloggerName, author}] }.
 </div>
@@ -1114,7 +1137,7 @@ Naver Search API (KR; key required). Searches across blog, news, webkr, encyc, b
 <a class="tcg-stretched-link" href="korea/#searchKakaoLocal" aria-label="Open searchKakaoLocal in Korea">searchKakaoLocal</a>
 <div class="tcg-name"><span class="tcg-name__text">searchKakaoLocal</span> <span class="cost">🔑 × 1</span></div>
 <div class="tcg-art" markdown>:simple-kakaotalk:</div>
-<div class="tcg-type">web · korea · geo <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · korea · geo <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 Kakao Local keyword search — finds places/POIs and returns WGS84 coordinates (KR; key required). Issue a REST API key at https://developers.kakao.com/ and set KAKAO_REST_API_KEY on the tool's staticVariables, or inject as env var. Optionally pass (longitude, latitude, radius) to search around a point. Returns: { totalCount, pageableCount, isEnd, places:[{ name, category, categoryGroup, phone, address, roadAddress, latitude, longitude, placeUrl, distance }] }.
 </div>
@@ -1129,7 +1152,7 @@ Kakao Local keyword search — finds places/POIs and returns WGS84 coordinates (
 <a class="tcg-stretched-link" href="korea/#getAirKoreaPm" aria-label="Open getAirKoreaPm in Korea">getAirKoreaPm</a>
 <div class="tcg-name"><span class="tcg-name__text">getAirKoreaPm</span> <span class="cost">🔑 × 1</span></div>
 <div class="tcg-art" markdown>:material-air-filter:</div>
-<div class="tcg-type">web · korea · weather <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · korea · weather <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 AirKorea (data.go.kr) real-time air quality readings by Korean province (KR; data.go.kr key required). Issue the air-quality serviceKey at https://www.data.go.kr/data/15073861/openapi.do and set DATA_GO_KR_AIR_KEY on the tool's staticVariables, or inject as env var. Returns: { sidoName, totalCount, stations:[{ stationName, sidoName, dataTime, pm10, pm25, o3, no2, co, so2, khaiValue, khaiGrade }] }. On auth error: { success:false, status, message }.
 </div>
@@ -1144,7 +1167,7 @@ AirKorea (data.go.kr) real-time air quality readings by Korean province (KR; dat
 <a class="tcg-stretched-link" href="korea/#searchKpopOnItunes" aria-label="Open searchKpopOnItunes in Korea">searchKpopOnItunes</a>
 <div class="tcg-name"><span class="tcg-name__text">searchKpopOnItunes</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:simple-applemusic:</div>
-<div class="tcg-type">web · korea <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · korea <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 iTunes Search API — Korean music catalog including K-pop (no auth). Default country=kr biases results to the Korean iTunes storefront. Suitable for song / musicArtist / album / musicVideo lookups. Each result includes a 30s preview URL and album artwork URL. Catalog metadata is in the storefront language (Korean for kr). `entity`: musicArtist | song | album | musicVideo | mix. `country`: ISO-2 storefront code (kr/us/jp/...). Default kr. Returns: { country, entity, resultCount, results:[{ kind, artistName, trackName, collection, releaseDate, primaryGenre, previewUrl, trackViewUrl, artworkUrl, ... }] }.
 </div>
@@ -1159,7 +1182,7 @@ iTunes Search API — Korean music catalog including K-pop (no auth). Default co
 <a class="tcg-stretched-link" href="korea/#searchKBeautyProducts" aria-label="Open searchKBeautyProducts in Korea">searchKBeautyProducts</a>
 <div class="tcg-name"><span class="tcg-name__text">searchKBeautyProducts</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:material-flower-tulip-outline:</div>
-<div class="tcg-type">web · korea · search <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · korea · search <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 K-beauty cosmetics product search via Open Beauty Facts (no auth). Default country=south-korea biases the lookup to Korean brand catalogs (Innisfree / Laneige / COSRX / ...). Returns ingredients, allergens, packaging, and product image URLs. For a global search pass country='', or other slugs like country='japan'. Note: localized product names may appear in Korean. Pass a barcode (e.g. '8809610706106') as `query` for single-product lookup — useful for ingredient checks. Returns: { country, count, page, pageSize, products:[{ code, productName, brands, countries, categories, allergens, ingredients, packaging, imageUrl, openBeautyFactsUrl }] }.
 </div>
@@ -1174,7 +1197,7 @@ K-beauty cosmetics product search via Open Beauty Facts (no auth). Default count
 <a class="tcg-stretched-link" href="korea/#searchKoreaTour" aria-label="Open searchKoreaTour in Korea">searchKoreaTour</a>
 <div class="tcg-name"><span class="tcg-name__text">searchKoreaTour</span> <span class="cost">🔑 × 1</span></div>
 <div class="tcg-art" markdown>:material-bag-suitcase-outline:</div>
-<div class="tcg-type">web · korea · search <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · korea · search <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 Korea Tourism Organization TourAPI 4.0 keyword search — tourist spots, cultural facilities, festivals, lodging, restaurants by Korean keyword (KR; data.go.kr key required, separate from the air-quality key). Issue the Korean tourism serviceKey at https://www.data.go.kr/data/15101578/openapi.do and set DATA_GO_KR_TOUR_KEY on the tool's staticVariables, or inject as env var. Filters: `areaCode` (province) + `sigunguCode` (city/county) + `contentTypeId` (content type). Examples: Jeonju = areaCode 37 + sigunguCode 12, Gyeongju = 35+2, Jeju City = 39+4, Seogwipo = 39+5. Metropolitan cities (Busan=6, Daegu=4, ...) do not require sigunguCode. Returns: { keyword, totalCount, pageNo, numOfRows, items:[{ contentId, contentTypeId, title, addr1, addr2, areaCode, sigunguCode, firstImage, mapX, mapY, tel, ... }] }.
 </div>
@@ -1189,7 +1212,7 @@ Korea Tourism Organization TourAPI 4.0 keyword search — tourist spots, cultura
 <a class="tcg-stretched-link" href="korea/#searchSeoulCulturalEvents" aria-label="Open searchSeoulCulturalEvents in Korea">searchSeoulCulturalEvents</a>
 <div class="tcg-name"><span class="tcg-name__text">searchSeoulCulturalEvents</span> <span class="cost">🔑 × 1</span></div>
 <div class="tcg-art" markdown>:material-theater:</div>
-<div class="tcg-type">web · korea · search <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · korea · search <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 Seoul Open Data Plaza (data.seoul.go.kr) cultural events search (KR; separate key required). This API is operated directly by the Seoul city government and is separate from the data.go.kr keychain. Issue a free key at https://data.seoul.go.kr/together/apikey.do (1,000 req/day) and set SEOUL_OPEN_API_KEY on the tool's staticVariables, or inject as env var. Optional filters: `codename` (category: musical / exhibition / Korean classical music / concert / ...), `titleSearch` (partial title match), `eventDate` ('YYYY-MM-DD'; events active on that date only). Returns: { totalCount, events:[{ category, gu, title, period, startDate, endDate, place, organizer, audience, fee, isFree, program, imageUrl, latitude, longitude, ... }] }.
 </div>
@@ -1204,7 +1227,7 @@ Seoul Open Data Plaza (data.seoul.go.kr) cultural events search (KR; separate ke
 <a class="tcg-stretched-link" href="korea/#getKamisAgriPrice" aria-label="Open getKamisAgriPrice in Korea">getKamisAgriPrice</a>
 <div class="tcg-name"><span class="tcg-name__text">getKamisAgriPrice</span> <span class="cost">🔑 × 2</span></div>
 <div class="tcg-art" markdown>:material-leaf:</div>
-<div class="tcg-type">web · korea · finance <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · korea · finance <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 KAMIS agricultural product wholesale/retail prices — daily price data operated by aT (Korea Agro-Fisheries & Food Trade Corp). KR; cert_id + cert_key required, free. Issue credentials at https://www.kamis.or.kr/customer/reference/openapi_list.do and set KAMIS_CERT_ID + KAMIS_CERT_KEY on the tool's staticVariables, or inject as env vars. `productClsCode`: 01=retail, 02=wholesale (default). `itemCode` is the KAMIS product code (rice=111, apple=411, napa cabbage=211, pork belly=515, ...). Returns: { productClass, itemCode, startDay, endDay, count, rows:[{ itemName, kindName, county, market, year, date, price, unit }] }.
 </div>
@@ -1219,7 +1242,7 @@ KAMIS agricultural product wholesale/retail prices — daily price data operated
 <a class="tcg-stretched-link" href="korea/#getKoficBoxOffice" aria-label="Open getKoficBoxOffice in Korea">getKoficBoxOffice</a>
 <div class="tcg-name"><span class="tcg-name__text">getKoficBoxOffice</span> <span class="cost">🔑 × 1</span></div>
 <div class="tcg-art" markdown>:material-movie-outline:</div>
-<div class="tcg-type">web · korea <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · korea <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 KOFIC (Korean Film Council) daily box-office ranking (KR; single API key required, free instant issuance). Issue the key at https://www.kobis.or.kr/kobisopenapi/ and set KOFIC_API_KEY on the tool's staticVariables, or inject as env var. `targetDate` is typically yesterday's date (same-day totals are tallied after market close). Both YYYYMMDD and YYYY-MM-DD are accepted. Optional filters: `multiMovieYn` (Y=diversity films only / N=commercial films only), `repNationCd` (K=Korean / F=foreign), `wideAreaCd` (screening region). Returns: { type, showRange, count, movies:[{ rank, rankChange, isNew, movieCode, title, openDate, salesAmount, salesShare, salesAccumulated, audience, audienceAccumulated, screens, shows }] }.
 </div>
@@ -1234,7 +1257,7 @@ KOFIC (Korean Film Council) daily box-office ranking (KR; single API key require
 <a class="tcg-stretched-link" href="korea/#getKrxStockPrice" aria-label="Open getKrxStockPrice in Korea">getKrxStockPrice</a>
 <div class="tcg-name"><span class="tcg-name__text">getKrxStockPrice</span> <span class="cost">🔑 × 1</span></div>
 <div class="tcg-art" markdown>:material-chart-line:</div>
-<div class="tcg-type">web · korea · finance <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · korea · finance <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 KRX Korea Exchange daily stock quotes (data.go.kr) — KOSPI/KOSDAQ/KONEX daily open/close/change/volume/market cap. KR; data.go.kr serviceKey required, separate service application from other dgk keys. Register the `Financial Services Commission stock quote info` service at data.go.kr (https://www.data.go.kr/data/15094808/openapi.do), receive a serviceKey, and set DATA_GO_KR_STOCK_KEY on the tool's staticVariables, or inject as env var. Note: the KIS API (Korea Investment & Securities) is a two-step token → Bearer flow that is inefficient for stateless tools (token consumed per call). This tool uses the KRX-official channel that exposes the same data behind a single key. Filters: `basDt` (business day YYYYMMDD), `itmsNm` (exact stock name), `likeItmsNm` (partial name match), `srtnCd` (short code e.g. 005930), `mrktCls` (KOSPI/KOSDAQ/KONEX). Returns: { totalCount, pageNo, numOfRows, items:[{ baseDate, shortCode, isinCode, name, market, close, diff, changePct, open, high, low, volume, tradeValue, listedShares, marketCap }] }.
 </div>
@@ -1249,7 +1272,7 @@ KRX Korea Exchange daily stock quotes (data.go.kr) — KOSPI/KOSDAQ/KONEX daily 
 <a class="tcg-stretched-link" href="korea/#callDataGoKrOpenApi" aria-label="Open callDataGoKrOpenApi in Korea">callDataGoKrOpenApi</a>
 <div class="tcg-name"><span class="tcg-name__text">callDataGoKrOpenApi</span> <span class="cost">🔑 × 1</span></div>
 <div class="tcg-art" markdown>:material-database:</div>
-<div class="tcg-type">web · korea <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · korea <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 data.go.kr generic dispatcher — calls arbitrary data.go.kr services not covered by dedicated tools in this catalog. High-frequency services (air quality / tourism / stocks / ...) have their own tools; use this dispatcher for the 7,000+ other services (real-estate transactions / postal codes / road-name addresses / drug-safety agency / national statistics / ...). Most responses are in Korean. Set the data.go.kr serviceKey on the tool's staticVariables as DATA_GO_KR_KEY, or inject as env var. NOTE: each data.go.kr dataset requires its own service registration (the key value can be the same, but each OpenAPI service is approved separately). Inputs: { servicePath: 'B551011/KorService2/...' (the path after apis.data.go.kr/), query: { pageNo:1, numOfRows:10, ... } (extra query parameters) }. On success: { ok:true, totalCount, pageNo, numOfRows, items, raw }. On failure: { ok:false, status, message } (HTTP error or OpenAPI_ServiceResponse.cmmMsgHeader error).
 </div>
@@ -1264,7 +1287,7 @@ data.go.kr generic dispatcher — calls arbitrary data.go.kr services not covere
 <a class="tcg-stretched-link" href="korea/#getKmaShortTermForecast" aria-label="Open getKmaShortTermForecast in Korea">getKmaShortTermForecast</a>
 <div class="tcg-name"><span class="tcg-name__text">getKmaShortTermForecast</span> <span class="cost">🔑 × 1</span></div>
 <div class="tcg-art" markdown>:material-weather-cloudy:</div>
-<div class="tcg-type">web · korea · weather <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · korea · weather <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 KMA short-term weather forecast — hourly forecast for the next ~72 hours by lat/lon or KMA grid coordinates (nx,ny). KR; data.go.kr serviceKey required, separate KMA service registration. Register the `KMA short-term forecast service` at data.go.kr, receive a serviceKey, and set DATA_GO_KR_KMA_KEY on the tool's staticVariables, or inject as env var. Coordinates: pass either (latitude, longitude) or (nx, ny). Lat/lon are converted internally to KMA Lambert grid. baseDate/baseTime default to today's 0500 release (KMA releases at 02/05/08/11/14/17/20/23). Response is pivoted to 1-hour slots: { fcstDate, fcstTime, temp(℃), humidity(%), precipProbability(%), precipType, precipAmount, skyCondition, windSpeed(m/s), windDirection(deg) }.
 </div>
@@ -1279,7 +1302,7 @@ KMA short-term weather forecast — hourly forecast for the next ~72 hours by la
 <a class="tcg-stretched-link" href="korea/#getApartmentTradePrice" aria-label="Open getApartmentTradePrice in Korea">getApartmentTradePrice</a>
 <div class="tcg-name"><span class="tcg-name__text">getApartmentTradePrice</span> <span class="cost">🔑 × 1</span></div>
 <div class="tcg-art" markdown>:material-home-city-outline:</div>
-<div class="tcg-type">web · korea · finance <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · korea · finance <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 MOLIT (Ministry of Land, Infrastructure & Transport) apartment sale transactions (KR; data.go.kr serviceKey required). Register the MOLIT apartment-trade data service at data.go.kr, receive a serviceKey, and set DATA_GO_KR_APT_KEY on the tool's staticVariables, or inject as env var. `lawdCode` is the 5-digit legal-dong city/county code (not the road-name address). Examples: Gangnam=11680, Seocho=11650, Songpa=11710, Haeundae=26350, Bundang(Seongnam)=41135, Jeju City=50110. `dealYmd` is the transaction month as YYYYMM. Returns: { lawdCode, dealYmd, totalCount, pageNo, numOfRows, items:[{ aptName, dealYear, dealMonth, dealDay, dealAmount(10K KRW), excluUseAr(sqm), floor, buildYear, umdNm(legal dong), jibun(lot), roadName, dealingType }] }.
 </div>
@@ -1294,7 +1317,7 @@ MOLIT (Ministry of Land, Infrastructure & Transport) apartment sale transactions
 <a class="tcg-stretched-link" href="korea/#searchKoreaDrugInfo" aria-label="Open searchKoreaDrugInfo in Korea">searchKoreaDrugInfo</a>
 <div class="tcg-name"><span class="tcg-name__text">searchKoreaDrugInfo</span> <span class="cost">🔑 × 1</span></div>
 <div class="tcg-art" markdown>:material-pill:</div>
-<div class="tcg-type">web · korea · search <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · korea · search <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 MFDS (Ministry of Food & Drug Safety) drug product approval search (KR; data.go.kr serviceKey required). Register the `MFDS drug product approval info` service at data.go.kr, receive a serviceKey, and set DATA_GO_KR_DRUG_KEY on the tool's staticVariables, or inject as env var. At least one of `itemName` (partial product name), `entpName` (company name), or `itemSeq` (product sequence) is required. Returns: { totalCount, pageNo, numOfRows, items:[{ itemSeq, itemName, entpName, itemPermitDate, className, storageMethod, packUnit, validTerm, cancelDate, cancelName, chart }] }.
 </div>
@@ -1309,7 +1332,7 @@ MFDS (Ministry of Food & Drug Safety) drug product approval search (KR; data.go.
 <a class="tcg-stretched-link" href="korea/#getKoreaEmergencyAlerts" aria-label="Open getKoreaEmergencyAlerts in Korea">getKoreaEmergencyAlerts</a>
 <div class="tcg-name"><span class="tcg-name__text">getKoreaEmergencyAlerts</span> <span class="cost">🔑 × 1</span></div>
 <div class="tcg-art" markdown>:material-alert-octagon-outline:</div>
-<div class="tcg-type">web · korea <span class="risk risk-l0">L0</span></div>
+<div class="tcg-type">web · korea <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
 MOIS (Ministry of the Interior & Safety) emergency disaster-alert SMS history (KR; data.go.kr serviceKey required). Register the `MOIS emergency disaster alerts` service at data.go.kr, receive a serviceKey, and set DATA_GO_KR_DISASTER_KEY on the tool's staticVariables, or inject as env var. `area` matches the dispatch region name partially (Korean string). `fromDate`/`toDate` accept YYYYMMDD or YYYY-MM-DD. Returns: { totalCount, pageNo, numOfRows, items:[{ serialNo, createDate, message, emergencyStep, disasterType, location }] }.
 </div>
@@ -1340,7 +1363,7 @@ Before exposing to an external client, the in-app **MCP Inspector** is the pract
 
 No JS authoring is required for any of this mode — pick a preset, expose, call.
 
-- → [Tool Studio: Key Tool Studio Capabilities](../tool-studio/index.md#key-tool-studio-capabilities) — Tool MCP Server Setting drawer overview
+- → [Tool Studio: Key Tool Studio Capabilities](../tool-studio/index.md#key-tool-studio-capabilities) — Built-in MCP Server Native Tools drawer overview
 - → [Tool Studio: Connect to the Built-in MCP Server](../tool-studio/index.md#connect-to-the-built-in-mcp-server) — wiring external clients over Streamable HTTP
 - → [Alternative Runtimes: distribution channels and MCP transports](../../getting-started/alternative-runtimes.md#how-distribution-channels-map-to-mcp-transports) — Docker container and fat-JAR launchers for STDIO mode
 - → [MCP Server: MCP Inspector](../mcp-server/index.md#mcp-inspector) — exercise tools, resources, prompts before exposing externally
@@ -1348,7 +1371,7 @@ No JS authoring is required for any of this mode — pick a preset, expose, call
 
 ### Author and compose
 
-The deeper mode — each default tool's JS source is a working reference for the cross-bridged helpers (`fetch`, `safety.fs.*`, `safety.parser.*`, `crypto.subtle`, `console.log`). Open one in Tool Studio, use **Copy to New Tool** to fork it, tweak the action, hit **Test & Publish**. The moment Local Pass succeeds, your tweaked tool joins the same built-in MCP server — Agentic Chat and external clients see it without a restart.
+The deeper mode — each default tool's JS source is a working reference for the cross-bridged helpers (`fetch`, `safety.fs.*`, `safety.parser.*`, `crypto.subtle`, `console.log`). Open one in Tool Studio, use **Copy And New Tool** to fork it, tweak the action, hit **Test & Publish**. The moment Local Pass succeeds, your tweaked tool joins the same built-in MCP server — Agentic Chat and external clients see it without a restart.
 
 - → [Tool Studio: Built-in JavaScript Helpers](../tool-studio/index.md#built-in-javascript-helpers) — the full helper surface
 - → [Tool Studio: Local Pass — Test Before Publish](../tool-studio/index.md#local-pass-test-before-publish) — the publish gate

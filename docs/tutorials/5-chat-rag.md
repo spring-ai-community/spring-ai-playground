@@ -9,7 +9,7 @@ description: Tutorial 5 — RAG without tools. Use an indexed document as ground
 
 ## Steps
 
-1. Open **Agentic Chat** with the `qwen3.5:latest` model already selected (from Tutorial 4 — it sticks until you change it).
+1. Open **Agentic Chat** with the `qwen3.5:9b` model already selected (from Tutorial 4 — it sticks until you change it).
 2. Open the **documents** combo at the bottom and pick the indexed document. The chip appears in the combo; the model now has the document available as a RAG source.
 
 ![Chat with the indexed document selected as a RAG source](../assets/images/tutorials/tutorial-5-rag-source-controls.png)

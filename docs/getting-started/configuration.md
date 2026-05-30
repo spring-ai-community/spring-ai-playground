@@ -94,7 +94,7 @@ The playground publishes its own MCP server at `/mcp` (Streamable HTTP). These c
 |---|---|---|---|
 | `spring.ai.playground.built-in-mcp-server.name` | `SPRING_AI_PLAYGROUND_MCP_NAME` | `spring-ai-playground-built-in-mcp` | Advertised server name. |
 | `spring.ai.playground.built-in-mcp-server.description` | `SPRING_AI_PLAYGROUND_MCP_DESCRIPTION` | *(see yaml)* | Advertised description. |
-| `spring.ai.playground.built-in-mcp-server.exposure-mode` | `SPRING_AI_PLAYGROUND_MCP_EXPOSURE_MODE` | `both` | `builtin_only` · `composed_only` · `both` — whether `/mcp` serves your Tool Studio tools, the composed external tools, or both. |
+| `spring.ai.playground.built-in-mcp-server.exposure-mode` | `SPRING_AI_PLAYGROUND_MCP_EXPOSURE_MODE` | `both` | `builtin-only` · `composed-only` · `both` — whether `/mcp` serves your Tool Studio tools, the composed external tools, or both. |
 | `spring.ai.playground.mcp-server.composed-tools-max-risk` | relaxed-binding env | `L5` | Caps which composed tools are published (`L1`–`L5`). |
 | `spring.ai.playground.mcp-server.composed-tools` | relaxed-binding env | `[]` | Declarative list of composed (proxied) external tools — see [Configure exposure via YAML](../features/mcp-server/proxy.md#yaml-exposure). |
 | `spring.ai.mcp.server.protocol` | relaxed-binding env | `STREAMABLE` | `SSE` · `STREAMABLE` · `STATELESS`. |

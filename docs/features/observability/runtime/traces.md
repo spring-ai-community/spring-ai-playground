@@ -24,7 +24,7 @@ Reactor `ObservabilityRingBuffer.liveStream()` (multicast `Sinks.Many.directBest
 ## Controls
 
 - **Model** dropdown — `ALL` plus distinct model names auto-populated from the ring buffer
-- **Status** dropdown — `ALL`, `OK`, `ERROR`, `TIMEOUT`, `CANCELLED`
+- **Status** dropdown — `ALL`, `OK`, `ERROR`, `CANCELLED`
 - **Conv id contains** text field — substring match on either trace ID or conversation ID
 
 The [Observability global refresh interval](../index.md#global-settings) is honored, but Traces also subscribes to the live `Sinks.Many` stream so new rows appear without polling. The manual refresh button re-applies the filter to a static snapshot.

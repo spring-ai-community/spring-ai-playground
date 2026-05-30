@@ -35,7 +35,7 @@ Converts a moment in time between IANA time zones. Returns the same instant rend
 | `text` | `STRING` | ✓ | ISO date/time text |
 | `toTimeZone` | `STRING` | ✓ | Target IANA time zone |
 
-**Sandbox** — Runs at sandbox **L0** baseline — no filesystem, default-strict network (SSRF-defended).
+**Sandbox** — Runs at the sandbox **L0** baseline (Safest) — pure compute: no network, no filesystem.
 
 **JS source**
 
@@ -110,7 +110,7 @@ Computes b - a in the requested unit (days|hours|minutes|seconds|milliseconds). 
 | `b` | `STRING` | ✓ | End ISO date/time |
 | `unit` | `STRING` |  | Unit of the result (default 'milliseconds') |
 
-**Sandbox** — Runs at sandbox **L0** baseline — no filesystem, default-strict network (SSRF-defended).
+**Sandbox** — Runs at the sandbox **L0** baseline (Safest) — pure compute: no network, no filesystem.
 
 **JS source**
 
@@ -165,7 +165,7 @@ Percent-encodes a string for use in a URL component. Equivalent to encodeURIComp
 |---|---|---|---|
 | `text` | `STRING` | ✓ | Text to URL-encode |
 
-**Sandbox** — Runs at sandbox **L0** baseline — no filesystem, default-strict network (SSRF-defended).
+**Sandbox** — Runs at the sandbox **L0** baseline (Safest) — pure compute: no network, no filesystem.
 
 **JS source**
 
@@ -210,7 +210,7 @@ Adds (or subtracts) a duration to a date and returns the resulting ISO timestamp
 | `amount` | `INTEGER` | ✓ | Amount to add (negative to subtract) |
 | `unit` | `STRING` | ✓ | Duration unit |
 
-**Sandbox** — Runs at sandbox **L0** baseline — no filesystem, default-strict network (SSRF-defended).
+**Sandbox** — Runs at the sandbox **L0** baseline (Safest) — pure compute: no network, no filesystem.
 
 **JS source**
 
@@ -272,7 +272,7 @@ Parses a date/time string (ISO 8601 or RFC 2822) and returns its components plus
 | `text` | `STRING` | ✓ | Date/time text |
 | `timeZone` | `STRING` |  | IANA time zone to interpret the components in (default UTC) |
 
-**Sandbox** — Runs at sandbox **L0** baseline — no filesystem, default-strict network (SSRF-defended).
+**Sandbox** — Runs at the sandbox **L0** baseline (Safest) — pure compute: no network, no filesystem.
 
 **JS source**
 
@@ -346,7 +346,7 @@ Computes the next datetime matching a standard 5-field cron expression (minute h
 | `from` | `STRING` |  | Starting ISO datetime (default: now) |
 | `count` | `INTEGER` |  | Number of next occurrences to return (default 1, max 100) |
 
-**Sandbox** — Runs at sandbox **L0** baseline — no filesystem, default-strict network (SSRF-defended).
+**Sandbox** — Runs at the sandbox **L0** baseline (Safest) — pure compute: no network, no filesystem.
 
 **JS source**
 
@@ -444,7 +444,7 @@ Returns a line-by-line diff between two texts. Each entry is {op, line} where op
 | `a` | `STRING` | ✓ | First text (the 'before' side) |
 | `b` | `STRING` | ✓ | Second text (the 'after' side) |
 
-**Sandbox** — Runs at sandbox **L0** baseline — no filesystem, default-strict network (SSRF-defended).
+**Sandbox** — Runs at the sandbox **L0** baseline (Safest) — pure compute: no network, no filesystem.
 
 **JS source**
 
@@ -514,7 +514,7 @@ Sorts lines of text alphabetically. Supports reverse and case-insensitive option
 | `reverse` | `BOOLEAN` |  | Sort descending |
 | `caseInsensitive` | `BOOLEAN` |  | Compare case-insensitively |
 
-**Sandbox** — Runs at sandbox **L0** baseline — no filesystem, default-strict network (SSRF-defended).
+**Sandbox** — Runs at the sandbox **L0** baseline (Safest) — pure compute: no network, no filesystem.
 
 **JS source**
 
@@ -564,7 +564,7 @@ Scans text for personally identifiable information patterns (email, US SSN, US p
 |---|---|---|---|
 | `text` | `STRING` | ✓ | Text to scan |
 
-**Sandbox** — Runs at sandbox **L0** baseline — no filesystem, default-strict network (SSRF-defended).
+**Sandbox** — Runs at the sandbox **L0** baseline (Safest) — pure compute: no network, no filesystem.
 
 **JS source**
 
@@ -656,7 +656,7 @@ Returns all regex matches in the input. With the 'g' flag every match is returne
 | `pattern` | `STRING` | ✓ | JavaScript-flavoured regex pattern |
 | `flags` | `STRING` |  | Regex flags (e.g. 'g', 'i', 'gi') |
 
-**Sandbox** — Runs at sandbox **L0** baseline — no filesystem, default-strict network (SSRF-defended).
+**Sandbox** — Runs at the sandbox **L0** baseline (Safest) — pure compute: no network, no filesystem.
 
 **JS source**
 
@@ -719,7 +719,7 @@ Formats a date (ISO string or epoch ms) using a pattern with tokens yyyy/MM/dd H
 | `pattern` | `STRING` |  | Format pattern (e.g. 'yyyy-MM-dd HH:mm:ss') |
 | `timeZone` | `STRING` |  | IANA time zone (default UTC) |
 
-**Sandbox** — Runs at sandbox **L0** baseline — no filesystem, default-strict network (SSRF-defended).
+**Sandbox** — Runs at the sandbox **L0** baseline (Safest) — pure compute: no network, no filesystem.
 
 **JS source**
 
@@ -787,7 +787,7 @@ Returns summary statistics (count, sum, min, max, mean, median, stddev) for an a
 |---|---|---|---|
 | `numbers` | `ARRAY` | ✓ | Array of numbers |
 
-**Sandbox** — Runs at sandbox **L0** baseline — no filesystem, default-strict network (SSRF-defended).
+**Sandbox** — Runs at the sandbox **L0** baseline (Safest) — pure compute: no network, no filesystem.
 
 **JS source**
 
@@ -859,7 +859,7 @@ Scans text for well-known secret patterns (AWS keys, GitHub tokens, Slack tokens
 |---|---|---|---|
 | `text` | `STRING` | ✓ | Text to scan |
 
-**Sandbox** — Runs at sandbox **L0** baseline — no filesystem, default-strict network (SSRF-defended).
+**Sandbox** — Runs at the sandbox **L0** baseline (Safest) — pure compute: no network, no filesystem.
 
 **JS source**
 
@@ -935,7 +935,7 @@ Replaces regex matches in the input with the given replacement string. Supports 
 | `replacement` | `STRING` | ✓ | Replacement string (supports $1, $2, ...) |
 | `flags` | `STRING` |  | Regex flags (e.g. 'g', 'i', 'gi') |
 
-**Sandbox** — Runs at sandbox **L0** baseline — no filesystem, default-strict network (SSRF-defended).
+**Sandbox** — Runs at the sandbox **L0** baseline (Safest) — pure compute: no network, no filesystem.
 
 **JS source**
 
@@ -983,7 +983,7 @@ Evaluates a safe arithmetic/logical expression (no eval, no host access). Suppor
 | `expression` | `STRING` | ✓ | Expression to evaluate |
 | `variables` | `OBJECT` |  | Map of variable bindings |
 
-**Sandbox** — Runs at sandbox **L0** baseline — no filesystem, default-strict network (SSRF-defended).
+**Sandbox** — Runs at the sandbox **L0** baseline (Safest) — pure compute: no network, no filesystem.
 
 **JS source**
 
@@ -1140,7 +1140,7 @@ Serialises an array of rows into CSV text. Rows may be arrays (use header param)
 | `header` | `ARRAY` |  | Optional explicit column order |
 | `delimiter` | `STRING` |  | Field delimiter (default ',') |
 
-**Sandbox** — Runs at sandbox **L0** baseline — no filesystem, default-strict network (SSRF-defended).
+**Sandbox** — Runs at the sandbox **L0** baseline (Safest) — pure compute: no network, no filesystem.
 
 **JS source**
 
@@ -1239,7 +1239,7 @@ Encodes UTF-8 text to base64, or decodes base64 back to UTF-8 text. Use mode='en
 | `mode` | `STRING` |  | encode \| decode |
 | `urlSafe` | `BOOLEAN` |  | Use URL-safe alphabet (- _ instead of + /) |
 
-**Sandbox** — Runs at sandbox **L0** baseline — no filesystem, default-strict network (SSRF-defended).
+**Sandbox** — Runs at the sandbox **L0** baseline (Safest) — pure compute: no network, no filesystem.
 
 **JS source**
 
@@ -1309,7 +1309,7 @@ Encodes UTF-8 text to hex string, or decodes hex back to UTF-8 text. Use mode='e
 | `mode` | `STRING` |  | encode \| decode |
 | `upperCase` | `BOOLEAN` |  | Use uppercase hex when encoding |
 
-**Sandbox** — Runs at sandbox **L0** baseline — no filesystem, default-strict network (SSRF-defended).
+**Sandbox** — Runs at the sandbox **L0** baseline (Safest) — pure compute: no network, no filesystem.
 
 **JS source**
 
@@ -1365,7 +1365,7 @@ Generates a cryptographically random UUID v4 string.
 <div class="tcg-cta">Click for full reference · params · sandbox · JS source</div>
 <div class="tcg-detail-template" hidden markdown>
 
-**Sandbox** — Runs at sandbox **L0** baseline — no filesystem, default-strict network (SSRF-defended).
+**Sandbox** — Runs at the sandbox **L0** baseline (Safest) — pure compute: no network, no filesystem.
 
 **JS source**
 
@@ -1405,7 +1405,7 @@ Computes the cryptographic hash of UTF-8 text. Algorithms: SHA-256 (default), SH
 | `text` | `STRING` | ✓ | Text to hash |
 | `algorithm` | `STRING` |  | SHA-256 \| SHA-384 \| SHA-512 |
 
-**Sandbox** — Runs at sandbox **L0** baseline — no filesystem, default-strict network (SSRF-defended).
+**Sandbox** — Runs at the sandbox **L0** baseline (Safest) — pure compute: no network, no filesystem.
 
 **JS source**
 
@@ -1454,7 +1454,7 @@ Computes an HMAC signature over UTF-8 text using a secret. Algorithms: SHA-256 (
 | `text` | `STRING` | ✓ | Text to sign |
 | `algorithm` | `STRING` |  | SHA-256 \| SHA-384 \| SHA-512 |
 
-**Sandbox** — Runs at sandbox **L0** baseline — no filesystem, default-strict network (SSRF-defended).
+**Sandbox** — Runs at the sandbox **L0** baseline (Safest) — pure compute: no network, no filesystem.
 
 **JS source**
 
@@ -1506,7 +1506,7 @@ Generates cryptographically secure random bytes. encoding: 'hex' (default), 'bas
 | `bytes` | `INTEGER` |  | Number of random bytes (default 16, max 4096) |
 | `encoding` | `STRING` |  | hex \| base64 \| base64url |
 
-**Sandbox** — Runs at sandbox **L0** baseline — no filesystem, default-strict network (SSRF-defended).
+**Sandbox** — Runs at the sandbox **L0** baseline (Safest) — pure compute: no network, no filesystem.
 
 **JS source**
 
@@ -1568,7 +1568,7 @@ Generates a strong random password from selected character classes. Uses crypto.
 | `includeDigits` | `BOOLEAN` |  | Include 0-9 |
 | `includeSymbols` | `BOOLEAN` |  | Include ASCII punctuation |
 
-**Sandbox** — Runs at sandbox **L0** baseline — no filesystem, default-strict network (SSRF-defended).
+**Sandbox** — Runs at the sandbox **L0** baseline (Safest) — pure compute: no network, no filesystem.
 
 **JS source**
 
@@ -1656,7 +1656,7 @@ Decodes a JWT without verifying its signature. Returns the header and payload as
 |---|---|---|---|
 | `token` | `STRING` | ✓ | JWT compact form (header.payload.signature) |
 
-**Sandbox** — Runs at sandbox **L0** baseline — no filesystem, default-strict network (SSRF-defended).
+**Sandbox** — Runs at the sandbox **L0** baseline (Safest) — pure compute: no network, no filesystem.
 
 **JS source**
 
@@ -1717,7 +1717,7 @@ Verifies a HS256/HS384/HS512 JWT signature using a shared secret and returns the
 | `token` | `STRING` | ✓ | JWT compact form |
 | `secret` | `STRING` | ✓ | Shared HMAC secret |
 
-**Sandbox** — Runs at sandbox **L0** baseline — no filesystem, default-strict network (SSRF-defended).
+**Sandbox** — Runs at the sandbox **L0** baseline (Safest) — pure compute: no network, no filesystem.
 
 **JS source**
 
@@ -1816,7 +1816,7 @@ Parses CSV text into an array of rows. If header=true, each row is an object key
 | `header` | `BOOLEAN` |  | Treat the first row as the header |
 | `delimiter` | `STRING` |  | Field delimiter (default ',') |
 
-**Sandbox** — Runs at sandbox **L0** baseline — no filesystem, default-strict network (SSRF-defended).
+**Sandbox** — Runs at the sandbox **L0** baseline (Safest) — pure compute: no network, no filesystem.
 
 **JS source**
 
