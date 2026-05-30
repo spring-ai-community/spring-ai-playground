@@ -25,6 +25,7 @@ import io.modelcontextprotocol.server.McpSyncServer;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
+import org.springaicommunity.playground.service.mcp.risk.DefaultIntegrityVerifier;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions.JsSandbox;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions.NetworkPolicy;
 import org.springaicommunity.playground.service.tool.runtime.JsToolExecutor;
@@ -102,6 +103,7 @@ public class ToolSpecService {
     private final EffectivePolicyResolver policyResolver;
     private final SandboxPostureCalculator postureCalculator;
     private final ObservationRegistry observationRegistry;
+    private final DefaultIntegrityVerifier integrityVerifier;
     private final ThreadLocal<Boolean> skipPersist = ThreadLocal.withInitial(() -> Boolean.FALSE);
     private final Set<String> externalMcpToolNames = ConcurrentHashMap.newKeySet();
 
@@ -113,7 +115,8 @@ public class ToolSpecService {
             ObjectProvider<ToolSpecPersistenceService> toolSpecPersistenceServiceProvider,
             SpringAiPlaygroundOptions playgroundOptions, EffectivePolicyResolver policyResolver,
             SandboxPostureCalculator postureCalculator,
-            ObservationRegistry observationRegistry)
+            ObservationRegistry observationRegistry,
+            DefaultIntegrityVerifier integrityVerifier)
             throws ClassNotFoundException {
         this.mcpSyncServer = syncServerProvider.getIfAvailable();
         this.mcpAsyncServer = asyncServerProvider.getIfAvailable();
@@ -126,6 +129,7 @@ public class ToolSpecService {
         this.policyResolver = policyResolver;
         this.postureCalculator = postureCalculator;
         this.observationRegistry = observationRegistry;
+        this.integrityVerifier = integrityVerifier;
         this.jsToolExecutor = new JsToolExecutor(playgroundOptions.toolStudio().timeoutSeconds(),
                 this.sandboxBaseline, playgroundOptions.toolStudio().fs());
     }
@@ -260,6 +264,9 @@ public class ToolSpecService {
         if (!this.exposureMode.includesBuiltin()) {
             return;
         }
+        if (this.integrityVerifier.verifyTool(toolSpec).isBlocked()) {
+            return;
+        }
         logger.info("Adding MCP tool to server: name={}", toolSpec.name());
         if (Objects.nonNull(this.mcpSyncServer)) {
             this.mcpSyncServer.addTool(McpToolUtils.toSyncToolSpecification(toolSpec.toolCallback()));
@@ -287,6 +294,11 @@ public class ToolSpecService {
     public void addExternalMcpTool(ToolCallback callback) {
         String name = callback.getToolDefinition().name();
         if (this.externalMcpToolNames.contains(name)) return;
+        if (this.integrityVerifier.isReservedToolName(name)) {
+            logger.warn("Refusing to expose external MCP tool '{}' — name is a reserved built-in default "
+                    + "(impersonation guard)", name);
+            return;
+        }
         logger.info("Adding external MCP tool to built-in server: name={}", name);
         try {
             if (Objects.nonNull(this.mcpSyncServer)) {
