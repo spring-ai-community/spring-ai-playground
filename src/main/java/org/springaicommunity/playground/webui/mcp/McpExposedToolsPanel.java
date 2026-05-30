@@ -104,7 +104,7 @@ public class McpExposedToolsPanel {
         this.capField.setValue(cap);
         this.capField.setWidthFull();
 
-        Checkbox hitlAll = new Checkbox("Require approval (HITL) for all selected tools");
+        Checkbox hitlAll = new Checkbox("Mark all selected tools for human review (HITL, −1 risk band)");
         hitlAll.addValueChangeListener(event -> applyHitlToAllSelected(Boolean.TRUE.equals(event.getValue())));
 
         VerticalLayout root = new VerticalLayout(intro, this.exposedArea,
@@ -115,13 +115,13 @@ public class McpExposedToolsPanel {
 
         List<McpServerInfo> active = activeServers();
         if (active.isEmpty()) {
-            Span empty = new Span("No active external MCP servers — connect and activate a server first.");
+            Span empty = new Span("No connected external MCP servers. Connect a server from the Active MCP list first.");
             empty.getStyle().set("color", "var(--lumo-secondary-text-color)");
             root.add(empty);
             return root;
         }
 
-        root.add(sectionLabel("Active MCP servers"));
+        root.add(sectionLabel("Connected MCP servers"));
         for (McpServerInfo server : active) {
             root.add(buildServerAccordion(server));
         }
@@ -230,7 +230,8 @@ public class McpExposedToolsPanel {
                 .set("color", "var(--lumo-secondary-text-color)");
         Checkbox hitl = new Checkbox("HITL");
         hitl.setValue(existing != null && existing.hitl());
-        hitl.setTooltipText("Require human approval before this tool runs (lowers effective risk by one band)");
+        hitl.setTooltipText("Marks this tool for human review and lowers its displayed risk by one band. "
+                + "Does not pause the call for approval at runtime, and does not let the tool exceed the risk cap.");
         Div chipHolder = new Div();
         chipHolder.getStyle().set("display", "inline-flex").set("align-items", "center").set("gap", "0.3em");
 
@@ -273,7 +274,8 @@ public class McpExposedToolsPanel {
         };
         Runnable refreshRow = () -> {
             RiskLevel effective = McpToolRiskComposer.applyHitlMitigation(baseLevel, hitl.getValue());
-            boolean overCap = effective.ordinal() > this.capField.getValue().ordinal();
+            // base risk, not hitl-lowered: hitl has no runtime gate so it must not lift the cap
+            boolean overCap = baseLevel.ordinal() > this.capField.getValue().ordinal();
             chipHolder.removeAll();
             chipHolder.add(new McpRiskChip(effective, risk.floorTrigger()));
             if (Boolean.TRUE.equals(hitl.getValue())) {
