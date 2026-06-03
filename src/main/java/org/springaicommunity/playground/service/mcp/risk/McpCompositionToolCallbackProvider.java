@@ -15,6 +15,9 @@
  */
 package org.springaicommunity.playground.service.mcp.risk;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
@@ -26,6 +29,7 @@ import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.service.util.SecretMasking;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
+import org.springframework.ai.tool.definition.ToolDefinition;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -46,12 +50,14 @@ public class McpCompositionToolCallbackProvider implements ToolCallbackProvider 
     private final McpServerRiskCalculator serverCalc;
     private final McpToolPublishRiskCalculator publishCalc;
     private final McpToolRiskComposer composer;
+    private final McpToolHashLedger hashLedger;
+    private final ObjectMapper objectMapper;
 
     public McpCompositionToolCallbackProvider(McpCompositionService compositionService,
             McpServerInfoService serverInfoService, McpClientService mcpClientService,
             McpCatalogService catalogService, McpRiskInputsResolver inputsResolver,
             McpServerRiskCalculator serverCalc, McpToolPublishRiskCalculator publishCalc,
-            McpToolRiskComposer composer) {
+            McpToolRiskComposer composer, McpToolHashLedger hashLedger, ObjectMapper objectMapper) {
         this.compositionService = compositionService;
         this.serverInfoService = serverInfoService;
         this.mcpClientService = mcpClientService;
@@ -60,6 +66,8 @@ public class McpCompositionToolCallbackProvider implements ToolCallbackProvider 
         this.serverCalc = serverCalc;
         this.publishCalc = publishCalc;
         this.composer = composer;
+        this.hashLedger = hashLedger;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -97,6 +105,10 @@ public class McpCompositionToolCallbackProvider implements ToolCallbackProvider 
         if (upstream.isEmpty()) {
             logger.debug("Composition {} member {} skipped — tool {} not present upstream",
                     composition.id(), member.serverId(), member.toolName());
+            return Optional.empty();
+        }
+
+        if (!integrityVerified(member.serverId(), member.toolName(), upstream.get())) {
             return Optional.empty();
         }
 
@@ -145,5 +157,33 @@ public class McpCompositionToolCallbackProvider implements ToolCallbackProvider 
         McpToolPublishRiskCalculator.Result toolResult = this.publishCalc.compute(toolInputs);
 
         return this.composer.composeWrappedExternal(serverResult, toolResult);
+    }
+
+    // TOFU: a re-published tool whose definition changed is withheld (AWAITING_REREVIEW) until explicit re-review.
+    private boolean integrityVerified(String serverId, String toolName, ToolCallback upstream) {
+        ToolDefinition def = upstream.getToolDefinition();
+        JsonNode schema = parseSchema(def == null ? null : def.inputSchema());
+        String hash = this.hashLedger.computeContentHash(def == null ? null : def.name(),
+                def == null ? null : def.description(), schema, null);
+        this.hashLedger.checkAndRecord(serverId, toolName, hash);
+        McpToolHashLedger.Fingerprint.LifecycleStatus status = this.hashLedger.get(serverId, toolName)
+                .map(McpToolHashLedger.Fingerprint::status)
+                .orElse(McpToolHashLedger.Fingerprint.LifecycleStatus.ACTIVE);
+        if (status != McpToolHashLedger.Fingerprint.LifecycleStatus.ACTIVE) {
+            logger.warn("Exposed tool withheld — definition changed since approved (awaiting re-review): "
+                    + "server={} tool={}", serverId, toolName);
+            return false;
+        }
+        return true;
+    }
+
+    private JsonNode parseSchema(String inputSchema) {
+        if (inputSchema == null || inputSchema.isBlank()) return null;
+        try {
+            return this.objectMapper.readTree(inputSchema);
+        } catch (JsonProcessingException e) {
+            logger.debug("Failed to parse upstream tool inputSchema for hashing; treating as empty", e);
+            return null;
+        }
     }
 }

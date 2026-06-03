@@ -156,6 +156,12 @@ public class McpToolHashLedger {
         persist();
     }
 
+    public synchronized void approveRereview(String serverId, String toolName) {
+        Fingerprint existing = this.fingerprintsByKey.get(Fingerprint.keyOf(serverId, toolName));
+        if (existing == null) return;
+        approveRereview(serverId, toolName, existing.contentHash());
+    }
+
     public synchronized void markPublished(String serverId, String toolName) {
         String key = Fingerprint.keyOf(serverId, toolName);
         Fingerprint existing = this.fingerprintsByKey.get(key);
