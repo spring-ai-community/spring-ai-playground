@@ -15,6 +15,7 @@
  */
 package org.springaicommunity.playground.webui.mcp;
 
+import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.router.PageTitle;
@@ -40,6 +41,9 @@ import org.springaicommunity.playground.webui.common.ContentWorkspaceView;
 import org.springaicommunity.playground.webui.common.WorkspaceSettingsDrawer;
 
 import java.beans.PropertyChangeSupport;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Objects;
 
 import static org.springaicommunity.playground.webui.VaadinUtils.styledButton;
@@ -154,5 +158,34 @@ public class McpServerView extends ContentWorkspaceView {
                         this.mcpServerInfoChangeSupport);
 
         VaadinUtils.getUi(this).access(() -> setContent(this.mcpContentView));
+    }
+
+    @Override
+    protected void onAttach(AttachEvent attachEvent) {
+        super.onAttach(attachEvent);
+        attachEvent.getUI().getPage().fetchCurrentURL(url -> {
+            String serverName = queryParam(url.getQuery(), "server");
+            if (serverName == null || serverName.isBlank()) return;
+            this.mcpServerInfoService.getMcpServerInfos().values().stream()
+                    .flatMap(List::stream)
+                    .filter(info -> serverName.equals(info.serverName()))
+                    .findFirst()
+                    .ifPresent(info -> {
+                        this.mcpServerConnectionView.selectMcpConnectionContent(info);
+                        selectMcpServerInfo(info);
+                    });
+        });
+    }
+
+    private static String queryParam(String query, String key) {
+        if (query == null) return null;
+        for (String pair : query.split("&")) {
+            int eq = pair.indexOf('=');
+            if (eq <= 0) continue;
+            if (key.equals(pair.substring(0, eq))) {
+                return URLDecoder.decode(pair.substring(eq + 1), StandardCharsets.UTF_8);
+            }
+        }
+        return null;
     }
 }
