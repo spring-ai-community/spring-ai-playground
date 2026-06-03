@@ -27,6 +27,7 @@ import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.shared.Tooltip;
 import io.modelcontextprotocol.spec.McpSchema;
+import org.springaicommunity.playground.service.mcp.McpServerHitlToolGate;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.service.mcp.risk.McpToolPoisoningScanner;
@@ -143,8 +144,8 @@ public class ToolPrimitive extends Div {
 
         long startNs = System.nanoTime();
         try {
-            Optional<McpSchema.CallToolResult> resultOpt =
-                    clientService.callTool(serverInfo, tool.name(), args, null);
+            Optional<McpSchema.CallToolResult> resultOpt = clientService.callTool(serverInfo, tool.name(), args,
+                    Map.of(McpServerHitlToolGate.INTERACTIVE_HITL_META_KEY, true));
             lastArgs = args;
             lastResult = resultOpt.orElse(null);
             lastError = null;

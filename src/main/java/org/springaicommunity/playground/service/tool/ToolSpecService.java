@@ -21,9 +21,13 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
 import io.modelcontextprotocol.server.McpAsyncServer;
+import io.modelcontextprotocol.server.McpServerFeatures.AsyncToolSpecification;
+import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.server.McpSyncServer;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
+import org.springaicommunity.playground.service.mcp.McpServerHitlToolGate;
+import org.springaicommunity.playground.service.mcp.risk.WrappedExternalToolCallback;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
 import org.springaicommunity.playground.service.mcp.risk.DefaultIntegrityVerifier;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions.JsSandbox;
@@ -83,19 +87,26 @@ public class ToolSpecService {
         }
     }
 
-    public record ToolMcpServerSetting(boolean autoAdd, Set<String> exposedToolIds) {
+    public record ToolMcpServerSetting(boolean autoAdd, Set<String> exposedToolIds, Set<String> excludedToolIds) {
         public ToolMcpServerSetting {
-            if (exposedToolIds == null) exposedToolIds = Set.of();
+            exposedToolIds = exposedToolIds == null ? Set.of() : exposedToolIds;
+            excludedToolIds = excludedToolIds == null ? Set.of() : excludedToolIds;
+        }
+        public ToolMcpServerSetting(boolean autoAdd, Set<String> exposedToolIds) {
+            this(autoAdd, exposedToolIds, Set.of());
         }
     }
 
     private static final Logger logger = LoggerFactory.getLogger(ToolSpecService.class);
     private static final ParameterizedTypeReference<Map<String, Object>>
             MAP_PARAMETERIZED_TYPE_REFERENCE = new ParameterizedTypeReference<>() {};
+    private static final ToolManifest.HumanInTheLoop REQUIRED_HITL =
+            new ToolManifest.HumanInTheLoop(ToolManifest.HumanInTheLoop.Mode.REQUIRED, null);
 
     private final McpSyncServer mcpSyncServer;
     private final McpAsyncServer mcpAsyncServer;
     private final McpServerInfoService mcpServerInfoService;
+    private final McpServerHitlToolGate hitlGate;
     private final ObjectProvider<ToolSpecPersistenceService> toolSpecPersistenceServiceProvider;
     private final Map<String, ToolSpec> toolIdSpecs;
     private final JsToolExecutor jsToolExecutor;
@@ -105,13 +116,15 @@ public class ToolSpecService {
     private final ObservationRegistry observationRegistry;
     private final DefaultIntegrityVerifier integrityVerifier;
     private final ThreadLocal<Boolean> skipPersist = ThreadLocal.withInitial(() -> Boolean.FALSE);
-    private final Set<String> externalMcpToolNames = ConcurrentHashMap.newKeySet();
+    private final Map<String, ToolSpec> externalToolSpecs = new ConcurrentHashMap<>();
+    private final Map<String, String> externalToolRiskLevels = new ConcurrentHashMap<>();
 
     private ToolMcpServerSetting toolMcpServerSetting;
     private volatile ExposureMode exposureMode;
 
     public ToolSpecService(ObjectProvider<McpSyncServer> syncServerProvider,
             ObjectProvider<McpAsyncServer> asyncServerProvider, McpServerInfoService mcpServerInfoService,
+            McpServerHitlToolGate hitlGate,
             ObjectProvider<ToolSpecPersistenceService> toolSpecPersistenceServiceProvider,
             SpringAiPlaygroundOptions playgroundOptions, EffectivePolicyResolver policyResolver,
             SandboxPostureCalculator postureCalculator,
@@ -121,6 +134,7 @@ public class ToolSpecService {
         this.mcpSyncServer = syncServerProvider.getIfAvailable();
         this.mcpAsyncServer = asyncServerProvider.getIfAvailable();
         this.mcpServerInfoService = mcpServerInfoService;
+        this.hitlGate = hitlGate;
         this.toolSpecPersistenceServiceProvider = toolSpecPersistenceServiceProvider;
         this.toolMcpServerSetting = new ToolMcpServerSetting(true, Set.of());
         this.exposureMode = playgroundOptions.builtInMcpServer().exposureMode();
@@ -160,6 +174,7 @@ public class ToolSpecService {
         result.withCategory(toolSpec.category())
                 .withTags(toolSpec.tags())
                 .withSandboxOverrides(toolSpec.sandboxOverrides())
+                .withHumanInTheLoop(toolSpec.humanInTheLoop())
                 .withDraft(targetDraft);
         syncMcpExposureForDraft(result, targetDraft);
         return result;
@@ -168,18 +183,26 @@ public class ToolSpecService {
     private void syncMcpExposureForDraft(ToolSpec spec, boolean targetDraft) {
         boolean currentlyExposed = getMcpToolList().stream()
                 .anyMatch(tool -> tool.name().equals(spec.name()));
+        Set<String> excluded = this.toolMcpServerSetting.excludedToolIds();
         boolean changed = false;
-        if (targetDraft && currentlyExposed) {
-            removeMcpTool(spec.name());
-            HashSet<String> ids = new HashSet<>(this.toolMcpServerSetting.exposedToolIds());
-            ids.remove(spec.toolId());
-            this.toolMcpServerSetting = new ToolMcpServerSetting(this.toolMcpServerSetting.autoAdd(), ids);
-            changed = true;
-        } else if (!targetDraft && !currentlyExposed && this.toolMcpServerSetting.autoAdd()) {
+        if (targetDraft) {
+            if (currentlyExposed) {
+                removeMcpTool(spec.name());
+            }
+            if (this.toolMcpServerSetting.exposedToolIds().contains(spec.toolId())) {
+                HashSet<String> ids = new HashSet<>(this.toolMcpServerSetting.exposedToolIds());
+                ids.remove(spec.toolId());
+                this.toolMcpServerSetting = new ToolMcpServerSetting(
+                        this.toolMcpServerSetting.autoAdd(), ids, excluded);
+                changed = true;
+            }
+        } else if (!currentlyExposed
+                && this.toolMcpServerSetting.autoAdd()
+                && !excluded.contains(spec.toolId())) {
             addMcpTool(spec);
             HashSet<String> ids = new HashSet<>(this.toolMcpServerSetting.exposedToolIds());
             ids.add(spec.toolId());
-            this.toolMcpServerSetting = new ToolMcpServerSetting(true, ids);
+            this.toolMcpServerSetting = new ToolMcpServerSetting(true, ids, excluded);
             changed = true;
         }
         if (changed) {
@@ -249,13 +272,6 @@ public class ToolSpecService {
         if (Objects.nonNull(toolSpec))
             getMcpToolList().stream().filter(tool -> tool.name().equals(toolSpec.name())).findFirst()
                     .map(McpSchema.Tool::name).ifPresent(this::removeMcpTool);
-        if (this.toolMcpServerSetting.autoAdd() &&
-                getMcpToolList().stream().noneMatch(tool -> tool.name().equals(newToolSpec.name()))) {
-            addMcpTool(newToolSpec);
-            HashSet<String> exposedToolIds = new HashSet<>(this.toolMcpServerSetting.exposedToolIds());
-            exposedToolIds.add(newToolSpec.toolId());
-            this.toolMcpServerSetting = new ToolMcpServerSetting(true, exposedToolIds);
-        }
         persistAsync();
         return newToolSpec;
     }
@@ -269,9 +285,11 @@ public class ToolSpecService {
         }
         logger.info("Adding MCP tool to server: name={}", toolSpec.name());
         if (Objects.nonNull(this.mcpSyncServer)) {
-            this.mcpSyncServer.addTool(McpToolUtils.toSyncToolSpecification(toolSpec.toolCallback()));
+            this.mcpSyncServer.addTool(this.hitlGate.decorate(
+                    McpToolUtils.toSyncToolSpecification(toolSpec.toolCallback()), toolSpec.humanInTheLoop()));
         } else {
-            this.mcpAsyncServer.addTool(McpToolUtils.toAsyncToolSpecification(toolSpec.toolCallback()));
+            this.mcpAsyncServer.addTool(this.hitlGate.decorate(
+                    McpToolUtils.toAsyncToolSpecification(toolSpec.toolCallback()), toolSpec.humanInTheLoop()));
         }
         this.mcpServerInfoService.updateDefaultMcpTool();
     }
@@ -290,23 +308,30 @@ public class ToolSpecService {
                 .toStream().toList();
     }
 
-    // Tracked apart from ToolSpec-backed tools so sync can add/remove without touching our own tools.
-    public void addExternalMcpTool(ToolCallback callback) {
+    // Re-exposed external tools live in their own registry, outside authored toolIdSpecs (never persisted/listed).
+    public void addExternalMcpTool(ToolCallback callback, boolean hitl) {
         String name = callback.getToolDefinition().name();
-        if (this.externalMcpToolNames.contains(name)) return;
+        if (this.externalToolSpecs.containsKey(name)) return;
         if (this.integrityVerifier.isReservedToolName(name)) {
             logger.warn("Refusing to expose external MCP tool '{}' — name is a reserved built-in default "
                     + "(impersonation guard)", name);
             return;
         }
-        logger.info("Adding external MCP tool to built-in server: name={}", name);
+        logger.info("Adding external MCP tool to built-in server: name={}, hitl={}", name, hitl);
+        ToolSpec externalSpec = new ToolSpec(name, name, null, null, null, null, null, callback)
+                .withHumanInTheLoop(hitl ? REQUIRED_HITL : null);
         try {
             if (Objects.nonNull(this.mcpSyncServer)) {
-                this.mcpSyncServer.addTool(McpToolUtils.toSyncToolSpecification(callback));
+                SyncToolSpecification spec = McpToolUtils.toSyncToolSpecification(callback);
+                this.mcpSyncServer.addTool(hitl ? this.hitlGate.decorate(spec, REQUIRED_HITL) : spec);
             } else if (Objects.nonNull(this.mcpAsyncServer)) {
-                this.mcpAsyncServer.addTool(McpToolUtils.toAsyncToolSpecification(callback));
+                AsyncToolSpecification spec = McpToolUtils.toAsyncToolSpecification(callback);
+                this.mcpAsyncServer.addTool(hitl ? this.hitlGate.decorate(spec, REQUIRED_HITL) : spec);
             }
-            this.externalMcpToolNames.add(name);
+            this.externalToolSpecs.put(name, externalSpec);
+            if (callback instanceof WrappedExternalToolCallback wrapped) {
+                this.externalToolRiskLevels.put(name, wrapped.riskLevel().name());
+            }
         } catch (RuntimeException e) {
             logger.warn("Failed to add external MCP tool: name={}, error={}", name, e.getMessage());
         }
@@ -323,11 +348,16 @@ public class ToolSpecService {
         } catch (RuntimeException e) {
             logger.warn("Failed to remove external MCP tool: name={}, error={}", toolName, e.getMessage());
         }
-        this.externalMcpToolNames.remove(toolName);
+        this.externalToolSpecs.remove(toolName);
+        this.externalToolRiskLevels.remove(toolName);
     }
 
     public Set<String> getExternalMcpToolNames() {
-        return Set.copyOf(this.externalMcpToolNames);
+        return Set.copyOf(this.externalToolSpecs.keySet());
+    }
+
+    public List<ToolSpec> getExternalToolSpecs() {
+        return List.copyOf(this.externalToolSpecs.values());
     }
 
     public Optional<ToolSpec> getToolSpecAsOpt(String name) {
@@ -430,6 +460,33 @@ public class ToolSpecService {
                 .map(spec -> riskLevelFor(spec.sandboxOverrides()))
                 .map(RiskLevel::valueOf)
                 .orElse(RiskLevel.L0);
+    }
+
+    public String riskLevelOf(ToolSpec spec) {
+        if (spec != null) {
+            String external = this.externalToolRiskLevels.get(spec.name());
+            if (external != null) return external;
+        }
+        return riskLevelFor(spec == null ? null : spec.sandboxOverrides());
+    }
+
+    public boolean requiresApproval(ToolSpec spec) {
+        if (spec == null) return false;
+        ToolManifest.HumanInTheLoop hitl = spec.humanInTheLoop();
+        return hitl != null && hitl.mode() == ToolManifest.HumanInTheLoop.Mode.REQUIRED;
+    }
+
+    public boolean requiresApproval(String toolName) {
+        return requiresApproval(specForGating(toolName));
+    }
+
+    public ToolManifest.HumanInTheLoop humanInTheLoopFor(String toolName) {
+        ToolSpec spec = specForGating(toolName);
+        return spec == null ? null : spec.humanInTheLoop();
+    }
+
+    private ToolSpec specForGating(String toolName) {
+        return getToolSpecAsOpt(toolName).orElseGet(() -> this.externalToolSpecs.get(toolName));
     }
 
     private String riskLevelFor(ToolSpec.SandboxOverrides sbo) {

@@ -78,6 +78,10 @@ public final class WrappedExternalToolCallback implements ToolCallback {
         return this.aliasedDefinition;
     }
 
+    public RiskLevel riskLevel() {
+        return this.finalRiskLevel;
+    }
+
     @Override
     public ToolMetadata getToolMetadata() {
         return this.delegate.getToolMetadata();

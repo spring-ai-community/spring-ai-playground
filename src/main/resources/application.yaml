@@ -138,7 +138,8 @@ spring:
         name: ${spring.ai.playground.built-in-mcp-server.name}
         protocol: STREAMABLE
         type: SYNC
-        request-timeout: 30
+        # Server-to-client elicitation (HITL) timeout; must outlast the client's 2-min decision wait (bare number = millis).
+        request-timeout: 150s
 
 ---
 spring:

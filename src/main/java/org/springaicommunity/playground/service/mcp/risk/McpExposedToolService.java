@@ -28,6 +28,8 @@ import org.springframework.stereotype.Service;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -39,16 +41,21 @@ public class McpExposedToolService {
     private final McpCompositionService compositionService;
     private final McpCompositionToolCallbackProvider compositionProvider;
     private final ToolSpecService toolSpecService;
+    private final McpToolHashLedger hashLedger;
 
     public McpExposedToolService(McpCompositionService compositionService,
-            McpCompositionToolCallbackProvider compositionProvider, ToolSpecService toolSpecService) {
+            McpCompositionToolCallbackProvider compositionProvider, ToolSpecService toolSpecService,
+            McpToolHashLedger hashLedger) {
         this.compositionService = compositionService;
         this.compositionProvider = compositionProvider;
         this.toolSpecService = toolSpecService;
+        this.hashLedger = hashLedger;
     }
 
     public synchronized McpComposition apply(List<McpComposition.Member> members, RiskLevel maxRiskLevel) {
         McpComposition exposed = this.compositionService.upsertExposed(members, maxRiskLevel);
+        // Re-applying the exposure selection is an explicit human re-review — clear any awaiting-re-review hold.
+        exposed.members().forEach(m -> this.hashLedger.approveRereview(m.serverId(), m.toolName()));
         sync();
         return exposed;
     }
@@ -63,19 +70,33 @@ public class McpExposedToolService {
                     current.size());
             return;
         }
-        ToolCallback[] wrapped = this.compositionService.getExposed()
-                .map(this.compositionProvider::getToolCallbacksFor)
+        Optional<McpComposition> exposed = this.compositionService.getExposed();
+        ToolCallback[] wrapped = exposed.map(this.compositionProvider::getToolCallbacksFor)
                 .orElseGet(() -> new ToolCallback[0]);
+        Map<String, Boolean> hitlByName = exposed
+                .map(composition -> composition.members().stream().collect(Collectors.toMap(
+                        McpComposition.Member::exposedAlias, McpComposition.Member::hitl, (a, b) -> a || b)))
+                .orElseGet(Map::of);
         Set<String> desired = Arrays.stream(wrapped)
                 .map(callback -> callback.getToolDefinition().name())
                 .collect(Collectors.toSet());
+        this.toolSpecService.getExternalMcpToolNames().stream()
+                .filter(name -> needsRemoval(name, desired, hitlByName))
+                .forEach(this.toolSpecService::removeExternalMcpTool);
         Set<String> current = this.toolSpecService.getExternalMcpToolNames();
-        current.stream().filter(name -> !desired.contains(name)).forEach(this.toolSpecService::removeExternalMcpTool);
         Arrays.stream(wrapped)
                 .filter(callback -> !current.contains(callback.getToolDefinition().name()))
-                .forEach(this.toolSpecService::addExternalMcpTool);
+                .forEach(callback -> this.toolSpecService.addExternalMcpTool(callback,
+                        hitlByName.getOrDefault(callback.getToolDefinition().name(), false)));
         this.toolSpecService.refreshDefaultMcpTool();
         logger.info("Exposed-tool sync complete: exposedToolCount={}", desired.size());
+    }
+
+    // Re-register a tool whose hitl flag flipped — the flag is baked into registration, so it must be redone.
+    private boolean needsRemoval(String name, Set<String> desired, Map<String, Boolean> hitlByName) {
+        if (!desired.contains(name)) return true;
+        boolean registeredHitl = this.toolSpecService.humanInTheLoopFor(name) != null;
+        return registeredHitl != hitlByName.getOrDefault(name, false);
     }
 
     @EventListener(ApplicationReadyEvent.class)

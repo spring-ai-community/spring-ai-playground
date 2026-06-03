@@ -107,6 +107,8 @@ public class McpClientService {
 
     public record McpToolSource(String serverName, String transport) {}
 
+    public static final String TEST_CLIENT_INFIX = " - test - ";
+
     private final McpSyncClientConfigurer mcpSyncClientConfigurer;
     private final McpAsyncClientConfigurer mcpAsyncClientConfigurer;
     private final McpClientCommonProperties mcpClientCommonProperties;
@@ -419,8 +421,8 @@ public class McpClientService {
         try {
             McpClientTransport transport = buildMcpClientTransport(mcpServerInfo).transport();
             Implementation info =
-                    new Implementation(mcpClientCommonProperties.getName() + " - test - " + mcpServerInfo.serverName(),
-                            mcpClientCommonProperties.getVersion());
+                    new Implementation(mcpClientCommonProperties.getName() + TEST_CLIENT_INFIX
+                            + mcpServerInfo.serverName(), mcpClientCommonProperties.getVersion());
             transientClient = McpClient.sync(transport).clientInfo(info)
                     .requestTimeout(mcpClientCommonProperties.getRequestTimeout()).build();
             transientClient.initialize();

@@ -244,6 +244,19 @@ class ToolSpecServiceTest {
                 .doesNotContain("unpubOne");
     }
 
+    @Test
+    void draftToolWithStaleExposedIdIsPrunedFromExposedSet() {
+        toolSpecService.update(freshSpec("gw-1", "gwTool", true));
+        toolSpecService.updateToolMcpServerSetting(
+                new ToolSpecService.ToolMcpServerSetting(true, Set.of("gw-1")));
+        assertThat(toolSpecService.getToolMcpServerSetting().exposedToolIds()).contains("gw-1");
+
+        toolSpecService.update(freshSpec("gw-1", "gwTool", true));
+
+        assertThat(toolSpecService.getToolMcpServerSetting().exposedToolIds()).doesNotContain("gw-1");
+        assertThat(currentMcpNames()).doesNotContain("gwTool");
+    }
+
 
     @Test
     void mcpInvocationFillsMissingOptionalParamsWithNull() {
@@ -340,7 +353,7 @@ class ToolSpecServiceTest {
     @Test
     void nativeReconcileLeavesExternalWrappedToolsUntouched() {
         toolSpecService.update(freshSpec("nat-1", "nativeOne", false));
-        toolSpecService.addExternalMcpTool(externalCallback("extTool"));
+        toolSpecService.addExternalMcpTool(externalCallback("extTool"), false);
         assertThat(currentMcpNames()).contains("nativeOne").contains("extTool");
 
         toolSpecService.updateToolMcpServerSetting(
@@ -349,6 +362,13 @@ class ToolSpecServiceTest {
         assertThat(currentMcpNames()).doesNotContain("nativeOne");
         assertThat(currentMcpNames()).contains("extTool");
         assertThat(toolSpecService.getExternalMcpToolNames()).contains("extTool");
+    }
+
+    @Test
+    void composedExternalToolsAreSelectableAndApprovalGated() {
+        toolSpecService.addExternalMcpTool(externalCallback("extSel"), true);
+        assertThat(toolSpecService.getExternalToolSpecs()).extracting(ToolSpec::name).contains("extSel");
+        assertThat(toolSpecService.requiresApproval("extSel")).isTrue();
     }
 
     @Test

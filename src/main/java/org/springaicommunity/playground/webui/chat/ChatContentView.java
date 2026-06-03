@@ -23,6 +23,7 @@ import com.vaadin.flow.component.ScrollOptions;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
+import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.combobox.MultiSelectComboBox;
 import com.vaadin.flow.component.dependency.JsModule;
 import com.vaadin.flow.component.details.Details;
@@ -34,6 +35,8 @@ import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.Scroller;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.popover.Popover;
+import com.vaadin.flow.component.popover.PopoverPosition;
 import com.vaadin.flow.component.textfield.TextArea;
 import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.internal.Pair;
@@ -41,13 +44,19 @@ import org.springaicommunity.playground.service.SpringAiPlaygroundRagAdvisor;
 import org.springaicommunity.playground.service.chat.ChatHistory;
 import org.springaicommunity.playground.service.chat.ChatService;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
+import org.springaicommunity.playground.service.mcp.McpServerInfoService;
 import org.springaicommunity.playground.service.mcp.McpToolCallingManager;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.service.mcp.client.McpTransportType;
+import org.springaicommunity.playground.service.tool.ToolActivationCalculator;
+import org.springaicommunity.playground.service.tool.ToolSpec;
+import org.springaicommunity.playground.service.tool.ToolSpecPersistenceService;
+import org.springaicommunity.playground.service.tool.ToolSpecService;
 import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentInfo;
 import org.springaicommunity.playground.webui.PersistentUiDataStorage;
 import org.springaicommunity.playground.webui.SttMicButton;
 import org.springaicommunity.playground.webui.VaadinUtils;
+import org.springaicommunity.playground.webui.tool.ExposedToolsSelector;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.prompt.ChatOptions;
@@ -63,6 +72,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -82,6 +92,8 @@ import static org.springframework.ai.chat.messages.MessageType.USER;
 public class ChatContentView extends VerticalLayout {
     private static final String LAST_SELECTED_RAG_DOC_INFO_IDS = "lastSelectedRagDocInfoIds";
     private static final String LAST_SELECTED_MCP_CONNECTION_INFOS = "lastSelectedMcpConnectionInfos";
+    private static final String USE_BUILTIN_MCP = "useBuiltinMcp";
+    private static final String CHAT_TOOL_SELECTION = "chatBuiltinToolSelection";
 
     private static final ScrollOptions DefaultScrollOptions = new ScrollOptions();
     static {
@@ -102,16 +114,64 @@ public class ChatContentView extends VerticalLayout {
     private final PersistentUiDataStorage persistentUiDataStorage;
     private final ChatHistory chatHistory;
     private final McpClientService mcpClientService;
+    private final ToolSpecService toolSpecService;
+    private final ToolSpecPersistenceService toolSpecPersistenceService;
+    private final ToolActivationCalculator toolActivationCalculator;
+    private final McpServerInfoService mcpServerInfoService;
+    private final MultiSelectComboBox<ToolSpec> customToolsComboBox;
+    private final MultiSelectComboBox<ToolSpec> builtinToolsComboBox;
+    private final MultiSelectComboBox<ToolSpec> composedToolsComboBox;
+    private final MultiSelectComboBox<ToolSpec> exposedToolsDisplayBox;
+    private final Checkbox useBuiltinMcpCheckbox = new Checkbox("Use built-in MCP server in this chat");
     private Disposable currentStream;
 
     public ChatContentView(PersistentUiDataStorage persistentUiDataStorage, ChatService chatService,
             ChatHistory chatHistory, Consumer<ChatHistory> completeChatHistoryConsumer,
-            McpClientService mcpClientService) {
+            McpClientService mcpClientService, ToolSpecService toolSpecService,
+            ToolSpecPersistenceService toolSpecPersistenceService,
+            ToolActivationCalculator toolActivationCalculator,
+            McpServerInfoService mcpServerInfoService) {
         this.persistentUiDataStorage = persistentUiDataStorage;
         this.chatHistory = chatHistory;
         this.chatService = chatService;
         this.completeChatHistoryConsumer = completeChatHistoryConsumer;
         this.mcpClientService = mcpClientService;
+        this.toolSpecService = toolSpecService;
+        this.toolSpecPersistenceService = toolSpecPersistenceService;
+        this.toolActivationCalculator = toolActivationCalculator;
+        this.mcpServerInfoService = mcpServerInfoService;
+        this.customToolsComboBox = ExposedToolsSelector.newCustomSelector(toolSpecService::riskLevelOf);
+        this.builtinToolsComboBox = ExposedToolsSelector.newBuiltinSelector(toolSpecService::riskLevelOf);
+        this.composedToolsComboBox = ExposedToolsSelector.newComposedSelector(toolSpecService::riskLevelOf);
+        this.customToolsComboBox.setWidthFull();
+        this.builtinToolsComboBox.setWidthFull();
+        this.composedToolsComboBox.setWidthFull();
+        this.customToolsComboBox.setSelectedItemsOnTop(true);
+        this.builtinToolsComboBox.setSelectedItemsOnTop(true);
+        this.composedToolsComboBox.setSelectedItemsOnTop(true);
+
+        this.exposedToolsDisplayBox = new MultiSelectComboBox<>();
+        this.exposedToolsDisplayBox.setPlaceholder("Built-in MCP off — click to enable");
+        this.exposedToolsDisplayBox.setWidth("300px");
+        this.exposedToolsDisplayBox.setReadOnly(true);
+        this.exposedToolsDisplayBox.setAutoOpen(false);
+        this.exposedToolsDisplayBox.setItemLabelGenerator(ToolSpec::name);
+        this.exposedToolsDisplayBox.setTooltipText("Built-in tools used in this chat — click to edit");
+        this.exposedToolsDisplayBox.setSelectedItemsOnTop(true);
+        this.exposedToolsDisplayBox.addClassName("exposed-tools-display");
+        this.exposedToolsDisplayBox.getElement().executeJs(
+                "const input = this.querySelector('input');"
+                + " if (input) input.addEventListener('mousedown', e => e.preventDefault(), true);"
+                + " if (!document.getElementById('exposed-tools-display-style')) {"
+                + "   const s = document.createElement('style');"
+                + "   s.id = 'exposed-tools-display-style';"
+                + "   s.textContent = ''"
+                + "     + 'vaadin-multi-select-combo-box.exposed-tools-display { max-width: 300px !important; cursor: pointer; }'"
+                + "     + 'vaadin-multi-select-combo-box.exposed-tools-display::part(input-field) { background: var(--lumo-contrast-10pct) !important; }'"
+                + "     + 'vaadin-multi-select-combo-box.exposed-tools-display::part(input-field)::after { border: none !important; }'"
+                + "     + 'vaadin-multi-select-combo-box.exposed-tools-display[readonly]:not([has-value]) input { opacity: 1 !important; width: auto !important; flex: 1 1 auto !important; min-width: 8em !important; }';"
+                + "   document.head.appendChild(s);"
+                + " }");
 
         this.messageListLayout = new VerticalLayout();
         this.messageListLayout.setMargin(false);
@@ -130,11 +190,11 @@ public class ChatContentView extends VerticalLayout {
         this.mcpToolProviderComboBox = new MultiSelectComboBox<>();
         this.mcpToolProviderComboBox.setPlaceholder("No MCP Connections for Tools");
         this.mcpToolProviderComboBox.setWidth("300px");
-        this.mcpToolProviderComboBox.setTooltipText("Access Tools via MCP connections");
+        this.mcpToolProviderComboBox.setTooltipText("Access Tools via external MCP connections");
         this.mcpToolProviderComboBox.setSelectedItemsOnTop(true);
         this.mcpToolProviderComboBox.setItemLabelGenerator(
                 mcpServerInfo -> mcpServerInfo.serverName() + "(" + mcpServerInfo.mcpTransportType() + ")");
-        this.mcpToolProviderComboBox.setItems(this.chatService.getLiveMcpServerInfos());
+        this.mcpToolProviderComboBox.setItems(externalMcpServerInfos());
 
         this.documentsComboBox = new MultiSelectComboBox<>();
         this.documentsComboBox.setPlaceholder("No documents for RAG");
@@ -215,7 +275,71 @@ public class ChatContentView extends VerticalLayout {
         ragLayout.getStyle().set("gap", "5px");
 
 
-        HorizontalLayout userInputMenuLayout = new HorizontalLayout(toolLayout, ragLayout);
+        populateExposedToolsCombos();
+        this.customToolsComboBox.addValueChangeListener(e -> {
+            if (e.isFromClient()) {
+                saveChatToolSelection();
+                refreshExposedToolsDisplay();
+            }
+        });
+        this.builtinToolsComboBox.addValueChangeListener(e -> {
+            if (e.isFromClient()) {
+                saveChatToolSelection();
+                refreshExposedToolsDisplay();
+            }
+        });
+        this.composedToolsComboBox.addValueChangeListener(e -> {
+            if (e.isFromClient()) {
+                saveChatToolSelection();
+                refreshExposedToolsDisplay();
+            }
+        });
+
+        Icon toolStudioIcon = VaadinUtils.styledLargeIcon(VaadinIcon.TOOLS.create());
+        toolStudioIcon.setTooltipText("Built-in tools used in this chat");
+        toolStudioIcon.getStyle().set("margin-right", "0px");
+
+        this.useBuiltinMcpCheckbox.setValue(false);
+        this.useBuiltinMcpCheckbox.addValueChangeListener(e -> {
+            if (e.isFromClient()) {
+                this.persistentUiDataStorage.saveData(USE_BUILTIN_MCP, e.getValue());
+                refreshExposedToolsDisplay();
+            }
+        });
+        this.persistentUiDataStorage.loadData(USE_BUILTIN_MCP, new TypeReference<Boolean>() {},
+                stored -> {
+                    if (stored != null) {
+                        this.useBuiltinMcpCheckbox.setValue(stored);
+                        refreshExposedToolsDisplay();
+                    }
+                });
+
+        VerticalLayout exposedToolsPopoverBody = new VerticalLayout(
+                this.useBuiltinMcpCheckbox, this.customToolsComboBox, this.builtinToolsComboBox,
+                this.composedToolsComboBox);
+        exposedToolsPopoverBody.setPadding(true);
+        exposedToolsPopoverBody.setSpacing(true);
+        exposedToolsPopoverBody.setWidth("380px");
+
+        Popover exposedToolsPopover = new Popover();
+        exposedToolsPopover.setTarget(this.exposedToolsDisplayBox);
+        exposedToolsPopover.setPosition(PopoverPosition.TOP);
+        exposedToolsPopover.setOpenOnClick(true);
+        exposedToolsPopover.add(exposedToolsPopoverBody);
+
+        toolStudioIcon.addSingleClickListener(event -> exposedToolsPopover.setOpened(true));
+
+        HorizontalLayout exposedToolsLayout = new HorizontalLayout(
+                toolStudioIcon, this.exposedToolsDisplayBox);
+        exposedToolsLayout.setAlignItems(FlexComponent.Alignment.CENTER);
+        exposedToolsLayout.setSpacing(false);
+        exposedToolsLayout.getStyle().set("gap", "5px");
+        exposedToolsLayout.add(exposedToolsPopover);
+
+        HorizontalLayout userInputMenuLayout = new HorizontalLayout(
+                exposedToolsLayout, toolLayout, ragLayout);
+        userInputMenuLayout.getStyle().set("flex-wrap", "wrap");
+
         VerticalLayout userInputLayout = new VerticalLayout(userInputMenuLayout, this.userPromptTextArea);
         userInputLayout.setWidthFull();
         userInputLayout.setMargin(false);
@@ -252,7 +376,7 @@ public class ChatContentView extends VerticalLayout {
                 new TypeReference<Map<McpTransportType, Set<String>>>() {},
                 typeServerNameMap -> {
                     if (typeServerNameMap != null && !typeServerNameMap.isEmpty()) {
-                        List<McpServerInfo> mcpServerInfos = this.chatService.getLiveMcpServerInfos().stream()
+                        List<McpServerInfo> mcpServerInfos = externalMcpServerInfos().stream()
                                 .filter(mcpServerInfo -> Optional.ofNullable(
                                                 typeServerNameMap.get(mcpServerInfo.mcpTransportType()))
                                         .filter(serverNameSet -> serverNameSet.contains(mcpServerInfo.serverName()))
@@ -260,6 +384,99 @@ public class ChatContentView extends VerticalLayout {
                         this.mcpToolProviderComboBox.select(mcpServerInfos);
                     }
                 });
+        this.persistentUiDataStorage.loadData(CHAT_TOOL_SELECTION, new TypeReference<Set<String>>() {},
+                selectedToolIds -> {
+                    if (selectedToolIds != null) {
+                        this.customToolsComboBox.deselectAll();
+                        this.builtinToolsComboBox.deselectAll();
+                        this.composedToolsComboBox.deselectAll();
+                        this.customToolsComboBox.getListDataView().getItems()
+                                .filter(spec -> selectedToolIds.contains(spec.toolId())).toList()
+                                .forEach(this.customToolsComboBox::select);
+                        this.builtinToolsComboBox.getListDataView().getItems()
+                                .filter(spec -> selectedToolIds.contains(spec.toolId())).toList()
+                                .forEach(this.builtinToolsComboBox::select);
+                        this.composedToolsComboBox.getListDataView().getItems()
+                                .filter(spec -> selectedToolIds.contains(spec.toolId())).toList()
+                                .forEach(this.composedToolsComboBox::select);
+                        refreshExposedToolsDisplay();
+                    }
+                });
+    }
+
+    private List<McpServerInfo> externalMcpServerInfos() {
+        McpServerInfo builtin = this.mcpServerInfoService.getDefaultMcpServerInfo();
+        String builtinName = builtin == null ? null : builtin.serverName();
+        return this.chatService.getLiveMcpServerInfos().stream()
+                .filter(info -> builtinName == null || !builtinName.equals(info.serverName()))
+                .toList();
+    }
+
+    private void populateExposedToolsCombos() {
+        Set<String> defaultIds = this.toolSpecPersistenceService.getDefaultToolIds();
+        List<ToolSpec> all = this.toolSpecService.getToolSpecList();
+        Set<String> exposedIds = this.toolSpecService.getToolMcpServerSetting().exposedToolIds();
+
+        List<ToolSpec> exposedCustoms = ExposedToolsSelector.customsFrom(all, defaultIds).stream()
+                .filter(spec -> exposedIds.contains(spec.toolId())).toList();
+        List<ToolSpec> exposedBuiltins = ExposedToolsSelector
+                .exposableBuiltinsFrom(all, defaultIds, this.toolActivationCalculator).stream()
+                .filter(spec -> exposedIds.contains(spec.toolId())).toList();
+        List<ToolSpec> exposedComposed = this.toolSpecService.getExternalToolSpecs();
+
+        this.customToolsComboBox.setItems(exposedCustoms);
+        this.builtinToolsComboBox.setItems(exposedBuiltins);
+        this.composedToolsComboBox.setItems(exposedComposed);
+
+        ExposedToolsSelector.applyEmptyState(this.customToolsComboBox, exposedCustoms.isEmpty(),
+                "No custom tools exposed", "Custom tools for this chat");
+        ExposedToolsSelector.applyEmptyState(this.builtinToolsComboBox, exposedBuiltins.isEmpty(),
+                "No built-in tools exposed", "Built-in tools for this chat");
+        ExposedToolsSelector.applyEmptyState(this.composedToolsComboBox, exposedComposed.isEmpty(),
+                "No external tools re-exposed", "Composed external tools for this chat");
+
+        exposedCustoms.forEach(this.customToolsComboBox::select);
+        exposedBuiltins.forEach(this.builtinToolsComboBox::select);
+
+        List<ToolSpec> displayItems = new ArrayList<>(exposedCustoms);
+        displayItems.addAll(exposedBuiltins);
+        this.exposedToolsDisplayBox.setItems(displayItems);
+        refreshExposedToolsDisplay();
+    }
+
+    private void refreshExposedToolsDisplay() {
+        boolean builtinEnabled = this.useBuiltinMcpCheckbox.getValue();
+        this.exposedToolsDisplayBox.setReadOnly(false);
+        this.exposedToolsDisplayBox.deselectAll();
+        String placeholder;
+        if (builtinEnabled) {
+            Set<ToolSpec> combined = new LinkedHashSet<>();
+            combined.addAll(this.customToolsComboBox.getSelectedItems());
+            combined.addAll(this.builtinToolsComboBox.getSelectedItems());
+            combined.addAll(this.composedToolsComboBox.getSelectedItems());
+            combined.forEach(this.exposedToolsDisplayBox::select);
+            placeholder = combined.isEmpty() ? "No tools selected" : "";
+        } else {
+            placeholder = "Built-in MCP off";
+        }
+        this.exposedToolsDisplayBox.setPlaceholder(placeholder);
+        this.exposedToolsDisplayBox.setReadOnly(true);
+    }
+
+    private void saveChatToolSelection() {
+        Set<String> selectedIds = new LinkedHashSet<>();
+        this.customToolsComboBox.getSelectedItems().forEach(spec -> selectedIds.add(spec.toolId()));
+        this.builtinToolsComboBox.getSelectedItems().forEach(spec -> selectedIds.add(spec.toolId()));
+        this.composedToolsComboBox.getSelectedItems().forEach(spec -> selectedIds.add(spec.toolId()));
+        this.persistentUiDataStorage.saveData(CHAT_TOOL_SELECTION, selectedIds);
+    }
+
+    private Set<String> selectedChatToolNames() {
+        Set<String> names = new LinkedHashSet<>();
+        this.customToolsComboBox.getSelectedItems().forEach(spec -> names.add(spec.name()));
+        this.builtinToolsComboBox.getSelectedItems().forEach(spec -> names.add(spec.name()));
+        this.composedToolsComboBox.getSelectedItems().forEach(spec -> names.add(spec.name()));
+        return names;
     }
 
     private Disposable inputEvent(CompletableFuture<ZoneId> zoneIdFuture, String userPrompt) {
@@ -270,13 +487,25 @@ public class ChatContentView extends VerticalLayout {
                 this.documentsComboBox.getSelectedItems().stream().map(VectorStoreDocumentInfo::docInfoId).toList();
         this.persistentUiDataStorage.saveData(LAST_SELECTED_RAG_DOC_INFO_IDS, selectedDocInfoIds);
         Set<McpServerInfo> selectedItems = this.mcpToolProviderComboBox.getSelectedItems();
-        List<ToolCallback> toolCallbacks = selectedItems.stream().map(this.mcpClientService::buildToolCallbackProviders)
-                .flatMap(List::stream).map(ToolCallbackProvider::getToolCallbacks).flatMap(Arrays::stream).toList();
+        UI ui = VaadinUtils.getUi(this);
+        List<ToolCallback> toolCallbacks = new ArrayList<>(selectedItems.stream()
+                .map(this.mcpClientService::buildToolCallbackProviders).flatMap(List::stream)
+                .map(ToolCallbackProvider::getToolCallbacks).flatMap(Arrays::stream).toList());
+        if (this.useBuiltinMcpCheckbox.getValue()) {
+            McpServerInfo builtin = this.mcpServerInfoService.getDefaultMcpServerInfo();
+            if (builtin != null) {
+                Set<String> chatToolNames = selectedChatToolNames();
+                this.mcpClientService.buildToolCallbackProviders(builtin).stream()
+                        .map(ToolCallbackProvider::getToolCallbacks).flatMap(Arrays::stream)
+                        .filter(cb -> cb.getToolDefinition() != null
+                                && chatToolNames.contains(cb.getToolDefinition().name()))
+                        .forEach(toolCallbacks::add);
+            }
+        }
         this.persistentUiDataStorage.saveData(LAST_SELECTED_MCP_CONNECTION_INFOS,
                 selectedItems.stream().collect(Collectors.groupingBy(McpServerInfo::mcpTransportType,
                         Collectors.mapping(McpServerInfo::serverName, Collectors.toList()))));
 
-        UI ui = VaadinUtils.getUi(this);
         return this.chatService.stream(this.chatHistory, userPrompt,
                         this.chatService.buildFilterExpression(selectedDocInfoIds), this.completeChatHistoryConsumer,
                         toolCallbacks, o -> ui.access(() -> chatContentManager.appendMcpToolProcessMessage(o)),
@@ -286,7 +515,7 @@ public class ChatContentView extends VerticalLayout {
                             if (reactor.core.publisher.SignalType.CANCEL.equals(signalType))
                                 chatContentManager.markStopped();
                             doFinally(chatContentManager);
-                        }))
+                        }), new ChatHumanQuestionHandler(ui))
                 .doOnError(throwable -> ui.access(() -> {
                     chatContentManager.markError(throwable);
                     VaadinUtils.showErrorNotification(throwable.getMessage());

@@ -27,6 +27,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -57,12 +58,57 @@ class McpExposedToolServiceTest {
         when(provider.getToolCallbacksFor(exposed)).thenReturn(new ToolCallback[]{freshTool, alreadyExposed});
         when(toolSpecService.getExternalMcpToolNames()).thenReturn(Set.of("y", "z"));
 
-        new McpExposedToolService(compositionService, provider, toolSpecService).sync();
+        new McpExposedToolService(compositionService, provider, toolSpecService,
+                mock(McpToolHashLedger.class)).sync();
 
         verify(toolSpecService).removeExternalMcpTool("z");
         verify(toolSpecService, never()).removeExternalMcpTool("y");
-        verify(toolSpecService).addExternalMcpTool(freshTool);
-        verify(toolSpecService, never()).addExternalMcpTool(alreadyExposed);
+        verify(toolSpecService).addExternalMcpTool(freshTool, false);
+        verify(toolSpecService, never()).addExternalMcpTool(alreadyExposed, false);
+    }
+
+    @Test
+    void syncPropagatesHitlFlagFromMember() {
+        McpCompositionService compositionService = mock(McpCompositionService.class);
+        McpCompositionToolCallbackProvider provider = mock(McpCompositionToolCallbackProvider.class);
+        ToolSpecService toolSpecService = mock(ToolSpecService.class);
+        when(toolSpecService.exposureMode()).thenReturn(ExposureMode.BOTH);
+
+        McpComposition.Member member = new McpComposition.Member("srv", "tool", "x", null, true, "");
+        McpComposition exposed = new McpComposition(McpCompositionService.EXPOSED_ID, "Exposed Tools",
+                "", List.of(member), true, RiskLevel.L5, 0L, 0L, 0L);
+        ToolCallback hitlTool = callback("x");
+        when(compositionService.getExposed()).thenReturn(Optional.of(exposed));
+        when(provider.getToolCallbacksFor(exposed)).thenReturn(new ToolCallback[]{hitlTool});
+        when(toolSpecService.getExternalMcpToolNames()).thenReturn(Set.of());
+
+        new McpExposedToolService(compositionService, provider, toolSpecService,
+                mock(McpToolHashLedger.class)).sync();
+
+        verify(toolSpecService).addExternalMcpTool(hitlTool, true);
+    }
+
+    @Test
+    void syncReregistersExternalToolWhenHitlToggled() {
+        McpCompositionService compositionService = mock(McpCompositionService.class);
+        McpCompositionToolCallbackProvider provider = mock(McpCompositionToolCallbackProvider.class);
+        ToolSpecService toolSpecService = mock(ToolSpecService.class);
+        when(toolSpecService.exposureMode()).thenReturn(ExposureMode.BOTH);
+
+        McpComposition.Member member = new McpComposition.Member("srv", "tool", "x", null, true, "");
+        McpComposition exposed = new McpComposition(McpCompositionService.EXPOSED_ID, "Exposed Tools",
+                "", List.of(member), true, RiskLevel.L5, 0L, 0L, 0L);
+        ToolCallback tool = callback("x");
+        when(compositionService.getExposed()).thenReturn(Optional.of(exposed));
+        when(provider.getToolCallbacksFor(exposed)).thenReturn(new ToolCallback[]{tool});
+        when(toolSpecService.getExternalMcpToolNames()).thenReturn(Set.of("x"), Set.of());
+        when(toolSpecService.humanInTheLoopFor("x")).thenReturn(null);
+
+        new McpExposedToolService(compositionService, provider, toolSpecService,
+                mock(McpToolHashLedger.class)).sync();
+
+        verify(toolSpecService).removeExternalMcpTool("x");
+        verify(toolSpecService).addExternalMcpTool(tool, true);
     }
 
     @Test
@@ -74,7 +120,8 @@ class McpExposedToolServiceTest {
         when(compositionService.getExposed()).thenReturn(Optional.empty());
         when(toolSpecService.getExternalMcpToolNames()).thenReturn(Set.of("a", "b"));
 
-        new McpExposedToolService(compositionService, provider, toolSpecService).sync();
+        new McpExposedToolService(compositionService, provider, toolSpecService,
+                mock(McpToolHashLedger.class)).sync();
 
         verify(toolSpecService).removeExternalMcpTool("a");
         verify(toolSpecService).removeExternalMcpTool("b");
@@ -88,11 +135,12 @@ class McpExposedToolServiceTest {
         when(toolSpecService.exposureMode()).thenReturn(ExposureMode.BUILTIN_ONLY);
         when(toolSpecService.getExternalMcpToolNames()).thenReturn(Set.of("p", "q"));
 
-        new McpExposedToolService(compositionService, provider, toolSpecService).sync();
+        new McpExposedToolService(compositionService, provider, toolSpecService,
+                mock(McpToolHashLedger.class)).sync();
 
         verify(toolSpecService).removeExternalMcpTool("p");
         verify(toolSpecService).removeExternalMcpTool("q");
         verify(provider, never()).getToolCallbacksFor(any());
-        verify(toolSpecService, never()).addExternalMcpTool(any());
+        verify(toolSpecService, never()).addExternalMcpTool(any(), anyBoolean());
     }
 }

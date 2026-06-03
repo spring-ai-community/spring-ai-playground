@@ -231,7 +231,8 @@ public class McpExposedToolsPanel {
         Checkbox hitl = new Checkbox("HITL");
         hitl.setValue(existing != null && existing.hitl());
         hitl.setTooltipText("Marks this tool for human review and lowers its displayed risk by one band. "
-                + "Does not pause the call for approval at runtime, and does not let the tool exceed the risk cap.");
+                + "Pauses the call for approval at runtime (chat approval dialog, or MCP elicitation for "
+                + "external clients), and does not let the tool exceed the risk cap.");
         Div chipHolder = new Div();
         chipHolder.getStyle().set("display", "inline-flex").set("align-items", "center").set("gap", "0.3em");
 

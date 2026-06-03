@@ -145,22 +145,6 @@ public class ToolSpecPersistenceService implements
         return this.defaultToolSpecs;
     }
 
-    public DefaultToolsPreferenceService getPreferenceService() {
-        return this.preferenceService;
-    }
-
-    public void applyPreference(DefaultToolsPreference next) {
-        preferenceService.update(next);
-        Set<String> active = preferenceResolver.resolveActiveNames(next, defaultToolSpecs);
-        for (ToolSpec spec : defaultToolSpecs) {
-            boolean shouldBeDraft = !active.contains(spec.name());
-            if (spec.draft() != shouldBeDraft) {
-                spec.withDraft(shouldBeDraft);
-                toolSpecService.update(spec);
-            }
-        }
-    }
-
     @Override
     public Path getSaveDir() {
         return this.saveDir;

@@ -35,8 +35,8 @@ import java.util.UUID;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class MdcIdentityFilter implements Filter {
 
-    static final String USER_ID = "userId";
-    static final String SESSION_ID = "sessionId";
+    public static final String USER_ID = "userId";
+    public static final String SESSION_ID = "sessionId";
     private static final String SESSION_ATTR = "playgroundLogSessionId";
 
     private final UserIdentityService userIdentityService;
