@@ -42,6 +42,7 @@ import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.internal.Pair;
 import org.springaicommunity.playground.service.SpringAiPlaygroundRagAdvisor;
 import org.springaicommunity.playground.service.chat.ChatHistory;
+import org.springaicommunity.playground.service.chat.ChatHistoryPersistenceService;
 import org.springaicommunity.playground.service.chat.ChatService;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
@@ -62,18 +63,18 @@ import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
-import org.vaadin.firitin.components.messagelist.MarkdownMessage;
 import reactor.core.Disposable;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -83,10 +84,6 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
-import static org.springaicommunity.playground.service.chat.ChatHistory.TIMESTAMP;
-import static org.springaicommunity.playground.service.chat.ChatHistoryPersistenceService.CONVERSATION_ID;
-import static org.springframework.ai.chat.messages.MessageType.USER;
 
 @JsModule("./playground/chat-stt.js")
 public class ChatContentView extends VerticalLayout {
@@ -536,7 +533,7 @@ public class ChatContentView extends VerticalLayout {
         this.userPromptTextArea.focus();
     }
 
-    private void pinAfterStream(MarkdownMessage userMessage) {
+    private void pinAfterStream(ChatMessage userMessage) {
         if (Objects.isNull(userMessage)) {
             this.messageScroller.scrollToBottom();
             return;
@@ -572,13 +569,15 @@ public class ChatContentView extends VerticalLayout {
         return this.chatHistory.chatOptions();
     }
 
-    public String getSystemPrompt() {return this.chatHistory.systemPrompt();}
+    public String getSystemPrompt() {
+        return this.chatHistory.systemPrompt();
+    }
 
     public String getConversationId() {
         return this.chatHistory.conversationId();
     }
 
-    private class ChatContentManager {
+    private final class ChatContentManager {
         private static final String RAG_PROCESS = "RAG DOCUMENTS";
         private static final String RAG_PROCESS_TIMESTAMP = "ragProcessTimestamp";
         private static final String RAG_PROCESS_END_TIMESTAMP = "ragProcessEndTimestamp";
@@ -605,35 +604,32 @@ public class ChatContentView extends VerticalLayout {
         private static final String STAGE_ASSISTANT = "ASSISTANT";
         private static final String STATUS_STOPPED = "STOPPED";
         private static final String STATUS_ERROR = "ERROR";
-        private static final DateTimeFormatter DATE_TIME_FORMATTER =
-                DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
-
         private final CompletableFuture<ZoneId> zoneIdFuture;
         private final Supplier<List<Message>> messagesSupplier;
         private VerticalLayout messageListLayout;
         private VerticalLayout processListLayout;
         private long startTimestamp;
         private long responseTimestamp;
-        private MarkdownMessage userMessage;
-        private MarkdownMessage botResponse;
+        private ChatMessage userMessage;
+        private ChatMessage botResponse;
         private boolean isFirstAssistantResponse;
-        private MarkdownMessage ragProcessMessage;
+        private ChatMessage ragProcessMessage;
         private long ragProcessTimestamp;
         private long ragProcessEndTimestamp;
         private int ragRetrievedDocCount;
-        private final java.util.LinkedHashSet<String> ragRetrievedDocTitles = new java.util.LinkedHashSet<>();
+        private final LinkedHashSet<String> ragRetrievedDocTitles = new LinkedHashSet<>();
         private Details ragProcessDetails;
         private StringBuilder ragProcessMessageBuilder;
-        private MarkdownMessage botThinkResponse;
+        private ChatMessage botThinkResponse;
         private long botThinkTimestamp;
         private long botThinkEndTimestamp;
         private Details thinkDetails;
         private StringBuilder thinkProcessMessageBuilder;
-        private MarkdownMessage mcpToolProcessMessage;
+        private ChatMessage mcpToolProcessMessage;
         private long mcpToolProcessTimestamp;
         private long mcpToolProcessEndTimestamp;
         private int mcpToolCallCount;
-        private final java.util.LinkedHashSet<String> mcpToolNames = new java.util.LinkedHashSet<>();
+        private final LinkedHashSet<String> mcpToolNames = new LinkedHashSet<>();
         private Details mcpToolProcessDetails;
         private StringBuilder mcpToolProcessMessagesBuilder;
         private String currentStage = STAGE_STARTING;
@@ -649,9 +645,9 @@ public class ChatContentView extends VerticalLayout {
             this.messageListLayout = messageListLayout;
             this.startTimestamp = System.currentTimeMillis();
             chatHistory.updateLastMessageTimestamp(startTimestamp);
-            this.userMessage = buildMarkdownMessage(userPrompt, USER, startTimestamp);
+            this.userMessage = buildMessage(userPrompt, MessageType.USER, startTimestamp);
             this.processListLayout = buildProcessListLayout();
-            this.botResponse = buildMarkdownMessage(null, MessageType.ASSISTANT, System.currentTimeMillis());
+            this.botResponse = buildMessage(null, MessageType.ASSISTANT, System.currentTimeMillis());
             this.botResponse.addClassName("blink");
             this.isFirstAssistantResponse = true;
             this.messageListLayout.remove(ChatContentView.this.scrollSpacer);
@@ -660,7 +656,7 @@ public class ChatContentView extends VerticalLayout {
             anchorPromptToTop(this.userMessage);
         }
 
-        private void anchorPromptToTop(MarkdownMessage userMessage) {
+        private void anchorPromptToTop(ChatMessage userMessage) {
             ChatContentView.this.messageScroller.getElement().executeJs("""
                     const s = this;
                     const list = s.firstElementChild;
@@ -717,10 +713,10 @@ public class ChatContentView extends VerticalLayout {
             }
         }
 
-        private MarkdownMessage getRagProcessMessage(long timestamp) {
+        private ChatMessage getRagProcessMessage(long timestamp) {
             if (Objects.isNull(this.ragProcessMessage)) {
                 this.ragProcessTimestamp = timestamp;
-                this.ragProcessMessage = buildMarkdownMessage(null, RAG_PROCESS, this.ragProcessTimestamp);
+                this.ragProcessMessage = buildMessage(null, RAG_PROCESS, this.ragProcessTimestamp);
                 this.processListLayout.add(buildProcessDetails(RAG_PROCESS, getRagProcessDetails(),
                         this.ragProcessMessage));
             }
@@ -752,10 +748,10 @@ public class ChatContentView extends VerticalLayout {
                 this.mcpToolProcessDetails.setOpened(true);
         }
 
-        private MarkdownMessage getMcpToolProcessMessage(long timestamp) {
+        private ChatMessage getMcpToolProcessMessage(long timestamp) {
             if (Objects.isNull(this.mcpToolProcessMessage)) {
                 this.mcpToolProcessTimestamp = timestamp;
-                this.mcpToolProcessMessage = buildMarkdownMessage(null, MCP_TOOL_PROCESS, this.mcpToolProcessTimestamp);
+                this.mcpToolProcessMessage = buildMessage(null, MCP_TOOL_PROCESS, this.mcpToolProcessTimestamp);
                 this.processListLayout.add(buildProcessDetails(MCP_TOOL_PROCESS, getMcpToolProcessDetails(),
                         this.mcpToolProcessMessage));
             }
@@ -772,16 +768,16 @@ public class ChatContentView extends VerticalLayout {
             this.thinkProcessMessageBuilder.append(markdownSnippet);
         }
 
-        private MarkdownMessage getBotThinkResponse(long timestamp) {
+        private ChatMessage getBotThinkResponse(long timestamp) {
             if (Objects.isNull(this.botThinkResponse)) {
                 this.botThinkTimestamp = timestamp;
-                this.botThinkResponse = buildMarkdownMessage(null, THINK_PROCESS, this.botThinkTimestamp);
+                this.botThinkResponse = buildMessage(null, THINK_PROCESS, this.botThinkTimestamp);
                 this.processListLayout.add(buildProcessDetails(THINK_PROCESS, getThinkDetails(), this.botThinkResponse));
             }
             return this.botThinkResponse;
         }
 
-        private static Details buildProcessDetails(String title, Details details, MarkdownMessage markdownMessage) {
+        private static Details buildProcessDetails(String title, Details details, ChatMessage markdownMessage) {
             details.setSummary(buildDetailsSummary(title, 0L, 0L, null));
             details.add(markdownMessage);
             details.addThemeVariants(DetailsVariant.FILLED);
@@ -794,7 +790,7 @@ public class ChatContentView extends VerticalLayout {
             if (startMs > 0 && endMs > startMs) {
                 long durationMs = endMs - startMs;
                 String duration = durationMs < 1000 ? durationMs + "ms"
-                        : String.format(java.util.Locale.ROOT, "%.1fs", durationMs / 1000.0);
+                        : String.format(Locale.ROOT, "%.1fs", durationMs / 1000.0);
                 sb.append(" · ").append(duration);
             }
             if (Objects.nonNull(extraInfo) && !extraInfo.isEmpty())
@@ -811,7 +807,7 @@ public class ChatContentView extends VerticalLayout {
                 details.setSummary(buildDetailsSummary(title, startMs, endMs, extraInfo));
         }
 
-        private static String formatRagExtra(int docCount, java.util.Collection<String> titles) {
+        private static String formatRagExtra(int docCount, Collection<String> titles) {
             if (docCount < 0) return null;
             String countStr = docCount + (docCount == 1 ? " doc" : " docs");
             if (Objects.isNull(titles) || titles.isEmpty()) return countStr;
@@ -820,7 +816,7 @@ public class ChatContentView extends VerticalLayout {
             return countStr + " · " + joined;
         }
 
-        private static String formatMcpExtra(int callCount, java.util.Collection<String> toolNames) {
+        private static String formatMcpExtra(int callCount, Collection<String> toolNames) {
             if (callCount <= 0) return null;
             String callStr = callCount + (callCount == 1 ? " call" : " calls");
             if (Objects.isNull(toolNames) || toolNames.isEmpty()) return callStr;
@@ -857,10 +853,10 @@ public class ChatContentView extends VerticalLayout {
                 Long ragEnd = (Long) metadata.get(RAG_PROCESS_END_TIMESTAMP);
                 Integer ragDocCount = (Integer) metadata.get(RAG_PROCESS_DOC_COUNT);
                 @SuppressWarnings("unchecked")
-                java.util.Collection<String> ragTitles =
-                        (java.util.Collection<String>) metadata.get(RAG_PROCESS_DOC_TITLES);
+                Collection<String> ragTitles =
+                        (Collection<String>) metadata.get(RAG_PROCESS_DOC_TITLES);
                 Details details = ChatContentManager.buildProcessDetails(RAG_PROCESS, new Details(),
-                        buildMarkdownMessage(ragProcessMessages, RAG_PROCESS, ragProcessTimestamp));
+                        buildMessage(ragProcessMessages, RAG_PROCESS, ragProcessTimestamp));
                 updateDetailsSummary(details, RAG_PROCESS, ragProcessTimestamp,
                         Objects.nonNull(ragEnd) ? ragEnd : 0L,
                         formatRagExtra(Objects.nonNull(ragDocCount) ? ragDocCount : 0, ragTitles));
@@ -873,7 +869,7 @@ public class ChatContentView extends VerticalLayout {
                 Long thinkProcessTimestamp = (Long) metadata.get(THINK_PROCESS_TIMESTAMP);
                 Long thinkEnd = (Long) metadata.get(THINK_PROCESS_END_TIMESTAMP);
                 Details details = ChatContentManager.buildProcessDetails(THINK_PROCESS, new Details(),
-                        buildMarkdownMessage(thinkProcessMessages, THINK_PROCESS, thinkProcessTimestamp));
+                        buildMessage(thinkProcessMessages, THINK_PROCESS, thinkProcessTimestamp));
                 updateDetailsSummary(details, THINK_PROCESS, thinkProcessTimestamp,
                         Objects.nonNull(thinkEnd) ? thinkEnd : 0L, null);
                 details.setOpened(false);
@@ -886,24 +882,24 @@ public class ChatContentView extends VerticalLayout {
                 Long mcpEnd = (Long) metadata.get(MCP_TOOL_PROCESS_END_TIMESTAMP);
                 Integer mcpCallCount = (Integer) metadata.get(MCP_TOOL_PROCESS_CALL_COUNT);
                 @SuppressWarnings("unchecked")
-                java.util.Collection<String> mcpNames =
-                        (java.util.Collection<String>) metadata.get(MCP_TOOL_PROCESS_TOOL_NAMES);
+                Collection<String> mcpNames =
+                        (Collection<String>) metadata.get(MCP_TOOL_PROCESS_TOOL_NAMES);
                 Details details = ChatContentManager.buildProcessDetails(MCP_TOOL_PROCESS, new Details(),
-                        buildMarkdownMessage(mcpToolProcessMessages, MCP_TOOL_PROCESS, mcpToolProcessTimestamp));
+                        buildMessage(mcpToolProcessMessages, MCP_TOOL_PROCESS, mcpToolProcessTimestamp));
                 updateDetailsSummary(details, MCP_TOOL_PROCESS, mcpToolProcessTimestamp,
                         Objects.nonNull(mcpEnd) ? mcpEnd : 0L,
                         formatMcpExtra(Objects.nonNull(mcpCallCount) ? mcpCallCount : 0, mcpNames));
                 details.setOpened(false);
                 components.add(new Pair<>(mcpToolProcessTimestamp, details));
             }
-            if (USER.equals(messageType))
+            if (MessageType.USER.equals(messageType))
                 messageListLayout.add(
-                        buildMarkdownMessage(text, messageType, Long.parseLong(metadata.get(TIMESTAMP).toString())));
+                        buildMessage(text, messageType, Long.parseLong(metadata.get(ChatHistory.TIMESTAMP).toString())));
             components.stream().sorted(Comparator.comparing(Pair::getFirst)).map(Pair::getSecond)
                     .forEach(messageListLayout::add);
-            if (!USER.equals(messageType))
+            if (!MessageType.USER.equals(messageType))
                 messageListLayout.add(
-                        buildMarkdownMessage(text, messageType, Long.parseLong(metadata.get(TIMESTAMP).toString())));
+                        buildMessage(text, messageType, Long.parseLong(metadata.get(ChatHistory.TIMESTAMP).toString())));
             String streamStatus = (String) metadata.get(STREAM_STATUS);
             if (Objects.nonNull(streamStatus)) {
                 Span indicator = buildStreamStatusIndicator(streamStatus, (String) metadata.get(STREAM_STATUS_STAGE),
@@ -912,19 +908,20 @@ public class ChatContentView extends VerticalLayout {
             }
         }
 
-        private MarkdownMessage buildMarkdownMessage(String message, MessageType messageType, long epochMillis) {
-            MarkdownMessage markdownMessage =
-                    buildMarkdownMessage(message, messageType.getValue().toUpperCase(), epochMillis);
-            markdownMessage.setAvatarColor(MarkdownMessage.Color.AVATAR_PRESETS[messageType.ordinal()]);
-            return markdownMessage;
+        private ChatMessage buildMessage(String message, MessageType messageType, long epochMillis) {
+            return buildMessage(message, messageType.getValue().toUpperCase(), messageType.ordinal(),
+                    epochMillis);
         }
 
-        private MarkdownMessage buildMarkdownMessage(String message, String name, long epochMillis) {
-            LocalDateTime localDateTime = getLocalDateTime(epochMillis);
-            MarkdownMessage markdownMessage = new MarkdownMessage(message, name, localDateTime);
-            markdownMessage.setAutoScroll(false);
-            markdownMessage.getElement().setProperty("time", getFormattedLocalDateTime(localDateTime));
-            return markdownMessage;
+        private ChatMessage buildMessage(String message, String name, long epochMillis) {
+            return buildMessage(message, name, -1, epochMillis);
+        }
+
+        private ChatMessage buildMessage(String message, String name, int colorIndex, long epochMillis) {
+            ChatMessage chatMessage = new ChatMessage(name, getLocalDateTime(epochMillis), colorIndex);
+            if (Objects.nonNull(message) && !message.isBlank())
+                chatMessage.setMarkdown(message);
+            return chatMessage;
         }
 
         private Details getThinkDetails() {
@@ -933,14 +930,6 @@ public class ChatContentView extends VerticalLayout {
                 this.thinkDetails.setOpened(true);
             }
             return this.thinkDetails;
-        }
-
-        private String getFormattedLocalDateTime(long epochMillis) {
-            return getFormattedLocalDateTime(getLocalDateTime(epochMillis));
-        }
-
-        private String getFormattedLocalDateTime(LocalDateTime localDateTime) {
-            return localDateTime.format(DATE_TIME_FORMATTER);
         }
 
         private LocalDateTime getLocalDateTime(long epochMillis) {
@@ -967,7 +956,7 @@ public class ChatContentView extends VerticalLayout {
 
         private void initBotResponse(long epochMillis) {
             this.responseTimestamp = epochMillis;
-            this.botResponse.getElement().setProperty("time", getFormattedLocalDateTime(this.responseTimestamp));
+            this.botResponse.setTime(getLocalDateTime(this.responseTimestamp));
             this.botResponse.removeClassName("blink");
             this.isFirstAssistantResponse = false;
         }
@@ -1002,7 +991,7 @@ public class ChatContentView extends VerticalLayout {
             Optional<List<Message>> messageList =
                     Optional.of(this.messagesSupplier.get()).filter(Predicate.not(List::isEmpty))
                             .map(list -> list.subList(Math.max(0, list.size() - 2), list.size()));
-            messageList.map(List::getFirst).filter(message -> USER.equals(message.getMessageType()))
+            messageList.map(List::getFirst).filter(message -> MessageType.USER.equals(message.getMessageType()))
                     .map(Message::getMetadata).ifPresent(metadata -> updateMetadata(metadata, this.startTimestamp));
             Optional<Map<String, Object>> metadataAsOpt = messageList.map(List::getLast).map(Message::getMetadata);
 
@@ -1031,7 +1020,7 @@ public class ChatContentView extends VerticalLayout {
                         metadata.put(RAG_PROCESS_END_TIMESTAMP, this.ragProcessEndTimestamp);
                     metadata.put(RAG_PROCESS_DOC_COUNT, this.ragRetrievedDocCount);
                     if (!this.ragRetrievedDocTitles.isEmpty())
-                        metadata.put(RAG_PROCESS_DOC_TITLES, new java.util.ArrayList<>(this.ragRetrievedDocTitles));
+                        metadata.put(RAG_PROCESS_DOC_TITLES, new ArrayList<>(this.ragRetrievedDocTitles));
                     metadata.put(RAG_PROCESS_MESSAGES, this.ragProcessMessageBuilder.toString());
                 });
                 this.ragProcessDetails = null;
@@ -1058,7 +1047,7 @@ public class ChatContentView extends VerticalLayout {
                     if (this.mcpToolCallCount > 0)
                         metadata.put(MCP_TOOL_PROCESS_CALL_COUNT, this.mcpToolCallCount);
                     if (!this.mcpToolNames.isEmpty())
-                        metadata.put(MCP_TOOL_PROCESS_TOOL_NAMES, new java.util.ArrayList<>(this.mcpToolNames));
+                        metadata.put(MCP_TOOL_PROCESS_TOOL_NAMES, new ArrayList<>(this.mcpToolNames));
                     metadata.put(MCP_TOOL_PROCESS_MESSAGES, this.mcpToolProcessMessagesBuilder.toString());
                 });
                 this.mcpToolProcessDetails = null;
@@ -1095,8 +1084,8 @@ public class ChatContentView extends VerticalLayout {
 
 
         private void updateMetadata(Map<String, Object> metadata, long timestamp) {
-            metadata.put(CONVERSATION_ID, getConversationId());
-            metadata.put(TIMESTAMP, timestamp);
+            metadata.put(ChatHistoryPersistenceService.CONVERSATION_ID, getConversationId());
+            metadata.put(ChatHistory.TIMESTAMP, timestamp);
         }
 
     }
