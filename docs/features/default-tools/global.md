@@ -1,12 +1,12 @@
-description: Default Tools — Global reference. 22 tools that call public HTTPS APIs — GitHub, Wikipedia, weather, finance, geo, search.
+description: Default Tools - Global reference. 22 tools that call public HTTPS APIs - GitHub, Wikipedia, weather, finance, geo, search.
 
-# Default Tools — Global
+# Default Tools - Global
 
-The 22 tools in `default-tool-specs-network.json` call **public global HTTPS endpoints** — most of them anonymous, all of them outside Korea. Categories span code (GitHub), encyclopedia (Wikipedia), forum (Hacker News, Stack Overflow, Reddit), finance (CoinGecko, exchangerate.host), geo (ipapi.co, restcountries, Nominatim, sunrise-sunset, USGS), weather (Open-Meteo), and government data (Nager.Date public holidays).
+The 22 tools in `default-tool-specs-network.json` call **public global HTTPS endpoints** - most of them anonymous, all of them outside Korea. Categories span code (GitHub), encyclopedia (Wikipedia), forum (Hacker News, Stack Overflow, Reddit), finance (CoinGecko, exchangerate.host), geo (ipapi.co, restcountries, Nominatim, sunrise-sunset, USGS), weather (Open-Meteo), and government data (Nager.Date public holidays).
 
-None of them need an API key — they live entirely off the providers' anonymous rate-limit tiers. Tool actions execute with host-`allowlist` egress, so every fetch goes through [the SSRF four-layer guard](../tool-studio/index.md#ssrf-four-layer-guard) regardless of whether the destination is a literal IP or a DNS host.
+None of them need an API key - they live entirely off the providers' anonymous rate-limit tiers. Tool actions execute with host-`allowlist` egress, so every fetch goes through [the SSRF four-layer guard](../tool-studio/index.md#ssrf-four-layer-guard) regardless of whether the destination is a literal IP or a DNS host.
 
-The grouping below mirrors the `tags` axis each tool carries — the same axis you can filter by in the Tool Studio tool list.
+The grouping below mirrors the `tags` axis each tool carries - the same axis you can filter by in the Tool Studio tool list.
 
 ## Browse the 22 global APIs { #browse-the-global-apis }
 
@@ -23,7 +23,7 @@ Fetches public metadata for a GitHub repository (no authentication needed; subje
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `owner` · `repo`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-cta">Click for full reference · params · sandbox · JS source</div>
 <div class="tcg-detail-template" hidden markdown>
@@ -39,7 +39,7 @@ Returns: { fullName, description, stars, forks, openIssues, language, license, d
 | `owner` | `STRING` | ✓ | GitHub user or org login (e.g. 'spring-projects') |
 | `repo` | `STRING` | ✓ | Repository name (e.g. 'spring-ai') |
 
-**Sandbox** — **L3** (Scoped widening) — `fetch` allowlisted to `api.github.com` (SSRF-guarded); no filesystem.
+**Sandbox** - **L3** (Scoped widening) - `fetch` allowlisted to `api.github.com` (SSRF-guarded); no filesystem.
 
 **JS source**
 
@@ -97,7 +97,7 @@ Looks up a Wikipedia page summary by title. No authentication required. Uses the
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `title` · `lang`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-cta">Click for full reference · params · sandbox · JS source</div>
 <div class="tcg-detail-template" hidden markdown>
@@ -113,7 +113,7 @@ Returns: { title, description, extract (plain-text summary), thumbnail, pageUrl 
 | `title` | `STRING` | ✓ | Article title (case-insensitive, spaces ok) |
 | `lang` | `STRING` |  | Language code (e.g. 'en', 'ko', default 'en') |
 
-**Sandbox** — **L3** (Scoped widening) — `fetch` allowlisted to `en.wikipedia.org`, `ko.wikipedia.org`, `ja.wikipedia.org`, `es.wikipedia.org`, `de.wikipedia.org`, `fr.wikipedia.org`, `zh.wikipedia.org` (SSRF-guarded); no filesystem.
+**Sandbox** - **L3** (Scoped widening) - `fetch` allowlisted to `en.wikipedia.org`, `ko.wikipedia.org`, `ja.wikipedia.org`, `es.wikipedia.org`, `de.wikipedia.org`, `fr.wikipedia.org`, `zh.wikipedia.org` (SSRF-guarded); no filesystem.
 
 **JS source**
 
@@ -124,7 +124,7 @@ Returns: { title, description, extract (plain-text summary), thumbnail, pageUrl 
  * Uses the public REST API:  https://{lang}.wikipedia.org/api/rest_v1/page/summary/{title}
  * No auth, generous rate limits, JSON response.
  *
- * `lang` is the wiki subdomain — 'en', 'ko', 'ja', etc. Defaults to 'en'.
+ * `lang` is the wiki subdomain - 'en', 'ko', 'ja', etc. Defaults to 'en'.
  */
 
 if (title == null || title === '') throw new Error('title required');
@@ -164,7 +164,7 @@ Searches Hacker News stories via the public Algolia HN Search API (no auth neede
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `query` · `hits` · `tag`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-cta">Click for full reference · params · sandbox · JS source</div>
 <div class="tcg-detail-template" hidden markdown>
@@ -181,7 +181,7 @@ Returns up to `hits` results, each as: { id, title, url, points, author, comment
 | `hits` | `INTEGER` |  | Max results to return (1-20, default 5) |
 | `tag` | `STRING` |  | HN tag filter: story \| comment \| poll \| etc (optional) |
 
-**Sandbox** — **L3** (Scoped widening) — `fetch` allowlisted to `hn.algolia.com` (SSRF-guarded); no filesystem.
+**Sandbox** - **L3** (Scoped widening) - `fetch` allowlisted to `hn.algolia.com` (SSRF-guarded); no filesystem.
 
 **JS source**
 
@@ -234,7 +234,7 @@ Searches Stack Overflow questions via the public Stack Exchange API (anonymous, 
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `query` · `pageSize` · `sort` · `tags`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-cta">Click for full reference · params · sandbox · JS source</div>
 <div class="tcg-detail-template" hidden markdown>
@@ -252,7 +252,7 @@ Returns up to `pageSize` results sorted by `sort` (relevance | activity | votes 
 | `sort` | `STRING` |  | relevance \| activity \| votes \| creation |
 | `tags` | `STRING` |  | Semicolon-separated tag filter (e.g. 'java;spring') |
 
-**Sandbox** — **L3** (Scoped widening) — `fetch` allowlisted to `api.stackexchange.com` (SSRF-guarded); no filesystem.
+**Sandbox** - **L3** (Scoped widening) - `fetch` allowlisted to `api.stackexchange.com` (SSRF-guarded); no filesystem.
 
 **JS source**
 
@@ -263,7 +263,7 @@ Returns up to `pageSize` results sorted by `sort` (relevance | activity | votes 
  * Endpoint: https://api.stackexchange.com/2.3/search/advanced
  *
  * Anonymous quota: 300 requests / IP / day. Returns paginated results
- * (this tool returns the first page only — adjust `pageSize` up to 30).
+ * (this tool returns the first page only - adjust `pageSize` up to 30).
  */
 
 if (query == null || query === '') throw new Error('query required');
@@ -307,11 +307,11 @@ return (data.items || []).map(q => ({
 <div class="tcg-art" markdown>:simple-github:</div>
 <div class="tcg-type">web · github <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
-Fetches public profile information for a GitHub user or organisation (no auth — 60 req/h anonymous).
+Fetches public profile information for a GitHub user or organisation (no auth - 60 req/h anonymous).
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `login`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-cta">Click for full reference · params · sandbox · JS source</div>
 <div class="tcg-detail-template" hidden markdown>
@@ -326,7 +326,7 @@ Returns: { login, type, name, company, blog, location, bio, publicRepos, publicG
 |---|---|---|---|
 | `login` | `STRING` | ✓ | GitHub user or org login |
 
-**Sandbox** — **L3** (Scoped widening) — `fetch` allowlisted to `api.github.com` (SSRF-guarded); no filesystem.
+**Sandbox** - **L3** (Scoped widening) - `fetch` allowlisted to `api.github.com` (SSRF-guarded); no filesystem.
 
 **JS source**
 
@@ -375,7 +375,7 @@ Lists issues on a public GitHub repository (no auth). Excludes pull requests by 
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `owner` · `repo` · `state` · `perPage` · `page`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-cta">Click for full reference · params · sandbox · JS source</div>
 <div class="tcg-detail-template" hidden markdown>
@@ -394,7 +394,7 @@ Returns up to `perPage` issues, each as: { number, title, state, author, labels,
 | `perPage` | `INTEGER` |  | Max issues per page (1-100, default 10) |
 | `page` | `INTEGER` |  | Page number (1-based, default 1) |
 
-**Sandbox** — **L3** (Scoped widening) — `fetch` allowlisted to `api.github.com` (SSRF-guarded); no filesystem.
+**Sandbox** - **L3** (Scoped widening) - `fetch` allowlisted to `api.github.com` (SSRF-guarded); no filesystem.
 
 **JS source**
 
@@ -447,7 +447,7 @@ Lists releases on a public GitHub repository (no auth).
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `owner` · `repo` · `perPage`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-cta">Click for full reference · params · sandbox · JS source</div>
 <div class="tcg-detail-template" hidden markdown>
@@ -464,7 +464,7 @@ Returns: [{ tag, name, draft, prerelease, publishedAt, htmlUrl, body }].
 | `repo` | `STRING` | ✓ | Repo name |
 | `perPage` | `INTEGER` |  | Max releases (1-30, default 5) |
 
-**Sandbox** — **L3** (Scoped widening) — `fetch` allowlisted to `api.github.com` (SSRF-guarded); no filesystem.
+**Sandbox** - **L3** (Scoped widening) - `fetch` allowlisted to `api.github.com` (SSRF-guarded); no filesystem.
 
 **JS source**
 
@@ -509,7 +509,7 @@ Fetches the latest non-draft, non-prerelease release of a public GitHub reposito
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `owner` · `repo`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-cta">Click for full reference · params · sandbox · JS source</div>
 <div class="tcg-detail-template" hidden markdown>
@@ -525,7 +525,7 @@ Returns: { tag, name, publishedAt, htmlUrl, body, assets: [{ name, downloadUrl, 
 | `owner` | `STRING` | ✓ | Repo owner |
 | `repo` | `STRING` | ✓ | Repo name |
 
-**Sandbox** — **L3** (Scoped widening) — `fetch` allowlisted to `api.github.com` (SSRF-guarded); no filesystem.
+**Sandbox** - **L3** (Scoped widening) - `fetch` allowlisted to `api.github.com` (SSRF-guarded); no filesystem.
 
 **JS source**
 
@@ -572,7 +572,7 @@ Fetches the raw text content of a file from a public GitHub repository (no auth)
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `owner` · `repo` · `path` · `ref`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-cta">Click for full reference · params · sandbox · JS source</div>
 <div class="tcg-detail-template" hidden markdown>
@@ -590,7 +590,7 @@ For directories this returns a listing instead: [{ name, type, path }]. Files ov
 | `path` | `STRING` | ✓ | Path inside the repo (e.g. 'README.adoc') |
 | `ref` | `STRING` |  | Branch / tag / commit SHA (default: repo's default branch) |
 
-**Sandbox** — **L3** (Scoped widening) — `fetch` allowlisted to `api.github.com` (SSRF-guarded); no filesystem.
+**Sandbox** - **L3** (Scoped widening) - `fetch` allowlisted to `api.github.com` (SSRF-guarded); no filesystem.
 
 **JS source**
 
@@ -622,7 +622,7 @@ if (Array.isArray(data)) {
   // Directory listing
   return data.map(e => ({ name: e.name, type: e.type, path: e.path, size: e.size }));
 }
-// File — decode base64 content. GitHub wraps lines every 60 chars; strip whitespace first.
+// File - decode base64 content. GitHub wraps lines every 60 chars; strip whitespace first.
 if (data.encoding !== 'base64' || data.type !== 'file') {
   return { found: true, type: data.type, name: data.name, path: data.path, size: data.size,
            note: 'unsupported content; use a smaller file or different endpoint' };
@@ -645,11 +645,11 @@ return { name: data.name, path: data.path, size: data.size, sha: data.sha,
 <div class="tcg-art" markdown>:simple-github:</div>
 <div class="tcg-type">web · github · search <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
-Searches public GitHub repositories by query (no auth — anonymous limit 10 requests/minute).
+Searches public GitHub repositories by query (no auth - anonymous limit 10 requests/minute).
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `query` · `sort` · `perPage`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-cta">Click for full reference · params · sandbox · JS source</div>
 <div class="tcg-detail-template" hidden markdown>
@@ -666,7 +666,7 @@ Returns up to `perPage` results: [{ fullName, description, stars, forks, languag
 | `sort` | `STRING` |  | stars \| forks \| updated \| best-match (default) |
 | `perPage` | `INTEGER` |  | Max results (1-30, default 5) |
 
-**Sandbox** — **L3** (Scoped widening) — `fetch` allowlisted to `api.github.com` (SSRF-guarded); no filesystem.
+**Sandbox** - **L3** (Scoped widening) - `fetch` allowlisted to `api.github.com` (SSRF-guarded); no filesystem.
 
 **JS source**
 
@@ -715,7 +715,7 @@ Lists top contributors to a public GitHub repository (no auth).
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `owner` · `repo` · `perPage`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-cta">Click for full reference · params · sandbox · JS source</div>
 <div class="tcg-detail-template" hidden markdown>
@@ -732,7 +732,7 @@ Returns: [{ login, contributions, htmlUrl, avatarUrl }] sorted by commit count d
 | `repo` | `STRING` | ✓ | Repo name |
 | `perPage` | `INTEGER` |  | Max contributors (1-100, default 10) |
 
-**Sandbox** — **L3** (Scoped widening) — `fetch` allowlisted to `api.github.com` (SSRF-guarded); no filesystem.
+**Sandbox** - **L3** (Scoped widening) - `fetch` allowlisted to `api.github.com` (SSRF-guarded); no filesystem.
 
 **JS source**
 
@@ -774,7 +774,7 @@ Fetches current crypto prices from CoinGecko's public Simple Price API (no auth,
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `ids` · `currencies`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-cta">Click for full reference · params · sandbox · JS source</div>
 <div class="tcg-detail-template" hidden markdown>
@@ -790,7 +790,7 @@ Returns: { <coinId>: { <currency>: price, ... }, ... }
 | `ids` | `STRING` | ✓ | Comma-separated CoinGecko coin ids |
 | `currencies` | `STRING` |  | Comma-separated target currencies (e.g. usd, krw) |
 
-**Sandbox** — **L3** (Scoped widening) — `fetch` allowlisted to `api.coingecko.com` (SSRF-guarded); no filesystem.
+**Sandbox** - **L3** (Scoped widening) - `fetch` allowlisted to `api.coingecko.com` (SSRF-guarded); no filesystem.
 
 **JS source**
 
@@ -832,7 +832,7 @@ Converts between fiat currencies using exchangerate.host (no key, no rate limit 
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `from` · `to` · `amount`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-cta">Click for full reference · params · sandbox · JS source</div>
 <div class="tcg-detail-template" hidden markdown>
@@ -849,7 +849,7 @@ Returns: { from, to, amount, rate, result, date }.
 | `to` | `STRING` | ✓ | Target currency code (ISO 4217, e.g. KRW) |
 | `amount` | `NUMBER` |  | Amount in the source currency (default 1) |
 
-**Sandbox** — **L3** (Scoped widening) — `fetch` allowlisted to `api.exchangerate.host` (SSRF-guarded); no filesystem.
+**Sandbox** - **L3** (Scoped widening) - `fetch` allowlisted to `api.exchangerate.host` (SSRF-guarded); no filesystem.
 
 **JS source**
 
@@ -901,7 +901,7 @@ Returns geolocation and ASN info for an IP address (or the caller's IP if `ip` i
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `ip`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-cta">Click for full reference · params · sandbox · JS source</div>
 <div class="tcg-detail-template" hidden markdown>
@@ -916,7 +916,7 @@ Returns: { ip, city, region, country, countryName, latitude, longitude, timezone
 |---|---|---|---|
 | `ip` | `STRING` |  | IPv4 / IPv6 address (omit for caller's own IP) |
 
-**Sandbox** — **L3** (Scoped widening) — `fetch` allowlisted to `ipapi.co` (SSRF-guarded); no filesystem.
+**Sandbox** - **L3** (Scoped widening) - `fetch` allowlisted to `ipapi.co` (SSRF-guarded); no filesystem.
 
 **JS source**
 
@@ -926,7 +926,7 @@ Returns: { ip, city, region, country, countryName, latitude, longitude, timezone
  *
  * GET https://ipapi.co/{ip}/json/
  *
- * If `ip` is omitted, ipapi resolves the caller's IP — useful for sanity-checking
+ * If `ip` is omitted, ipapi resolves the caller's IP - useful for sanity-checking
  * what the playground's outbound IP looks like to the rest of the internet.
  */
 
@@ -965,7 +965,7 @@ Fetches country information from restcountries.com (no auth) by partial or full 
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `name`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-cta">Click for full reference · params · sandbox · JS source</div>
 <div class="tcg-detail-template" hidden markdown>
@@ -978,9 +978,9 @@ Returns an array of matches, each: { name, officialName, capital, region, subreg
 
 | Param | Type | Req | Description |
 |---|---|---|---|
-| `name` | `STRING` | ✓ | Country name (partial match — e.g. 'korea', 'germany') |
+| `name` | `STRING` | ✓ | Country name (partial match - e.g. 'korea', 'germany') |
 
-**Sandbox** — **L3** (Scoped widening) — `fetch` allowlisted to `restcountries.com` (SSRF-guarded); no filesystem.
+**Sandbox** - **L3** (Scoped widening) - `fetch` allowlisted to `restcountries.com` (SSRF-guarded); no filesystem.
 
 **JS source**
 
@@ -991,7 +991,7 @@ Returns an array of matches, each: { name, officialName, capital, region, subreg
  * GET https://restcountries.com/v3.1/name/{name}
  *
  * Partial matches are supported (e.g. "korea" returns both Koreas).
- * The API returns extremely chatty objects — we project to the most useful fields.
+ * The API returns extremely chatty objects - we project to the most useful fields.
  */
 
 if (name == null || name === '') throw new Error('name required');
@@ -1033,7 +1033,7 @@ Searches arXiv preprints via the public Atom-feed API (no auth). Results are par
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `query` · `max` · `sortBy`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-cta">Click for full reference · params · sandbox · JS source</div>
 <div class="tcg-detail-template" hidden markdown>
@@ -1050,7 +1050,7 @@ Returns up to `max` entries, each: { id, title, summary, authors, published, upd
 | `max` | `INTEGER` |  | Max results (1-50, default 5) |
 | `sortBy` | `STRING` |  | relevance \| lastUpdatedDate \| submittedDate |
 
-**Sandbox** — **L3** (Scoped widening) — `fetch` allowlisted to `export.arxiv.org` (SSRF-guarded); no filesystem.
+**Sandbox** - **L3** (Scoped widening) - `fetch` allowlisted to `export.arxiv.org` (SSRF-guarded); no filesystem.
 
 **JS source**
 
@@ -1137,7 +1137,7 @@ Returns public holidays for a given country and year via Nager.Date (no auth).
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `year` · `countryCode`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-cta">Click for full reference · params · sandbox · JS source</div>
 <div class="tcg-detail-template" hidden markdown>
@@ -1153,7 +1153,7 @@ Returns: [{ date, localName, name, fixed, global, types }]. Country codes are 2-
 | `year` | `INTEGER` | ✓ | Calendar year (e.g. 2026) |
 | `countryCode` | `STRING` |  | 2-letter ISO country code (default 'KR') |
 
-**Sandbox** — **L3** (Scoped widening) — `fetch` allowlisted to `date.nager.at` (SSRF-guarded); no filesystem.
+**Sandbox** - **L3** (Scoped widening) - `fetch` allowlisted to `date.nager.at` (SSRF-guarded); no filesystem.
 
 **JS source**
 
@@ -1201,7 +1201,7 @@ Searches a public subreddit via Reddit's JSON API (no auth, but rate-limited and
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `subreddit` · `query` · `limit` · `sort`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-cta">Click for full reference · params · sandbox · JS source</div>
 <div class="tcg-detail-template" hidden markdown>
@@ -1219,7 +1219,7 @@ Returns up to `limit` posts: [{ title, author, score, numComments, createdUtc, s
 | `limit` | `INTEGER` |  | Max posts (1-25, default 5) |
 | `sort` | `STRING` |  | relevance \| hot \| top \| new \| comments |
 
-**Sandbox** — **L3** (Scoped widening) — `fetch` allowlisted to `www.reddit.com` (SSRF-guarded); no filesystem.
+**Sandbox** - **L3** (Scoped widening) - `fetch` allowlisted to `www.reddit.com` (SSRF-guarded); no filesystem.
 
 **JS source**
 
@@ -1230,7 +1230,7 @@ Returns up to `limit` posts: [{ title, author, score, numComments, createdUtc, s
  * GET https://www.reddit.com/r/{subreddit}/search.json?q=...&restrict_sr=1&limit=...
  *
  * No authentication needed for read access. Reddit BANS empty / generic User-Agent
- * strings — we pass a descriptive one. Rate limit: ~60 req/min/IP.
+ * strings - we pass a descriptive one. Rate limit: ~60 req/min/IP.
  */
 
 if (subreddit == null || subreddit === '') throw new Error('subreddit required');
@@ -1279,11 +1279,11 @@ return children.map(c => {
 <div class="tcg-art" markdown>:material-weather-cloudy-clock:</div>
 <div class="tcg-type">web · weather <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
-Fetches a multi-day weather forecast from Open-Meteo (no auth, 10k req/day for non-commercial). Open-Meteo serves official ECMWF/GFS/ICON model output — far richer than wttr.in but requires lat/lon (use `geocodeAddress` first if you only have a city name).
+Fetches a multi-day weather forecast from Open-Meteo (no auth, 10k req/day for non-commercial). Open-Meteo serves official ECMWF/GFS/ICON model output - far richer than wttr.in but requires lat/lon (use `geocodeAddress` first if you only have a city name).
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `latitude` · `longitude` · `days` · `timezone`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-cta">Click for full reference · params · sandbox · JS source</div>
 <div class="tcg-detail-template" hidden markdown>
@@ -1301,7 +1301,7 @@ Returns: { latitude, longitude, timezone, daily: { time, temperatureMax, tempera
 | `days` | `INTEGER` |  | Forecast days (1-16, default 3) |
 | `timezone` | `STRING` |  | IANA tz (default 'auto') |
 
-**Sandbox** — **L3** (Scoped widening) — `fetch` allowlisted to `api.open-meteo.com` (SSRF-guarded); no filesystem.
+**Sandbox** - **L3** (Scoped widening) - `fetch` allowlisted to `api.open-meteo.com` (SSRF-guarded); no filesystem.
 
 **JS source**
 
@@ -1371,11 +1371,11 @@ return {
 <div class="tcg-art" markdown>:simple-openstreetmap:</div>
 <div class="tcg-type">web · geo <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
-Forward-geocodes a free-form address to coordinates via OpenStreetMap Nominatim (no key). Nominatim's usage policy requires a descriptive User-Agent and at most 1 req/s — we set both.
+Forward-geocodes a free-form address to coordinates via OpenStreetMap Nominatim (no key). Nominatim's usage policy requires a descriptive User-Agent and at most 1 req/s - we set both.
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `address` · `limit`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-cta">Click for full reference · params · sandbox · JS source</div>
 <div class="tcg-detail-template" hidden markdown>
@@ -1391,7 +1391,7 @@ Returns up to `limit` matches: [{ displayName, latitude, longitude, country, cit
 | `address` | `STRING` | ✓ | Address / place text (e.g. 'Seoul, South Korea' or 'Eiffel Tower, Paris') |
 | `limit` | `INTEGER` |  | Max matches (1-10, default 3) |
 
-**Sandbox** — **L3** (Scoped widening) — `fetch` allowlisted to `nominatim.openstreetmap.org` (SSRF-guarded); no filesystem.
+**Sandbox** - **L3** (Scoped widening) - `fetch` allowlisted to `nominatim.openstreetmap.org` (SSRF-guarded); no filesystem.
 
 **JS source**
 
@@ -1441,7 +1441,7 @@ Returns sunrise / sunset / twilight times for a given lat-lon and date via sunri
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `latitude` · `longitude` · `date` · `timezone`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-cta">Click for full reference · params · sandbox · JS source</div>
 <div class="tcg-detail-template" hidden markdown>
@@ -1459,7 +1459,7 @@ Returns: { sunrise, sunset, solarNoon, dayLength, civilTwilightBegin, civilTwili
 | `date` | `STRING` |  | ISO date (YYYY-MM-DD), defaults to today |
 | `timezone` | `STRING` |  | IANA tz for the response (default 'UTC') |
 
-**Sandbox** — **L3** (Scoped widening) — `fetch` allowlisted to `api.sunrise-sunset.org` (SSRF-guarded); no filesystem.
+**Sandbox** - **L3** (Scoped widening) - `fetch` allowlisted to `api.sunrise-sunset.org` (SSRF-guarded); no filesystem.
 
 **JS source**
 
@@ -1531,7 +1531,7 @@ Fetches recent earthquakes from the USGS public catalog (no auth).
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `minMagnitude` · `lookbackHours` · `limit`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-cta">Click for full reference · params · sandbox · JS source</div>
 <div class="tcg-detail-template" hidden markdown>
@@ -1548,7 +1548,7 @@ Returns up to `limit` events: [{ time, place, magnitude, type, latitude, longitu
 | `lookbackHours` | `INTEGER` |  | Hours to look back (1-720, default 24) |
 | `limit` | `INTEGER` |  | Max events (1-100, default 20) |
 
-**Sandbox** — **L3** (Scoped widening) — `fetch` allowlisted to `earthquake.usgs.gov` (SSRF-guarded); no filesystem.
+**Sandbox** - **L3** (Scoped widening) - `fetch` allowlisted to `earthquake.usgs.gov` (SSRF-guarded); no filesystem.
 
 **JS source**
 
@@ -1559,7 +1559,7 @@ Returns up to `limit` events: [{ time, place, magnitude, type, latitude, longitu
  * GET https://earthquake.usgs.gov/fdsnws/event/1/query?
  *     format=geojson&starttime=...&minmagnitude=...&limit=...
  *
- * `time` field is epoch millis — we convert to ISO. Depth is in km already.
+ * `time` field is epoch millis - we convert to ISO. Depth is in km already.
  */
 
 const mm  = (minMagnitude  == null || minMagnitude  === '') ? 4.5 : Number(minMagnitude);
@@ -1606,13 +1606,13 @@ return (data.features || []).map(f => {
 
 ## Composition patterns (anonymous-API chains)
 
-All 22 run anonymously off rate-limit tiers, so they are the cheapest tools to chain — no credential plumbing, just URL composition:
+All 22 run anonymously off rate-limit tiers, so they are the cheapest tools to chain - no credential plumbing, just URL composition:
 
-- **City → coordinates → forecast** — `geocodeAddress(address)` (Nominatim) → `getOpenMeteoForecast(lat, lon, days)` so the agent can answer "is it raining tomorrow in *city*?" without hard-coding lat/lon.
-- **Release radar** — `getGithubLatestRelease(owner, repo)` → run `openaiResponseGenerator` over the `.body` to get a three-sentence release-notes digest.
-- **Knowledge cross-check** — `searchWikipedia(title)` + `searchHackerNews(query)` + `searchStackOverflow(query)` in parallel; the agent reconciles the three views.
-- **IP triage** — `getIpInfo(ip)` → branch on `country_code` / `org` → call `getRecentEarthquakes(lat, lon)` or `getOpenMeteoForecast(lat, lon)` for the same coordinates.
-- **arXiv → summary** — `searchArxiv(query)` → top-N abstracts as prompt fragments → `openaiResponseGenerator` for a literature snapshot.
+- **City → coordinates → forecast** - `geocodeAddress(address)` (Nominatim) → `getOpenMeteoForecast(lat, lon, days)` so the agent can answer "is it raining tomorrow in *city*?" without hard-coding lat/lon.
+- **Release radar** - `getGithubLatestRelease(owner, repo)` → run `openaiResponseGenerator` over the `.body` to get a three-sentence release-notes digest.
+- **Knowledge cross-check** - `searchWikipedia(title)` + `searchHackerNews(query)` + `searchStackOverflow(query)` in parallel; the agent reconciles the three views.
+- **IP triage** - `getIpInfo(ip)` → branch on `country_code` / `org` → call `getRecentEarthquakes(lat, lon)` or `getOpenMeteoForecast(lat, lon)` for the same coordinates.
+- **arXiv → summary** - `searchArxiv(query)` → top-N abstracts as prompt fragments → `openaiResponseGenerator` for a literature snapshot.
 
 [Tutorial 8: Default Tool Recipes](../../tutorials/8-default-tool-recipes.md) walks the first two patterns (geo-anchored weather + release radar) end-to-end.
 
@@ -1629,6 +1629,6 @@ All 22 run anonymously off rate-limit tiers, so they are the cheapest tools to c
 | Nominatim (OpenStreetMap) | 1 req / s + descriptive User-Agent required (both honoured by the helper) |
 | Wikipedia / HN Algolia / arXiv / restcountries / Nager.Date / USGS / exchangerate.host / CoinGecko / sunrise-sunset | generous (no published per-day cap) |
 
-If you need higher quotas you can fork a tool and add a vendor key — the same `${ENV_VAR}` static-variable mechanism the [Examples](examples.md) tools use.
+If you need higher quotas you can fork a tool and add a vendor key - the same `${ENV_VAR}` static-variable mechanism the [Examples](examples.md) tools use.
 
-→ [Tool Studio: SSRF four-layer guard](../tool-studio/index.md#ssrf-four-layer-guard) — the network policy these tools run under.
+→ [Tool Studio: SSRF four-layer guard](../tool-studio/index.md#ssrf-four-layer-guard) - the network policy these tools run under.

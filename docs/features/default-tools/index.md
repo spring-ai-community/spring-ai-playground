@@ -1,46 +1,46 @@
-description: Default Tools — 86 ready-to-call JavaScript tools across 5 source bundles, exposed through the built-in MCP server, OS-agnostic by design.
+description: Default Tools - 86 ready-to-call JavaScript tools across 5 source bundles, exposed through the built-in MCP server, OS-agnostic by design.
 
 # Default Tools
 
-**Where:** top navigation → **Tool Studio** — the default tools ship pre-loaded; tune the exposed subset in the **Built-in MCP Server Native Tools** drawer.
+**Where:** top navigation → **Tool Studio** - the default tools ship pre-loaded; tune the exposed subset in the **Built-in MCP Server Native Tools** drawer.
 
-Spring AI Playground ships with **86 default tools** spread across five JSON source bundles. They are ready to call the moment a model provider is connected — you do not need to author anything yourself to see agentic workflows work end-to-end. They also serve as editable references when you start writing your own tools.
+Spring AI Playground ships with **86 default tools** spread across five JSON source bundles. They are ready to call the moment a model provider is connected - you do not need to author anything yourself to see agentic workflows work end-to-end. They also serve as editable references when you start writing your own tools.
 
-Tools that reach an external API read their keys from **environment variables** — each tool's card below lists the variables it needs. How to supply env vars (desktop launcher, Docker `-e`, or a source run) is covered once in the [Configuration reference](../../getting-started/configuration.md#how).
+Tools that reach an external API read their keys from **environment variables** - each tool's card below lists the variables it needs. How to supply env vars (desktop launcher, Docker `-e`, or a source run) is covered once in the [Configuration reference](../../getting-started/configuration.md#how).
 
-Not all of them are Local-Passed (active) by default — a **preset** decides the starting subset, and per-tool include / exclude rules layer on top. That preference lives in `<home>/spring-ai-playground/tool/save/default-tools-preference.json` and is chosen at setup — the desktop launcher's Default MCP Tools card, or CLI / yaml (full breakdown in [Tool Studio → Where preset choices live](../tool-studio/index.md#where-preset-choices-live)). Tool Studio's **Built-in MCP Server Native Tools** drawer then selects which Local-Passed tools the MCP server exposes.
+Not all of them are Local-Passed (active) by default - a **preset** decides the starting subset, and per-tool include / exclude rules layer on top. That preference lives in `<home>/spring-ai-playground/tool/save/default-tools-preference.json` and is chosen at setup - the desktop launcher's Default MCP Tools card, or CLI / yaml (full breakdown in [Tool Studio → Where preset choices live](../tool-studio/index.md#where-preset-choices-live)). Tool Studio's **Built-in MCP Server Native Tools** drawer then selects which Local-Passed tools the MCP server exposes.
 
 ## Risk Level { #risk-level }
 
-Every tool carries a **Risk Level** (`L0`–`L5`) — the sandbox posture the [Safe Tool Specification](../../safe-tool-specification.md) computes from the tool's declared capabilities (`sandboxOverrides`). Lower = more sandboxed. Each tool's reference card shows its level; the same chip appears in Tool Studio's **Sandbox & Capabilities** pane.
+Every tool carries a **Risk Level** (`L0`-`L5`) - the sandbox posture the [Safe Tool Specification](../../safe-tool-specification.md) computes from the tool's declared capabilities (`sandboxOverrides`). Lower = more sandboxed. Each tool's reference card shows its level; the same chip appears in Tool Studio's **Sandbox & Capabilities** pane.
 
-!!! note "Two L0–L5 scales"
-    This is the **sandbox** rubric (how far a JavaScript tool widens the local sandbox). External MCP servers reuse the same enum for a different question — see [MCP Server Safety](../../mcp-server-safety.md#risk-chip). The two never mix.
+!!! note "Two L0-L5 scales"
+    This is the **sandbox** rubric (how far a JavaScript tool widens the local sandbox). External MCP servers reuse the same enum for a different question - see [MCP Server Safety](../../mcp-server-safety.md#risk-chip). The two never mix.
 
 | Level | What it means for a tool | What ships here |
 |---|---|---|
-| <span class="rl rl-l0">L0 — Safest</span> | Pure compute — no declared network or filesystem widening | helper / utility tools with no I/O |
-| <span class="rl rl-l3">L3 — Scoped widening</span> | Allowlisted-host `fetch`, `strict` egress, or file *read* | the network, Korea, and most filesystem tools |
-| <span class="rl rl-l4">L4 — Broad access</span> | File *write*, `*` allowlist / `open` egress, or reflection class added | the file-write filesystem tool |
-| <span class="rl rl-l5">L5 — Unsandboxed</span> | `System` / `Runtime` / `Process` re-enabled, or raw file-write class | none ship by default |
+| <span class="rl rl-l0">L0 - Safest</span> | Pure compute - no declared network or filesystem widening | helper / utility tools with no I/O |
+| <span class="rl rl-l3">L3 - Scoped widening</span> | Allowlisted-host `fetch`, `strict` egress, or file *read* | the network, Korea, and most filesystem tools |
+| <span class="rl rl-l4">L4 - Broad access</span> | File *write*, `*` allowlist / `open` egress, or reflection class added | the file-write filesystem tool |
+| <span class="rl rl-l5">L5 - Unsandboxed</span> | `System` / `Runtime` / `Process` re-enabled, or raw file-write class | none ship by default |
 
-Levels are derived from each tool's declared `sandboxOverrides` (by `SandboxPostureCalculator`); the full bullet-by-bullet rule set is in [AI Agent Tool Safety → Risk Level decision matrix](../../safety-architecture.md#risk-level-decision-matrix). Across the 86 default tools: **28 are L0**, **57 are L3** (allowlisted-host `fetch` or file read), and **1 is L4** (file write) — none ship at L5.
+Levels are derived from each tool's declared `sandboxOverrides` (by `SandboxPostureCalculator`); the full bullet-by-bullet rule set is in [AI Agent Tool Safety → Risk Level decision matrix](../../safety-architecture.md#risk-level-decision-matrix). Across the 86 default tools: **28 are L0**, **57 are L3** (allowlisted-host `fetch` or file read), and **1 is L4** (file write) - none ship at L5.
 
 !!! question "Why no L1 or L2 here?"
-    The **sandbox** rubric only ever produces **L0 / L3 / L4 / L5** — the calculator jumps from the `L0` baseline straight to `L3` the moment a tool declares *any* widening (network, file, or class change), so a tool is never L1 or L2. `L1` (*Safe*) and `L2` (*Low*) exist only in the [MCP server rubric](../../mcp-server-safety.md#risk-chip), which scores a different thing (connecting to an external server) on the same `L0`–`L5` enum.
+    The **sandbox** rubric only ever produces **L0 / L3 / L4 / L5** - the calculator jumps from the `L0` baseline straight to `L3` the moment a tool declares *any* widening (network, file, or class change), so a tool is never L1 or L2. `L1` (*Safe*) and `L2` (*Low*) exist only in the [MCP server rubric](../../mcp-server-safety.md#risk-chip), which scores a different thing (connecting to an external server) on the same `L0`-`L5` enum.
 
 ## Browse all 86 tools { #browse-all-tools }
 
-Click a card to jump to its full reference (with the JS source pre-expanded) on the right sub-page — same UX as the **Built-in MCP Server Native Tools** drawer in Tool Studio. Five reference pages organise the catalog by source bundle and concern: [Examples](examples.md) · [Utilities](utilities.md) · [Filesystem](filesystem.md) · [Global](global.md) · [Korea](korea.md).
+Click a card to jump to its full reference (with the JS source pre-expanded) on the right sub-page - same UX as the **Built-in MCP Server Native Tools** drawer in Tool Studio. Five reference pages organise the catalog by source bundle and concern: [Examples](examples.md) · [Utilities](utilities.md) · [Filesystem](filesystem.md) · [Global](global.md) · [Korea](korea.md).
 
-**Filter modes**: pick a **Preset** for an exclusive view (just the tools in that preset, all other filters cleared); or combine a **search** keyword with one or more **Tag** / **Category** chips — search is AND, tag and category are OR (a card is shown when it matches *any* selected tag OR category and also matches the search keyword).
+**Filter modes**: pick a **Preset** for an exclusive view (just the tools in that preset, all other filters cleared); or combine a **search** keyword with one or more **Tag** / **Category** chips - search is AND, tag and category are OR (a card is shown when it matches *any* selected tag OR category and also matches the search keyword).
 
 <div class="tool-directory" markdown>
 <div class="tool-directory__preset">
 <span class="tool-directory__chip-label">Preset</span> <button class="tool-directory__chip" data-group="preset" data-value="starter5" aria-pressed="false">Starter 5</button> <button class="tool-directory__chip" data-group="preset" data-value="dev-essentials" aria-pressed="false">Dev Essentials</button> <button class="tool-directory__chip" data-group="preset" data-value="korea-toolkit" aria-pressed="false">Korea Toolkit</button> <button class="tool-directory__chip" data-group="preset" data-value="file-toolkit" aria-pressed="false">File Toolkit</button> <button class="tool-directory__chip" data-group="preset" data-value="everything" aria-pressed="false">Everything</button>
 </div>
 <div class="tool-directory__controls">
-<input type="search" class="tool-directory__search" placeholder="Search by name or description…" aria-label="Search tools">
+<input type="search" class="tool-directory__search" placeholder="Search by name or description..." aria-label="Search tools">
 <div class="tool-directory__chips">
 <span class="tool-directory__chip-label">Tag</span> <button class="tool-directory__chip" data-group="tag" data-value="example" aria-pressed="false">example</button> <button class="tool-directory__chip" data-group="tag" data-value="finance" aria-pressed="false">finance</button> <button class="tool-directory__chip" data-group="tag" data-value="geo" aria-pressed="false">geo</button> <button class="tool-directory__chip" data-group="tag" data-value="github" aria-pressed="false">github</button> <button class="tool-directory__chip" data-group="tag" data-value="korea" aria-pressed="false">korea</button> <button class="tool-directory__chip" data-group="tag" data-value="pipeline" aria-pressed="false">pipeline</button> <button class="tool-directory__chip" data-group="tag" data-value="search" aria-pressed="false">search</button> <button class="tool-directory__chip" data-group="tag" data-value="util" aria-pressed="false">util</button> <button class="tool-directory__chip" data-group="tag" data-value="weather" aria-pressed="false">weather</button>
 </div>
@@ -63,7 +63,7 @@ Fetches a web page and extracts its main readable content + outbound links. Uses
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `pageUrl`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Examples</div>
 </div>
@@ -78,7 +78,7 @@ Returns the current time in ISO 8601 format. If the user specifies a city, count
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `timeZone`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Examples</div>
 </div>
@@ -93,7 +93,7 @@ Builds a Google Calendar "Add Event" URL with prefilled fields.
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `title` · `start` · `end` · `details` · `location` · `timeZone`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Examples</div>
 </div>
@@ -108,7 +108,7 @@ Free public weather lookup via wttr.in (no API key). Returns a small JSON summar
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `location`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Examples</div>
 </div>
@@ -168,7 +168,7 @@ Converts a moment in time between IANA time zones. Returns the same instant rend
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `text` · `toTimeZone`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Utilities</div>
 </div>
@@ -183,7 +183,7 @@ Computes b - a in the requested unit (days|hours|minutes|seconds|milliseconds). 
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `a` · `b` · `unit`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Utilities</div>
 </div>
@@ -198,7 +198,7 @@ Percent-encodes a string for use in a URL component. Equivalent to encodeURIComp
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `text`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Utilities</div>
 </div>
@@ -213,7 +213,7 @@ Adds (or subtracts) a duration to a date and returns the resulting ISO timestamp
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `text` · `amount` · `unit`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Utilities</div>
 </div>
@@ -228,7 +228,7 @@ Parses a date/time string (ISO 8601 or RFC 2822) and returns its components plus
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `text` · `timeZone`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Utilities</div>
 </div>
@@ -243,7 +243,7 @@ Computes the next datetime matching a standard 5-field cron expression (minute h
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `expression` · `from` · `count`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Utilities</div>
 </div>
@@ -258,7 +258,7 @@ Returns a line-by-line diff between two texts. Each entry is {op, line} where op
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `a` · `b`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Utilities</div>
 </div>
@@ -273,7 +273,7 @@ Sorts lines of text alphabetically. Supports reverse and case-insensitive option
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `text` · `reverse` · `caseInsensitive`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Utilities</div>
 </div>
@@ -288,7 +288,7 @@ Scans text for personally identifiable information patterns (email, US SSN, US p
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `text`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Utilities</div>
 </div>
@@ -303,7 +303,7 @@ Returns all regex matches in the input. With the 'g' flag every match is returne
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `text` · `pattern` · `flags`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Utilities</div>
 </div>
@@ -318,7 +318,7 @@ Formats a date (ISO string or epoch ms) using a pattern with tokens yyyy/MM/dd H
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `text` · `pattern` · `timeZone`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Utilities</div>
 </div>
@@ -333,7 +333,7 @@ Returns summary statistics (count, sum, min, max, mean, median, stddev) for an a
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `numbers`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Utilities</div>
 </div>
@@ -348,7 +348,7 @@ Scans text for well-known secret patterns (AWS keys, GitHub tokens, Slack tokens
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `text`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Utilities</div>
 </div>
@@ -363,7 +363,7 @@ Replaces regex matches in the input with the given replacement string. Supports 
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `text` · `pattern` · `replacement` · `flags`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Utilities</div>
 </div>
@@ -378,7 +378,7 @@ Evaluates a safe arithmetic/logical expression (no eval, no host access). Suppor
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `expression` · `variables`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Utilities</div>
 </div>
@@ -393,7 +393,7 @@ Serialises an array of rows into CSV text. Rows may be arrays (use header param)
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `rows` · `header` · `delimiter`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Utilities</div>
 </div>
@@ -408,7 +408,7 @@ Encodes UTF-8 text to base64, or decodes base64 back to UTF-8 text. Use mode='en
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `text` · `mode` · `urlSafe`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Utilities</div>
 </div>
@@ -423,7 +423,7 @@ Encodes UTF-8 text to hex string, or decodes hex back to UTF-8 text. Use mode='e
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `text` · `mode` · `upperCase`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Utilities</div>
 </div>
@@ -437,8 +437,8 @@ Encodes UTF-8 text to hex string, or decodes hex back to UTF-8 text. Use mode='e
 Generates a cryptographically random UUID v4 string.
 </div>
 <div class="tcg-stats" markdown>
-<div class="tcg-stats__line" markdown>**Params** &nbsp; —</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Params** &nbsp; -</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Utilities</div>
 </div>
@@ -453,7 +453,7 @@ Computes the cryptographic hash of UTF-8 text. Algorithms: SHA-256 (default), SH
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `text` · `algorithm`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Utilities</div>
 </div>
@@ -468,7 +468,7 @@ Computes an HMAC signature over UTF-8 text using a secret. Algorithms: SHA-256 (
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `secret` · `text` · `algorithm`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Utilities</div>
 </div>
@@ -483,7 +483,7 @@ Generates cryptographically secure random bytes. encoding: 'hex' (default), 'bas
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `bytes` · `encoding`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Utilities</div>
 </div>
@@ -498,7 +498,7 @@ Generates a strong random password from selected character classes. Uses crypto.
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `length` · `includeLowercase` · `includeUppercase` · `includeDigits` · `includeSymbols`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Utilities</div>
 </div>
@@ -513,7 +513,7 @@ Decodes a JWT without verifying its signature. Returns the header and payload as
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `token`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Utilities</div>
 </div>
@@ -528,7 +528,7 @@ Verifies a HS256/HS384/HS512 JWT signature using a shared secret and returns the
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `token` · `secret`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Utilities</div>
 </div>
@@ -543,7 +543,7 @@ Parses CSV text into an array of rows. If header=true, each row is an object key
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `text` · `header` · `delimiter`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Utilities</div>
 </div>
@@ -558,7 +558,7 @@ Reads a UTF-8 text file from disk and returns its contents as a single string.
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `path`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Filesystem</div>
 </div>
@@ -573,7 +573,7 @@ Lists the immediate entries (files and subdirectories) of a directory under the 
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `dir`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Filesystem</div>
 </div>
@@ -588,7 +588,7 @@ Returns size, last-modified timestamp, and a directory flag for a path inside th
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `path`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Filesystem</div>
 </div>
@@ -603,7 +603,7 @@ Counts the lines in a UTF-8 text file. Uses safety.fs.lineCount().
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `path`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Filesystem</div>
 </div>
@@ -618,7 +618,7 @@ Returns a slice of lines from a UTF-8 text file (head / tail / range). `start` i
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `path` · `start` · `end`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Filesystem</div>
 </div>
@@ -633,7 +633,7 @@ Sorts the lines of a UTF-8 text file and returns the sorted lines as an array. O
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `path` · `reverse` · `numeric` · `caseInsensitive` · `unique`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Filesystem</div>
 </div>
@@ -648,7 +648,7 @@ Searches a UTF-8 text file for lines matching a JavaScript regex. Returns an arr
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `pattern` · `path` · `caseInsensitive` · `numbered` · `limit`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Filesystem</div>
 </div>
@@ -663,7 +663,7 @@ Recursively finds files matching a glob inside a directory. Glob supports `*` an
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `dir` · `glob` · `maxDepth` · `type`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Filesystem</div>
 </div>
@@ -678,7 +678,7 @@ Extracts selected fields from each line of a delimited file (CSV/TSV/etc.). Uses
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `path` · `fields` · `delimiter` · `regex`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Filesystem</div>
 </div>
@@ -693,7 +693,7 @@ Writes a UTF-8 text file inside the FS base path (creating parent directories as
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `path` · `content`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Filesystem</div>
 </div>
@@ -708,7 +708,7 @@ Fetches public metadata for a GitHub repository (no authentication needed; subje
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `owner` · `repo`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Global</div>
 </div>
@@ -723,7 +723,7 @@ Looks up a Wikipedia page summary by title. No authentication required. Uses the
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `title` · `lang`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Global</div>
 </div>
@@ -738,7 +738,7 @@ Searches Hacker News stories via the public Algolia HN Search API (no auth neede
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `query` · `hits` · `tag`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Global</div>
 </div>
@@ -753,22 +753,22 @@ Searches Stack Overflow questions via the public Stack Exchange API (anonymous, 
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `query` · `pageSize` · `sort` · `tags`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Global</div>
 </div>
 
-<div class="tcg-card tcg-card--directory t-github" data-name="getgithubuser" data-desc="fetches public profile information for a github user or organisation (no auth — 60 req/h anonymous)." data-category="web" data-tags="github" data-preset="" data-env="" markdown>
+<div class="tcg-card tcg-card--directory t-github" data-name="getgithubuser" data-desc="fetches public profile information for a github user or organisation (no auth - 60 req/h anonymous)." data-category="web" data-tags="github" data-preset="" data-env="" markdown>
 <a class="tcg-stretched-link" href="global/#getGithubUser" aria-label="Open getGithubUser in Global">getGithubUser</a>
 <div class="tcg-name"><span class="tcg-name__text">getGithubUser</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:simple-github:</div>
 <div class="tcg-type">web · github <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
-Fetches public profile information for a GitHub user or organisation (no auth — 60 req/h anonymous).
+Fetches public profile information for a GitHub user or organisation (no auth - 60 req/h anonymous).
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `login`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Global</div>
 </div>
@@ -783,7 +783,7 @@ Lists issues on a public GitHub repository (no auth). Excludes pull requests by 
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `owner` · `repo` · `state` · `perPage` · `page`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Global</div>
 </div>
@@ -798,7 +798,7 @@ Lists releases on a public GitHub repository (no auth).
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `owner` · `repo` · `perPage`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Global</div>
 </div>
@@ -813,7 +813,7 @@ Fetches the latest non-draft, non-prerelease release of a public GitHub reposito
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `owner` · `repo`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Global</div>
 </div>
@@ -828,22 +828,22 @@ Fetches the raw text content of a file from a public GitHub repository (no auth)
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `owner` · `repo` · `path` · `ref`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Global</div>
 </div>
 
-<div class="tcg-card tcg-card--directory t-github" data-name="searchgithubrepos" data-desc="searches public github repositories by query (no auth — anonymous limit 10 requests/minute)." data-category="web" data-tags="github,search" data-preset="" data-env="" markdown>
+<div class="tcg-card tcg-card--directory t-github" data-name="searchgithubrepos" data-desc="searches public github repositories by query (no auth - anonymous limit 10 requests/minute)." data-category="web" data-tags="github,search" data-preset="" data-env="" markdown>
 <a class="tcg-stretched-link" href="global/#searchGithubRepos" aria-label="Open searchGithubRepos in Global">searchGithubRepos</a>
 <div class="tcg-name"><span class="tcg-name__text">searchGithubRepos</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:simple-github:</div>
 <div class="tcg-type">web · github · search <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
-Searches public GitHub repositories by query (no auth — anonymous limit 10 requests/minute).
+Searches public GitHub repositories by query (no auth - anonymous limit 10 requests/minute).
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `query` · `sort` · `perPage`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Global</div>
 </div>
@@ -858,7 +858,7 @@ Lists top contributors to a public GitHub repository (no auth).
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `owner` · `repo` · `perPage`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Global</div>
 </div>
@@ -873,7 +873,7 @@ Fetches current crypto prices from CoinGecko's public Simple Price API (no auth,
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `ids` · `currencies`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Global</div>
 </div>
@@ -888,7 +888,7 @@ Converts between fiat currencies using exchangerate.host (no key, no rate limit 
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `from` · `to` · `amount`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Global</div>
 </div>
@@ -903,7 +903,7 @@ Returns geolocation and ASN info for an IP address (or the caller's IP if `ip` i
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `ip`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Global</div>
 </div>
@@ -918,7 +918,7 @@ Fetches country information from restcountries.com (no auth) by partial or full 
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `name`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Global</div>
 </div>
@@ -933,7 +933,7 @@ Searches arXiv preprints via the public Atom-feed API (no auth). Results are par
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `query` · `max` · `sortBy`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Global</div>
 </div>
@@ -948,7 +948,7 @@ Returns public holidays for a given country and year via Nager.Date (no auth).
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `year` · `countryCode`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Global</div>
 </div>
@@ -963,37 +963,37 @@ Searches a public subreddit via Reddit's JSON API (no auth, but rate-limited and
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `subreddit` · `query` · `limit` · `sort`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Global</div>
 </div>
 
-<div class="tcg-card tcg-card--directory t-meteo" data-name="getopenmeteoforecast" data-desc="fetches a multi-day weather forecast from open-meteo (no auth, 10k req/day for non-commercial). open-meteo serves official ecmwf/gfs/icon model output — far richer than wttr.in but requires lat/lon (u" data-category="web" data-tags="weather" data-preset="" data-env="" markdown>
+<div class="tcg-card tcg-card--directory t-meteo" data-name="getopenmeteoforecast" data-desc="fetches a multi-day weather forecast from open-meteo (no auth, 10k req/day for non-commercial). open-meteo serves official ecmwf/gfs/icon model output - far richer than wttr.in but requires lat/lon (u" data-category="web" data-tags="weather" data-preset="" data-env="" markdown>
 <a class="tcg-stretched-link" href="global/#getOpenMeteoForecast" aria-label="Open getOpenMeteoForecast in Global">getOpenMeteoForecast</a>
 <div class="tcg-name"><span class="tcg-name__text">getOpenMeteoForecast</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:material-weather-cloudy-clock:</div>
 <div class="tcg-type">web · weather <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
-Fetches a multi-day weather forecast from Open-Meteo (no auth, 10k req/day for non-commercial). Open-Meteo serves official ECMWF/GFS/ICON model output — far richer than wttr.in but requires lat/lon (use `geocodeAddress` first if you only have a city name).
+Fetches a multi-day weather forecast from Open-Meteo (no auth, 10k req/day for non-commercial). Open-Meteo serves official ECMWF/GFS/ICON model output - far richer than wttr.in but requires lat/lon (use `geocodeAddress` first if you only have a city name).
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `latitude` · `longitude` · `days` · `timezone`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Global</div>
 </div>
 
-<div class="tcg-card tcg-card--directory t-osm" data-name="geocodeaddress" data-desc="forward-geocodes a free-form address to coordinates via openstreetmap nominatim (no key). nominatim's usage policy requires a descriptive user-agent and at most 1 req/s — we set both." data-category="web" data-tags="geo" data-preset="" data-env="" markdown>
+<div class="tcg-card tcg-card--directory t-osm" data-name="geocodeaddress" data-desc="forward-geocodes a free-form address to coordinates via openstreetmap nominatim (no key). nominatim's usage policy requires a descriptive user-agent and at most 1 req/s - we set both." data-category="web" data-tags="geo" data-preset="" data-env="" markdown>
 <a class="tcg-stretched-link" href="global/#geocodeAddress" aria-label="Open geocodeAddress in Global">geocodeAddress</a>
 <div class="tcg-name"><span class="tcg-name__text">geocodeAddress</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:simple-openstreetmap:</div>
 <div class="tcg-type">web · geo <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
-Forward-geocodes a free-form address to coordinates via OpenStreetMap Nominatim (no key). Nominatim's usage policy requires a descriptive User-Agent and at most 1 req/s — we set both.
+Forward-geocodes a free-form address to coordinates via OpenStreetMap Nominatim (no key). Nominatim's usage policy requires a descriptive User-Agent and at most 1 req/s - we set both.
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `address` · `limit`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Global</div>
 </div>
@@ -1008,7 +1008,7 @@ Returns sunrise / sunset / twilight times for a given lat-lon and date via sunri
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `latitude` · `longitude` · `date` · `timezone`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Global</div>
 </div>
@@ -1023,7 +1023,7 @@ Fetches recent earthquakes from the USGS public catalog (no auth).
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `minMagnitude` · `lookbackHours` · `limit`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Global</div>
 </div>
@@ -1038,7 +1038,7 @@ Fetches the current KRW ticker(s) from Upbit, a major Korean crypto exchange (no
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `markets`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Korea</div>
 </div>
@@ -1053,7 +1053,7 @@ Fetches Upbit live orderbook (bids/asks) for one or more KRW markets (no auth). 
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `markets` · `level`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Korea</div>
 </div>
@@ -1068,7 +1068,7 @@ Fetches Upbit OHLCV candles for a market (no auth). `interval` accepts 'days' (d
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `market` · `interval` · `count`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Korea</div>
 </div>
@@ -1083,7 +1083,7 @@ Lists all tradable markets on Upbit (no auth). Pass `quote` (e.g. 'KRW', 'BTC', 
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `quote`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Korea</div>
 </div>
@@ -1098,7 +1098,7 @@ Fetches the current KRW ticker for a symbol from Bithumb (no auth). Used as an U
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `symbol`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Korea</div>
 </div>
@@ -1113,7 +1113,7 @@ Fetches Bithumb public orderbook depth for a KRW pair (no auth). `count` default
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `symbol` · `count`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Korea</div>
 </div>
@@ -1133,13 +1133,13 @@ Naver Search API (KR; key required). Searches across blog, news, webkr, encyc, b
 <div class="tcg-page">→ Korea</div>
 </div>
 
-<div class="tcg-card tcg-card--directory t-kakao" data-name="searchkakaolocal" data-desc="kakao local keyword search — finds places/pois and returns wgs84 coordinates (kr; key required). issue a rest api key at https://developers.kakao.com/ and set kakao_rest_api_key on the tool's staticva" data-category="web" data-tags="korea,geo" data-preset="" data-env="KAKAO_REST_API_KEY" markdown>
+<div class="tcg-card tcg-card--directory t-kakao" data-name="searchkakaolocal" data-desc="kakao local keyword search - finds places/pois and returns wgs84 coordinates (kr; key required). issue a rest api key at https://developers.kakao.com/ and set kakao_rest_api_key on the tool's staticva" data-category="web" data-tags="korea,geo" data-preset="" data-env="KAKAO_REST_API_KEY" markdown>
 <a class="tcg-stretched-link" href="korea/#searchKakaoLocal" aria-label="Open searchKakaoLocal in Korea">searchKakaoLocal</a>
 <div class="tcg-name"><span class="tcg-name__text">searchKakaoLocal</span> <span class="cost">🔑 × 1</span></div>
 <div class="tcg-art" markdown>:simple-kakaotalk:</div>
 <div class="tcg-type">web · korea · geo <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
-Kakao Local keyword search — finds places/POIs and returns WGS84 coordinates (KR; key required). Issue a REST API key at https://developers.kakao.com/ and set KAKAO_REST_API_KEY on the tool's staticVariables, or inject as env var. Optionally pass (longitude, latitude, radius) to search around a point. Returns: { totalCount, pageableCount, isEnd, places:[{ name, category, categoryGroup, phone, address, roadAddress, latitude, longitude, placeUrl, distance }] }.
+Kakao Local keyword search - finds places/POIs and returns WGS84 coordinates (KR; key required). Issue a REST API key at https://developers.kakao.com/ and set KAKAO_REST_API_KEY on the tool's staticVariables, or inject as env var. Optionally pass (longitude, latitude, radius) to search around a point. Returns: { totalCount, pageableCount, isEnd, places:[{ name, category, categoryGroup, phone, address, roadAddress, latitude, longitude, placeUrl, distance }] }.
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `query` · `size` · `page` · `longitude` · `latitude` · `radius`</div>
@@ -1163,17 +1163,17 @@ AirKorea (data.go.kr) real-time air quality readings by Korean province (KR; dat
 <div class="tcg-page">→ Korea</div>
 </div>
 
-<div class="tcg-card tcg-card--directory t-apple" data-name="searchkpoponitunes" data-desc="itunes search api — korean music catalog including k-pop (no auth). default country=kr biases results to the korean itunes storefront. suitable for song / musicartist / album / musicvideo lookups. eac" data-category="web" data-tags="korea" data-preset="korea-toolkit" data-env="" markdown>
+<div class="tcg-card tcg-card--directory t-apple" data-name="searchkpoponitunes" data-desc="itunes search api - korean music catalog including k-pop (no auth). default country=kr biases results to the korean itunes storefront. suitable for song / musicartist / album / musicvideo lookups. eac" data-category="web" data-tags="korea" data-preset="korea-toolkit" data-env="" markdown>
 <a class="tcg-stretched-link" href="korea/#searchKpopOnItunes" aria-label="Open searchKpopOnItunes in Korea">searchKpopOnItunes</a>
 <div class="tcg-name"><span class="tcg-name__text">searchKpopOnItunes</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:simple-applemusic:</div>
 <div class="tcg-type">web · korea <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
-iTunes Search API — Korean music catalog including K-pop (no auth). Default country=kr biases results to the Korean iTunes storefront. Suitable for song / musicArtist / album / musicVideo lookups. Each result includes a 30s preview URL and album artwork URL. Catalog metadata is in the storefront language (Korean for kr). `entity`: musicArtist | song | album | musicVideo | mix. `country`: ISO-2 storefront code (kr/us/jp/...). Default kr. Returns: { country, entity, resultCount, results:[{ kind, artistName, trackName, collection, releaseDate, primaryGenre, previewUrl, trackViewUrl, artworkUrl, ... }] }.
+iTunes Search API - Korean music catalog including K-pop (no auth). Default country=kr biases results to the Korean iTunes storefront. Suitable for song / musicArtist / album / musicVideo lookups. Each result includes a 30s preview URL and album artwork URL. Catalog metadata is in the storefront language (Korean for kr). `entity`: musicArtist | song | album | musicVideo | mix. `country`: ISO-2 storefront code (kr/us/jp/...). Default kr. Returns: { country, entity, resultCount, results:[{ kind, artistName, trackName, collection, releaseDate, primaryGenre, previewUrl, trackViewUrl, artworkUrl, ... }] }.
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `term` · `entity` · `country` · `limit`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Korea</div>
 </div>
@@ -1184,22 +1184,22 @@ iTunes Search API — Korean music catalog including K-pop (no auth). Default co
 <div class="tcg-art" markdown>:material-flower-tulip-outline:</div>
 <div class="tcg-type">web · korea · search <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
-K-beauty cosmetics product search via Open Beauty Facts (no auth). Default country=south-korea biases the lookup to Korean brand catalogs (Innisfree / Laneige / COSRX / ...). Returns ingredients, allergens, packaging, and product image URLs. For a global search pass country='', or other slugs like country='japan'. Note: localized product names may appear in Korean. Pass a barcode (e.g. '8809610706106') as `query` for single-product lookup — useful for ingredient checks. Returns: { country, count, page, pageSize, products:[{ code, productName, brands, countries, categories, allergens, ingredients, packaging, imageUrl, openBeautyFactsUrl }] }.
+K-beauty cosmetics product search via Open Beauty Facts (no auth). Default country=south-korea biases the lookup to Korean brand catalogs (Innisfree / Laneige / COSRX / ...). Returns ingredients, allergens, packaging, and product image URLs. For a global search pass country='', or other slugs like country='japan'. Note: localized product names may appear in Korean. Pass a barcode (e.g. '8809610706106') as `query` for single-product lookup - useful for ingredient checks. Returns: { country, count, page, pageSize, products:[{ code, productName, brands, countries, categories, allergens, ingredients, packaging, imageUrl, openBeautyFactsUrl }] }.
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `query` · `country` · `pageSize`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; —</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Korea</div>
 </div>
 
-<div class="tcg-card tcg-card--directory t-tour" data-name="searchkoreatour" data-desc="korea tourism organization tourapi 4.0 keyword search — tourist spots, cultural facilities, festivals, lodging, restaurants by korean keyword (kr; data.go.kr key required, separate from the air-qualit" data-category="web" data-tags="korea,search" data-preset="" data-env="DATA_GO_KR_TOUR_KEY" markdown>
+<div class="tcg-card tcg-card--directory t-tour" data-name="searchkoreatour" data-desc="korea tourism organization tourapi 4.0 keyword search - tourist spots, cultural facilities, festivals, lodging, restaurants by korean keyword (kr; data.go.kr key required, separate from the air-qualit" data-category="web" data-tags="korea,search" data-preset="" data-env="DATA_GO_KR_TOUR_KEY" markdown>
 <a class="tcg-stretched-link" href="korea/#searchKoreaTour" aria-label="Open searchKoreaTour in Korea">searchKoreaTour</a>
 <div class="tcg-name"><span class="tcg-name__text">searchKoreaTour</span> <span class="cost">🔑 × 1</span></div>
 <div class="tcg-art" markdown>:material-bag-suitcase-outline:</div>
 <div class="tcg-type">web · korea · search <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
-Korea Tourism Organization TourAPI 4.0 keyword search — tourist spots, cultural facilities, festivals, lodging, restaurants by Korean keyword (KR; data.go.kr key required, separate from the air-quality key). Issue the Korean tourism serviceKey at https://www.data.go.kr/data/15101578/openapi.do and set DATA_GO_KR_TOUR_KEY on the tool's staticVariables, or inject as env var. Filters: `areaCode` (province) + `sigunguCode` (city/county) + `contentTypeId` (content type). Examples: Jeonju = areaCode 37 + sigunguCode 12, Gyeongju = 35+2, Jeju City = 39+4, Seogwipo = 39+5. Metropolitan cities (Busan=6, Daegu=4, ...) do not require sigunguCode. Returns: { keyword, totalCount, pageNo, numOfRows, items:[{ contentId, contentTypeId, title, addr1, addr2, areaCode, sigunguCode, firstImage, mapX, mapY, tel, ... }] }.
+Korea Tourism Organization TourAPI 4.0 keyword search - tourist spots, cultural facilities, festivals, lodging, restaurants by Korean keyword (KR; data.go.kr key required, separate from the air-quality key). Issue the Korean tourism serviceKey at https://www.data.go.kr/data/15101578/openapi.do and set DATA_GO_KR_TOUR_KEY on the tool's staticVariables, or inject as env var. Filters: `areaCode` (province) + `sigunguCode` (city/county) + `contentTypeId` (content type). Examples: Jeonju = areaCode 37 + sigunguCode 12, Gyeongju = 35+2, Jeju City = 39+4, Seogwipo = 39+5. Metropolitan cities (Busan=6, Daegu=4, ...) do not require sigunguCode. Returns: { keyword, totalCount, pageNo, numOfRows, items:[{ contentId, contentTypeId, title, addr1, addr2, areaCode, sigunguCode, firstImage, mapX, mapY, tel, ... }] }.
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `keyword` · `areaCode` · `sigunguCode` · `contentTypeId` · `pageNo` · `numOfRows`</div>
@@ -1223,13 +1223,13 @@ Seoul Open Data Plaza (data.seoul.go.kr) cultural events search (KR; separate ke
 <div class="tcg-page">→ Korea</div>
 </div>
 
-<div class="tcg-card tcg-card--directory t-kamis" data-name="getkamisagriprice" data-desc="kamis agricultural product wholesale/retail prices — daily price data operated by at (korea agro-fisheries & food trade corp). kr; cert_id + cert_key required, free. issue credentials at https://www.k" data-category="web" data-tags="korea,finance" data-preset="" data-env="KAMIS_CERT_ID,KAMIS_CERT_KEY" markdown>
+<div class="tcg-card tcg-card--directory t-kamis" data-name="getkamisagriprice" data-desc="kamis agricultural product wholesale/retail prices - daily price data operated by at (korea agro-fisheries & food trade corp). kr; cert_id + cert_key required, free. issue credentials at https://www.k" data-category="web" data-tags="korea,finance" data-preset="" data-env="KAMIS_CERT_ID,KAMIS_CERT_KEY" markdown>
 <a class="tcg-stretched-link" href="korea/#getKamisAgriPrice" aria-label="Open getKamisAgriPrice in Korea">getKamisAgriPrice</a>
 <div class="tcg-name"><span class="tcg-name__text">getKamisAgriPrice</span> <span class="cost">🔑 × 2</span></div>
 <div class="tcg-art" markdown>:material-leaf:</div>
 <div class="tcg-type">web · korea · finance <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
-KAMIS agricultural product wholesale/retail prices — daily price data operated by aT (Korea Agro-Fisheries & Food Trade Corp). KR; cert_id + cert_key required, free. Issue credentials at https://www.kamis.or.kr/customer/reference/openapi_list.do and set KAMIS_CERT_ID + KAMIS_CERT_KEY on the tool's staticVariables, or inject as env vars. `productClsCode`: 01=retail, 02=wholesale (default). `itemCode` is the KAMIS product code (rice=111, apple=411, napa cabbage=211, pork belly=515, ...). Returns: { productClass, itemCode, startDay, endDay, count, rows:[{ itemName, kindName, county, market, year, date, price, unit }] }.
+KAMIS agricultural product wholesale/retail prices - daily price data operated by aT (Korea Agro-Fisheries & Food Trade Corp). KR; cert_id + cert_key required, free. Issue credentials at https://www.kamis.or.kr/customer/reference/openapi_list.do and set KAMIS_CERT_ID + KAMIS_CERT_KEY on the tool's staticVariables, or inject as env vars. `productClsCode`: 01=retail, 02=wholesale (default). `itemCode` is the KAMIS product code (rice=111, apple=411, napa cabbage=211, pork belly=515, ...). Returns: { productClass, itemCode, startDay, endDay, count, rows:[{ itemName, kindName, county, market, year, date, price, unit }] }.
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `itemCode` · `startDay` · `endDay` · `productClsCode` · `itemCategoryCode` · `kindCode`</div>
@@ -1253,13 +1253,13 @@ KOFIC (Korean Film Council) daily box-office ranking (KR; single API key require
 <div class="tcg-page">→ Korea</div>
 </div>
 
-<div class="tcg-card tcg-card--directory t-krx" data-name="getkrxstockprice" data-desc="krx korea exchange daily stock quotes (data.go.kr) — kospi/kosdaq/konex daily open/close/change/volume/market cap. kr; data.go.kr servicekey required, separate service application from other dgk keys." data-category="web" data-tags="korea,finance" data-preset="" data-env="DATA_GO_KR_STOCK_KEY" markdown>
+<div class="tcg-card tcg-card--directory t-krx" data-name="getkrxstockprice" data-desc="krx korea exchange daily stock quotes (data.go.kr) - kospi/kosdaq/konex daily open/close/change/volume/market cap. kr; data.go.kr servicekey required, separate service application from other dgk keys." data-category="web" data-tags="korea,finance" data-preset="" data-env="DATA_GO_KR_STOCK_KEY" markdown>
 <a class="tcg-stretched-link" href="korea/#getKrxStockPrice" aria-label="Open getKrxStockPrice in Korea">getKrxStockPrice</a>
 <div class="tcg-name"><span class="tcg-name__text">getKrxStockPrice</span> <span class="cost">🔑 × 1</span></div>
 <div class="tcg-art" markdown>:material-chart-line:</div>
 <div class="tcg-type">web · korea · finance <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
-KRX Korea Exchange daily stock quotes (data.go.kr) — KOSPI/KOSDAQ/KONEX daily open/close/change/volume/market cap. KR; data.go.kr serviceKey required, separate service application from other dgk keys. Register the `Financial Services Commission stock quote info` service at data.go.kr (https://www.data.go.kr/data/15094808/openapi.do), receive a serviceKey, and set DATA_GO_KR_STOCK_KEY on the tool's staticVariables, or inject as env var. Note: the KIS API (Korea Investment & Securities) is a two-step token → Bearer flow that is inefficient for stateless tools (token consumed per call). This tool uses the KRX-official channel that exposes the same data behind a single key. Filters: `basDt` (business day YYYYMMDD), `itmsNm` (exact stock name), `likeItmsNm` (partial name match), `srtnCd` (short code e.g. 005930), `mrktCls` (KOSPI/KOSDAQ/KONEX). Returns: { totalCount, pageNo, numOfRows, items:[{ baseDate, shortCode, isinCode, name, market, close, diff, changePct, open, high, low, volume, tradeValue, listedShares, marketCap }] }.
+KRX Korea Exchange daily stock quotes (data.go.kr) - KOSPI/KOSDAQ/KONEX daily open/close/change/volume/market cap. KR; data.go.kr serviceKey required, separate service application from other dgk keys. Register the `Financial Services Commission stock quote info` service at data.go.kr (https://www.data.go.kr/data/15094808/openapi.do), receive a serviceKey, and set DATA_GO_KR_STOCK_KEY on the tool's staticVariables, or inject as env var. Note: the KIS API (Korea Investment & Securities) is a two-step token → Bearer flow that is inefficient for stateless tools (token consumed per call). This tool uses the KRX-official channel that exposes the same data behind a single key. Filters: `basDt` (business day YYYYMMDD), `itmsNm` (exact stock name), `likeItmsNm` (partial name match), `srtnCd` (short code e.g. 005930), `mrktCls` (KOSPI/KOSDAQ/KONEX). Returns: { totalCount, pageNo, numOfRows, items:[{ baseDate, shortCode, isinCode, name, market, close, diff, changePct, open, high, low, volume, tradeValue, listedShares, marketCap }] }.
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `basDt` · `itmsNm` · `likeItmsNm` · `srtnCd` · `mrktCls` · `numOfRows` · `pageNo`</div>
@@ -1268,13 +1268,13 @@ KRX Korea Exchange daily stock quotes (data.go.kr) — KOSPI/KOSDAQ/KONEX daily 
 <div class="tcg-page">→ Korea</div>
 </div>
 
-<div class="tcg-card tcg-card--directory t-datagokr" data-name="calldatagokropenapi" data-desc="data.go.kr generic dispatcher — calls arbitrary data.go.kr services not covered by dedicated tools in this catalog. high-frequency services (air quality / tourism / stocks / ...) have their own tools;" data-category="web" data-tags="korea" data-preset="" data-env="DATA_GO_KR_KEY" markdown>
+<div class="tcg-card tcg-card--directory t-datagokr" data-name="calldatagokropenapi" data-desc="data.go.kr generic dispatcher - calls arbitrary data.go.kr services not covered by dedicated tools in this catalog. high-frequency services (air quality / tourism / stocks / ...) have their own tools;" data-category="web" data-tags="korea" data-preset="" data-env="DATA_GO_KR_KEY" markdown>
 <a class="tcg-stretched-link" href="korea/#callDataGoKrOpenApi" aria-label="Open callDataGoKrOpenApi in Korea">callDataGoKrOpenApi</a>
 <div class="tcg-name"><span class="tcg-name__text">callDataGoKrOpenApi</span> <span class="cost">🔑 × 1</span></div>
 <div class="tcg-art" markdown>:material-database:</div>
 <div class="tcg-type">web · korea <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
-data.go.kr generic dispatcher — calls arbitrary data.go.kr services not covered by dedicated tools in this catalog. High-frequency services (air quality / tourism / stocks / ...) have their own tools; use this dispatcher for the 7,000+ other services (real-estate transactions / postal codes / road-name addresses / drug-safety agency / national statistics / ...). Most responses are in Korean. Set the data.go.kr serviceKey on the tool's staticVariables as DATA_GO_KR_KEY, or inject as env var. NOTE: each data.go.kr dataset requires its own service registration (the key value can be the same, but each OpenAPI service is approved separately). Inputs: { servicePath: 'B551011/KorService2/...' (the path after apis.data.go.kr/), query: { pageNo:1, numOfRows:10, ... } (extra query parameters) }. On success: { ok:true, totalCount, pageNo, numOfRows, items, raw }. On failure: { ok:false, status, message } (HTTP error or OpenAPI_ServiceResponse.cmmMsgHeader error).
+data.go.kr generic dispatcher - calls arbitrary data.go.kr services not covered by dedicated tools in this catalog. High-frequency services (air quality / tourism / stocks / ...) have their own tools; use this dispatcher for the 7,000+ other services (real-estate transactions / postal codes / road-name addresses / drug-safety agency / national statistics / ...). Most responses are in Korean. Set the data.go.kr serviceKey on the tool's staticVariables as DATA_GO_KR_KEY, or inject as env var. NOTE: each data.go.kr dataset requires its own service registration (the key value can be the same, but each OpenAPI service is approved separately). Inputs: { servicePath: 'B551011/KorService2/...' (the path after apis.data.go.kr/), query: { pageNo:1, numOfRows:10, ... } (extra query parameters) }. On success: { ok:true, totalCount, pageNo, numOfRows, items, raw }. On failure: { ok:false, status, message } (HTTP error or OpenAPI_ServiceResponse.cmmMsgHeader error).
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `servicePath` · `query`</div>
@@ -1283,13 +1283,13 @@ data.go.kr generic dispatcher — calls arbitrary data.go.kr services not covere
 <div class="tcg-page">→ Korea</div>
 </div>
 
-<div class="tcg-card tcg-card--directory t-kma" data-name="getkmashorttermforecast" data-desc="kma short-term weather forecast — hourly forecast for the next ~72 hours by lat/lon or kma grid coordinates (nx,ny). kr; data.go.kr servicekey required, separate kma service registration. register the" data-category="web" data-tags="korea,weather" data-preset="" data-env="DATA_GO_KR_KMA_KEY" markdown>
+<div class="tcg-card tcg-card--directory t-kma" data-name="getkmashorttermforecast" data-desc="kma short-term weather forecast - hourly forecast for the next ~72 hours by lat/lon or kma grid coordinates (nx,ny). kr; data.go.kr servicekey required, separate kma service registration. register the" data-category="web" data-tags="korea,weather" data-preset="" data-env="DATA_GO_KR_KMA_KEY" markdown>
 <a class="tcg-stretched-link" href="korea/#getKmaShortTermForecast" aria-label="Open getKmaShortTermForecast in Korea">getKmaShortTermForecast</a>
 <div class="tcg-name"><span class="tcg-name__text">getKmaShortTermForecast</span> <span class="cost">🔑 × 1</span></div>
 <div class="tcg-art" markdown>:material-weather-cloudy:</div>
 <div class="tcg-type">web · korea · weather <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
-KMA short-term weather forecast — hourly forecast for the next ~72 hours by lat/lon or KMA grid coordinates (nx,ny). KR; data.go.kr serviceKey required, separate KMA service registration. Register the `KMA short-term forecast service` at data.go.kr, receive a serviceKey, and set DATA_GO_KR_KMA_KEY on the tool's staticVariables, or inject as env var. Coordinates: pass either (latitude, longitude) or (nx, ny). Lat/lon are converted internally to KMA Lambert grid. baseDate/baseTime default to today's 0500 release (KMA releases at 02/05/08/11/14/17/20/23). Response is pivoted to 1-hour slots: { fcstDate, fcstTime, temp(℃), humidity(%), precipProbability(%), precipType, precipAmount, skyCondition, windSpeed(m/s), windDirection(deg) }.
+KMA short-term weather forecast - hourly forecast for the next ~72 hours by lat/lon or KMA grid coordinates (nx,ny). KR; data.go.kr serviceKey required, separate KMA service registration. Register the `KMA short-term forecast service` at data.go.kr, receive a serviceKey, and set DATA_GO_KR_KMA_KEY on the tool's staticVariables, or inject as env var. Coordinates: pass either (latitude, longitude) or (nx, ny). Lat/lon are converted internally to KMA Lambert grid. baseDate/baseTime default to today's 0500 release (KMA releases at 02/05/08/11/14/17/20/23). Response is pivoted to 1-hour slots: { fcstDate, fcstTime, temp(℃), humidity(%), precipProbability(%), precipType, precipAmount, skyCondition, windSpeed(m/s), windDirection(deg) }.
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `latitude` · `longitude` · `nx` · `ny` · `baseDate` · `baseTime`</div>
@@ -1354,28 +1354,28 @@ MOIS (Ministry of the Interior & Safety) emergency disaster-alert SMS history (K
 
 ### Expose and call
 
-The simplest mode — pick a preset (or layer rules on top) and the built-in MCP server publishes that subset. The same tool inventory ends up reachable, but the two transports the server can run with serve different audiences:
+The simplest mode - pick a preset (or layer rules on top) and the built-in MCP server publishes that subset. The same tool inventory ends up reachable, but the two transports the server can run with serve different audiences:
 
-- **Streamable HTTP** at `http://localhost:8282/mcp` — **always on**. The in-app **MCP Inspector** (MCP Server tab) and the in-app **Agentic Chat** use this transport exclusively, and so do external Streamable HTTP MCP clients (**Claude Code**, **Cursor**, **Claude Desktop** via `mcp-remote`).
-- **STDIO** — **opt-in**, only useful when an external MCP client wants to host the process itself. Launch with the `mcp-stdio` Spring profile (Docker `-e SPRING_PROFILES_INCLUDE=mcp-stdio`, or `java -jar` with the same env var); the client then **spawns the playground as its child process** and talks JSON-RPC over its stdin/stdout. The server's lifetime is tied to that client process — when the client exits, the server exits with it. This is how Claude Desktop / Claude Code can host the built-in server with no HTTP at all. The in-app surfaces are unaffected — they keep talking Streamable HTTP whether or not the STDIO profile is layered in.
+- **Streamable HTTP** at `http://localhost:8282/mcp` - **always on**. The in-app **MCP Inspector** (MCP Server tab) and the in-app **Agentic Chat** use this transport exclusively, and so do external Streamable HTTP MCP clients (**Claude Code**, **Cursor**, **Claude Desktop** via `mcp-remote`).
+- **STDIO** - **opt-in**, only useful when an external MCP client wants to host the process itself. Launch with the `mcp-stdio` Spring profile (Docker `-e SPRING_PROFILES_INCLUDE=mcp-stdio`, or `java -jar` with the same env var); the client then **spawns the playground as its child process** and talks JSON-RPC over its stdin/stdout. The server's lifetime is tied to that client process - when the client exits, the server exits with it. This is how Claude Desktop / Claude Code can host the built-in server with no HTTP at all. The in-app surfaces are unaffected - they keep talking Streamable HTTP whether or not the STDIO profile is layered in.
 
-Before exposing to an external client, the in-app **MCP Inspector** is the practical place to verify each tool's contract — run the tool, look at its schema, prompts, and resources, all isolated from chat.
+Before exposing to an external client, the in-app **MCP Inspector** is the practical place to verify each tool's contract - run the tool, look at its schema, prompts, and resources, all isolated from chat.
 
-No JS authoring is required for any of this mode — pick a preset, expose, call.
+No JS authoring is required for any of this mode - pick a preset, expose, call.
 
-- → [Tool Studio: Key Tool Studio Capabilities](../tool-studio/index.md#key-tool-studio-capabilities) — Built-in MCP Server Native Tools drawer overview
-- → [Tool Studio: Connect to the Built-in MCP Server](../tool-studio/index.md#connect-to-the-built-in-mcp-server) — wiring external clients over Streamable HTTP
-- → [Alternative Runtimes: distribution channels and MCP transports](../../getting-started/alternative-runtimes.md#how-distribution-channels-map-to-mcp-transports) — Docker container and fat-JAR launchers for STDIO mode
-- → [MCP Server: MCP Inspector](../mcp-server/index.md#mcp-inspector) — exercise tools, resources, prompts before exposing externally
-- → [Agentic Chat](../agentic-chat.md) — call them from a model conversation
+- → [Tool Studio: Key Tool Studio Capabilities](../tool-studio/index.md#key-tool-studio-capabilities) - Built-in MCP Server Native Tools drawer overview
+- → [Tool Studio: Connect to the Built-in MCP Server](../tool-studio/index.md#connect-to-the-built-in-mcp-server) - wiring external clients over Streamable HTTP
+- → [Alternative Runtimes: distribution channels and MCP transports](../../getting-started/alternative-runtimes.md#how-distribution-channels-map-to-mcp-transports) - Docker container and fat-JAR launchers for STDIO mode
+- → [MCP Server: MCP Inspector](../mcp-server/index.md#mcp-inspector) - exercise tools, resources, prompts before exposing externally
+- → [Agentic Chat](../agentic-chat.md) - call them from a model conversation
 
 ### Author and compose
 
-The deeper mode — each default tool's JS source is a working reference for the cross-bridged helpers (`fetch`, `safety.fs.*`, `safety.parser.*`, `crypto.subtle`, `console.log`). Open one in Tool Studio, use **Copy And New Tool** to fork it, tweak the action, hit **Test & Publish**. The moment Local Pass succeeds, your tweaked tool joins the same built-in MCP server — Agentic Chat and external clients see it without a restart.
+The deeper mode - each default tool's JS source is a working reference for the cross-bridged helpers (`fetch`, `safety.fs.*`, `safety.parser.*`, `crypto.subtle`, `console.log`). Open one in Tool Studio, use **Copy And New Tool** to fork it, tweak the action, hit **Test & Publish**. The moment Local Pass succeeds, your tweaked tool joins the same built-in MCP server - Agentic Chat and external clients see it without a restart.
 
-- → [Tool Studio: Built-in JavaScript Helpers](../tool-studio/index.md#built-in-javascript-helpers) — the full helper surface
-- → [Tool Studio: Local Pass — Test Before Publish](../tool-studio/index.md#local-pass-test-before-publish) — the publish gate
-- → [Tutorial 1: Author a Tool](../../tutorials/1-author-tool.md) — first walkthrough
+- → [Tool Studio: Built-in JavaScript Helpers](../tool-studio/index.md#built-in-javascript-helpers) - the full helper surface
+- → [Tool Studio: Local Pass - Test Before Publish](../tool-studio/index.md#local-pass-test-before-publish) - the publish gate
+- → [Tutorial 1: Author a Tool](../../tutorials/1-author-tool.md) - first walkthrough
 
 ## End-to-end flow
 
@@ -1386,7 +1386,7 @@ The deeper mode — each default tool's JS source is a working reference for the
    [ Author in Tool Studio ]
             │
             ▼
-   [ Local Pass test  ✅ ] ──── No pass, no run — the gate
+   [ Local Pass test  ✅ ] ──── No pass, no run - the gate
             │
             ▼
    [ Built-in MCP server ]
@@ -1394,40 +1394,40 @@ The deeper mode — each default tool's JS source is a working reference for the
             ├── Streamable HTTP  ·  http://localhost:8282/mcp
             │   server runs independently; clients connect by URL
             │       │
-            │       ├──▶  [ MCP Inspector ]  (in-app — verify the contract)
+            │       ├──▶  [ MCP Inspector ]  (in-app - verify the contract)
             │       ├──▶  [ Agentic Chat ]   (in-app)
-            │       └──▶  External HTTP clients — Claude Code · Cursor ·
+            │       └──▶  External HTTP clients - Claude Code · Cursor ·
             │             Claude Desktop (via mcp-remote) · any Streamable HTTP MCP client
             │
             └── STDIO  ·  process stdin/stdout JSON-RPC
                 client spawns the playground as its child process;
-                its lifetime is tied to the client — when the client exits, the server exits with it
-                (opt-in: mcp-stdio profile — Docker -e SPRING_PROFILES_INCLUDE=mcp-stdio,
+                its lifetime is tied to the client - when the client exits, the server exits with it
+                (opt-in: mcp-stdio profile - Docker -e SPRING_PROFILES_INCLUDE=mcp-stdio,
                  or java -jar with the same env var)
                      │
-                     └──▶  External STDIO clients — Claude Desktop · Claude Code
+                     └──▶  External STDIO clients - Claude Desktop · Claude Code
                            configured to spawn the process · any other STDIO MCP client
 ```
 
-The two transports differ in **who owns the server's lifetime**: in Streamable HTTP mode the playground is a long-running daemon and clients come and go by URL; in STDIO mode the MCP client launches the playground as a child process and the server dies with the client. The in-app Inspector and Agentic Chat always reach the server over Streamable HTTP — STDIO is purely for external clients that want to host the process themselves. The same flow applies whether you expose a default tool unchanged or compose new tools from default-tool patterns, and the Inspector is where you exercise each tool against its schema before pointing an external client at it.
+The two transports differ in **who owns the server's lifetime**: in Streamable HTTP mode the playground is a long-running daemon and clients come and go by URL; in STDIO mode the MCP client launches the playground as a child process and the server dies with the client. The in-app Inspector and Agentic Chat always reach the server over Streamable HTTP - STDIO is purely for external clients that want to host the process themselves. The same flow applies whether you expose a default tool unchanged or compose new tools from default-tool patterns, and the Inspector is where you exercise each tool against its schema before pointing an external client at it.
 
 ## Why these are different from other MCP tools
 
 Most MCP server implementations ship one **native binary per OS** (Python wheels, Node binaries, Go / Rust executables) and require the user to install a platform-matching build, often plus a toolchain (Python, Node, Cargo) to author new tools.
 
-Spring AI Playground's tool runtime is **OS-agnostic by design**. One JVM artifact — distributed as a JAR, a Docker image, or an Electron-packaged desktop launcher — runs identically on macOS, Windows, and Linux. All 86 default tools are pure JavaScript executed through GraalVM Polyglot, and so is every tool you author. There is no per-OS build step, no native dependency, no toolchain on the user's machine.
+Spring AI Playground's tool runtime is **OS-agnostic by design**. One JVM artifact - distributed as a JAR, a Docker image, or an Electron-packaged desktop launcher - runs identically on macOS, Windows, and Linux. All 86 default tools are pure JavaScript executed through GraalVM Polyglot, and so is every tool you author. There is no per-OS build step, no native dependency, no toolchain on the user's machine.
 
-Full mechanics — including how every cross-bridged helper rides on JVM stdlib so `/` vs `\`, TLS, parsers, and crypto behave identically across OSes — in [Tool Studio → Cross-platform by design](../tool-studio/index.md#cross-platform-by-design).
+Full mechanics - including how every cross-bridged helper rides on JVM stdlib so `/` vs `\`, TLS, parsers, and crypto behave identically across OSes - in [Tool Studio → Cross-platform by design](../tool-studio/index.md#cross-platform-by-design).
 
 ## Composition recipes
 
 The reference pages list what's available; composition recipes show how to chain them into a useful new tool. Three walk-throughs are in [Tutorial 8: Default Tool Recipes](../../tutorials/8-default-tool-recipes.md):
 
-- **Filesystem pipeline** — `listDir` → `grepFile` → `sliceFile` → `writeTextFile`, ending in a custom tool that summarises a chunked log directory.
-- **GitHub release → AI summary** — `getGithubLatestRelease` → `openaiResponseGenerator`, ending in a tool that posts release-notes digests.
-- **City name → hourly forecast** — `geocodeAddress` → `getOpenMeteoForecast`, ending in a tool that answers "is it raining tomorrow in *city*?" without hard-coded coordinates.
+- **Filesystem pipeline** - `listDir` → `grepFile` → `sliceFile` → `writeTextFile`, ending in a custom tool that summarises a chunked log directory.
+- **GitHub release → AI summary** - `getGithubLatestRelease` → `openaiResponseGenerator`, ending in a tool that posts release-notes digests.
+- **City name → hourly forecast** - `geocodeAddress` → `getOpenMeteoForecast`, ending in a tool that answers "is it raining tomorrow in *city*?" without hard-coded coordinates.
 
-## Environment variables — short list
+## Environment variables - short list
 
 Some default tools depend on environment-backed secrets and stay inert until those are set. The full per-tool breakdown lives on each reference page; the most common are:
 
@@ -1437,9 +1437,9 @@ Some default tools depend on environment-backed secrets and stay inert until tho
 | `GOOGLE_API_KEY` + `GOOGLE_PSE_ID` | `googlePseSearch` | Google Programmable Search Engine |
 | `SLACK_WEBHOOK_URL` | `sendSlackMessage` | Incoming Webhook |
 | `TOOL_STUDIO_FS_BASE` | All [Filesystem](filesystem.md) tools | Per-app `safety.fs` root (defaults to `${user.home}/spring-ai-playground/fs-tool-workspace`) |
-| Various Korean provider keys | KR network tools — Naver, Kakao, KMA, data.go.kr | Provider-specific (per-page) |
+| Various Korean provider keys | KR network tools - Naver, Kakao, KMA, data.go.kr | Provider-specific (per-page) |
 
-Secrets are masked from `console.log` output by substring replacement when the full resolved value appears, and they are not committed to the tool spec — they resolve at runtime from the JVM environment.
+Secrets are masked from `console.log` output by substring replacement when the full resolved value appears, and they are not committed to the tool spec - they resolve at runtime from the JVM environment.
 
-→ [Tool Studio: Key Tool Studio Capabilities](../tool-studio/index.md#key-tool-studio-capabilities) — Static Variables, secret masking, and how env-backed values reach the JS action.
+→ [Tool Studio: Key Tool Studio Capabilities](../tool-studio/index.md#key-tool-studio-capabilities) - Static Variables, secret masking, and how env-backed values reach the JS action.
 

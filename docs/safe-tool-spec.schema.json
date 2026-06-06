@@ -9,7 +9,7 @@
   "properties": {
     "toolId": {
       "type": "string",
-      "description": "Stable identifier — UUID v5 derived from `name` against a fixed namespace is the reference scheme."
+      "description": "Stable identifier - UUID v5 derived from `name` against a fixed namespace is the reference scheme."
     },
     "name": {
       "type": "string",
@@ -58,7 +58,7 @@
     "toolSafety":       { "$ref": "#/$defs/ToolSafety" },
     "humanInTheLoop": {
       "type": ["object", "null"],
-      "description": "Per-tool human approval policy. Absent or null = DISABLED (no approval). See §10.7.",
+      "description": "Per-tool human approval policy. Absent or null = DISABLED (no approval). See Section 10.7.",
       "additionalProperties": true,
       "properties": {
         "mode": {

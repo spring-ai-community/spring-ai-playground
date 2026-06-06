@@ -1,10 +1,10 @@
-description: End-to-end Spring AI Playground tutorials — Tool Studio authoring, MCP servers, vector RAG, default-tool recipes, and Agentic Chat.
+description: End-to-end Spring AI Playground tutorials - Tool Studio authoring, MCP servers, vector RAG, default-tool recipes, and Agentic Chat.
 
 # Tutorials
 
-These eleven tutorials walk you from creating a single tool to composing chains over the bundled default catalog, with three optional deep-dives off the main path — the MCP protocol surface, re-publishing tools through the MCP Server Proxy, and gating tool calls behind human approval. They follow the natural product workflow: build → validate → ground → compose.
+These eleven tutorials walk you from creating a single tool to composing chains over the bundled default catalog, with three optional deep-dives off the main path - the MCP protocol surface, re-publishing tools through the MCP Server Proxy, and gating tool calls behind human approval. They follow the natural product workflow: build → validate → ground → compose.
 
-The shipped chat default is **`qwen3.5:2b`** — fast, fine for the early tutorials. Switch to **`qwen3.5:9b`** or **`gemma4:e4b`** when you reach tutorials 4–7, where tool-calling reliability matters. Embeddings use **`qwen3-embedding:0.6b`** throughout. See [Picking a model](#picking-a-model) for the tradeoffs.
+The shipped chat default is **`qwen3.5:2b`** - fast, fine for the early tutorials. Switch to **`qwen3.5:9b`** or **`gemma4:e4b`** when you reach tutorials 4-7, where tool-calling reliability matters. Embeddings use **`qwen3-embedding:0.6b`** throughout. See [Picking a model](#picking-a-model) for the tradeoffs.
 
 ## How these tutorials connect
 
@@ -43,7 +43,7 @@ flowchart LR
   class T9,T10,T11 bonus
 ```
 
-Tutorials 1–3 produce reusable assets (a tool, an MCP connection, an indexed document). Tutorials 4–8 compose those assets in chat (4–6) and as code-level chains over the bundled default catalog (7–8). Tutorial 9 is an optional **deep dive** off Tutorial 2 — activate MCP Everything from the Default MCP Servers and exercise every Inspector primitive (Tools / Resources / Prompts / Ping / Notifications / Roots / Sampling / Elicitation) end-to-end. Tutorial 10 is a second deep dive off Tutorial 2 — re-publish a connected server's tool through the built-in [MCP Server Proxy](../features/mcp-server/proxy.md) so chat and external clients can call it. Each tutorial is independently runnable in 3–20 minutes; the full main sequence takes about 50 minutes, plus ~23 minutes for the three deep dives (MCP Everything, Server Proxy, and Human-in-the-Loop approval).
+Tutorials 1-3 produce reusable assets (a tool, an MCP connection, an indexed document). Tutorials 4-8 compose those assets in chat (4-6) and as code-level chains over the bundled default catalog (7-8). Tutorial 9 is an optional **deep dive** off Tutorial 2 - activate MCP Everything from the Default MCP Servers and exercise every Inspector primitive (Tools / Resources / Prompts / Ping / Notifications / Roots / Sampling / Elicitation) end-to-end. Tutorial 10 is a second deep dive off Tutorial 2 - re-publish a connected server's tool through the built-in [MCP Server Proxy](../features/mcp-server/proxy.md) so chat and external clients can call it. Each tutorial is independently runnable in 3-20 minutes; the full main sequence takes about 50 minutes, plus ~23 minutes for the three deep dives (MCP Everything, Server Proxy, and Human-in-the-Loop approval).
 
 !!! abstract "What you'll need"
     - Spring AI Playground running on `http://localhost:8282`. Follow [Getting Started](../getting-started/index.md) first if you haven't.
@@ -84,28 +84,28 @@ Tutorials 1–3 produce reusable assets (a tool, an MCP connection, an indexed d
 
     ---
 
-    Real tool call from a chat turn — see plan → call → answer.  
+    Real tool call from a chat turn - see plan → call → answer.  
     **5 min** · ★★☆ · Agentic Chat
 
 -   :material-book-search:{ .lg .middle } **[5. Chat With RAG](5-chat-rag.md)**
 
     ---
 
-    Grounded chat on the indexed document — no tools.  
+    Grounded chat on the indexed document - no tools.  
     **5 min** · ★★☆ · Agentic Chat + Vector Database
 
 -   :material-merge:{ .lg .middle } **[6. Tools and RAG Together](6-tools-and-rag.md)**
 
     ---
 
-    One turn that retrieves chunks AND calls a tool — full composition.  
+    One turn that retrieves chunks AND calls a tool - full composition.  
     **6 min** · ★★★ · Agentic Chat (full)
 
--   :material-link-variant:{ .lg .middle } **[7. Weather to Slack — A Two-Tool Chain](7-weather-to-slack.md)**
+-   :material-link-variant:{ .lg .middle } **[7. Weather to Slack - A Two-Tool Chain](7-weather-to-slack.md)**
 
     ---
 
-    `getWeather` → `sendSlackMessage` in one prompt — the agent loop.  
+    `getWeather` → `sendSlackMessage` in one prompt - the agent loop.  
     **4 min** · ★★★ · Agentic Chat
 
 -   :material-source-branch:{ .lg .middle } **[8. Default Tool Recipes](8-default-tool-recipes.md)**
@@ -115,18 +115,18 @@ Tutorials 1–3 produce reusable assets (a tool, an MCP connection, an indexed d
     Five new custom tools, each chaining default-tool helpers inside one JS action.  
     **20 min** · ★★★ · Tool Studio + Agentic Chat
 
--   :material-flask-outline:{ .lg .middle } **[9. MCP Everything — All 8 Primitives](9-mcp-everything.md)**
+-   :material-flask-outline:{ .lg .middle } **[9. MCP Everything - All 8 Primitives](9-mcp-everything.md)**
 
     ---
 
-    Activate the Default MCP Servers's reference test server and exercise every Inspector primitive — Tools, Resources, Prompts, Ping, Notifications, Roots, Sampling, Elicitation — in one sitting. OS-specific Node install or Docker alternative.  
+    Activate the Default MCP Servers's reference test server and exercise every Inspector primitive - Tools, Resources, Prompts, Ping, Notifications, Roots, Sampling, Elicitation - in one sitting. OS-specific Node install or Docker alternative.  
     **12 min** · ★★☆ · MCP Server (catalog + Inspector) · *deep dive*
 
 -   :material-transit-connection-variant:{ .lg .middle } **[10. Proxy an MCP Server](10-proxy-external-tool.md)**
 
     ---
 
-    Re-publish a whole MCP server — or a curated mix of several — through the built-in server, each tool risk-capped, HITL-gated, and logged; then call it from chat and external `/mcp` clients.  
+    Re-publish a whole MCP server - or a curated mix of several - through the built-in server, each tool risk-capped, HITL-gated, and logged; then call it from chat and external `/mcp` clients.  
     **8 min** · ★★☆ · MCP Server · *deep dive*
 
 -   :material-account-check:{ .lg .middle } **[11. Approve a Tool in Chat](11-human-approval.md)**
@@ -140,10 +140,10 @@ Tutorials 1–3 produce reusable assets (a tool, an MCP connection, an indexed d
 
 ## Picking a model
 
-Tool calling and tool chaining quality depend heavily on the model. The selectable list in **Agentic Chat → Settings → Model** is driven by `application.yaml`'s `playground.chat.models`. The shipped default is the small one — start there, and only upgrade if a tool turn comes back empty.
+Tool calling and tool chaining quality depend heavily on the model. The selectable list in **Agentic Chat → Settings → Model** is driven by `application.yaml`'s `playground.chat.models`. The shipped default is the small one - start there, and only upgrade if a tool turn comes back empty.
 
 === "qwen3.5:2b (default)"
-    The shipped default. **2.7 GB**. Fast on Apple Silicon. Use this for the chat sanity check **before** wiring up tools or RAG. Tool calling is best-effort — if a tool turn comes back empty, that is the signal to upgrade, not to rewrite the prompt.
+    The shipped default. **2.7 GB**. Fast on Apple Silicon. Use this for the chat sanity check **before** wiring up tools or RAG. Tool calling is best-effort - if a tool turn comes back empty, that is the signal to upgrade, not to rewrite the prompt.
 
 === "qwen3.5:9b"
     **6.6 GB**. Stronger tool calling and multi-turn reasoning. The first upgrade target when `qwen3.5:2b` skips a tool call.

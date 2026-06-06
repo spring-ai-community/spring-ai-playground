@@ -1,22 +1,22 @@
-description: Runtime configuration reference for Spring AI Playground — every knob (server, AI providers & keys, telemetry, MCP exposure, observability, sandbox, data dirs) and how to set it from the desktop app, Docker, or a source build.
+description: Runtime configuration reference for Spring AI Playground - every knob (server, AI providers & keys, telemetry, MCP exposure, observability, sandbox, data dirs) and how to set it from the desktop app, Docker, or a source build.
 
 # Runtime Configuration
 
-Spring AI Playground is a Spring Boot application, so it reads **standard Spring configuration** — `application.yaml`, OS environment variables, JVM system properties, and command-line arguments. Every knob below can be set the same way in all three launch modes; only the *mechanism* for supplying it differs.
+Spring AI Playground is a Spring Boot application, so it reads **standard Spring configuration** - `application.yaml`, OS environment variables, JVM system properties, and command-line arguments. Every knob below can be set the same way in all three launch modes; only the *mechanism* for supplying it differs.
 
-This page is the single reference for those knobs. The task pages — [Desktop App](desktop.md), [Alternative Runtimes](alternative-runtimes.md) — show the everyday paths; come here for the full list.
+This page is the single reference for those knobs. The task pages - [Desktop App](desktop.md), [Alternative Runtimes](alternative-runtimes.md) - show the everyday paths; come here for the full list.
 
 ## How configuration is supplied { #how }
 
 **Precedence**, lowest to highest (a later source overrides an earlier one):
 
-1. The bundled `application.yaml` (and active profile, e.g. `application-ollama.yaml`) — the defaults.
+1. The bundled `application.yaml` (and active profile, e.g. `application-ollama.yaml`) - the defaults.
 2. An external `application.yaml` next to the runtime or under the app config directory.
 3. OS **environment variables**.
 4. JVM **system properties** (`-Dkey=value`).
 5. Command-line arguments (`--key=value`).
 
-**Property ↔ environment-variable mapping.** Any property binds from an env var via Spring's relaxed binding — uppercase, dots and dashes to underscores. So `spring.ai.playground.tool-studio.timeout-seconds` is set by `SPRING_AI_PLAYGROUND_TOOL_STUDIO_TIMEOUT_SECONDS`. A handful of knobs also carry a **short env-var alias** (e.g. `SERVER_PORT`, `OBS_PERSIST`); those are noted in the tables.
+**Property ↔ environment-variable mapping.** Any property binds from an env var via Spring's relaxed binding - uppercase, dots and dashes to underscores. So `spring.ai.playground.tool-studio.timeout-seconds` is set by `SPRING_AI_PLAYGROUND_TOOL_STUDIO_TIMEOUT_SECONDS`. A handful of knobs also carry a **short env-var alias** (e.g. `SERVER_PORT`, `OBS_PERSIST`); those are noted in the tables.
 
 **Per launch mode:**
 
@@ -74,11 +74,11 @@ Provider selection (which Spring AI model backs each capability):
 | Property | Env | Default | Notes |
 |---|---|---|---|
 | `spring.ai.openai-sdk.api-key` | `OPENAI_API_KEY` | *(required)* | Set as an env var; never commit it. |
-| `spring.ai.openai-sdk.chat.options.model` | — | `gpt-5.4-mini` | Default chat model. |
-| `spring.ai.openai-sdk.embedding.options.model` | — | `text-embedding-3-small` | Default embedding model. |
-| `spring.ai.playground.chat.models` | — | `gpt-5.4, gpt-5.4-mini, gpt-5.4-nano, gpt-5.2` | Chat model menu. |
+| `spring.ai.openai-sdk.chat.options.model` | - | `gpt-5.4-mini` | Default chat model. |
+| `spring.ai.openai-sdk.embedding.options.model` | - | `text-embedding-3-small` | Default embedding model. |
+| `spring.ai.playground.chat.models` | - | `gpt-5.4, gpt-5.4-mini, gpt-5.4-nano, gpt-5.2` | Chat model menu. |
 
-Tool / MCP-server API keys (GitHub PAT, `BRAVE_API_KEY`, `MS_TENANT_ID`, Google keys, …) are documented per surface on the [Default Tools](../features/default-tools/index.md) and [Default MCP Servers](../features/default-mcp-catalog/index.md) pages — they are supplied the same way (env var or the launcher's env editor).
+Tool / MCP-server API keys (GitHub PAT, `BRAVE_API_KEY`, `MS_TENANT_ID`, Google keys, ...) are documented per surface on the [Default Tools](../features/default-tools/index.md) and [Default MCP Servers](../features/default-mcp-catalog/index.md) pages - they are supplied the same way (env var or the launcher's env editor).
 
 ## Telemetry & analytics { #telemetry }
 
@@ -88,15 +88,15 @@ Tool / MCP-server API keys (GitHub PAT, `BRAVE_API_KEY`, `MS_TENANT_ID`, Google 
 
 ## MCP built-in server & exposure { #mcp }
 
-The playground publishes its own MCP server at `/mcp` (Streamable HTTP). These control its identity and what it exposes — see [MCP Server Proxy](../features/mcp-server/proxy.md) for the UI equivalent.
+The playground publishes its own MCP server at `/mcp` (Streamable HTTP). These control its identity and what it exposes - see [MCP Server Proxy](../features/mcp-server/proxy.md) for the UI equivalent.
 
 | Property | Env | Default | Notes |
 |---|---|---|---|
 | `spring.ai.playground.built-in-mcp-server.name` | `SPRING_AI_PLAYGROUND_MCP_NAME` | `spring-ai-playground-built-in-mcp` | Advertised server name. |
 | `spring.ai.playground.built-in-mcp-server.description` | `SPRING_AI_PLAYGROUND_MCP_DESCRIPTION` | *(see yaml)* | Advertised description. |
-| `spring.ai.playground.built-in-mcp-server.exposure-mode` | `SPRING_AI_PLAYGROUND_MCP_EXPOSURE_MODE` | `both` | `builtin-only` · `composed-only` · `both` — whether `/mcp` serves your Tool Studio tools, the composed external tools, or both. |
-| `spring.ai.playground.mcp-server.composed-tools-max-risk` | relaxed-binding env | `L5` | Caps which composed tools are published (`L1`–`L5`). |
-| `spring.ai.playground.mcp-server.composed-tools` | relaxed-binding env | `[]` | Declarative list of composed (proxied) external tools — see [Configure exposure via YAML](../features/mcp-server/proxy.md#yaml-exposure). |
+| `spring.ai.playground.built-in-mcp-server.exposure-mode` | `SPRING_AI_PLAYGROUND_MCP_EXPOSURE_MODE` | `both` | `builtin-only` · `composed-only` · `both` - whether `/mcp` serves your Tool Studio tools, the composed external tools, or both. |
+| `spring.ai.playground.mcp-server.composed-tools-max-risk` | relaxed-binding env | `L5` | Caps which composed tools are published (`L1`-`L5`). |
+| `spring.ai.playground.mcp-server.composed-tools` | relaxed-binding env | `[]` | Declarative list of composed (proxied) external tools - see [Configure exposure via YAML](../features/mcp-server/proxy.md#yaml-exposure). |
 | `spring.ai.mcp.server.protocol` | relaxed-binding env | `STREAMABLE` | `SSE` · `STREAMABLE` · `STATELESS`. |
 | `spring.ai.mcp.server.request-timeout` | relaxed-binding env | `30` | Seconds. |
 
@@ -106,15 +106,15 @@ The playground publishes its own MCP server at `/mcp` (Streamable HTTP). These c
 
 | Property | Short env | Default | Notes |
 |---|---|---|---|
-| `…observability.ring-buffer-capacity` | `OBS_RING_CAPACITY` | `2000` | Trace events held in memory. |
-| `…observability.persist` | `OBS_PERSIST` | `true` | Write traces to disk (JSONL). |
-| `…observability.retain-days` | `OBS_RETAIN_DAYS` | `30` | Days of persisted traces to keep. |
-| `…observability.max-spans-per-trace` | `OBS_MAX_SPANS` | `200` | Span cap per trace. |
-| `…observability.capture-prompt-content` | relaxed-binding env | `true` | Capture prompt/response text in spans. |
-| `…observability.max-prompt-content-bytes` | relaxed-binding env | `4096` | Truncation limit per captured message. |
-| `…observability.max-captured-messages-per-span` | relaxed-binding env | `16` | Message cap per span. |
-| `…observability.active-trace-ttl-seconds` | relaxed-binding env | `300` | Idle-trace finalize timeout. |
-| `management.tracing.sampling.probability` | `SPRING_AI_PLAYGROUND_TRACE_SAMPLE` | `1.0` | Trace sampling (0.0–1.0). |
+| `...observability.ring-buffer-capacity` | `OBS_RING_CAPACITY` | `2000` | Trace events held in memory. |
+| `...observability.persist` | `OBS_PERSIST` | `true` | Write traces to disk (JSONL). |
+| `...observability.retain-days` | `OBS_RETAIN_DAYS` | `30` | Days of persisted traces to keep. |
+| `...observability.max-spans-per-trace` | `OBS_MAX_SPANS` | `200` | Span cap per trace. |
+| `...observability.capture-prompt-content` | relaxed-binding env | `true` | Capture prompt/response text in spans. |
+| `...observability.max-prompt-content-bytes` | relaxed-binding env | `4096` | Truncation limit per captured message. |
+| `...observability.max-captured-messages-per-span` | relaxed-binding env | `16` | Message cap per span. |
+| `...observability.active-trace-ttl-seconds` | relaxed-binding env | `300` | Idle-trace finalize timeout. |
+| `management.tracing.sampling.probability` | `SPRING_AI_PLAYGROUND_TRACE_SAMPLE` | `1.0` | Trace sampling (0.0-1.0). |
 | OTLP export endpoint | `MANAGEMENT_OTLP_TRACING_ENDPOINT` | *(unset)* | Opt-in: set to a collector URL to export spans. |
 
 Spring AI's own prompt/completion logging is **off** by default and toggled with `SPRING_AI_OBSERVE_LOG_PROMPT` / `SPRING_AI_OBSERVE_LOG_COMPLETION`, `SPRING_AI_CLIENT_OBSERVE_LOG_PROMPT` / `_COMPLETION`, `SPRING_AI_TOOLS_OBSERVE_INCLUDE_CONTENT`, `SPRING_AI_VECTORSTORE_OBSERVE_LOG` (all `false`).
@@ -125,16 +125,16 @@ Spring AI's own prompt/completion logging is **off** by default and toggled with
 
 | Property | Env | Default | Notes |
 |---|---|---|---|
-| `…tool-studio.timeout-seconds` | relaxed-binding env | `30` | Per-tool JS execution timeout. |
-| `…tool-studio.fs.base-path` | `TOOL_STUDIO_FS_BASE` | `${user.home}/spring-ai-playground/fs-tool-workspace` | Root the filesystem tools are confined to. |
-| `…tool-studio.js-sandbox.allow-network-io` | relaxed-binding env | `false` | Raw Java network access in tool JS (the built-in `fetch` is preferred). |
-| `…tool-studio.js-sandbox.allow-file-io` | relaxed-binding env | `false` | Raw Java file access (use `safety.fs`). |
-| `…tool-studio.js-sandbox.allow-native-access` / `allow-create-thread` | relaxed-binding env | `false` | Native / thread capabilities. |
-| `…tool-studio.js-sandbox.max-statements` | relaxed-binding env | `500000` | Statement budget before the tool is killed. |
-| `…tool-studio.js-sandbox.deny-classes` / `allow-classes` | relaxed-binding env | *(see yaml)* | Class allow/deny lists. **Deny always wins**; lowering these weakens the sandbox. |
+| `...tool-studio.timeout-seconds` | relaxed-binding env | `30` | Per-tool JS execution timeout. |
+| `...tool-studio.fs.base-path` | `TOOL_STUDIO_FS_BASE` | `${user.home}/spring-ai-playground/fs-tool-workspace` | Root the filesystem tools are confined to. |
+| `...tool-studio.js-sandbox.allow-network-io` | relaxed-binding env | `false` | Raw Java network access in tool JS (the built-in `fetch` is preferred). |
+| `...tool-studio.js-sandbox.allow-file-io` | relaxed-binding env | `false` | Raw Java file access (use `safety.fs`). |
+| `...tool-studio.js-sandbox.allow-native-access` / `allow-create-thread` | relaxed-binding env | `false` | Native / thread capabilities. |
+| `...tool-studio.js-sandbox.max-statements` | relaxed-binding env | `500000` | Statement budget before the tool is killed. |
+| `...tool-studio.js-sandbox.deny-classes` / `allow-classes` | relaxed-binding env | *(see yaml)* | Class allow/deny lists. **Deny always wins**; lowering these weakens the sandbox. |
 
 !!! warning "The sandbox defaults are security-critical"
-    `allow-*` flags are `false` and the `deny-classes` list blocks `System`, `Runtime`, `ProcessBuilder`, reflection, `ClassLoader`, and more. Don't widen these globally — grant capability per tool instead (which raises that tool's [Risk Level](../safety-architecture.md)).
+    `allow-*` flags are `false` and the `deny-classes` list blocks `System`, `Runtime`, `ProcessBuilder`, reflection, `ClassLoader`, and more. Don't widen these globally - grant capability per tool instead (which raises that tool's [Risk Level](../safety-architecture.md)).
 
 ## Data directories & logs { #data }
 
@@ -153,7 +153,7 @@ The desktop app stores this tree under the OS app-data location (macOS `~/Librar
 For embedding the playground as a **stdio MCP server** inside another MCP client (Claude Desktop, an IDE), activate `mcp-stdio`:
 
 - The MCP JSON-RPC channel becomes process **stdout/stdin**, so the boot banner and startup-info line are silenced and the console log appender is detached (rolling file logging continues under `<app-home>/logs`).
-- The Spring web stack and Vaadin UI **stay up on `8282`** — publish it (`-p 8282:8282`) to reach the Inspector in a browser alongside the stdio channel.
+- The Spring web stack and Vaadin UI **stay up on `8282`** - publish it (`-p 8282:8282`) to reach the Inspector in a browser alongside the stdio channel.
 - Actuator HTTP endpoints are disabled in this profile.
 
 ```bash
@@ -165,7 +165,7 @@ See [Alternative Runtimes](alternative-runtimes.md) for the full Docker / `java 
 
 ## Related
 
-- [Desktop App](desktop.md) · [Alternative Runtimes](alternative-runtimes.md) — the launch flows that consume these knobs
-- [MCP Server Proxy](../features/mcp-server/proxy.md) — the UI for exposure; `#yaml-exposure` for the declarative form
-- [AI Agent Tool Safety](../safety-architecture.md) — what the sandbox flags mean
-- [AI Agent Observability](../observability-architecture.md) — what the observability knobs feed
+- [Desktop App](desktop.md) · [Alternative Runtimes](alternative-runtimes.md) - the launch flows that consume these knobs
+- [MCP Server Proxy](../features/mcp-server/proxy.md) - the UI for exposure; `#yaml-exposure` for the declarative form
+- [AI Agent Tool Safety](../safety-architecture.md) - what the sandbox flags mean
+- [AI Agent Observability](../observability-architecture.md) - what the observability knobs feed

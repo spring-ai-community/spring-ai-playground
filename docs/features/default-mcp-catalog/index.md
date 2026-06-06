@@ -1,22 +1,22 @@
-description: Default MCP Servers — 57 preset external MCP server connections (49 remote + 8 stdio per OS), browseable + filterable across 6 category pages.
+description: Default MCP Servers - 57 preset external MCP server connections (49 remote + 8 stdio per OS), browseable + filterable across 6 category pages.
 
 # Default MCP Servers
 
 **Where:** top navigation → **MCP Server** → the sidebar's **Inactive MCP** section.
 
-Spring AI Playground ships with **57 default MCP server connections** spread across **49 vendor-official remote entries** (Streamable HTTP — Gmail, Outlook, Notion, GitHub, Linear, Atlassian, Stripe, BigQuery, …) and **8 community stdio entries per OS** (`modelcontextprotocol/servers` — Git, Memory, Puppeteer, MCP Everything, …). They are ready to activate the moment the desktop launcher is running — you do not need to type a URL or hunt down a stdio command yourself to start chatting against an external service.
+Spring AI Playground ships with **57 default MCP server connections** spread across **49 vendor-official remote entries** (Streamable HTTP - Gmail, Outlook, Notion, GitHub, Linear, Atlassian, Stripe, BigQuery, ...) and **8 community stdio entries per OS** (`modelcontextprotocol/servers` - Git, Memory, Puppeteer, MCP Everything, ...). They are ready to activate the moment the desktop launcher is running - you do not need to type a URL or hunt down a stdio command yourself to start chatting against an external service.
 
-The MCP Server sidebar does not connect them all by default — every entry starts in the sidebar's **Inactive MCP** section as a *ghost row*. Clicking one promotes it into the right-hand configuration form pre-filled with the catalog template, so you only fill in your local secret / tenant before **Save & Connect**. The catalog itself lives in `src/main/resources/mcp/default-mcp-specs*.json` and the activation/filter state lives entirely in the sidebar.
+The MCP Server sidebar does not connect them all by default - every entry starts in the sidebar's **Inactive MCP** section as a *ghost row*. Clicking one promotes it into the right-hand configuration form pre-filled with the catalog template, so you only fill in your local secret / tenant before **Save & Connect**. The catalog itself lives in `src/main/resources/mcp/default-mcp-specs*.json` and the activation/filter state lives entirely in the sidebar.
 
 ## Browse all 57 catalog entries { #browse-all-entries }
 
-Click a card to jump to its full reference (with transport / auth defaults / required env / docs expanded) on the right sub-page — same UX as the **Default Tools** directory and the **MCP Server Setting** drawer in Tool Studio. Six reference pages organise the catalog by category cohort: [Productivity & Communication](productivity.md) · [Dev & Project Management](dev.md) · [Data & Cloud](data-cloud.md) · [Business](business.md) · [Search](search.md) · [Examples](examples.md).
+Click a card to jump to its full reference (with transport / auth defaults / required env / docs expanded) on the right sub-page - same UX as the **Default Tools** directory and the **MCP Server Setting** drawer in Tool Studio. Six reference pages organise the catalog by category cohort: [Productivity & Communication](productivity.md) · [Dev & Project Management](dev.md) · [Data & Cloud](data-cloud.md) · [Business](business.md) · [Search](search.md) · [Examples](examples.md).
 
-**Filter modes**: combine a **search** keyword with one or more **Category** / **Tag** / **Transport** chips — search is AND across the chip filters; chip selections within a group are OR (a card is shown when its category OR tag OR transport matches *any* selected chip in that group, and the search keyword matches its name or vendor or description).
+**Filter modes**: combine a **search** keyword with one or more **Category** / **Tag** / **Transport** chips - search is AND across the chip filters; chip selections within a group are OR (a card is shown when its category OR tag OR transport matches *any* selected chip in that group, and the search keyword matches its name or vendor or description).
 
 <div class="tool-directory" markdown>
 <div class="tool-directory__controls">
-<input type="search" class="tool-directory__search" placeholder="Search by name, vendor, or description…" aria-label="Search MCP catalog">
+<input type="search" class="tool-directory__search" placeholder="Search by name, vendor, or description..." aria-label="Search MCP catalog">
 <div class="tool-directory__chips">
 <span class="tool-directory__chip-label">Category</span> <button class="tool-directory__chip" data-group="category" data-value="cloud" aria-pressed="false">Cloud</button> <button class="tool-directory__chip" data-group="category" data-value="communication" aria-pressed="false">Communication</button> <button class="tool-directory__chip" data-group="category" data-value="crm" aria-pressed="false">Crm</button> <button class="tool-directory__chip" data-group="category" data-value="database" aria-pressed="false">Database</button> <button class="tool-directory__chip" data-group="category" data-value="design" aria-pressed="false">Design</button> <button class="tool-directory__chip" data-group="category" data-value="dev" aria-pressed="false">Dev</button> <button class="tool-directory__chip" data-group="category" data-value="example" aria-pressed="false">Example</button> <button class="tool-directory__chip" data-group="category" data-value="finance" aria-pressed="false">Finance</button> <button class="tool-directory__chip" data-group="category" data-value="productivity" aria-pressed="false">Productivity</button> <button class="tool-directory__chip" data-group="category" data-value="project_mgmt" aria-pressed="false">Project Mgmt</button> <button class="tool-directory__chip" data-group="category" data-value="search" aria-pressed="false">Search</button> <button class="tool-directory__chip" data-group="category" data-value="storage" aria-pressed="false">Storage</button> <button class="tool-directory__chip" data-group="category" data-value="util" aria-pressed="false">Util</button>
 </div>
@@ -47,13 +47,13 @@ Read, search, and send Gmail messages, manage labels and drafts. Google Workspac
 <div class="tcg-page">→ Productivity & Communication</div>
 </div>
 
-<div class="tcg-card tcg-card--directory t-microsoft" data-name="outlook mail" data-desc="read, send, and organise outlook mail across folders. routed through microsoft 365 agent365 — requires your tenant id (ms_tenant_id)." data-category="productivity" data-tags="global" data-transport="streamable-http" markdown>
+<div class="tcg-card tcg-card--directory t-microsoft" data-name="outlook mail" data-desc="read, send, and organise outlook mail across folders. routed through microsoft 365 agent365 - requires your tenant id (ms_tenant_id)." data-category="productivity" data-tags="global" data-transport="streamable-http" markdown>
 <a class="tcg-stretched-link" href="productivity/#Outlook-Mail" aria-label="Open Outlook Mail">Outlook Mail</a>
 <div class="tcg-name"><span class="tcg-name__text">Outlook Mail</span> <span class="cost">🔐</span></div>
 <div class="tcg-art" markdown>:material-microsoft-outlook:</div>
 <div class="tcg-type">PRODUCTIVITY <span class="risk risk-l0">ga</span> <span class="rl rl-l2">L2</span></div>
 <div class="tcg-body" markdown>
-Read, send, and organise Outlook mail across folders. Routed through Microsoft 365 Agent365 — requires your tenant ID (MS_TENANT_ID).
+Read, send, and organise Outlook mail across folders. Routed through Microsoft 365 Agent365 - requires your tenant ID (MS_TENANT_ID).
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Vendor** &nbsp; Microsoft · T1 vendor</div>
@@ -107,13 +107,13 @@ Browse, create, and edit Notion pages, databases, and properties. Vendor-hosted 
 <div class="tcg-page">→ Productivity & Communication</div>
 </div>
 
-<div class="tcg-card tcg-card--directory" data-name="kakao playmcp" data-desc="kakao aggregator hub — kakaotalk send-to-self, talk calendar, kakaomap, gift, melon, plus 200+ third-party mcps. kr-focused." data-category="productivity" data-tags="korea,aggregator" data-transport="streamable-http" markdown>
+<div class="tcg-card tcg-card--directory" data-name="kakao playmcp" data-desc="kakao aggregator hub - kakaotalk send-to-self, talk calendar, kakaomap, gift, melon, plus 200+ third-party mcps. kr-focused." data-category="productivity" data-tags="korea,aggregator" data-transport="streamable-http" markdown>
 <a class="tcg-stretched-link" href="productivity/#Kakao-PlayMCP" aria-label="Open Kakao PlayMCP">Kakao PlayMCP</a>
 <div class="tcg-name"><span class="tcg-name__text">Kakao PlayMCP</span> <span class="cost">🔐</span></div>
 <div class="tcg-art" markdown>![Kakao PlayMCP](https://cdn.simpleicons.org/kakaotalk){ width="40" .tcg-favicon }</div>
 <div class="tcg-type">PRODUCTIVITY · korea · aggregator <span class="risk risk-l0">ga</span> <span class="rl rl-l3">L3</span></div>
 <div class="tcg-body" markdown>
-Kakao aggregator hub — KakaoTalk send-to-self, Talk Calendar, KakaoMap, Gift, Melon, plus 200+ third-party MCPs. KR-focused.
+Kakao aggregator hub - KakaoTalk send-to-self, Talk Calendar, KakaoMap, Gift, Melon, plus 200+ third-party MCPs. KR-focused.
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Vendor** &nbsp; Kakao · T1 vendor</div>
@@ -182,13 +182,13 @@ Read and update Jira issues and Confluence pages via Atlassian's official Rovo M
 <div class="tcg-page">→ Dev & Project Management</div>
 </div>
 
-<div class="tcg-card tcg-card--directory t-github" data-name="github" data-desc="search and manage github repositories, issues, pull requests, code reviews, and actions. sign in via oauth device flow or pass a personal access token…" data-category="dev" data-tags="global" data-transport="streamable-http" markdown>
+<div class="tcg-card tcg-card--directory t-github" data-name="github" data-desc="search and manage github repositories, issues, pull requests, code reviews, and actions. sign in via oauth device flow or pass a personal access token..." data-category="dev" data-tags="global" data-transport="streamable-http" markdown>
 <a class="tcg-stretched-link" href="dev/#GitHub" aria-label="Open GitHub">GitHub</a>
 <div class="tcg-name"><span class="tcg-name__text">GitHub</span> <span class="cost">🔐</span></div>
 <div class="tcg-art" markdown>![GitHub](https://cdn.simpleicons.org/github){ width="40" .tcg-favicon }</div>
 <div class="tcg-type">DEV <span class="risk risk-l0">ga</span> <span class="rl rl-l2">L2</span></div>
 <div class="tcg-body" markdown>
-Search and manage GitHub repositories, issues, pull requests, code reviews, and Actions. Sign in via OAuth Device Flow or pass a personal access token…
+Search and manage GitHub repositories, issues, pull requests, code reviews, and Actions. Sign in via OAuth Device Flow or pass a personal access token...
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Vendor** &nbsp; GitHub · T1 vendor</div>
@@ -197,13 +197,13 @@ Search and manage GitHub repositories, issues, pull requests, code reviews, and 
 <div class="tcg-page">→ Dev & Project Management</div>
 </div>
 
-<div class="tcg-card tcg-card--directory t-microsoft" data-name="microsoft learn" data-desc="search the full microsoft learn documentation catalogue — azure, .net, windows, power platform, microsoft 365 and more. no authentication required, free to use." data-category="dev" data-tags="global,free-tier" data-transport="streamable-http" markdown>
+<div class="tcg-card tcg-card--directory t-microsoft" data-name="microsoft learn" data-desc="search the full microsoft learn documentation catalogue - azure, .net, windows, power platform, microsoft 365 and more. no authentication required, free to use." data-category="dev" data-tags="global,free-tier" data-transport="streamable-http" markdown>
 <a class="tcg-stretched-link" href="dev/#Microsoft-Learn" aria-label="Open Microsoft Learn">Microsoft Learn</a>
 <div class="tcg-name"><span class="tcg-name__text">Microsoft Learn</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:material-school-outline:</div>
 <div class="tcg-type">DEV · free-tier <span class="risk risk-l0">ga</span> <span class="rl rl-l2">L2</span></div>
 <div class="tcg-body" markdown>
-Search the full Microsoft Learn documentation catalogue — Azure, .NET, Windows, Power Platform, Microsoft 365 and more. No authentication required, free to use.
+Search the full Microsoft Learn documentation catalogue - Azure, .NET, Windows, Power Platform, Microsoft 365 and more. No authentication required, free to use.
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Vendor** &nbsp; Microsoft · T1 vendor</div>
@@ -272,13 +272,13 @@ Pull up-to-date library documentation and code examples by library name and vers
 <div class="tcg-page">→ Dev & Project Management</div>
 </div>
 
-<div class="tcg-card tcg-card--directory" data-name="korean law mcp" data-desc="search korean law, court precedents, constitutional court decisions, ordinances, and administrative rules. wraps the ministry of government legislation open…" data-category="dev" data-tags="korea,legal" data-transport="streamable-http" markdown>
+<div class="tcg-card tcg-card--directory" data-name="korean law mcp" data-desc="search korean law, court precedents, constitutional court decisions, ordinances, and administrative rules. wraps the ministry of government legislation open..." data-category="dev" data-tags="korea,legal" data-transport="streamable-http" markdown>
 <a class="tcg-stretched-link" href="dev/#Korean-Law-MCP" aria-label="Open Korean Law MCP">Korean Law MCP</a>
 <div class="tcg-name"><span class="tcg-name__text">Korean Law MCP</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:material-scale-balance:</div>
 <div class="tcg-type">DEV · korea · legal <span class="risk risk-l0">ga</span> <span class="rl rl-l3">L3</span></div>
 <div class="tcg-body" markdown>
-Search Korean law, court precedents, Constitutional Court decisions, ordinances, and administrative rules. Wraps the Ministry of Government Legislation Open…
+Search Korean law, court precedents, Constitutional Court decisions, ordinances, and administrative rules. Wraps the Ministry of Government Legislation Open...
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Vendor** &nbsp; chrisryugj · T2 community</div>
@@ -287,13 +287,13 @@ Search Korean law, court precedents, Constitutional Court decisions, ordinances,
 <div class="tcg-page">→ Dev & Project Management</div>
 </div>
 
-<div class="tcg-card tcg-card--directory" data-name="git" data-desc="[macos] local git repository operations — log, diff, status, blame, show. read-only by default. the activated form is pre-filled to run: uvx mcp-server-git…" data-category="dev" data-tags="global,community" data-transport="stdio" markdown>
+<div class="tcg-card tcg-card--directory" data-name="git" data-desc="[macos] local git repository operations - log, diff, status, blame, show. read-only by default. the activated form is pre-filled to run: uvx mcp-server-git..." data-category="dev" data-tags="global,community" data-transport="stdio" markdown>
 <a class="tcg-stretched-link" href="dev/#Git" aria-label="Open Git">Git</a>
 <div class="tcg-name"><span class="tcg-name__text">Git</span> <span class="cost">🛠</span></div>
 <div class="tcg-art" markdown>![Git](https://cdn.simpleicons.org/git){ width="40" .tcg-favicon }</div>
 <div class="tcg-type">DEV · community <span class="risk risk-l0">ga</span> <span class="rl rl-l3">L3</span></div>
 <div class="tcg-body" markdown>
-[macOS] Local Git repository operations — log, diff, status, blame, show. Read-only by default. The activated form is pre-filled to run: uvx mcp-server-git…
+[macOS] Local Git repository operations - log, diff, status, blame, show. Read-only by default. The activated form is pre-filled to run: uvx mcp-server-git...
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Vendor** &nbsp; modelcontextprotocol/servers · T2 community</div>
@@ -302,13 +302,13 @@ Search Korean law, court precedents, Constitutional Court decisions, ordinances,
 <div class="tcg-page">→ Dev & Project Management</div>
 </div>
 
-<div class="tcg-card tcg-card--directory" data-name="puppeteer" data-desc="[macos] headless chrome automation — navigate, click, fill forms, screenshot, evaluate javascript in-page. the activated form is pre-filled to run: npx -y…" data-category="dev" data-tags="global,community" data-transport="stdio" markdown>
+<div class="tcg-card tcg-card--directory" data-name="puppeteer" data-desc="[macos] headless chrome automation - navigate, click, fill forms, screenshot, evaluate javascript in-page. the activated form is pre-filled to run: npx -y..." data-category="dev" data-tags="global,community" data-transport="stdio" markdown>
 <a class="tcg-stretched-link" href="dev/#Puppeteer" aria-label="Open Puppeteer">Puppeteer</a>
 <div class="tcg-name"><span class="tcg-name__text">Puppeteer</span> <span class="cost">🛠</span></div>
 <div class="tcg-art" markdown>![Puppeteer](https://cdn.simpleicons.org/puppeteer){ width="40" .tcg-favicon }</div>
 <div class="tcg-type">DEV · community <span class="risk risk-l0">ga</span> <span class="rl rl-l3">L3</span></div>
 <div class="tcg-body" markdown>
-[macOS] Headless Chrome automation — navigate, click, fill forms, screenshot, evaluate JavaScript in-page. The activated form is pre-filled to run: npx -y…
+[macOS] Headless Chrome automation - navigate, click, fill forms, screenshot, evaluate JavaScript in-page. The activated form is pre-filled to run: npx -y...
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Vendor** &nbsp; modelcontextprotocol/servers · T2 community</div>
@@ -317,13 +317,13 @@ Search Korean law, court precedents, Constitutional Court decisions, ordinances,
 <div class="tcg-page">→ Dev & Project Management</div>
 </div>
 
-<div class="tcg-card tcg-card--directory t-microsoft" data-name="playwright" data-desc="[macos] microsoft's accessibility-snapshot browser automation — successor to the puppeteer reference. drives chromium/firefox/webkit without screenshot vision…" data-category="dev" data-tags="global,community" data-transport="stdio" markdown>
+<div class="tcg-card tcg-card--directory t-microsoft" data-name="playwright" data-desc="[macos] microsoft's accessibility-snapshot browser automation - successor to the puppeteer reference. drives chromium/firefox/webkit without screenshot vision..." data-category="dev" data-tags="global,community" data-transport="stdio" markdown>
 <a class="tcg-stretched-link" href="dev/#Playwright" aria-label="Open Playwright">Playwright</a>
 <div class="tcg-name"><span class="tcg-name__text">Playwright</span> <span class="cost">🛠</span></div>
 <div class="tcg-art" markdown>:material-script-text-play-outline:</div>
 <div class="tcg-type">DEV · community <span class="risk risk-l0">ga</span> <span class="rl rl-l2">L2</span></div>
 <div class="tcg-body" markdown>
-[macOS] Microsoft's accessibility-snapshot browser automation — successor to the Puppeteer reference. Drives Chromium/Firefox/WebKit without screenshot vision…
+[macOS] Microsoft's accessibility-snapshot browser automation - successor to the Puppeteer reference. Drives Chromium/Firefox/WebKit without screenshot vision...
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Vendor** &nbsp; Microsoft · T2 vendor</div>
@@ -452,13 +452,13 @@ Deploy and manage Cloud Run services, revisions, traffic splits, and jobs. Uses 
 <div class="tcg-page">→ Data & Cloud</div>
 </div>
 
-<div class="tcg-card tcg-card--directory t-google" data-name="google cloud storage" data-desc="manage gcs buckets and objects — list, upload, download, iam, lifecycle rules. uses google oauth." data-category="storage" data-tags="global" data-transport="streamable-http" markdown>
+<div class="tcg-card tcg-card--directory t-google" data-name="google cloud storage" data-desc="manage gcs buckets and objects - list, upload, download, iam, lifecycle rules. uses google oauth." data-category="storage" data-tags="global" data-transport="streamable-http" markdown>
 <a class="tcg-stretched-link" href="data-cloud/#Google-Cloud-Storage" aria-label="Open Google Cloud Storage">Google Cloud Storage</a>
 <div class="tcg-name"><span class="tcg-name__text">Google Cloud Storage</span> <span class="cost">🔐</span></div>
 <div class="tcg-art" markdown>![Google Cloud Storage](https://cdn.simpleicons.org/googlecloud){ width="40" .tcg-favicon }</div>
 <div class="tcg-type">STORAGE <span class="risk risk-l0">ga</span> <span class="rl rl-l2">L2</span></div>
 <div class="tcg-body" markdown>
-Manage GCS buckets and objects — list, upload, download, IAM, lifecycle rules. Uses Google OAuth.
+Manage GCS buckets and objects - list, upload, download, IAM, lifecycle rules. Uses Google OAuth.
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Vendor** &nbsp; Google · T2 vendor</div>
@@ -482,13 +482,13 @@ Query datasets, manage tables and views, and run jobs in Google BigQuery. Google
 <div class="tcg-page">→ Data & Cloud</div>
 </div>
 
-<div class="tcg-card tcg-card--directory" data-name="neon" data-desc="provision and query neon serverless postgres — branches, roles, schema migrations, query analysis. oauth." data-category="database" data-tags="global" data-transport="streamable-http" markdown>
+<div class="tcg-card tcg-card--directory" data-name="neon" data-desc="provision and query neon serverless postgres - branches, roles, schema migrations, query analysis. oauth." data-category="database" data-tags="global" data-transport="streamable-http" markdown>
 <a class="tcg-stretched-link" href="data-cloud/#Neon" aria-label="Open Neon">Neon</a>
 <div class="tcg-name"><span class="tcg-name__text">Neon</span> <span class="cost">🔐</span></div>
 <div class="tcg-art" markdown>![Neon](https://cdn.simpleicons.org/neon){ width="40" .tcg-favicon }</div>
 <div class="tcg-type">DATABASE <span class="risk risk-l0">ga</span> <span class="rl rl-l2">L2</span></div>
 <div class="tcg-body" markdown>
-Provision and query Neon serverless Postgres — branches, roles, schema migrations, query analysis. OAuth.
+Provision and query Neon serverless Postgres - branches, roles, schema migrations, query analysis. OAuth.
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Vendor** &nbsp; Neon · T2 vendor</div>
@@ -497,13 +497,13 @@ Provision and query Neon serverless Postgres — branches, roles, schema migrati
 <div class="tcg-page">→ Data & Cloud</div>
 </div>
 
-<div class="tcg-card tcg-card--directory" data-name="supabase" data-desc="manage supabase projects end-to-end — postgres queries, auth users, storage buckets, edge functions. oauth." data-category="database" data-tags="global" data-transport="streamable-http" markdown>
+<div class="tcg-card tcg-card--directory" data-name="supabase" data-desc="manage supabase projects end-to-end - postgres queries, auth users, storage buckets, edge functions. oauth." data-category="database" data-tags="global" data-transport="streamable-http" markdown>
 <a class="tcg-stretched-link" href="data-cloud/#Supabase" aria-label="Open Supabase">Supabase</a>
 <div class="tcg-name"><span class="tcg-name__text">Supabase</span> <span class="cost">🔐</span></div>
 <div class="tcg-art" markdown>![Supabase](https://cdn.simpleicons.org/supabase){ width="40" .tcg-favicon }</div>
 <div class="tcg-type">DATABASE <span class="risk risk-l0">ga</span> <span class="rl rl-l2">L2</span></div>
 <div class="tcg-body" markdown>
-Manage Supabase projects end-to-end — Postgres queries, Auth users, Storage buckets, Edge Functions. OAuth.
+Manage Supabase projects end-to-end - Postgres queries, Auth users, Storage buckets, Edge Functions. OAuth.
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Vendor** &nbsp; Supabase · T2 vendor</div>
@@ -527,13 +527,13 @@ Query PlanetScale MySQL databases, manage branches, deploy schema changes via OA
 <div class="tcg-page">→ Data & Cloud</div>
 </div>
 
-<div class="tcg-card tcg-card--directory t-google" data-name="google cloud sql" data-desc="administer google cloud sql instances (mysql, postgres, sql server) — databases, users, backups, and queries." data-category="database" data-tags="global" data-transport="streamable-http" markdown>
+<div class="tcg-card tcg-card--directory t-google" data-name="google cloud sql" data-desc="administer google cloud sql instances (mysql, postgres, sql server) - databases, users, backups, and queries." data-category="database" data-tags="global" data-transport="streamable-http" markdown>
 <a class="tcg-stretched-link" href="data-cloud/#Cloud-SQL" aria-label="Open Google Cloud SQL">Google Cloud SQL</a>
 <div class="tcg-name"><span class="tcg-name__text">Google Cloud SQL</span> <span class="cost">🔐</span></div>
 <div class="tcg-art" markdown>![Google Cloud SQL](https://cdn.simpleicons.org/googlecloud){ width="40" .tcg-favicon }</div>
 <div class="tcg-type">DATABASE <span class="risk risk-l0">ga</span> <span class="rl rl-l2">L2</span></div>
 <div class="tcg-body" markdown>
-Administer Google Cloud SQL instances (MySQL, Postgres, SQL Server) — databases, users, backups, and queries.
+Administer Google Cloud SQL instances (MySQL, Postgres, SQL Server) - databases, users, backups, and queries.
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Vendor** &nbsp; Google · T2 vendor</div>
@@ -542,13 +542,13 @@ Administer Google Cloud SQL instances (MySQL, Postgres, SQL Server) — database
 <div class="tcg-page">→ Data & Cloud</div>
 </div>
 
-<div class="tcg-card tcg-card--directory t-google" data-name="google cloud spanner" data-desc="query google cloud spanner instances and databases — globally distributed, strong consistency, sql." data-category="database" data-tags="global" data-transport="streamable-http" markdown>
+<div class="tcg-card tcg-card--directory t-google" data-name="google cloud spanner" data-desc="query google cloud spanner instances and databases - globally distributed, strong consistency, sql." data-category="database" data-tags="global" data-transport="streamable-http" markdown>
 <a class="tcg-stretched-link" href="data-cloud/#Spanner" aria-label="Open Google Cloud Spanner">Google Cloud Spanner</a>
 <div class="tcg-name"><span class="tcg-name__text">Google Cloud Spanner</span> <span class="cost">🔐</span></div>
 <div class="tcg-art" markdown>![Google Cloud Spanner](https://cdn.simpleicons.org/googlecloud){ width="40" .tcg-favicon }</div>
 <div class="tcg-type">DATABASE <span class="risk risk-l0">ga</span> <span class="rl rl-l2">L2</span></div>
 <div class="tcg-body" markdown>
-Query Google Cloud Spanner instances and databases — globally distributed, strong consistency, SQL.
+Query Google Cloud Spanner instances and databases - globally distributed, strong consistency, SQL.
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Vendor** &nbsp; Google · T2 vendor</div>
@@ -572,13 +572,13 @@ Query and manage Firestore documents, collections, composite indexes, and securi
 <div class="tcg-page">→ Data & Cloud</div>
 </div>
 
-<div class="tcg-card tcg-card--directory" data-name="sqlite" data-desc="[macos] query a local sqlite database — select, schema introspection, plus insert/update/delete when permitted. the activated form is pre-filled to run: uvx…" data-category="database" data-tags="global,community" data-transport="stdio" markdown>
+<div class="tcg-card tcg-card--directory" data-name="sqlite" data-desc="[macos] query a local sqlite database - select, schema introspection, plus insert/update/delete when permitted. the activated form is pre-filled to run: uvx..." data-category="database" data-tags="global,community" data-transport="stdio" markdown>
 <a class="tcg-stretched-link" href="data-cloud/#SQLite" aria-label="Open SQLite">SQLite</a>
 <div class="tcg-name"><span class="tcg-name__text">SQLite</span> <span class="cost">🛠</span></div>
 <div class="tcg-art" markdown>![SQLite](https://cdn.simpleicons.org/sqlite){ width="40" .tcg-favicon }</div>
 <div class="tcg-type">DATABASE · community <span class="risk risk-l0">ga</span> <span class="rl rl-l3">L3</span></div>
 <div class="tcg-body" markdown>
-[macOS] Query a local SQLite database — SELECT, schema introspection, plus INSERT/UPDATE/DELETE when permitted. The activated form is pre-filled to run: uvx…
+[macOS] Query a local SQLite database - SELECT, schema introspection, plus INSERT/UPDATE/DELETE when permitted. The activated form is pre-filled to run: uvx...
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Vendor** &nbsp; modelcontextprotocol/servers-archived · T2 community</div>
@@ -662,13 +662,13 @@ Intercom conversations, contacts, tags, segments, and help-centre articles. US w
 <div class="tcg-page">→ Business</div>
 </div>
 
-<div class="tcg-card tcg-card--directory" data-name="mixpanel" data-desc="run mixpanel product analytics queries — events, funnels, retention, cohorts, and user properties. oauth." data-category="crm" data-tags="global" data-transport="streamable-http" markdown>
+<div class="tcg-card tcg-card--directory" data-name="mixpanel" data-desc="run mixpanel product analytics queries - events, funnels, retention, cohorts, and user properties. oauth." data-category="crm" data-tags="global" data-transport="streamable-http" markdown>
 <a class="tcg-stretched-link" href="business/#Mixpanel" aria-label="Open Mixpanel">Mixpanel</a>
 <div class="tcg-name"><span class="tcg-name__text">Mixpanel</span> <span class="cost">🔐</span></div>
 <div class="tcg-art" markdown>![Mixpanel](https://cdn.simpleicons.org/mixpanel){ width="40" .tcg-favicon }</div>
 <div class="tcg-type">CRM <span class="risk risk-l0">ga</span> <span class="rl rl-l2">L2</span></div>
 <div class="tcg-body" markdown>
-Run Mixpanel product analytics queries — events, funnels, retention, cohorts, and user properties. OAuth.
+Run Mixpanel product analytics queries - events, funnels, retention, cohorts, and user properties. OAuth.
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Vendor** &nbsp; Mixpanel · T2 vendor</div>
@@ -737,13 +737,13 @@ Google Maps Places, Directions, Distance Matrix, Geocoding, and Street View for 
 <div class="tcg-page">→ Business</div>
 </div>
 
-<div class="tcg-card tcg-card--directory" data-name="memory (knowledge graph)" data-desc="[macos] persistent knowledge graph for cross-session memory — entities, relations, and observations in a local json file. the activated form is pre-filled to…" data-category="util" data-tags="global,community" data-transport="stdio" markdown>
+<div class="tcg-card tcg-card--directory" data-name="memory (knowledge graph)" data-desc="[macos] persistent knowledge graph for cross-session memory - entities, relations, and observations in a local json file. the activated form is pre-filled to..." data-category="util" data-tags="global,community" data-transport="stdio" markdown>
 <a class="tcg-stretched-link" href="business/#Memory" aria-label="Open Memory (Knowledge Graph)">Memory (Knowledge Graph)</a>
 <div class="tcg-name"><span class="tcg-name__text">Memory (Knowledge Graph)</span> <span class="cost">🛠</span></div>
 <div class="tcg-art" markdown>:material-graph-outline:</div>
 <div class="tcg-type">UTIL · community <span class="risk risk-l0">ga</span> <span class="rl rl-l3">L3</span></div>
 <div class="tcg-body" markdown>
-[macOS] Persistent knowledge graph for cross-session memory — entities, relations, and observations in a local JSON file. The activated form is pre-filled to…
+[macOS] Persistent knowledge graph for cross-session memory - entities, relations, and observations in a local JSON file. The activated form is pre-filled to...
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Vendor** &nbsp; modelcontextprotocol/servers · T2 community</div>
@@ -752,13 +752,13 @@ Google Maps Places, Directions, Distance Matrix, Geocoding, and Street View for 
 <div class="tcg-page">→ Business</div>
 </div>
 
-<div class="tcg-card tcg-card--directory" data-name="sequential thinking" data-desc="[macos] structured step-by-step reasoning helper — logs intermediate thoughts to the server for review, revision, or branching. the activated form is…" data-category="util" data-tags="global,community" data-transport="stdio" markdown>
+<div class="tcg-card tcg-card--directory" data-name="sequential thinking" data-desc="[macos] structured step-by-step reasoning helper - logs intermediate thoughts to the server for review, revision, or branching. the activated form is..." data-category="util" data-tags="global,community" data-transport="stdio" markdown>
 <a class="tcg-stretched-link" href="business/#Sequential-Thinking" aria-label="Open Sequential Thinking">Sequential Thinking</a>
 <div class="tcg-name"><span class="tcg-name__text">Sequential Thinking</span> <span class="cost">🛠</span></div>
 <div class="tcg-art" markdown>:material-thought-bubble-outline:</div>
 <div class="tcg-type">UTIL · community <span class="risk risk-l0">ga</span> <span class="rl rl-l3">L3</span></div>
 <div class="tcg-body" markdown>
-[macOS] Structured step-by-step reasoning helper — logs intermediate thoughts to the server for review, revision, or branching. The activated form is…
+[macOS] Structured step-by-step reasoning helper - logs intermediate thoughts to the server for review, revision, or branching. The activated form is...
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Vendor** &nbsp; modelcontextprotocol/servers · T2 community</div>
@@ -782,13 +782,13 @@ AI-optimised web search and answer engine for grounding LLMs with up-to-date fac
 <div class="tcg-page">→ Search</div>
 </div>
 
-<div class="tcg-card tcg-card--directory" data-name="exa" data-desc="neural web search by exa — semantic ranking, source-aware retrieval, and high-quality result snippets. requires exa_api_key (x-api-key header)." data-category="search" data-tags="global" data-transport="streamable-http" markdown>
+<div class="tcg-card tcg-card--directory" data-name="exa" data-desc="neural web search by exa - semantic ranking, source-aware retrieval, and high-quality result snippets. requires exa_api_key (x-api-key header)." data-category="search" data-tags="global" data-transport="streamable-http" markdown>
 <a class="tcg-stretched-link" href="search/#Exa" aria-label="Open Exa">Exa</a>
 <div class="tcg-name"><span class="tcg-name__text">Exa</span> <span class="cost">🔑</span></div>
 <div class="tcg-art" markdown>:material-magnify-expand:</div>
 <div class="tcg-type">SEARCH <span class="risk risk-l0">ga</span> <span class="rl rl-l3">L3</span></div>
 <div class="tcg-body" markdown>
-Neural web search by Exa — semantic ranking, source-aware retrieval, and high-quality result snippets. Requires EXA_API_KEY (x-api-key header).
+Neural web search by Exa - semantic ranking, source-aware retrieval, and high-quality result snippets. Requires EXA_API_KEY (x-api-key header).
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Vendor** &nbsp; Exa · T1 vendor</div>
@@ -842,13 +842,13 @@ Real-time Google, Bing, Baidu, DuckDuckGo, Naver and other SERP scraping with st
 <div class="tcg-page">→ Search</div>
 </div>
 
-<div class="tcg-card tcg-card--directory" data-name="brave search" data-desc="[macos] brave search api — web, local, news, image, and video search. outbound calls only to api.search.brave.com (no ssrf surface). the activated form is…" data-category="search" data-tags="global" data-transport="stdio" markdown>
+<div class="tcg-card tcg-card--directory" data-name="brave search" data-desc="[macos] brave search api - web, local, news, image, and video search. outbound calls only to api.search.brave.com (no ssrf surface). the activated form is..." data-category="search" data-tags="global" data-transport="stdio" markdown>
 <a class="tcg-stretched-link" href="search/#Brave-Search" aria-label="Open Brave Search">Brave Search</a>
 <div class="tcg-name"><span class="tcg-name__text">Brave Search</span> <span class="cost">🛠</span></div>
 <div class="tcg-art" markdown>![Brave Search](https://cdn.simpleicons.org/brave){ width="40" .tcg-favicon }</div>
 <div class="tcg-type">SEARCH <span class="risk risk-l0">ga</span> <span class="rl rl-l2">L2</span></div>
 <div class="tcg-body" markdown>
-[macOS] Brave Search API — web, local, news, image, and video search. Outbound calls only to api.search.brave.com (no SSRF surface). The activated form is…
+[macOS] Brave Search API - web, local, news, image, and video search. Outbound calls only to api.search.brave.com (no SSRF surface). The activated form is...
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Vendor** &nbsp; Brave · T1 vendor</div>
@@ -857,13 +857,13 @@ Real-time Google, Bing, Baidu, DuckDuckGo, Naver and other SERP scraping with st
 <div class="tcg-page">→ Search</div>
 </div>
 
-<div class="tcg-card tcg-card--directory" data-name="deepwiki" data-desc="ai-generated, structured wikis for any public github repository — architecture diagrams, module-level explanations, navigable source links, and a…" data-category="example" data-tags="global,free-tier" data-transport="streamable-http" markdown>
+<div class="tcg-card tcg-card--directory" data-name="deepwiki" data-desc="ai-generated, structured wikis for any public github repository - architecture diagrams, module-level explanations, navigable source links, and a..." data-category="example" data-tags="global,free-tier" data-transport="streamable-http" markdown>
 <a class="tcg-stretched-link" href="examples/#DeepWiki" aria-label="Open DeepWiki">DeepWiki</a>
 <div class="tcg-name"><span class="tcg-name__text">DeepWiki</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:material-book-search-outline:</div>
 <div class="tcg-type">EXAMPLE · free-tier <span class="risk risk-l0">ga</span> <span class="rl rl-l2">L2</span></div>
 <div class="tcg-body" markdown>
-AI-generated, structured wikis for any public GitHub repository — architecture diagrams, module-level explanations, navigable source links, and a…
+AI-generated, structured wikis for any public GitHub repository - architecture diagrams, module-level explanations, navigable source links, and a...
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Vendor** &nbsp; Cognition · T2 vendor</div>
@@ -872,13 +872,13 @@ AI-generated, structured wikis for any public GitHub repository — architecture
 <div class="tcg-page">→ Examples</div>
 </div>
 
-<div class="tcg-card tcg-card--directory" data-name="mcp everything (reference test server)" data-desc="[macos] official mcp reference test server exercising every protocol feature — tools, resources, prompts, sampling, completion, logging, progress, root…" data-category="example" data-tags="global,community" data-transport="stdio" markdown>
+<div class="tcg-card tcg-card--directory" data-name="mcp everything (reference test server)" data-desc="[macos] official mcp reference test server exercising every protocol feature - tools, resources, prompts, sampling, completion, logging, progress, root..." data-category="example" data-tags="global,community" data-transport="stdio" markdown>
 <a class="tcg-stretched-link" href="examples/#MCP-Everything" aria-label="Open MCP Everything (Reference Test Server)">MCP Everything (Reference Test Server)</a>
 <div class="tcg-name"><span class="tcg-name__text">MCP Everything (Reference Test Server)</span> <span class="cost">🛠</span></div>
 <div class="tcg-art" markdown>:material-flask-outline:</div>
 <div class="tcg-type">EXAMPLE · community <span class="risk risk-l0">ga</span> <span class="rl rl-l2">L2</span></div>
 <div class="tcg-body" markdown>
-[macOS] Official MCP reference test server exercising every protocol feature — tools, resources, prompts, sampling, completion, logging, progress, root…
+[macOS] Official MCP reference test server exercising every protocol feature - tools, resources, prompts, sampling, completion, logging, progress, root...
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Vendor** &nbsp; modelcontextprotocol · T2 vendor</div>
@@ -894,17 +894,17 @@ AI-generated, structured wikis for any public GitHub repository — architecture
 
 ## Sidebar filtering and form prefill { #sidebar-filtering-and-form-prefill }
 
-The MCP Server screen has two cooperating regions — a **filter bar** at the top of the left sidebar (①) and a **connection form** in the right pane (②). Clicking any catalog row in the sidebar prefills the form on the right without leaving the page.
+The MCP Server screen has two cooperating regions - a **filter bar** at the top of the left sidebar (①) and a **connection form** in the right pane (②). Clicking any catalog row in the sidebar prefills the form on the right without leaving the page.
 
-![MCP Server screen — ① numbered marker in the sidebar pointing to the filter bar (search + Categories + Tags multi-selects). ② numbered marker in the right pane pointing to the MCP Server Info connection form (Server name · Category · Tags · Description · Transport type · URL · Endpoint · Headers preset)](../../assets/images/default-mcp-catalog/sidebar-filter-callout.png){ width="640" loading=lazy }
+![MCP Server screen - ① numbered marker in the sidebar pointing to the filter bar (search + Categories + Tags multi-selects). ② numbered marker in the right pane pointing to the MCP Server Info connection form (Server name · Category · Tags · Description · Transport type · URL · Endpoint · Headers preset)](../../assets/images/default-mcp-catalog/sidebar-filter-callout.png){ width="640" loading=lazy }
 
 ### ① Filter bar { #filter-bar-detail }
 
 Built from the shared `webui/common/sidebar/SidebarFilterBar` widget (Tool Studio uses the same one). Three controls that compose AND across groups, OR within a group:
 
-- **Search** — matches against server name, vendor, description, and — for active connections only — live tool names returned by `listTools`. 200 ms debounce before re-rendering.
-- **Categories** multi-select — the 13 built-in catalog categories plus `Custom` for user-added entries: `Example · Productivity · Storage · Communication · Project Management · Dev · Search · Cloud · Database · Finance · CRM · Design · Utility · Custom`.
-- **Tags** multi-select — drawn from the union of every catalog entry's tags and every active server's tags. Cohort vocabulary: `aggregator · beta · community · free-tier · geo · global · korea · legal · pipeline · preview · us`.
+- **Search** - matches against server name, vendor, description, and - for active connections only - live tool names returned by `listTools`. 200 ms debounce before re-rendering.
+- **Categories** multi-select - the 13 built-in catalog categories plus `Custom` for user-added entries: `Example · Productivity · Storage · Communication · Project Management · Dev · Search · Cloud · Database · Finance · CRM · Design · Utility · Custom`.
+- **Tags** multi-select - drawn from the union of every catalog entry's tags and every active server's tags. Cohort vocabulary: `aggregator · beta · community · free-tier · geo · global · korea · legal · pipeline · preview · us`.
 
 For example, picking `Productivity` + `preview` narrows to Gmail and Google Calendar (the two preview-stability Workspace entries); a search term layered on top further trims the visible count. The sidebar header counter swaps between `(N)` and `(N filtered of M)` when a filter is active; an empty match offers a **Clear filters** button.
 
@@ -912,20 +912,20 @@ For example, picking `Productivity` + `preview` narrows to Gmail and Google Cale
 
 Clicking any **Inactive MCP** entry copies the catalog template into the right pane:
 
-- **Transport** — `STREAMABLE_HTTP` for remote entries, `STDIO` for the per-OS entries
-- **URL** or **Command + Args** — with `${ENV_VAR}` placeholders for anything secret; STDIO arguments render as one row per argv element
-- **OAuth issuer URI + scopes** — pre-filled for OAuth-protected entries
-- **Category + Tag chips** — matching the catalog row
-- **Inline description** — carrying prerequisites and a `Docs:` link
-- **Headers preset** — Bearer / Basic / API Key, with `${VAR}` substitution wired in (OAuth 2.1 lives in its own checkbox-toggled sub-form)
+- **Transport** - `STREAMABLE_HTTP` for remote entries, `STDIO` for the per-OS entries
+- **URL** or **Command + Args** - with `${ENV_VAR}` placeholders for anything secret; STDIO arguments render as one row per argv element
+- **OAuth issuer URI + scopes** - pre-filled for OAuth-protected entries
+- **Category + Tag chips** - matching the catalog row
+- **Inline description** - carrying prerequisites and a `Docs:` link
+- **Headers preset** - Bearer / Basic / API Key, with `${VAR}` substitution wired in (OAuth 2.1 lives in its own checkbox-toggled sub-form)
 
-The row stays in the Inactive layer until you click **Save & Connect**; on save it moves into the Active layer under the same category group and the playground spawns the child process (STDIO) or opens the HTTP transport. For OAuth entries this records the registration without yet connecting — see [MCP Server → OAuth 2.1 Authorization Code](../mcp-server/index.md#oauth-21-authorization-code) for the **Authorize** click.
+The row stays in the Inactive layer until you click **Save & Connect**; on save it moves into the Active layer under the same category group and the playground spawns the child process (STDIO) or opens the HTTP transport. For OAuth entries this records the registration without yet connecting - see [MCP Server → OAuth 2.1 Authorization Code](../mcp-server/index.md#oauth-21-authorization-code) for the **Authorize** click.
 
 ## Two ways to use these entries
 
 ### Activate from the sidebar
 
-The simplest mode — open MCP Server, scroll the sidebar's **Inactive MCP** layer, click the entry you want. The right pane fills in:
+The simplest mode - open MCP Server, scroll the sidebar's **Inactive MCP** layer, click the entry you want. The right pane fills in:
 
 - transport (`STREAMABLE_HTTP` for remote entries, `STDIO` for the per-OS entries)
 - URL or command + args, with `${ENV_VAR}` placeholders for anything secret
@@ -935,18 +935,18 @@ The simplest mode — open MCP Server, scroll the sidebar's **Inactive MCP** lay
 
 Fill in only what's local to you (an API key, a tenant ID, the OAuth **Authorize** click) and **Save & Connect**. The row moves into the **Active MCP** sidebar layer; the in-app **MCP Inspector** becomes live; the connection is available to **Agentic Chat** as a tool source.
 
-- → [MCP Server: Catalog & Sidebar Filtering](../mcp-server/index.md#catalog-sidebar-filtering) — 3-layer sidebar · filter bar · activation
-- → [MCP Server: OAuth 2.1 Authorization Code](../mcp-server/index.md#oauth-21-authorization-code) — for the OAuth entries (Gmail, Outlook, Notion, Linear, Atlassian, …)
-- → [MCP Server: MCP Inspector](../mcp-server/index.md#mcp-inspector) — exercise tools, resources, prompts before relying on the connection from chat
-- → [Agentic Chat](../agentic-chat.md) — call them from a model conversation
-- → [Tutorial 2 — Connect an External MCP Server](../../tutorials/2-external-mcp.md) — first-time activation walkthrough
+- → [MCP Server: Catalog & Sidebar Filtering](../mcp-server/index.md#catalog-sidebar-filtering) - 3-layer sidebar · filter bar · activation
+- → [MCP Server: OAuth 2.1 Authorization Code](../mcp-server/index.md#oauth-21-authorization-code) - for the OAuth entries (Gmail, Outlook, Notion, Linear, Atlassian, ...)
+- → [MCP Server: MCP Inspector](../mcp-server/index.md#mcp-inspector) - exercise tools, resources, prompts before relying on the connection from chat
+- → [Agentic Chat](../agentic-chat.md) - call them from a model conversation
+- → [Tutorial 2 - Connect an External MCP Server](../../tutorials/2-external-mcp.md) - first-time activation walkthrough
 
 ### Compose with custom servers and authored tools
 
-The deeper mode — combine multiple catalog connections with your own custom servers and Tool Studio-authored tools in one chat. Agentic Chat picks any subset of active MCP servers per turn, so an agent can read your Notion + look up a Linear ticket + write a Slack reply in the same conversation. The catalog is the **fastest path** to that composition because it skips the URL-typing / OAuth-discovery / requiredEnv guesswork for the most common vendors.
+The deeper mode - combine multiple catalog connections with your own custom servers and Tool Studio-authored tools in one chat. Agentic Chat picks any subset of active MCP servers per turn, so an agent can read your Notion + look up a Linear ticket + write a Slack reply in the same conversation. The catalog is the **fastest path** to that composition because it skips the URL-typing / OAuth-discovery / requiredEnv guesswork for the most common vendors.
 
-- → [Tool Studio: Key Tool Studio Capabilities](../tool-studio/index.md#key-tool-studio-capabilities) — author and publish custom tools that ride alongside catalog connections
-- → [Default Tools directory](../default-tools/index.md) — the parallel 86-tool JavaScript inventory the built-in MCP server publishes
+- → [Tool Studio: Key Tool Studio Capabilities](../tool-studio/index.md#key-tool-studio-capabilities) - author and publish custom tools that ride alongside catalog connections
+- → [Default Tools directory](../default-tools/index.md) - the parallel 86-tool JavaScript inventory the built-in MCP server publishes
 
 ## End-to-end flow
 
@@ -962,20 +962,20 @@ The deeper mode — combine multiple catalog connections with your own custom se
             ▼
    [ Active MCP connection ]
             │
-            ├── In-app MCP Inspector — exercise tools / resources / prompts / sampling / elicitation
+            ├── In-app MCP Inspector - exercise tools / resources / prompts / sampling / elicitation
             │
-            ├── Agentic Chat — call the connection's tools from a model turn
+            ├── Agentic Chat - call the connection's tools from a model turn
             │
-            └── Expose on built-in server (M8) — re-publish the tools you select
+            └── Expose on built-in server (M8) - re-publish the tools you select
                 (individually or Select all, across one or several connections) on
                 the built-in MCP server, so Agentic Chat and external /mcp clients
                 call them on one endpoint
 ```
 
-The catalog only changes step 1 (entry selection + form pre-fill). Everything after — Test Connection, OAuth Authorize, Inspector, Agentic Chat — is the same path a custom server takes. The catalog is sugar on top of the connection management surface, not a separate runtime.
+The catalog only changes step 1 (entry selection + form pre-fill). Everything after - Test Connection, OAuth Authorize, Inspector, Agentic Chat - is the same path a custom server takes. The catalog is sugar on top of the connection management surface, not a separate runtime.
 
 !!! info "Re-publishing external tools to external clients"
-    Through the [Expose Tools drawer](../mcp-server/index.md#expose-external-tools) you re-publish the external tools you select — individually or with **Select all**, across one or several active connections — on the built-in MCP server, each wrapped with a risk level, optional HITL, and logging. They join the **Default Tools** on one endpoint (`http://localhost:8282/mcp`), callable by Agentic Chat and any external `/mcp` client. See [Default Tools → Expose and call](../default-tools/index.md#expose-and-call).
+    Through the [Expose Tools drawer](../mcp-server/index.md#expose-external-tools) you re-publish the external tools you select - individually or with **Select all**, across one or several active connections - on the built-in MCP server, each wrapped with a risk level, optional HITL, and logging. They join the **Default Tools** on one endpoint (`http://localhost:8282/mcp`), callable by Agentic Chat and any external `/mcp` client. See [Default Tools → Expose and call](../default-tools/index.md#expose-and-call).
 
 ## Why a built-in catalog matters
 
@@ -983,41 +983,41 @@ Most MCP client implementations require the user to **type each external server'
 
 Spring AI Playground's catalog **pre-resolves those hops**. The 49 remote entries carry the vendor-recommended Streamable HTTP URL + OAuth defaults + tenant-ID hints; the 8 stdio entries carry the `npx` / `uvx` command + args verified against `modelcontextprotocol/servers`. The desktop launcher even picks the OS-matching stdio variant automatically (`npx` for macOS / Linux, `npx.cmd` for Windows) so the pre-filled command can be saved without editing on any host.
 
-Every entry is either **vendor-official** (Tier 1 — listed under the vendor's own documentation) or **community-published** (Tier 2 — `modelcontextprotocol/servers` and adjacent maintained projects). The catalog file shipped with the app is the source of truth; updates land as part of regular releases rather than requiring users to chase vendor doc URLs.
+Every entry is either **vendor-official** (Tier 1 - listed under the vendor's own documentation) or **community-published** (Tier 2 - `modelcontextprotocol/servers` and adjacent maintained projects). The catalog file shipped with the app is the source of truth; updates land as part of regular releases rather than requiring users to chase vendor doc URLs.
 
 ### How catalog trust feeds the risk score { #trust-and-risk }
 
-Those tiers are not just provenance labels — they feed the [connection risk preview](../mcp-server/index.md#connection-risk-preview). Each catalog entry carries two machine-readable fields consumed by `McpServerRiskCalculator`:
+Those tiers are not just provenance labels - they feed the [connection risk preview](../mcp-server/index.md#connection-risk-preview). Each catalog entry carries two machine-readable fields consumed by `McpServerRiskCalculator`:
 
-- **`trustSignals`** — `vendor-official` zeroes the trust axis; `community-curated` scores it 1. A server you type by hand scores 2 (unknown origin) — which is why activating from the catalog generally lands a lower risk chip than typing the same URL manually.
-- **`docsAdequate`** — when set (as the curated catalog entries are), the documentation axis takes no gap penalty, and the per-tool documentation penalty is waived for that server's tools.
+- **`trustSignals`** - `vendor-official` zeroes the trust axis; `community-curated` scores it 1. A server you type by hand scores 2 (unknown origin) - which is why activating from the catalog generally lands a lower risk chip than typing the same URL manually.
+- **`docsAdequate`** - when set (as the curated catalog entries are), the documentation axis takes no gap penalty, and the per-tool documentation penalty is waived for that server's tools.
 
-So a vendor-official catalog entry over HTTPS typically computes **L1 — Safe** or **L2 — Low**, while an unknown hand-typed URL with no auth can trip a floor rule straight to **L5 — Critical**. See [MCP Server Safety](../../mcp-server-safety.md) for the full rubric.
+So a vendor-official catalog entry over HTTPS typically computes **L1 - Safe** or **L2 - Low**, while an unknown hand-typed URL with no auth can trip a floor rule straight to **L5 - Critical**. See [MCP Server Safety](../../mcp-server-safety.md) for the full rubric.
 
-Each card above carries this **typical level** as a colored chip — <span class="rl rl-l2">L2</span> for a vendor-official OAuth server, <span class="rl rl-l3">L3</span> for a Bearer / API-key one. It's the level the connection scores at *fresh activation*; the connection form recomputes it live, and it rises if you grant broad OAuth scopes (`admin`, `write_all`, … → `L5`) or the server advertises write capability. Per-tool levels are discovered on connect — see them in the [Inspector](../mcp-server/inspector.md#tools).
+Each card above carries this **typical level** as a colored chip - <span class="rl rl-l2">L2</span> for a vendor-official OAuth server, <span class="rl rl-l3">L3</span> for a Bearer / API-key one. It's the level the connection scores at *fresh activation*; the connection form recomputes it live, and it rises if you grant broad OAuth scopes (`admin`, `write_all`, ... → `L5`) or the server advertises write capability. Per-tool levels are discovered on connect - see them in the [Inspector](../mcp-server/inspector.md#tools).
 
 ## Composition recipes
 
 The reference pages list what's available; composition recipes show how to chain multiple catalog connections (and custom tools) into a useful workflow. Three combinations worth bookmarking:
 
-- **PR digest → Slack** — `GitHub` (catalog) → `openaiResponseGenerator` (default tool) → `Slack` (catalog), ending in an agent that posts release-note summaries to a channel.
-- **Mail + calendar triage** — `Gmail` (catalog) → `Google Calendar` (catalog) → custom tool, ending in an agent that drafts replies and books follow-ups in one turn.
-- **Issue tracker grounding** — `Linear` (catalog) → `Atlassian Rovo` (catalog) → `Notion` (catalog), ending in an agent that cross-references tickets across all three trackers when answering project questions.
+- **PR digest → Slack** - `GitHub` (catalog) → `openaiResponseGenerator` (default tool) → `Slack` (catalog), ending in an agent that posts release-note summaries to a channel.
+- **Mail + calendar triage** - `Gmail` (catalog) → `Google Calendar` (catalog) → custom tool, ending in an agent that drafts replies and books follow-ups in one turn.
+- **Issue tracker grounding** - `Linear` (catalog) → `Atlassian Rovo` (catalog) → `Notion` (catalog), ending in an agent that cross-references tickets across all three trackers when answering project questions.
 
-All three live on Streamable HTTP with OAuth 2.1 — once you've completed the **Authorize** click for each vendor, the playground holds encrypted refresh tokens and the agent reaches all three without re-prompting.
+All three live on Streamable HTTP with OAuth 2.1 - once you've completed the **Authorize** click for each vendor, the playground holds encrypted refresh tokens and the agent reaches all three without re-prompting.
 
-## Environment variables — short list
+## Environment variables - short list
 
 Some catalog entries depend on environment-backed values and stay inert until those are set. The full per-entry breakdown lives on each reference page; the most common are:
 
 | Env var | Used by | Why |
 |---|---|---|
-| `MS_TENANT_ID` | `Outlook Mail`, `Outlook Calendar`, `Microsoft Teams` | Microsoft 365 Agent365 tenant routing — entries fail fast at connect time if missing |
+| `MS_TENANT_ID` | `Outlook Mail`, `Outlook Calendar`, `Microsoft Teams` | Microsoft 365 Agent365 tenant routing - entries fail fast at connect time if missing |
 | `MEMORY_FILE_PATH` | `Memory (Knowledge Graph)` (stdio) | Override the default JSON store path for cross-session memory |
-| `BRAVE_API_KEY` | `Brave Search` (stdio) | Brave Search API key — passed through stdio `env` |
-| `TAVILY_API_KEY` / `EXA_API_KEY` / `SERPAPI_API_KEY` / `JINA_API_KEY` / `FIRECRAWL_API_KEY` | Search-category entries | Vendor API keys for Tavily, Exa, SerpAPI, Jina AI, Firecrawl — surfaced via `${VAR}` placeholders in the headers |
+| `BRAVE_API_KEY` | `Brave Search` (stdio) | Brave Search API key - passed through stdio `env` |
+| `TAVILY_API_KEY` / `EXA_API_KEY` / `SERPAPI_API_KEY` / `JINA_API_KEY` / `FIRECRAWL_API_KEY` | Search-category entries | Vendor API keys for Tavily, Exa, SerpAPI, Jina AI, Firecrawl - surfaced via `${VAR}` placeholders in the headers |
 | OAuth client secrets | Any OAuth entry with a non-public client | Storable as `${SOME_OAUTH_CLIENT_SECRET}` in the OAuth sub-form's **Client secret** field |
 
-`${VAR}` placeholders in any value field resolve from the OS environment (or a JVM system-property fallback) at connect time; the persisted JSON keeps the literal placeholder string, never the resolved secret. A backend `SecretMasking` filter additionally sweeps connection-error notifications and per-call logs to replace resolved values with `***` so credentials cannot leak into the playground UI — see [Safety Architecture → Secret masking](../../safety-architecture.md#secret-masking).
+`${VAR}` placeholders in any value field resolve from the OS environment (or a JVM system-property fallback) at connect time; the persisted JSON keeps the literal placeholder string, never the resolved secret. A backend `SecretMasking` filter additionally sweeps connection-error notifications and per-call logs to replace resolved values with `***` so credentials cannot leak into the playground UI - see [Safety Architecture → Secret masking](../../safety-architecture.md#secret-masking).
 
-→ [MCP Server: `${ENV_VAR}` substitution](../mcp-server/index.md#custom-http-headers-and-env_var-substitution) — placeholder syntax and the missing-reference fail-fast behaviour.
+→ [MCP Server: `${ENV_VAR}` substitution](../mcp-server/index.md#custom-http-headers-and-env_var-substitution) - placeholder syntax and the missing-reference fail-fast behaviour.

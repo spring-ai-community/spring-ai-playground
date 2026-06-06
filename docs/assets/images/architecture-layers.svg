@@ -21,7 +21,7 @@
 
   <!-- Layer 1 -->
   <rect class="band band-1" x="10" y="10" width="940" height="104" rx="8" ry="8"/>
-  <text class="layer-title" x="30" y="32">Layer 1 — Desktop Launcher (Electron)</text>
+  <text class="layer-title" x="30" y="32">Layer 1 - Desktop Launcher (Electron)</text>
   <text class="layer-sub" x="30" y="50">Optional packaging, process lifecycle, OS-encrypted secrets</text>
   <rect class="box" x="30" y="62" width="440" height="40" rx="6" ry="6"/>
   <text class="box-label" x="250" y="86">main.js · launcher-config.js · ollama-manager.js</text>
@@ -33,7 +33,7 @@
 
   <!-- Layer 2 -->
   <rect class="band band-2" x="10" y="134" width="940" height="116" rx="8" ry="8"/>
-  <text class="layer-title" x="30" y="158">Layer 2 — UI Surfaces (Vaadin Flow)</text>
+  <text class="layer-title" x="30" y="158">Layer 2 - UI Surfaces (Vaadin Flow)</text>
   <text class="layer-sub" x="30" y="176">Hand-written views under webui/</text>
   <rect class="box" x="30" y="192" width="140" height="46" rx="6" ry="6"/>
   <text class="box-label" x="100" y="219">Home</text>
@@ -52,7 +52,7 @@
 
   <!-- Layer 3 -->
   <rect class="band band-3" x="10" y="270" width="940" height="150" rx="8" ry="8"/>
-  <text class="layer-title" x="30" y="294">Layer 3 — Backend Services</text>
+  <text class="layer-title" x="30" y="294">Layer 3 - Backend Services</text>
   <text class="layer-sub" x="30" y="312">Per-feature services under service/ · plus the top-level observability/ pipeline</text>
   <rect class="box" x="30" y="324" width="290" height="44" rx="6" ry="6"/>
   <text class="box-label" x="175" y="344">ChatService</text>
@@ -77,8 +77,8 @@
 
   <!-- Layer 4 -->
   <rect class="band band-4" x="10" y="440" width="940" height="180" rx="8" ry="8"/>
-  <text class="layer-title" x="30" y="464">Layer 4 — Spring AI Integration</text>
-  <text class="layer-sub" x="30" y="482">Thin adapters wired via Spring beans — ChatClient, advisors, MCP, vector, embedding</text>
+  <text class="layer-title" x="30" y="464">Layer 4 - Spring AI Integration</text>
+  <text class="layer-sub" x="30" y="482">Thin adapters wired via Spring beans - ChatClient, advisors, MCP, vector, embedding</text>
   <rect class="box" x="30" y="494" width="290" height="58" rx="6" ry="6"/>
   <text class="box-label" x="175" y="516">ChatClient · Advisor chain</text>
   <text class="box-sub" x="175" y="536">MessageChatMemory · RAG · Logger · HITL</text>
@@ -102,7 +102,7 @@
 
   <!-- Layer 5 -->
   <rect class="band band-5" x="10" y="640" width="940" height="188" rx="8" ry="8"/>
-  <text class="layer-title" x="30" y="664">Layer 5 — External Runtimes</text>
+  <text class="layer-title" x="30" y="664">Layer 5 - External Runtimes</text>
   <text class="layer-sub" x="30" y="682">Everything outside the JVM</text>
   <rect class="box" x="30" y="700" width="210" height="118" rx="6" ry="6"/>
   <text class="box-label" x="135" y="724">Model providers</text>
