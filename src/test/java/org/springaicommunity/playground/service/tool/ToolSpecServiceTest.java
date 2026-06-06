@@ -257,6 +257,22 @@ class ToolSpecServiceTest {
         assertThat(currentMcpNames()).doesNotContain("gwTool");
     }
 
+    @Test
+    void reconcileExposesNonDraftExplicitIdButNeverDraft() {
+        toolSpecService.update(freshSpec("pub-x", "pubXTool", false));
+        toolSpecService.update(freshSpec("drf-x", "drfXTool", true));
+        toolSpecService.updateToolMcpServerSetting(
+                new ToolSpecService.ToolMcpServerSetting(false, Set.of("pub-x", "drf-x")));
+
+        assertThat(currentMcpNames()).contains("pubXTool").doesNotContain("drfXTool");
+
+        toolSpecService.reconcileNativeExposure();
+        assertThat(currentMcpNames()).contains("pubXTool").doesNotContain("drfXTool");
+
+        toolSpecService.updateToolMcpServerSetting(
+                new ToolSpecService.ToolMcpServerSetting(true, Set.of()));
+    }
+
 
     @Test
     void mcpInvocationFillsMissingOptionalParamsWithNull() {

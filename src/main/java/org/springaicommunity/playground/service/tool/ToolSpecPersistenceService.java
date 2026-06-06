@@ -189,5 +189,6 @@ public class ToolSpecPersistenceService implements
                         toolSpecsMcpServerSettings.stream().map(ToolSpecsMcpServerSetting::toolSpecs)
                                 .filter(Objects::nonNull).flatMap(List::stream))
                 .forEach(toolSpecService::update));
+        this.toolSpecService.reconcileNativeExposure();
     }
 }

@@ -126,6 +126,10 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
     }
 
     private void applySettingsAndNewChat() {
+        if (Objects.isNull(this.chatModelSettingView)) {
+            addNewChatContent();
+            return;
+        }
         addNewChatContent(this.chatModelSettingView.getSystemPromptTextArea(),
                 this.chatModelSettingView.getChatOptions());
     }

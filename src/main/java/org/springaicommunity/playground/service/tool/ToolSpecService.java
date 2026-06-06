@@ -612,7 +612,8 @@ public class ToolSpecService {
     public synchronized void reconcileNativeExposure() {
         Set<String> desired = this.exposureMode.includesBuiltin()
                 ? this.toolMcpServerSetting.exposedToolIds().stream().map(this.toolIdSpecs::get)
-                        .filter(Objects::nonNull).map(ToolSpec::name).collect(Collectors.toSet())
+                        .filter(Objects::nonNull).filter(spec -> !spec.draft())
+                        .map(ToolSpec::name).collect(Collectors.toSet())
                 : Set.of();
         Set<String> external = getExternalMcpToolNames();
         Set<String> currentNative = getMcpToolList().stream().map(McpSchema.Tool::name)
