@@ -681,7 +681,7 @@ stateDiagram-v2
 
     DRAFT --> ACTIVE : Local Pass earned<br/>+ env vars resolved
     DRAFT --> MISSING_REQUIREMENTS : draft cleared<br/>but env vars missing
-    DRAFT --> TEST_FAILED : Local Pass attempted<br/>and failed *(reserved)*
+    DRAFT --> TEST_FAILED : Local Pass attempted<br/>and failed (reserved)
 
     MISSING_REQUIREMENTS --> ACTIVE : env vars set
     MISSING_REQUIREMENTS --> DRAFT : draft flag re-raised

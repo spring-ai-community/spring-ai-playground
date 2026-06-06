@@ -6,7 +6,7 @@ description: Vector Database - RAG ingestion and retrieval-validation. Document 
 
 Vector Database is the RAG preparation and retrieval-validation area.
 
-![Vector Database surface - document ingestion form, chunking and embedding pipeline, store selector (Chroma / PGVector / Redis / etc.), and a similarity-search panel for retrieval validation](../assets/images/vectordb.gif)
+![Vector Database - the SimpleVectorStore surface with the embedding model, a similarity-search bar, a Spring AI metadata filter, and the results grid (Score, Id, Text, Metadata)](../assets/images/vector-database.png)
 
 It gives you an end-to-end environment for document ingestion, chunking, embedding, storage, and similarity search.
 

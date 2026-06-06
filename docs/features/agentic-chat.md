@@ -6,7 +6,7 @@ description: Agentic Chat - one runtime combining documents, tools, models, and 
 
 Agentic Chat is the unified runtime where Spring AI Playground combines documents, tools, models, and conversation state.
 
-![Agentic Chat session - model conversation with inline tool-call traces, MCP tool selector, document context drawer, and streamed assistant response](../assets/images/chat-mcp.gif)
+![Agentic Chat - a conversation rendered with per-role avatars and Markdown, above the built-in tool, external MCP, and RAG document selectors and the prompt input](../assets/images/agentic-chat.png)
 
 This unified interface lets you:
 
