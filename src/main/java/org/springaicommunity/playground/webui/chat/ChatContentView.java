@@ -16,6 +16,7 @@
 package org.springaicommunity.playground.webui.chat;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.Key;
 import com.vaadin.flow.component.KeyModifier;
@@ -381,24 +382,7 @@ public class ChatContentView extends VerticalLayout {
                         this.mcpToolProviderComboBox.select(mcpServerInfos);
                     }
                 });
-        this.persistentUiDataStorage.loadData(CHAT_TOOL_SELECTION, new TypeReference<Set<String>>() {},
-                selectedToolIds -> {
-                    if (selectedToolIds != null) {
-                        this.customToolsComboBox.deselectAll();
-                        this.builtinToolsComboBox.deselectAll();
-                        this.composedToolsComboBox.deselectAll();
-                        this.customToolsComboBox.getListDataView().getItems()
-                                .filter(spec -> selectedToolIds.contains(spec.toolId())).toList()
-                                .forEach(this.customToolsComboBox::select);
-                        this.builtinToolsComboBox.getListDataView().getItems()
-                                .filter(spec -> selectedToolIds.contains(spec.toolId())).toList()
-                                .forEach(this.builtinToolsComboBox::select);
-                        this.composedToolsComboBox.getListDataView().getItems()
-                                .filter(spec -> selectedToolIds.contains(spec.toolId())).toList()
-                                .forEach(this.composedToolsComboBox::select);
-                        refreshExposedToolsDisplay();
-                    }
-                });
+        applyStoredChatToolSelection();
     }
 
     private List<McpServerInfo> externalMcpServerInfos() {
@@ -420,7 +404,6 @@ public class ChatContentView extends VerticalLayout {
                 .exposableBuiltinsFrom(all, defaultIds, this.toolActivationCalculator).stream()
                 .filter(spec -> exposedIds.contains(spec.toolId())).toList();
         List<ToolSpec> exposedComposed = this.toolSpecService.getExternalToolSpecs();
-
         this.customToolsComboBox.setItems(exposedCustoms);
         this.builtinToolsComboBox.setItems(exposedBuiltins);
         this.composedToolsComboBox.setItems(exposedComposed);
@@ -439,6 +422,38 @@ public class ChatContentView extends VerticalLayout {
         displayItems.addAll(exposedBuiltins);
         this.exposedToolsDisplayBox.setItems(displayItems);
         refreshExposedToolsDisplay();
+    }
+
+    @Override
+    protected void onAttach(AttachEvent attachEvent) {
+        super.onAttach(attachEvent);
+        // Tool exposure (custom, built-in, re-exposed external) is edited in the cog drawer without notifying
+        // chat, so re-read all three combos and restore the saved per-chat selection each time the chat is
+        // shown. Otherwise newly exposed tools (and their HITL marking) never appear.
+        populateExposedToolsCombos();
+        applyStoredChatToolSelection();
+    }
+
+    private void applyStoredChatToolSelection() {
+        this.persistentUiDataStorage.loadData(CHAT_TOOL_SELECTION, new TypeReference<Set<String>>() {},
+                selectedToolIds -> {
+                    if (selectedToolIds == null) {
+                        return;
+                    }
+                    this.customToolsComboBox.deselectAll();
+                    this.builtinToolsComboBox.deselectAll();
+                    this.composedToolsComboBox.deselectAll();
+                    selectByToolIds(this.customToolsComboBox, selectedToolIds);
+                    selectByToolIds(this.builtinToolsComboBox, selectedToolIds);
+                    selectByToolIds(this.composedToolsComboBox, selectedToolIds);
+                    refreshExposedToolsDisplay();
+                });
+    }
+
+    private static void selectByToolIds(MultiSelectComboBox<ToolSpec> combo, Set<String> toolIds) {
+        combo.getListDataView().getItems()
+                .filter(spec -> toolIds.contains(spec.toolId())).toList()
+                .forEach(combo::select);
     }
 
     private void refreshExposedToolsDisplay() {
@@ -892,20 +907,24 @@ public class ChatContentView extends VerticalLayout {
                 details.setOpened(false);
                 components.add(new Pair<>(mcpToolProcessTimestamp, details));
             }
+            long messageTimestamp = timestampOf(metadata);
             if (MessageType.USER.equals(messageType))
-                messageListLayout.add(
-                        buildMessage(text, messageType, Long.parseLong(metadata.get(ChatHistory.TIMESTAMP).toString())));
+                messageListLayout.add(buildMessage(text, messageType, messageTimestamp));
             components.stream().sorted(Comparator.comparing(Pair::getFirst)).map(Pair::getSecond)
                     .forEach(messageListLayout::add);
             if (!MessageType.USER.equals(messageType))
-                messageListLayout.add(
-                        buildMessage(text, messageType, Long.parseLong(metadata.get(ChatHistory.TIMESTAMP).toString())));
+                messageListLayout.add(buildMessage(text, messageType, messageTimestamp));
             String streamStatus = (String) metadata.get(STREAM_STATUS);
             if (Objects.nonNull(streamStatus)) {
                 Span indicator = buildStreamStatusIndicator(streamStatus, (String) metadata.get(STREAM_STATUS_STAGE),
                         (String) metadata.get(STREAM_STATUS_MESSAGE));
                 if (Objects.nonNull(indicator)) messageListLayout.add(indicator);
             }
+        }
+
+        private static long timestampOf(Map<String, Object> metadata) {
+            Object timestamp = metadata.get(ChatHistory.TIMESTAMP);
+            return timestamp == null ? 0L : Long.parseLong(timestamp.toString());
         }
 
         private ChatMessage buildMessage(String message, MessageType messageType, long epochMillis) {
