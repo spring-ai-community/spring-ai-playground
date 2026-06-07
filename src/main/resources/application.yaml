@@ -168,6 +168,29 @@ spring:
           - gpt-oss:20b
           - deepseek-r1:8b
 ---
+# activated by AppleSiliconMlxActivator on Apple Silicon, not a manual profile
+spring:
+  config:
+    activate:
+      on-profile: mlx
+  ai:
+    ollama:
+      chat:
+        options:
+          model: qwen3.5:4b-mlx
+    playground:
+      chat:
+        models:
+          - qwen3.5:2b-mlx
+          - qwen3.5:4b-mlx
+          - qwen3.5:9b-mlx
+          - qwen3.6:27b-mlx
+          - qwen3.6:35b-mlx
+          - gemma4:e2b-mlx
+          - gemma4:e4b-mlx
+          - gemma4:12b-mlx
+          - gemma4:31b-mlx
+---
 spring:
   config:
     activate:
