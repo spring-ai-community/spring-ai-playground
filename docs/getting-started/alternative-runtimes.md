@@ -89,7 +89,7 @@ The `-v spring-ai-playground:/root` named volume keeps authored tools, saved too
 
 Add `-p 8282:8282` if you also want browser access to the Vaadin Inspector alongside the stdio channel - the web UI runs in the same process either way; the port mapping just exposes it. Pick a different host port (e.g. `-p 9000:8282`) if 8282 is in use.
 
-The container ships with the gateway and authoring UI on. The **Starter 5** preset has no required credentials and works out of the box; other presets and individual catalog tools stay dormant until you supply the matching environment variables. Pass them with `-e NAME=value` flags on the same `docker run` line - the typical entries (`OPENAI_API_KEY`, `GOOGLE_API_KEY`, `GOOGLE_PSE_ID`, `SLACK_WEBHOOK_URL`, ...) are listed in [Desktop App → Use Environment Variables for Keys and Secrets](desktop.md#7-use-environment-variables-for-keys-and-secrets). The File Toolkit preset additionally honors `TOOL_STUDIO_FS_BASE` to set the base path for `safety.fs`; if unset it defaults to `$HOME/spring-ai-playground/fs-tool-workspace` inside the container (typically `/root/spring-ai-playground/fs-tool-workspace`).
+The container ships with the gateway and authoring UI on. The **Starter 5** preset has no required credentials and works out of the box; other presets and individual catalog tools stay dormant until you supply the matching environment variables. Pass them with `-e NAME=value` flags on the same `docker run` line - the typical entries (`OPENAI_API_KEY`, `GOOGLE_API_KEY`, `GOOGLE_PSE_ID`, `SLACK_WEBHOOK_URL`, ...) are listed in [Desktop App → Use Environment Variables for Keys and Secrets](desktop.md#9-use-environment-variables-for-keys-and-secrets). The File Toolkit preset additionally honors `TOOL_STUDIO_FS_BASE` to set the base path for `safety.fs`; if unset it defaults to `$HOME/spring-ai-playground/fs-tool-workspace` inside the container (typically `/root/spring-ai-playground/fs-tool-workspace`).
 
 The `mcp-stdio` profile silences the CONSOLE log appender so stdout stays a clean JSON-RPC channel; rolling-file logs at `~/spring-ai-playground/logs/` are unaffected.
 
@@ -154,7 +154,7 @@ Notes:
 
 ## Switching to OpenAI
 
-To switch from the default Ollama profile to OpenAI on the alternative runtimes, provide `OPENAI_API_KEY` and activate the `openai` profile. The desktop launcher path is documented separately under [Desktop App → Use Environment Variables for Keys and Secrets](desktop.md#7-use-environment-variables-for-keys-and-secrets).
+To switch from the default Ollama profile to OpenAI on the alternative runtimes, provide `OPENAI_API_KEY` and activate the `openai` profile. The desktop launcher path is documented separately under [Desktop App → Use Environment Variables for Keys and Secrets](desktop.md#9-use-environment-variables-for-keys-and-secrets).
 
 ### Docker
 
@@ -181,7 +181,7 @@ set OPENAI_API_KEY=your-openai-api-key
 ./mvnw spring-boot:run --spring.profiles.active=openai
 ```
 
-For OpenAI-compatible servers and the YAML overrides each one expects, see [Getting Started → Switching to OpenAI-Compatible Servers](index.md#switching-to-openai-compatible-servers).
+For OpenAI-compatible servers and the YAML overrides each one expects, see [External Connections → OpenAI-compatible servers](external-connections.md#switching-to-openai-compatible-servers).
 
 ## Further Reading
 
