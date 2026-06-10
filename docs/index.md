@@ -7,6 +7,16 @@ description: Cross-platform desktop app for building, testing, and publishing MC
 
 Spring AI Playground is a cross-platform desktop app for building, testing, validating, and executing MCP tools in a controlled local environment.
 
+## How it all connects
+
+Spring AI Playground is **one local app that plays three roles at once** - an MCP **server** that publishes tools to your agents, an MCP **client** that reaches out to external services, and a **workbench** where you build and vet those tools. You drive it through the Vaadin Flow UI (desktop app or browser); your AI clients - Claude Desktop and Code, Cursor, Codex, opencode, or any other MCP host - connect to the same built-in server over `/mcp`.
+
+![Spring AI Playground integration architecture - used by you and your AI clients, the built-in MCP server publishing built-in plus authored plus proxied and composed MCP tools under safety and observability, on local-first models and RAG](assets/images/integration-architecture.svg){ loading=lazy }
+
+That server presents tools from three sources as one clean surface: a **built-in library**, tools you write in [Tool Studio](features/tool-studio/index.md) (each earns a **Local Pass** before it goes live), and external MCP servers you [proxy and compose](features/mcp-server/proxy.md) onto it - any vendor, any language. However a tool arrives, it is vetted before an agent can call it (see [AI Agent Tool Safety](safety-architecture.md)): locally-run tools (built-in and authored) execute in a defense-in-depth sandbox with a visible **Risk Level (L0-L5)**, human-in-the-loop approval, and an integrity check, while proxied and composed tools are risk-scored, HITL-gated, integrity-checked, and scanned for description poisoning.
+
+Everything that runs - every chat, tool call, vector query, and MCP invocation - is captured in the built-in [Observability](features/observability/index.md) dashboards. And it all runs **local-first**: Ollama by default, with OpenAI and OpenAI-compatible runtimes (llama.cpp, LM Studio, vLLM) optional, and chat grounded on your own documents through the local vector store.
+
 > **No pass, no run.**
 
 Every tool you build earns a **Local Pass** - a local test-run with sample arguments. Only tools that pass are added live to the built-in MCP server and become callable from Agentic Chat. Nothing you author reaches an agent until you have seen it work on your own machine.
@@ -26,6 +36,8 @@ Unlike many playgrounds that stop at prompt testing, this project connects AI co
 - run agentic chat that combines tool use and grounded context (e.g. *"Get today's weather and send it to Slack"*)
 - run every tool through a **defense-in-depth GraalVM sandbox** with a deny-first class allowlist, SSRF-guarded `fetch`, rooted `safety.fs`, statement + wall-clock limits, and a visible per-tool **Risk Level** (L0-L5) - with a parallel **risk score** scoring every external MCP server you connect (and a description poisoning scan on tools you re-expose) - see [AI Agent Tool Safety Architecture](safety-architecture.md)
 - **see every chat, tool call, vector query, and MCP invocation** in the twelve built-in [Observability dashboards](features/observability/index.md) - drill into span timelines, jump back to the source conversation, watch token cost and latency live, deep-link from a trace into Agentic Chat
+
+> **Security scope.** The in-process sandbox is defense-in-depth for the local build-and-vet loop. It is not adversarial-grade isolation and not a gateway. To run tool code you do not trust, nest it in container or microVM isolation. See [Isolation tiers](safety-architecture.md#isolation-tiers).
 
 <div style="text-align: center;">
   <b>Spring AI Playground - Demo</b><br/>
@@ -328,25 +340,37 @@ If you install the app, you can run Spring AI Playground immediately without set
 
 <div style="text-align: center;">
   <b>First-Launch Configuration Screen</b><br/>
-  Desktop launcher overview - config editor, Default MCP Tools curation, JVM &amp; environment cards on one screen
+  The configuration editor stacks every card on one scrollable screen - numbered top to bottom below
 </div>
 
 <div style="text-align: center;">
-  <a href="assets/images/launcher-openai.png">
-    <img src="assets/images/launcher-openai.png" width="760" alt="Spring AI Playground first-launch configuration screen - Spring AI Playground Config + Ollama startup + Default MCP Tools + Environment Variables + JVM Settings"/>
+  <a href="assets/images/launcher-first-launch.png">
+    <img src="assets/images/launcher-first-launch.png" width="600" alt="Spring AI Playground first-launch configuration screen with numbered markers 1 to 7 from top to bottom - 1 Current Config and Setup Notes, 2 Spring AI Playground Config, 3 Ollama Startup, 4 Default MCP Tools, 5 Environment Variables, 6 JVM Settings, 7 the Save and Launch action bar"/>
   </a>
 </div>
 
+The markers run top to bottom, and each card has a detailed step in the [Desktop App configuration walkthrough](getting-started/desktop.md#desktop-configuration-walkthrough):
+
+1. **Current Config and Setup Notes** - explains the selected setting before you edit it ([details](getting-started/desktop.md#1-read-the-setup-notes-first))
+2. **Spring AI Playground Config** - pick the provider type, choose a saved setting, and edit the override YAML ([details](getting-started/desktop.md#2-choose-a-config-type))
+3. **Ollama Startup** - Ollama endpoint, install / connection status, and the configured models ([details](getting-started/desktop.md#6-understand-the-ollama-startup-card))
+4. **Default MCP Tools** - choose which preset of built-in tools the MCP server exposes at boot ([details](getting-started/desktop.md#8-pick-your-default-mcp-tools))
+5. **Environment Variables** - API keys and tool secrets, encrypted by your OS keychain ([details](getting-started/desktop.md#9-use-environment-variables-for-keys-and-secrets))
+6. **JVM Settings** - optional launch-time JVM options and application args ([details](getting-started/desktop.md#10-set-jvm-and-app-args-only-when-needed))
+7. **Save and Launch action bar** - Export, Import, Factory Reset, Save, and Save and Launch ([details](getting-started/desktop.md#4-save-clone-delete-or-reset-settings))
+
 <div style="text-align: center;">
   <b>Ollama Model Manager</b><br/>
-  Review recommended models, search exact Ollama names, and manage downloaded models
+  Review recommended models, search exact Ollama names on ollama.com, and manage downloaded models
 </div>
 
 <div style="text-align: center;">
   <a href="assets/images/launcher-ollama-config.png">
-    <img src="assets/images/launcher-ollama-config.png" width="760" alt="Spring AI Playground Ollama model manager"/>
+    <img src="assets/images/launcher-ollama-config.png" width="600" alt="Spring AI Playground Ollama model manager - status bar, download queue, and recommended and downloaded MLX models"/>
   </a>
 </div>
+
+The model manager opens from the Ollama Startup card; see [Download and Manage Ollama Models](getting-started/desktop.md#7-download-and-manage-ollama-models) for the full walkthrough, including how to copy an exact model name from ollama.com.
 
 ### 3. Start with the Built-in Desktop Runtime
 
@@ -473,7 +497,7 @@ Installing an external MCP server normally means cloning a repo, installing the 
 
 ## :material-view-grid-outline: What You Can Do
 
-- [:material-robot-outline: AI Models](getting-started/index.md#model-configuration): switch between Ollama, OpenAI, and OpenAI-compatible runtime paths.
+- [:material-robot-outline: AI Models](getting-started/external-connections.md#connect-model-providers): switch between Ollama, OpenAI, and OpenAI-compatible runtime paths.
 - [:material-tools: Tool Studio](features/tool-studio/index.md): build low-code tools in JavaScript and expose them instantly through MCP.
 - [:material-connection: MCP Server](features/mcp-server/index.md): inspect external MCP servers, read a live **risk score** (L0-L5) before connecting, and **proxy** their tools onto the built-in server - compose multiple servers into one surface - each gated by per-tool human-in-the-loop.
 - [:material-server-network: Default MCP Servers](features/default-mcp-catalog/index.md): 57 preset external MCP server connections (Gmail, Notion, Slack, GitHub, Tavily, ...) gated on `${ENV_VAR}` placeholders.

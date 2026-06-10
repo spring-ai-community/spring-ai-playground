@@ -71,6 +71,7 @@ nav:
       - getting-started/index.md
       - "Desktop App": getting-started/desktop.md
       - "Alternative Runtimes": getting-started/alternative-runtimes.md
+      - "External Connections": getting-started/external-connections.md
       - "Configuration": getting-started/configuration.md
   - "Architecture":
       - "Application": architecture.md

@@ -1257,3 +1257,15 @@ body.dl-confirm-open {
 .home-spotlight-cta a {
   font-weight: 600;
 }
+
+/* Provider / client icons in the External connections tables (monochrome marks) */
+.provider-icon {
+  width: 1.2em;
+  height: 1.2em;
+  object-fit: contain;
+  vertical-align: -0.25em;
+  margin-right: 0.4em;
+}
+[data-md-color-scheme="slate"] .provider-icon {
+  filter: invert(1) brightness(1.7);
+}
