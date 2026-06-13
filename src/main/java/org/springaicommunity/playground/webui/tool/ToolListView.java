@@ -62,6 +62,9 @@ import static org.springaicommunity.playground.webui.tool.ToolStudioView.TOOL_SE
 public class ToolListView extends WorkspaceSidebar implements BeforeEnterObserver {
 
     private static final String LAST_SELECTED_TOOL = "lastSelectedTool";
+    private static final String TOOL_LIST_FILTERS = "toolListFilters";
+
+    record FilterState(String search, List<String> categories, List<String> tags) {}
 
     private final PersistentUiDataStorage persistentUiDataStorage;
     private final PropertyChangeSupport toolChangeSupport;
@@ -78,6 +81,15 @@ public class ToolListView extends WorkspaceSidebar implements BeforeEnterObserve
     public void beforeEnter(BeforeEnterEvent beforeEnterEvent) {
         refreshFilterOptions(this.toolSpecService.getToolSpecList());
         renderGroups();
+        this.persistentUiDataStorage.loadData(TOOL_LIST_FILTERS, new TypeReference<FilterState>() {},
+                state -> {
+                    if (Objects.isNull(state)) return;
+                    this.filterBar.setSearchQuery(state.search());
+                    this.filterBar.setCategorySelection(
+                            state.categories() == null ? Set.of() : Set.copyOf(state.categories()));
+                    this.filterBar.setTagSelection(state.tags() == null ? Set.of() : Set.copyOf(state.tags()));
+                    renderGroups();
+                });
         this.persistentUiDataStorage.loadData(LAST_SELECTED_TOOL, new TypeReference<ToolSpec>() {},
                 tool -> {
                     if (Objects.nonNull(tool)) {
@@ -102,7 +114,13 @@ public class ToolListView extends WorkspaceSidebar implements BeforeEnterObserve
 
         this.filterBar = new SidebarFilterBar(new SidebarFilterBar.Config(
                 "Search tools…", "Category", "Tag", 200));
-        this.filterBar.setOnChange(this::renderGroups);
+        this.filterBar.setOnChange(() -> {
+            this.persistentUiDataStorage.saveData(TOOL_LIST_FILTERS,
+                    new FilterState(this.filterBar.getSearchQuery(),
+                            List.copyOf(this.filterBar.getCategorySelection()),
+                            List.copyOf(this.filterBar.getTagSelection())));
+            renderGroups();
+        });
 
         this.groupContainer = new VerticalLayout();
         this.groupContainer.setPadding(false);

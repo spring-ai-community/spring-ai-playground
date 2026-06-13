@@ -27,7 +27,7 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
-import org.springaicommunity.playground.service.mcp.HitlToolCallAdvisor;
+import org.springaicommunity.playground.service.mcp.LoggingToolCallAdvisor;
 import org.springaicommunity.playground.service.mcp.McpToolCallingManager;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.ChatMemoryRepository;
@@ -160,8 +160,8 @@ public class SpringAiPlaygroundApplication implements AppShellConfigurator {
     }
 
     @Bean
-    public HitlToolCallAdvisor hitlToolCallAdvisor(McpToolCallingManager mcpToolCallingManager) {
-        return new HitlToolCallAdvisor(mcpToolCallingManager);
+    public LoggingToolCallAdvisor loggingToolCallAdvisor(McpToolCallingManager mcpToolCallingManager) {
+        return new LoggingToolCallAdvisor(mcpToolCallingManager);
     }
 
     @Bean

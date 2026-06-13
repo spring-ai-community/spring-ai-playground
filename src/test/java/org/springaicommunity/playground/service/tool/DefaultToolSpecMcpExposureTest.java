@@ -66,6 +66,7 @@ class DefaultToolSpecMcpExposureTest {
     @Test
     void everyDefaultToolFromShippedSpecFilesIsExposedToMcp() throws Exception {
         Set<String> shippedNames = new HashSet<>();
+        Set<String> shippedIds = new HashSet<>();
         ObjectMapper mapper = new ObjectMapper();
         for (String fname : List.of(
                 "/tool/default-tool-specs.json",
@@ -83,9 +84,16 @@ class DefaultToolSpecMcpExposureTest {
                     toolSpecService.update(spec);
                     registeredIds.add(spec.toolId());
                     shippedNames.add(spec.name());
+                    shippedIds.add(spec.toolId());
                 }
             }
         }
+
+        // Built-ins are not auto-added on publish; exposure comes from the preset-derived id set
+        // followed by reconcile, mirroring the boot pipeline.
+        toolSpecService.setToolMcpServerSetting(
+                new ToolSpecService.ToolMcpServerSetting(true, shippedIds));
+        toolSpecService.reconcileNativeExposure();
 
         Set<String> mcpExposed = toolSpecService.getMcpToolList().stream()
                 .map(McpSchema.Tool::name)

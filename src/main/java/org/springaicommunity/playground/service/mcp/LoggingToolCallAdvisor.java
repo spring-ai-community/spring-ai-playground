@@ -25,12 +25,16 @@ import org.springframework.ai.chat.client.advisor.api.StreamAdvisorChain;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.model.tool.ToolCallingManager;
 
-public class HitlToolCallAdvisor extends ToolCallAdvisor {
+// Logs each iteration of the recursive ToolCallAdvisor loop. The actual human-in-the-loop approval gating is NOT
+// here - it lives in the injected ToolCallingManager (McpToolCallingManager.executeToolCalls), which this advisor
+// drives. Keep the gate at the tool-execution seam; this subclass only adds per-loop observability.
+public class LoggingToolCallAdvisor extends ToolCallAdvisor {
 
-    private static final Logger logger = LoggerFactory.getLogger(HitlToolCallAdvisor.class);
+    private static final Logger logger = LoggerFactory.getLogger(LoggingToolCallAdvisor.class);
 
-    public HitlToolCallAdvisor(ToolCallingManager toolCallingManager) {
-        super(toolCallingManager, BaseAdvisor.HIGHEST_PRECEDENCE + 300);
+    public LoggingToolCallAdvisor(ToolCallingManager toolCallingManager) {
+        // disableMemory: the MessageChatMemoryAdvisor already owns history, so skip replaying it in the tool loop.
+        super(toolCallingManager, BaseAdvisor.HIGHEST_PRECEDENCE + 300, false);
     }
 
     @Override

@@ -24,6 +24,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.springaicommunity.playground.service.PersistenceExecutor;
 import org.springaicommunity.playground.service.tool.DefaultToolsPreferenceResolver;
 import org.springaicommunity.playground.service.tool.DefaultToolsPreferenceService;
+import org.springaicommunity.playground.service.tool.ToolActivationCalculator;
 import org.springaicommunity.playground.service.tool.ToolSpec;
 import org.springaicommunity.playground.service.tool.ToolSpecPersistenceService;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
@@ -58,7 +59,8 @@ class DefaultIntegrityManifestTest {
             ToolSpecPersistenceService persistence = new ToolSpecPersistenceService(home,
                     mock(ToolSpecService.class), SPEC_LOCATION, new ObjectMapper(),
                     new PathMatchingResourcePatternResolver(), executor,
-                    mock(DefaultToolsPreferenceService.class), mock(DefaultToolsPreferenceResolver.class));
+                    mock(DefaultToolsPreferenceService.class), mock(DefaultToolsPreferenceResolver.class),
+                    new ToolActivationCalculator());
             CanonicalHasher hasher = new CanonicalHasher(new ObjectMapper());
             Map<String, String> hashes = new TreeMap<>();
             for (ToolSpec spec : persistence.getDefaultToolSpecs()) {

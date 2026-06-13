@@ -15,6 +15,7 @@
  */
 package org.springaicommunity.playground.service.chat;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
 import org.springaicommunity.playground.service.SpringAiPlaygroundRagAdvisor;
 import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentService;
@@ -23,12 +24,15 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.metadata.ChatResponseMetadata;
+import org.springframework.ai.chat.metadata.DefaultUsage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.DefaultChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.rag.retrieval.search.VectorStoreDocumentRetriever;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -44,10 +48,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.springframework.ai.rag.retrieval.search.VectorStoreDocumentRetriever.FILTER_EXPRESSION;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK, properties = {
-        "spring.ai.playground.chat.models=gpt-5-nano, gpt-5-mini",
+        "spring.ai.playground.chat.models=gpt-5-nano, gpt-5-mini"
 })
 class ChatServiceTest {
     @Autowired
@@ -73,7 +76,7 @@ class ChatServiceTest {
                         null).toStream()
                 .collect(Collectors.joining()));
         List<Object> ragProcessMessages = new ArrayList<>();
-        String filterExpression = FILTER_EXPRESSION + " in ['a', 'b']";
+        String filterExpression = VectorStoreDocumentRetriever.FILTER_EXPRESSION + " in ['a', 'b']";
         assertEquals(prompt,
                 chatService.stream(chatHistory, "Test Chat", filterExpression, null, null, null,
                         ragProcessMessages::add, null).toStream().collect(Collectors.joining()));
@@ -86,6 +89,29 @@ class ChatServiceTest {
         assertTrue(firstRagMessage.contains("- Similarity Threshold:"));
         assertEquals(SpringAiPlaygroundRagAdvisor.RAG_SEARCH_COMPLETED_MESSAGE,
                 ragProcessMessages.get(ragProcessMessages.size() - 1));
+    }
+
+    @Test
+    void testStreamEmitsRoundUsage() {
+        long timestamp = System.currentTimeMillis();
+        ChatHistory chatHistory = new ChatHistory("test-chat", "Test Chat", timestamp, timestamp, "System prompt",
+                new DefaultChatOptions(), () -> List.of(new UserMessage("Test Chat")));
+        String prompt = "Hello World";
+        ChatResponse roundEnd = new ChatResponse(List.of(new Generation(new AssistantMessage(prompt))),
+                ChatResponseMetadata.builder().usage(new DefaultUsage(11, 320)).build());
+        when(chatModel.stream(any(Prompt.class))).thenReturn(Flux.just(roundEnd));
+
+        List<ChatService.RoundUsage> rounds = new ArrayList<>();
+        chatService.stream(chatHistory, "Test Chat", null, null, null, null, null, null, rounds::add, null, null,
+                null).toStream().collect(Collectors.joining());
+
+        assertEquals(1, rounds.size());
+        ChatService.RoundUsage round = rounds.get(0);
+        assertEquals(11, round.promptTokens());
+        assertEquals(320, round.completionTokens());
+        assertEquals(331, round.totalTokens());
+        assertFalse(round.toolCallRound());
+        assertFalse(round.thinkRound());
     }
 
     @Test
@@ -131,10 +157,11 @@ class ChatServiceTest {
         ChatClient chatClient = mock(ChatClient.class);
         SpringAiPlaygroundOptions playgroundOptions =
                 new SpringAiPlaygroundOptions(null, true, "", new SpringAiPlaygroundOptions.Chat("systemPrompt",
-                        List.of("MockLlmProvider"), (DefaultChatOptions) chatService.getDefaultOptions()), null, null);
+                        List.of("MockLlmProvider"), (DefaultChatOptions) chatService.getDefaultOptions(), null),
+                        null, null);
         ChatMemory chatMemory = mock(ChatMemory.class);
         ChatService service = new ChatService(chatModel, chatClient, chatMemory, playgroundOptions,
-                vectorStoreDocumentService, null);
+                vectorStoreDocumentService, null, new ChatRequestOptionsFactory(new ObjectMapper()));
         assertEquals("MockLlmProvider", service.getChatModelProvider());
     }
 
@@ -144,7 +171,7 @@ class ChatServiceTest {
                 this.chatService.buildFilterExpression(List.of("test.pdf", "hello.docx")));
     }
 
-    private static class MockLlmProviderChatModel implements ChatModel {
+    private static final class MockLlmProviderChatModel implements ChatModel {
         @Override
         public Flux<ChatResponse> stream(Prompt prompt) {
             return null;

@@ -37,7 +37,7 @@ import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.service.mcp.risk.McpComposition;
 import org.springaicommunity.playground.service.mcp.risk.McpCompositionService;
 import org.springaicommunity.playground.service.mcp.risk.McpExposedToolService;
-import org.springaicommunity.playground.service.mcp.risk.McpToolRiskAdvisor;
+import org.springaicommunity.playground.service.mcp.risk.McpToolRiskEvaluator;
 import org.springaicommunity.playground.service.mcp.risk.McpToolRiskComposer;
 import org.springaicommunity.playground.service.tool.ToolManifest.Sandbox.RiskLevel;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
@@ -56,7 +56,7 @@ public class McpExposedToolsPanel {
     private final McpCompositionService compositionService;
     private final McpServerInfoService serverInfoService;
     private final McpClientService clientService;
-    private final McpToolRiskAdvisor riskAdvisor;
+    private final McpToolRiskEvaluator riskEvaluator;
     private final ToolSpecService toolSpecService;
 
     private final Map<String, McpComposition.Member> selected = new LinkedHashMap<>();
@@ -65,13 +65,13 @@ public class McpExposedToolsPanel {
     private VerticalLayout exposedArea;
 
     public McpExposedToolsPanel(McpExposedToolService exposedToolService, McpCompositionService compositionService,
-            McpServerInfoService serverInfoService, McpClientService clientService, McpToolRiskAdvisor riskAdvisor,
+            McpServerInfoService serverInfoService, McpClientService clientService, McpToolRiskEvaluator riskEvaluator,
             ToolSpecService toolSpecService) {
         this.exposedToolService = exposedToolService;
         this.compositionService = compositionService;
         this.serverInfoService = serverInfoService;
         this.clientService = clientService;
-        this.riskAdvisor = riskAdvisor;
+        this.riskEvaluator = riskEvaluator;
         this.toolSpecService = toolSpecService;
     }
 
@@ -148,7 +148,7 @@ public class McpExposedToolsPanel {
 
     // Lazy build: tools/list is a network round-trip and each tool runs a risk scan, so defer to first expand.
     private Details buildServerAccordion(McpServerInfo server) {
-        McpToolRiskAdvisor.ServerRiskView serverRisk = this.riskAdvisor.evaluateServer(server);
+        McpToolRiskEvaluator.ServerRiskView serverRisk = this.riskEvaluator.evaluateServer(server);
 
         Span name = new Span(server.serverName());
         name.getStyle().set("font-weight", "600");
@@ -211,7 +211,7 @@ public class McpExposedToolsPanel {
         String rowKey = key(server.serverName(), tool.name());
         InspectorHelpers.ToolInfo toolInfo = InspectorHelpers.toToolInfo(tool);
         String originalDescription = tool.description() == null ? "" : tool.description();
-        McpToolRiskAdvisor.ToolRiskView risk = this.riskAdvisor.evaluateTool(server, tool.name(),
+        McpToolRiskEvaluator.ToolRiskView risk = this.riskEvaluator.evaluateTool(server, tool.name(),
                 tool.description(), toolInfo.propertySchemas());
         RiskLevel baseLevel = risk.finalLevel();
         McpComposition.Member existing = this.selected.get(rowKey);

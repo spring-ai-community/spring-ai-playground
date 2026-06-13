@@ -120,6 +120,32 @@ public class ChatHistoryServiceTest {
     }
 
     @Test
+    void testUpdateChatHistoryBeforeUserMessageCommitted() {
+        // A stopped stream can commit before the user turn reaches chat memory; the conversation must
+        // still be registered (fallback title) instead of throwing inside the cancel path.
+        ChatHistory chatHistory = chatHistoryService.createChatHistory("systemPrompt", chatOptions);
+        ChatHistory updated = chatHistoryService.updateChatHistory(chatHistory);
+
+        assertEquals("New chat", updated.title());
+        assertTrue(chatHistoryService.getChatHistoryList().stream()
+                .anyMatch(h -> h.conversationId().equals(chatHistory.conversationId())));
+    }
+
+    @Test
+    void testUpdateChatHistoryAfterDeleteDoesNotThrow() {
+        ChatHistory chatHistory = chatHistoryService.createChatHistory("systemPrompt", chatOptions);
+        this.chatMemory.add(chatHistory.conversationId(), new UserMessage("User Message"));
+        ChatHistory titled = chatHistoryService.updateChatHistory(chatHistory);
+        chatHistoryService.deleteChatHistory(titled);
+
+        ChatHistory recommitted = chatHistoryService.updateChatHistory(titled);
+
+        assertEquals(titled.title(), recommitted.title());
+        assertTrue(chatHistoryService.getChatHistoryList().stream()
+                .anyMatch(h -> h.conversationId().equals(chatHistory.conversationId())));
+    }
+
+    @Test
     public void testGetChatHistoryList() {
         ChatHistory chatHistory = chatHistoryService.createChatHistory("systemPrompt", chatOptions);
         assertNull(chatHistoryService.getChatHistoryList().stream().filter(h -> h.conversationId().equals(chatHistory.conversationId()))

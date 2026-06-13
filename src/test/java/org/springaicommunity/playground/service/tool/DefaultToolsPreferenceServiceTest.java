@@ -29,7 +29,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Set;
-import java.util.concurrent.TimeoutException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -77,11 +76,11 @@ class DefaultToolsPreferenceServiceTest {
                 .update(DefaultToolsPreference.forPreset("file-toolkit"));
         executor.awaitCompletion(Duration.ofSeconds(2));
 
-        DefaultTools cli = new DefaultTools("everything", null, null);
+        DefaultTools cli = new DefaultTools("korea-toolkit", null, null);
         SpringAiPlaygroundOptions options = optionsWithDefaultTools(cli);
         DefaultToolsPreferenceService cliService =
                 new DefaultToolsPreferenceService(home, executor, mapper, catalog, options);
-        assertThat(cliService.current().preset()).isEqualTo("everything");
+        assertThat(cliService.current().preset()).isEqualTo("korea-toolkit");
     }
 
     @Test
