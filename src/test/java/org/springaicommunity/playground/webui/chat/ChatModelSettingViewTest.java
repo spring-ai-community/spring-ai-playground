@@ -94,10 +94,24 @@ class ChatModelSettingViewTest {
         assertThat(newView("qwen3.5:2b-mlx").getSelectedPresetTools()).isEmpty();
     }
 
+    @Test
+    void memoryWindowRoundTripsThroughDrawer() {
+        ChatModelSettingView view = new ChatModelSettingView(List.of("qwen3.5:2b-mlx", "qwen3.5:4b-mlx"), "",
+                ChatOptions.builder().model("qwen3.5:2b-mlx").build(), new ChatExtraOptions(null, null, null, 7),
+                ChatProvider.OLLAMA, this.presetService, this.downloadService, List.of(), spec -> "L0",
+                spec -> "General", 10);
+        assertThat(view.getChatExtraOptions().memoryWindow()).isEqualTo(7);
+    }
+
+    @Test
+    void emptyMemoryWindowFieldYieldsNullForDefaultFallback() {
+        assertThat(newView("qwen3.5:2b-mlx").getChatExtraOptions().memoryWindow()).isNull();
+    }
+
     private ChatModelSettingView newView(String model) {
         return new ChatModelSettingView(List.of("qwen3.5:2b-mlx", "qwen3.5:4b-mlx"), "",
                 ChatOptions.builder().model(model).build(), ChatExtraOptions.defaults(), ChatProvider.OLLAMA,
-                this.presetService, this.downloadService, List.of(), spec -> "L0", spec -> "General");
+                this.presetService, this.downloadService, List.of(), spec -> "L0", spec -> "General", 10);
     }
 
     private static void fireCustomValue(ChatModelSettingView view, String typed) throws Exception {

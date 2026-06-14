@@ -27,6 +27,8 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
+import org.springaicommunity.playground.service.chat.ChatHistoryService;
+import org.springaicommunity.playground.service.chat.LlmWindowChatMemory;
 import org.springaicommunity.playground.service.mcp.LoggingToolCallAdvisor;
 import org.springaicommunity.playground.service.mcp.McpToolCallingManager;
 import org.springframework.ai.chat.memory.ChatMemory;
@@ -37,6 +39,7 @@ import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.embedding.EmbeddingOptions;
 import org.springframework.ai.vectorstore.SimpleVectorStore;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -121,14 +124,17 @@ public class SpringAiPlaygroundApplication implements AppShellConfigurator {
 
     @Bean
     @ConditionalOnMissingBean(ChatMemory.class)
-    public ChatMemory chatMemory(ChatMemoryRepository chatMemoryRepository) {
-        return MessageWindowChatMemory.builder().chatMemoryRepository(chatMemoryRepository).maxMessages(10).build();
+    public ChatMemory chatMemory(ChatMemoryRepository chatMemoryRepository, SpringAiPlaygroundOptions options) {
+        return MessageWindowChatMemory.builder().chatMemoryRepository(chatMemoryRepository)
+                .maxMessages(options.chat().historyMaxMessages()).build();
     }
 
     @Bean
     @ConditionalOnMissingBean(MessageChatMemoryAdvisor.class)
-    public MessageChatMemoryAdvisor messageChatMemoryAdvisor(ChatMemory chatMemory) {
-        return MessageChatMemoryAdvisor.builder(chatMemory).build();
+    public MessageChatMemoryAdvisor messageChatMemoryAdvisor(ChatMemory chatMemory, SpringAiPlaygroundOptions options,
+            ObjectProvider<ChatHistoryService> chatHistoryServiceProvider) {
+        return MessageChatMemoryAdvisor.builder(new LlmWindowChatMemory(chatMemory,
+                options.chat().memoryMaxMessages(), chatHistoryServiceProvider)).build();
     }
 
     @Bean

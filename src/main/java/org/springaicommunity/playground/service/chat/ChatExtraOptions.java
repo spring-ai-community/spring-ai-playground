@@ -17,11 +17,9 @@ package org.springaicommunity.playground.service.chat;
 
 import java.util.List;
 
-// Static per-conversation settings baked into ChatHistory at "Apply & New Chat" time (the drawer). Reasoning is NOT
-// here - it is a dynamic per-request value (see ReasoningEffort). null fields leave the model/provider default.
-public record ChatExtraOptions(Integer seed, List<String> stop, String providerOptionsJson) {
+public record ChatExtraOptions(Integer seed, List<String> stop, String providerOptionsJson, Integer memoryWindow) {
 
     public static ChatExtraOptions defaults() {
-        return new ChatExtraOptions(null, null, null);
+        return new ChatExtraOptions(null, null, null, null);
     }
 }

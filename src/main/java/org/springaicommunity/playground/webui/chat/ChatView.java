@@ -211,7 +211,8 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
                 this.chatContentView.getSystemPrompt(), this.chatContentView.getChatOption(),
                 this.chatContentView.getExtraOptions(), this.chatService.getChatProvider(),
                 this.chatSystemPromptPresetService, this.ollamaModelDownloadService, builtinToolSpecs(),
-                this.toolSpecService::riskLevelOf, this.toolSpecService::categoryOf);
+                this.toolSpecService::riskLevelOf, this.toolSpecService::categoryOf,
+                this.chatService.getDefaultMemoryWindow());
         return this.chatModelSettingView;
     }
 

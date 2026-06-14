@@ -71,13 +71,14 @@ public class ChatModelSettingView extends VerticalLayout {
     private final NumberField frequencyPenaltyInput;
     private final NumberField presencePenaltyInput;
     private final IntegerField seedInput;
+    private final IntegerField memoryWindowInput;
     private final TextField stopInput;
     private final JsonEditorWrapper providerOptionsJsonEditor;
 
     public ChatModelSettingView(List<String> models, String systemPrompt, ChatOptions chatOption,
             ChatExtraOptions extraOptions, ChatProvider provider, ChatSystemPromptPresetService presetService,
             OllamaModelDownloadService modelDownloadService, List<ToolSpec> builtinTools,
-            Function<ToolSpec, String> riskLevelFn, Function<ToolSpec, String> categoryFn) {
+            Function<ToolSpec, String> riskLevelFn, Function<ToolSpec, String> categoryFn, int defaultMemoryWindow) {
         this.riskLevelFn = riskLevelFn;
         this.categoryFn = categoryFn;
         this.builtinTools = builtinTools.stream()
@@ -175,7 +176,15 @@ public class ChatModelSettingView extends VerticalLayout {
         this.seedInput = new IntegerField("Seed");
         this.seedInput.setWidthFull();
         if (extraOptions != null && extraOptions.seed() != null) this.seedInput.setValue(extraOptions.seed());
-        generationForm.add(this.maxTokensInput, this.seedInput);
+
+        this.memoryWindowInput = new IntegerField("Memory (messages)");
+        this.memoryWindowInput.setMin(1);
+        this.memoryWindowInput.setWidthFull();
+        this.memoryWindowInput.setHelperText(
+                "Recent messages sent to the model. Empty uses the default (" + defaultMemoryWindow + ").");
+        if (extraOptions != null && extraOptions.memoryWindow() != null)
+            this.memoryWindowInput.setValue(extraOptions.memoryWindow());
+        generationForm.add(this.maxTokensInput, this.seedInput, this.memoryWindowInput);
         generationSection.add(generationForm);
         add(generationSection);
 
@@ -388,7 +397,7 @@ public class ChatModelSettingView extends VerticalLayout {
 
     public ChatExtraOptions getChatExtraOptions() {
         return new ChatExtraOptions(this.seedInput.getValue(), parseStop(this.stopInput.getValue()),
-                jsonOverrideOrNull(this.providerOptionsJsonEditor.getJsonSync()));
+                jsonOverrideOrNull(this.providerOptionsJsonEditor.getJsonSync()), this.memoryWindowInput.getValue());
     }
 
     private static List<String> parseStop(String value) {

@@ -221,4 +221,28 @@ public class ChatHistoryServiceTest {
 
         assertThat(expected).doesNotExist();
     }
+
+    @Test
+    void chatMemoryKeepsFullHistoryBeyondTheOldTenMessageCap() {
+        ChatHistory chatHistory = chatHistoryService.createChatHistory("systemPrompt", chatOptions);
+        String conversationId = chatHistory.conversationId();
+        for (int i = 0; i < 30; i++)
+            chatMemory.add(conversationId, new UserMessage("m" + i));
+
+        assertThat(chatMemory.get(conversationId)).hasSize(30);
+    }
+
+    @Test
+    void perChatMemoryWindowSurvivesSaveAndReload() throws Exception {
+        ChatHistory chatHistory = chatHistoryService.createChatHistory("systemPrompt", chatOptions,
+                new ChatExtraOptions(null, null, null, 5));
+        chatMemory.add(chatHistory.conversationId(), new UserMessage("hi"));
+        chatHistoryService.updateChatHistory(chatHistory);
+        persistenceExecutor.awaitCompletion(Duration.ofSeconds(2));
+
+        ChatHistory reloaded = chatHistoryPersistenceService.loads().stream()
+                .filter(h -> h.conversationId().equals(chatHistory.conversationId())).findFirst().orElseThrow();
+
+        assertThat(reloaded.extraOptions().memoryWindow()).isEqualTo(5);
+    }
 }

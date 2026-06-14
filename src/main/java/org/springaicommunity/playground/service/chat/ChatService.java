@@ -87,6 +87,7 @@ public class ChatService {
             boolean toolCallRound, boolean thinkRound) {}
 
     private final String systemPrompt;
+    private final int defaultMemoryWindow;
     private final List<String> models;
     private final ChatModel chatModel;
     private final ChatOptions chatOptions;
@@ -102,6 +103,7 @@ public class ChatService {
             SharedDataReader<List<McpServerInfo>> mcpServerInfosReader,
             ChatRequestOptionsFactory chatRequestOptionsFactory) {
         this.systemPrompt = playgroundOptions.chat().systemPrompt();
+        this.defaultMemoryWindow = playgroundOptions.chat().memoryMaxMessages();
         this.models = playgroundOptions.chat().models();
         this.chatModel = chatModel;
         this.chatOptions = Optional.ofNullable((ChatOptions) playgroundOptions.chat().chatOptions())
@@ -323,6 +325,10 @@ public class ChatService {
 
     public String getSystemPrompt() {
         return this.systemPrompt;
+    }
+
+    public int getDefaultMemoryWindow() {
+        return this.defaultMemoryWindow;
     }
 
     public List<String> getModels() {

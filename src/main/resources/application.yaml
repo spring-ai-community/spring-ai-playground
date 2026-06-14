@@ -123,6 +123,8 @@ spring:
       user-home: ${user.home}
       chat:
         system-prompt:
+        memory-max-messages: 10
+        history-max-messages: 2000
       built-in-mcp-server:
         name: ${SPRING_AI_PLAYGROUND_MCP_NAME:spring-ai-playground-built-in-mcp}
         description: "${SPRING_AI_PLAYGROUND_MCP_DESCRIPTION:Spring AI Playground's built-in MCP server, served over Streamable HTTP at /mcp. Publishes your native Tool Studio tools (default catalog + custom) plus composed tools from connected external MCP servers, per the configured exposure mode.}"

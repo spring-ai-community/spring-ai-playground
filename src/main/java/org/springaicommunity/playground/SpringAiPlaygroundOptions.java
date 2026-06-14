@@ -80,11 +80,12 @@ public record SpringAiPlaygroundOptions(@NestedConfigurationProperty ToolStudio 
     public record FsConfig(String basePath) {}
 
     public record Chat(String systemPrompt, List<String> models,
-                       @NestedConfigurationProperty DefaultChatOptions chatOptions, Integer toolResultMaxChars) {
-        // Every tool response in a chat round is capped at this many chars (the standard agent-framework
-        // guard against tool output flooding the context); zero or negative disables the cap.
+                       @NestedConfigurationProperty DefaultChatOptions chatOptions, Integer toolResultMaxChars,
+                       Integer memoryMaxMessages, Integer historyMaxMessages) {
         public Chat {
             if (toolResultMaxChars == null) toolResultMaxChars = 12_000;
+            if (memoryMaxMessages == null || memoryMaxMessages <= 0) memoryMaxMessages = 10;
+            if (historyMaxMessages == null || historyMaxMessages <= 0) historyMaxMessages = 2_000;
         }
     }
 }
