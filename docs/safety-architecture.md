@@ -1,5 +1,5 @@
 title: AI Agent Tool Safety
-description: Defense-in-depth sandbox for AI agent tools - three-layer model, deployment isolation tiers, policy resolution, threat-to-layer mapping, and Risk Level (L0-L5) reference.
+description: Defense-in-depth sandbox for AI agent tools - three-layer model, deployment isolation tiers, policy resolution, and a Risk Level (L0-L5) reference.
 
 # AI Agent Tool Safety
 

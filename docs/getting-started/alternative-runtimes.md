@@ -108,6 +108,24 @@ cd spring-ai-playground
 
 Then open `http://localhost:8282`.
 
+### Apple Silicon and MLX models { #apple-silicon-mlx }
+
+On an Apple Silicon Mac (`arm64`), a source or `java -jar` run automatically layers a bundled **`mlx`** profile on top of the default `ollama` profile. The chat defaults and the chat model menu switch to Apple's MLX-optimized Ollama builds, which run noticeably faster on M-series hardware: the default chat model becomes `qwen3.5:4b-mlx` and `spring.ai.playground.chat.models` lists the `-mlx` builds.
+
+An `EnvironmentPostProcessor` makes this decision at startup, gated on the OS (`mac`) and architecture (`arm64`). Intel Macs, Windows, Linux, and **Docker containers - which run Linux even on an Apple Silicon host** - are unaffected and use the generic model names as-is. You still pull the `-mlx` builds into Ollama yourself; `spring.ai.ollama.init.pull-model-strategy: when_missing` pulls the configured chat and embedding models on first start.
+
+To keep the generic model names, opt out with `spring.ai.playground.ollama.mlx-auto-select=false`:
+
+```bash
+# fat JAR
+java -jar spring-ai-playground-*.jar --spring.ai.playground.ollama.mlx-auto-select=false
+
+# source run
+./mvnw spring-boot:run -Dspring-boot.run.arguments="--spring.ai.playground.ollama.mlx-auto-select=false"
+```
+
+The desktop launcher sets this same flag and resolves the MLX build a different way - it only upgrades to an `-mlx` build that is already installed locally. See [Desktop App → Apple Silicon and MLX models](desktop.md#apple-silicon-and-mlx-models).
+
 ### Use as an MCP server from the fat JAR
 
 Java developers who already have JDK 21+ on the machine can connect their MCP client straight at the Spring Boot fat JAR - no Docker, no Vaadin dev mode. The same `mcp-stdio` profile that powers the container is portable to any `java -jar` launch.

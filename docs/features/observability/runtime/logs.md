@@ -1,5 +1,5 @@
 title: Logs
-description: Live log search with structured MDC extraction - Logback pattern injects conv, msg, traceId, spanId MDC keys into every line so log search is anchored to the trace it came from.
+description: Live log search with structured MDC extraction - conv, msg, traceId, and spanId are injected into every line, anchoring each log to the trace it came from.
 
 # Logs
 

@@ -1,5 +1,5 @@
 title: Safe Local Execution Layer for AI Agent Tools
-description: Cross-platform desktop app for building, testing, and publishing MCP tools - Tool Studio, defense-in-depth sandbox, Risk Level (L0-L5), Agentic Chat, RAG, and built-in observability dashboards.
+description: Desktop app to build, test, and publish MCP tools - Tool Studio, a defense-in-depth sandbox, Risk Levels (L0-L5), Agentic Chat, RAG, and observability dashboards.
 
 # Spring AI Playground
 
@@ -487,7 +487,7 @@ Installing an external MCP server normally means cloning a repo, installing the 
 <a class="tcg-stretched-link" href="features/default-mcp-catalog/business/#Stripe" aria-label="Open Stripe"></a>
 <span class="tcg-home-icon">![Stripe](https://cdn.simpleicons.org/stripe){ width="20" }</span>
 <span class="tcg-home-name">Stripe</span>
-<span class="tcg-home-pill risk-l4">L4</span>
+<span class="tcg-home-pill risk-l2">L2</span>
 <span class="tcg-home-oauth" title="OAuth 2.1">🔐</span>
 </div>
 
@@ -502,7 +502,7 @@ Installing an external MCP server normally means cloning a repo, installing the 
 - [:material-connection: MCP Server](features/mcp-server/index.md): inspect external MCP servers, read a live **risk score** (L0-L5) before connecting, and **proxy** their tools onto the built-in server - compose multiple servers into one surface - each gated by per-tool human-in-the-loop.
 - [:material-server-network: Default MCP Servers](features/default-mcp-catalog/index.md): 57 preset external MCP server connections (Gmail, Notion, Slack, GitHub, Tavily, ...) gated on `${ENV_VAR}` placeholders.
 - [:material-database-search: RAG](features/vector-database.md): upload content, chunk it, embed it, index it, and validate retrieval quality.
-- [:material-chat-processing: Agentic Chat](features/agentic-chat.md): combine grounded context, built-in tools, and explicitly trusted MCP connections in one interaction flow.
+- [:material-chat-processing: Agentic Chat](features/agentic-chat/index.md): combine grounded context, built-in tools, and explicitly trusted MCP connections in one interaction flow - with a Prompt Library of ready-to-use [presets](features/agentic-chat/prompt-presets.md) and [`{{variable}}` templates](features/agentic-chat/prompt-templates.md), per-turn reasoning effort, and rich code/math/diagram rendering.
 - [:material-chart-line: Observability](features/observability/index.md): twelve in-app dashboards covering token economics, tool and MCP behaviour, RAG quality, host runtime, and a live trace tail.
 
 ## :material-lightbulb-on-outline: Why This Project Exists
@@ -515,7 +515,7 @@ Its current focus is:
 - making test-before-publish the default path for built-in local tool exposure
 - testing tool execution flows, environment-backed tool configuration, and RAG integration in one place
 - making tools easier to inspect, easier to test, and easier to operationalize before they are reused elsewhere
-- supporting practical single-agent workflows through Agentic Chat with tools and grounded context. See [Agentic Chat Architecture Overview](features/agentic-chat.md#agentic-chat-architecture-overview).
+- supporting practical single-agent workflows through Agentic Chat with tools and grounded context. See [Agentic Chat Architecture Overview](features/agentic-chat/index.md#agentic-chat-architecture-overview).
 - promoting validated built-in tools into reusable MCP-hosted runtimes that can be shared across multiple MCP-compatible hosts and clients
 
 It is intentionally opinionated and scope-limited in its current stage. The goal is a stable, reproducible platform for practical MCP tool work rather than a feature-complete agent orchestration product.
@@ -533,6 +533,7 @@ It is intentionally opinionated and scope-limited in its current stage. The goal
 - [Application Architecture](architecture.md): runtime layers, data flows, and extension points
 - [AI Agent Tool Safety Architecture](safety-architecture.md): defense-in-depth sandbox model, policy resolution, threat model, and Risk Level reference
 - [AI Agent Observability Architecture](observability-architecture.md): trace pipeline, storage tiers, configuration, and external export paths behind the twelve dashboards
+- [Context Engineering Architecture](context-engineering-architecture.md): how each chat turn's context window is assembled from system prompt, retrieved documents, tools, memory, and per-request options
 - [Features](features/index.md): the main product areas and what they do
 - [Tutorials](tutorials/index.md): follow end-to-end workflows for tools, MCP, vector search, and agentic chat
 

@@ -4,11 +4,11 @@ description: Default Tools - 86 ready-to-call JavaScript tools across 5 source b
 
 **Where:** top navigation → **Tool Studio** - the default tools ship pre-loaded; tune the exposed subset in the **Built-in MCP Server Native Tools** drawer.
 
-Spring AI Playground ships with **86 default tools** spread across five JSON source bundles. They are ready to call the moment a model provider is connected - you do not need to author anything yourself to see agentic workflows work end-to-end. They also serve as editable references when you start writing your own tools.
+Spring AI Playground ships with **86 default tools** spread across six JSON source bundles. They are ready to call the moment a model provider is connected - you do not need to author anything yourself to see agentic workflows work end-to-end. They also serve as editable references when you start writing your own tools.
 
 Tools that reach an external API read their keys from **environment variables** - each tool's card below lists the variables it needs. How to supply env vars (desktop launcher, Docker `-e`, or a source run) is covered once in the [Configuration reference](../../getting-started/configuration.md#how).
 
-Not all of them are Local-Passed (active) by default - a **preset** decides the starting subset, and per-tool include / exclude rules layer on top. That preference lives in `<home>/spring-ai-playground/tool/save/default-tools-preference.json` and is chosen at setup - the desktop launcher's Default MCP Tools card, or CLI / yaml (full breakdown in [Tool Studio → Where preset choices live](../tool-studio/index.md#where-preset-choices-live)). Tool Studio's **Built-in MCP Server Native Tools** drawer then selects which Local-Passed tools the MCP server exposes.
+Every tool is **Local-Passed** (published to the built-in MCP server) out of the box - except any that are still missing a required `${ENV_VAR}`, which stay as **drafts** until you supply it. A **preset** decides something separate: which of the Local-Passed tools the server actually **exposes** to agents at boot (the default is **Starter 5**), with per-tool include / exclude rules layering on top. That preference lives in `<home>/spring-ai-playground/tool/save/default-tools-preference.json` and is chosen at setup - the desktop launcher's Default MCP Tools card, or CLI / yaml (full breakdown in [Tool Studio → Where preset choices live](../tool-studio/index.md#where-preset-choices-live)). Tool Studio's **Built-in MCP Server Native Tools** drawer then selects which Local-Passed tools the MCP server exposes.
 
 ## Risk Level { #risk-level }
 
@@ -878,13 +878,13 @@ Fetches current crypto prices from CoinGecko's public Simple Price API (no auth,
 <div class="tcg-page">→ Global</div>
 </div>
 
-<div class="tcg-card tcg-card--directory t-currency" data-name="convertcurrency" data-desc="converts between fiat currencies using exchangerate.host (no key, no rate limit listed)." data-category="web" data-tags="finance" data-preset="" data-env="" markdown>
+<div class="tcg-card tcg-card--directory t-currency" data-name="convertcurrency" data-desc="converts between fiat currencies using open.er-api.com daily reference rates (no key)." data-category="web" data-tags="finance" data-preset="" data-env="" markdown>
 <a class="tcg-stretched-link" href="global/#convertCurrency" aria-label="Open convertCurrency in Global">convertCurrency</a>
 <div class="tcg-name"><span class="tcg-name__text">convertCurrency</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:material-currency-usd:</div>
 <div class="tcg-type">web · finance <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
-Converts between fiat currencies using exchangerate.host (no key, no rate limit listed).
+Converts between fiat currencies using open.er-api.com daily reference rates (no key).
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `from` · `to` · `amount`</div>
@@ -908,13 +908,13 @@ Returns geolocation and ASN info for an IP address (or the caller's IP if `ip` i
 <div class="tcg-page">→ Global</div>
 </div>
 
-<div class="tcg-card tcg-card--directory" data-name="getcountryinfo" data-desc="fetches country information from restcountries.com (no auth) by partial or full name." data-category="web" data-tags="geo" data-preset="" data-env="" markdown>
+<div class="tcg-card tcg-card--directory" data-name="getcountryinfo" data-desc="fetches country information from the open mledoze/countries dataset (via the jsDelivr CDN, no key) by partial or full name." data-category="web" data-tags="geo" data-preset="" data-env="" markdown>
 <a class="tcg-stretched-link" href="global/#getCountryInfo" aria-label="Open getCountryInfo in Global">getCountryInfo</a>
 <div class="tcg-name"><span class="tcg-name__text">getCountryInfo</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:material-earth:</div>
 <div class="tcg-type">web · geo <span class="risk risk-l3">L3</span></div>
 <div class="tcg-body" markdown>
-Fetches country information from restcountries.com (no auth) by partial or full name.
+Fetches country information from the open mledoze/countries dataset (via the jsDelivr CDN, no key) by partial or full name.
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `name`</div>
@@ -1367,7 +1367,7 @@ No JS authoring is required for any of this mode - pick a preset, expose, call.
 - → [Tool Studio: Connect to the Built-in MCP Server](../tool-studio/index.md#connect-to-the-built-in-mcp-server) - wiring external clients over Streamable HTTP
 - → [Alternative Runtimes: distribution channels and MCP transports](../../getting-started/alternative-runtimes.md#how-distribution-channels-map-to-mcp-transports) - Docker container and fat-JAR launchers for STDIO mode
 - → [MCP Server: MCP Inspector](../mcp-server/index.md#mcp-inspector) - exercise tools, resources, prompts before exposing externally
-- → [Agentic Chat](../agentic-chat.md) - call them from a model conversation
+- → [Agentic Chat](../agentic-chat/index.md) - call them from a model conversation
 
 ### Author and compose
 

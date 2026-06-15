@@ -1,5 +1,5 @@
 title: Desktop App
-description: Install Spring AI Playground from the desktop installer - platform-specific install notes, configuration walkthrough, MCP tools curation, environment variables and secrets.
+description: Install Spring AI Playground from the desktop installer - platform install notes, configuration walkthrough, MCP tools curation, and environment secrets.
 
 # Desktop App
 

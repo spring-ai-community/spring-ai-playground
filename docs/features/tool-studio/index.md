@@ -403,7 +403,7 @@ You can keep many tools in your workspace, expose only a controlled subset, vali
 
 </div>
 
-The app ships with a bundled catalog of **86 default tools** across five JSON source bundles. They are ready to call from chat the moment a model provider is connected, and they also serve as editable references when you start writing your own.
+The app ships with a bundled catalog of **86 default tools** across six JSON source bundles. They are ready to call from chat the moment a model provider is connected, and they also serve as editable references when you start writing your own.
 
 **Not all of them are Local-Passed (active) by default.** A **preset** decides the starting Local-Passed subset, and **include / exclude rules** layer per-tool tweaks on top. Each preset stands on its own - `Dev Essentials`, `Korea Toolkit`, and `File Toolkit` do **not** automatically inherit Starter 5 (only `getCurrentTime` and `evalExpression` carry through deliberately).
 
@@ -414,7 +414,6 @@ The app ships with a bundled catalog of **86 default tools** across five JSON so
 | `Korea Toolkit (free)` | `getCurrentTime`, `evalExpression`, `getUpbitTicker`, `getBithumbTicker`, `searchKpopOnItunes`, `searchKBeautyProducts` | Free Korean services |
 | `File Toolkit` | `getCurrentTime`, `evalExpression`, `readTextFile`, `listDir`, `grepFile`, `findFiles`, `sliceFile`, `sortFile`, `cutFileFields` | Filesystem pipeline - set `TOOL_STUDIO_FS_BASE` (or rely on the `${user.home}/spring-ai-playground/fs-tool-workspace` default) |
 | `Everything` | All 86 default tools | Heavy MCP catalog |
-| `Custom` | None initially | Active when you only want the include/exclude rules to decide what gets exposed |
 
 Per-tool **include / exclude rules** layer on top: name-add → tag-add → category-add → name-remove → tag-remove → category-remove. These rules are configured at setup - the desktop launcher's **Default MCP Tools** card (include-by-tag / -category / -name, exclude-by-tag / -name) or CLI / yaml; `exclude.categories` is data-supported but currently only reachable via CLI / yaml override.
 
