@@ -58,7 +58,7 @@ Provider selection (which Spring AI model backs each capability):
 
 | Property | Default | Notes |
 |---|---|---|
-| `spring.ai.model.chat` | `ollama` | `openai` profile flips this to `openai-sdk`. |
+| `spring.ai.model.chat` | `ollama` | Set to `openai` by the `openai` Spring profile. |
 | `spring.ai.model.embedding` | `ollama` | Used by the Vector Database. |
 | `spring.ai.model.image` / `moderation` / `audio.speech` / `audio.transcription` | `none` | Opt-in capabilities. |
 
@@ -77,9 +77,9 @@ Provider selection (which Spring AI model backs each capability):
 
 | Property | Env | Default | Notes |
 |---|---|---|---|
-| `spring.ai.openai-sdk.api-key` | `OPENAI_API_KEY` | *(required)* | Set as an env var; never commit it. |
-| `spring.ai.openai-sdk.chat.options.model` | - | `gpt-5.4-mini` | Default chat model. |
-| `spring.ai.openai-sdk.embedding.options.model` | - | `text-embedding-3-small` | Default embedding model. |
+| `spring.ai.openai.api-key` | `OPENAI_API_KEY` | *(required)* | Set as an env var; never commit it. |
+| `spring.ai.openai.chat.options.model` | - | `gpt-5.4-mini` | Default chat model. |
+| `spring.ai.openai.embedding.options.model` | - | `text-embedding-3-small` | Default embedding model. |
 | `spring.ai.playground.chat.models` | - | `gpt-5.4, gpt-5.4-mini, gpt-5.4-nano, gpt-5.2` | Chat model menu. |
 
 Tool / MCP-server API keys (GitHub PAT, `BRAVE_API_KEY`, `MS_TENANT_ID`, Google keys, ...) are documented per surface on the [Default Tools](../features/default-tools/index.md) and [Default MCP Servers](../features/default-mcp-catalog/index.md) pages - they are supplied the same way (env var or the launcher's env editor).
@@ -103,7 +103,7 @@ The playground publishes its own MCP server at `/mcp` (Streamable HTTP). These c
 | `spring.ai.playground.mcp-server.composed-tools` | relaxed-binding env | `[]` | Declarative list of composed (proxied) external tools - see [Configure exposure via YAML](../features/mcp-server/proxy.md#yaml-exposure). |
 | `spring.ai.mcp.server.protocol` | relaxed-binding env | `STREAMABLE` | `SSE` · `STREAMABLE` · `STATELESS`. |
 | `spring.ai.playground.chat.tool-result-max-chars` | relaxed-binding env | `12000` | Caps the characters of any single tool result before it returns to the model in the [Agentic Chat](../features/agentic-chat/index.md) loop - built-in, authored, or external. Oversized results are truncated (with a marker) so one verbose tool call cannot blow up the context window. `0` disables the cap. |
-| `spring.ai.playground.chat.memory-max-messages` | relaxed-binding env | `10` | How many recent messages are sent to the model each turn - the conversation **memory window**. Overridable per chat from the settings drawer's **Memory (messages)** field. See [Context Engineering → Conversation memory](../context-engineering-architecture.md#conversation-memory). |
+| `spring.ai.playground.chat.memory-max-messages` | relaxed-binding env | `10` | How many recent messages are sent to the model each turn - the conversation **memory window**. Overridable per chat from the settings drawer's **Recent messages** field. See [Context Engineering → Conversation memory](../context-engineering-architecture.md#conversation-memory). |
 | `spring.ai.playground.chat.history-max-messages` | relaxed-binding env | `2000` | Safety cap on the **full local conversation store** that the screen and on-disk history read from; messages beyond this are dropped. The memory window above is what the model actually sees. |
 | `spring.ai.mcp.server.request-timeout` | relaxed-binding env | `150` | Seconds. |
 

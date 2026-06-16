@@ -1,14 +1,14 @@
-description: Default Tools - Global reference. 22 tools that call public HTTPS APIs - GitHub, Wikipedia, weather, finance, geo, search.
+description: Default Tools - Global reference. 21 tools that call public HTTPS APIs - GitHub, Wikipedia, weather, finance, geo, search.
 
 # Default Tools - Global
 
-The 22 tools in `default-tool-specs-network.json` call **public global HTTPS endpoints** - most of them anonymous, all of them outside Korea. Categories span code (GitHub), encyclopedia (Wikipedia), forum (Hacker News, Stack Overflow, Reddit), finance (CoinGecko, open.er-api.com), geo (ipapi.co, mledoze/countries, Nominatim, sunrise-sunset, USGS), weather (Open-Meteo), and government data (Nager.Date public holidays).
+The 21 tools in `default-tool-specs-network.json` call **public global HTTPS endpoints** - most of them anonymous, all of them outside Korea. Categories span code (GitHub), encyclopedia (Wikipedia), forum (Hacker News, Stack Overflow), finance (CoinGecko, open.er-api.com), geo (ipapi.co, mledoze/countries, Nominatim, sunrise-sunset, USGS), weather (Open-Meteo), and government data (Nager.Date public holidays).
 
 None of them need an API key - they live entirely off the providers' anonymous rate-limit tiers. Tool actions execute with host-`allowlist` egress, so every fetch goes through [the SSRF four-layer guard](../tool-studio/index.md#ssrf-four-layer-guard) regardless of whether the destination is a literal IP or a DNS host.
 
 The grouping below mirrors the `tags` axis each tool carries - the same axis you can filter by in the Tool Studio tool list.
 
-## Browse the 22 global APIs { #browse-the-global-apis }
+## Browse the 21 global APIs { #browse-the-global-apis }
 
 All run with host-`allowlist` egress (SSRF four-layer guard) at sandbox **L3**. Tag chips: `github` · `search` · `finance` · `geo` · `weather`.
 
@@ -1242,91 +1242,6 @@ return (resp.json() || []).map(h => ({
   global:    h.global,
   types:     h.types || [],
 }));
-
-```
-
-</details>
-
-</div>
-</div>
-
-<div class="tcg-card t-reddit tcg-card--clickable" id="searchReddit" data-tool-id="searchReddit" data-tool-title="searchReddit" markdown>
-<div class="tcg-name"><span class="tcg-name__text">searchReddit</span> <span class="cost">🆓</span></div>
-<div class="tcg-art" markdown>:simple-reddit:</div>
-<div class="tcg-type">web · search <span class="risk risk-l3">L3</span></div>
-<div class="tcg-body" markdown>
-Searches a public subreddit via Reddit's JSON API (no auth, but rate-limited and User-Agent required).
-</div>
-<div class="tcg-stats" markdown>
-<div class="tcg-stats__line" markdown>**Params** &nbsp; `subreddit` · `query` · `limit` · `sort`</div>
-<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
-</div>
-<div class="tcg-cta">Click for full reference · params · sandbox · JS source</div>
-<div class="tcg-detail-template" hidden markdown>
-
-**More detail**
-
-Returns up to `limit` posts: [{ title, author, score, numComments, createdUtc, subreddit, permalink, url, selftext }]. Subreddit can be 'all' for site-wide search.
-
-**Parameters**
-
-| Param | Type | Req | Description |
-|---|---|---|---|
-| `subreddit` | `STRING` | ✓ | Subreddit name (without /r/, or 'all') |
-| `query` | `STRING` | ✓ | Search query string |
-| `limit` | `INTEGER` |  | Max posts (1-25, default 5) |
-| `sort` | `STRING` |  | relevance \| hot \| top \| new \| comments |
-
-**Sandbox** - **L3** (Scoped widening) - `fetch` allowlisted to `www.reddit.com` (SSRF-guarded); no filesystem.
-
-<details class="tcg-sysprompt" markdown>
-<summary>JS source</summary>
-
-```javascript
-/**
- * Reddit JSON search endpoint.
- *
- * GET https://www.reddit.com/r/{subreddit}/search.json?q=...&restrict_sr=1&limit=...
- *
- * No authentication needed for read access. Reddit BANS empty / generic User-Agent
- * strings - we pass a descriptive one. Rate limit: ~60 req/min/IP.
- */
-
-if (subreddit == null || subreddit === '') throw new Error('subreddit required');
-if (query == null || query === '') throw new Error('query required');
-const n = (Number.isInteger(limit) && limit > 0 && limit <= 25) ? limit : 5;
-const sortValid = (sort === 'hot' || sort === 'top' || sort === 'new' || sort === 'comments');
-const s = sortValid ? sort : 'relevance';
-
-const sub = String(subreddit).replace(/^r\//, '');
-const restrict = (sub.toLowerCase() === 'all') ? '' : '&restrict_sr=1';
-const url = 'https://www.reddit.com/r/' + encodeURIComponent(sub) + '/search.json'
-  + '?q=' + encodeURIComponent(query)
-  + restrict
-  + '&limit=' + n + '&sort=' + s;
-
-const resp = await fetch(url, {
-  headers: { 'Accept': 'application/json',
-             'User-Agent': 'spring-ai-playground/0.2 (by /u/local-tool)' },
-  maxLength: 5_000_000,
-});
-if (!resp.ok) return { success: false, status: resp.status, message: resp.text() };
-const data = resp.json();
-const children = (data.data && data.data.children) || [];
-return children.map(c => {
-  const d = c.data || {};
-  return {
-    title:       d.title,
-    author:      d.author,
-    score:       d.score,
-    numComments: d.num_comments,
-    createdUtc:  d.created_utc,
-    subreddit:   d.subreddit,
-    permalink:   'https://www.reddit.com' + d.permalink,
-    url:         d.url,
-    selftext:    d.selftext,
-  };
-});
 
 ```
 

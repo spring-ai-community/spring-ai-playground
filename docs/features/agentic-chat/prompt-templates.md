@@ -8,13 +8,13 @@ A **template** is a reusable system prompt with `{{variable}}` placeholders. Ins
 
 > **Templates vs Presets.** Both live in the Prompt Library and both end up as a conversation's system prompt - but they are reached differently. A **[preset](prompt-presets.md)** is a *complete* prompt you apply as-is. A **template** (this page) is *parameterized*: it has `{{variables}}` you fill in first, and the renderer produces the finished prompt from your input. Reach for a preset to start fast; reach for a template when you want the same structure with different specifics each time.
 
-![A template selected in the Prompt Library - a variable form on the right with a live Final prompt preview and a Required tools section](../../assets/images/chat/prompt-library-template.png)
+![A template selected in the Prompt Library - a variable form on the right with a live Final prompt preview and a Required tools section](../../assets/images/chat/prompt-library-template.png){ width="1500" }
 
 ## Filling the variables
 
 Selecting a template shows a form on the right, one field per `{{variable}}`. As you type, the **Final prompt (preview)** updates live, so you always see exactly what the model will receive. Any field you leave blank falls back to that variable's default, so a template is runnable even before you touch the form.
 
-![A template with its variables filled in - the form on the right and the assembled Final prompt preview updating below it](../../assets/images/chat/prompt-library-template-filled.png)
+![A template with its variables filled in - the form on the right and the assembled Final prompt preview updating below it](../../assets/images/chat/prompt-library-template-filled.png){ width="1500" }
 
 When the form is ready:
 
@@ -48,7 +48,7 @@ A `=value` suffix on any type sets the default. The rendering rules, and why the
 
 ## Required tools
 
-A template can declare the built-in tools it expects - for example **Research brief writer** names six search tools. The detail pane lists them under **Required tools**, and applying the template selects them in the chat's [tool selector](index.md#choosing-tools-and-documents). Each is flagged by readiness (ready, needs a key or setup, active but not exposed in this chat, or not enabled), so you can see what still needs wiring before the role will work. Tools are never enabled silently; you stay in control of what the agent can call.
+A template can declare the built-in tools it uses - for example **Research brief writer** names four search tools. The detail pane lists them under **Required tools**, and they reference only key-less (**Local Pass**) tools. Filling a template produces a preset, so applying it behaves like any [preset](prompt-presets.md#required-tools): it **resets the built-in MCP server to expose exactly those tools**, turns built-in MCP on for the new chat, and selects them - with a confirmation dialog first. Tools are never enabled silently; you stay in control of what the agent can call.
 
 ## Create your own template
 
@@ -56,15 +56,15 @@ You are not limited to the built-ins. The **New template** button in the Prompt 
 
 **1. Open the editor.** Click **New template**. You get a **Name** field, a **Prompt** area (wrap variables in `{{ }}`), a live list of detected variables, and a tools picker.
 
-![The New variable template editor - a Name field, a Prompt area with helper text listing the variable types, an Add variable button, and a Save template button](../../assets/images/chat/prompt-template-create-editor.png)
+![The New variable template editor - a Name field, a Prompt area with helper text listing the variable types, an Add variable button, and a Save template button](../../assets/images/chat/prompt-template-create-editor.png){ width="1460" }
 
 **2. Add variables.** Type `{{name:type=default}}` tokens directly, or click **Add variable** to build one from a small form - pick a type (text, multiline, number, select, list), set its options or a default, and **Insert** drops the finished token into the prompt. You never have to memorize the syntax.
 
-![The Add variable dialog - a variable name field, a type dropdown, and a default value, with an Insert button that writes the token into the prompt](../../assets/images/chat/prompt-template-create-add-variable.png)
+![The Add variable dialog - a variable name field, a type dropdown, and a default value, with an Insert button that writes the token into the prompt](../../assets/images/chat/prompt-template-create-add-variable.png){ width="1460" }
 
 **3. Watch the variables register.** As you type, the **Detected variables** row shows each `{{variable}}` with its parsed type, so you can confirm the template is well-formed before saving.
 
-![The editor with a full email-writer prompt typed in - the Detected variables row shows tone : select, recipient : text, topic : multiline, and word_limit : number](../../assets/images/chat/prompt-template-create-detected.png)
+![The editor with a full email-writer prompt typed in - the Detected variables row shows tone : select, recipient : text, topic : multiline, and word_limit : number](../../assets/images/chat/prompt-template-create-detected.png){ width="1460" }
 
 **4. Save it.** Name the template and click **Save template**. It joins the **Templates** group in the left rail - persisted under `<home>/spring-ai-playground/chat/save/`, so it survives restarts - and immediately shows its fill-in form, ready to use exactly like a built-in.
 
@@ -74,11 +74,11 @@ The storage layout and load order are covered in [Context Engineering → System
 
 Take the email-writer template built above. Filling its form - tone `formal`, recipient `Dr. Park`, a one-line topic - and clicking **Save as preset & apply** opens the settings drawer with the **assembled** system prompt already in place. This rendered text is the template's output, now a reusable [preset](prompt-presets.md):
 
-![The settings drawer after applying - the System prompt field holds the rendered email-writer prompt with the variable values substituted in](../../assets/images/chat/prompt-template-create-applied.png)
+![The settings drawer after applying - the System prompt field holds the rendered email-writer prompt with the variable values substituted in](../../assets/images/chat/prompt-template-create-applied.png){ width="1460" }
 
 Press **Apply & New Chat**, send a short instruction, and the model answers in the role the template defined - here a complete formal email, generated locally on `qwen3.5:2b-mlx`:
 
-![The chat result - the user types Draft it and the assistant returns a complete formal email with a subject line, greeting, body, and sign-off](../../assets/images/chat/prompt-template-create-result.png)
+![The chat result - the user types Draft it and the assistant returns a complete formal email with a subject line, greeting, body, and sign-off](../../assets/images/chat/prompt-template-create-result.png){ width="1460" }
 
 That is the point of a template: author the structure once, then produce a tailored preset - and a tailored result - from it whenever you need one.
 

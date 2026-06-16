@@ -72,7 +72,7 @@ Every card also carries its own **risk chip** next to the tool name. On the Deep
 
 **How the playground surfaces it** - `NotificationsTab.java` is a live feed. Each incoming notification appears as a row with a timestamp, the notification method, and the (pretty-printed) payload. The feed accumulates while the tab is open and resets when the sidebar selection changes. This is the **only place chat doesn't surface** server push notifications, so it's the canonical way to verify that an external server actually emits the change events it claims to.
 
-![Excerpt of the Notifications tab - empty feed area on a connection whose server hasn't pushed anything yet; entries appear here the moment the server emits one](../../assets/images/mcp-inspector/inspector-05-notifications.png)
+![Excerpt of the Notifications tab - a logging-level selector and Clear button above a live feed showing three TOOLS_CHANGED "Tools list changed (15)" rows, each timestamped, that MCP Everything emitted on connect](../../assets/images/mcp-inspector/inspector-05-notifications.png)
 
 *On MCP Everything specifically, invoking the `Toggle Subscriber Updates` tool on the Tools tab kicks the server into periodically pushing `notifications/resources/updated` - which is when entries start landing in this feed.*
 

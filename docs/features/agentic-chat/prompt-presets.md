@@ -8,7 +8,7 @@ A **preset** is a complete, ready-to-use system prompt. You select it, optionall
 
 > **Presets vs Templates.** Both live in the Prompt Library and both end up as a conversation's system prompt. A **preset** (this page) is a *complete* prompt you apply as-is. A **[template](prompt-templates.md)** is *parameterized* - it has `{{variables}}` you fill in first, and a renderer assembles the finished prompt. Reach for a preset to start fast; reach for a template when you want the same structure with different specifics each time. Filling a template, in fact, *produces* a preset.
 
-![The Prompt Library dialog - a left list split into Templates (fill variables) and Presets (ready to use), with a right pane previewing the selected prompt](../../assets/images/chat/prompt-library.png)
+![The Prompt Library dialog - a left list split into Templates (fill variables) and Presets (ready to use), with a right pane previewing the selected prompt](../../assets/images/chat/prompt-library.png){ width="1500" }
 
 ## Applying a preset
 
@@ -17,13 +17,15 @@ Selecting a preset shows its full system prompt in the right pane, editable in p
 - **Apply to chat** uses the text as the conversation's system prompt.
 - **Save as preset** keeps your edited copy under *My presets*.
 
-![A preset selected - the editable system prompt on the right with Apply to chat and Save as preset buttons](../../assets/images/chat/prompt-library-preset.png)
+![A preset selected - the editable system prompt on the right with Apply to chat and Save as preset buttons](../../assets/images/chat/prompt-library-preset.png){ width="1500" }
 
 Editing before applying is encouraged - a built-in preset is a strong starting point, not a fixed contract.
 
 ## Required tools
 
-A preset can declare the built-in tools its role expects - for example **Research agent** names seven search tools, and **Korea concierge** names seventeen Korean data tools. The detail pane lists them under **Required tools**, and applying the preset selects them in the chat's [tool selector](index.md#choosing-tools-and-documents). Each is flagged by readiness (ready, needs a key or setup, active but not exposed in this chat, or not enabled), so you can see what still needs wiring. When some of a preset's tools need a key, applying it asks you to confirm - it activates the **available** ones and leaves the rest dormant. Tools are never enabled silently.
+A preset can declare the built-in tools its role uses - for example **Coding agent** names nine file and GitHub tools, and **Korea concierge** names nine no-key Korean data tools. The detail pane lists them under **Required tools**. Presets reference only key-less (**Local Pass**) tools, so applying one needs no per-tool key setup.
+
+Applying a preset **resets the built-in MCP server to expose exactly those tools** - the same preset-authoritative model the default-tool preset uses - turns built-in MCP on for the new chat, and selects them in the [tool selector](index.md#choosing-tools-and-documents). A confirmation dialog lists what will be exposed before you commit. The new exposure **persists across restarts** and is the same set shown in [Tool Studio](../tool-studio/index.md)'s built-in exposure, so the chat and Tool Studio always agree. Tools are never enabled silently.
 
 ## My presets - saving your own
 
@@ -68,7 +70,7 @@ A concise default - answers directly and cites anything it uses. Works with no t
 
 **What happens** - no tools, no reasoning: the model answers directly.
 
-![General assistant result - the question and a concise CAP-theorem answer, with Spanner/HBase as the CP example and Cassandra/DynamoDB as the AP example](../../assets/images/chat/preset-general-assistant-collapsed.png)
+![General assistant result - the question and a concise CAP-theorem answer, with Spanner/HBase as the CP example and Cassandra/DynamoDB as the AP example](../../assets/images/chat/preset-general-assistant-collapsed.png){ width="1084" }
 
 </div>
 </div>
@@ -112,20 +114,20 @@ Before starting, check these are callable in this chat. If one is missing, do no
 
 **What happens** - the agent calls `getGithubFileContent` to read the pom.xml from public GitHub, then reports the Java version and key dependencies. Its reasoning and tool calls run in collapsible **THINK** / **MCP TOOLS** panels (folded here; click any in the app to open).
 
-![Coding agent result - the question, folded THINK and MCP TOOLS summaries, and the answer naming Java 17 and the petclinic dependencies](../../assets/images/chat/preset-coding-agent-collapsed.png)
+![Coding agent result - the question, folded THINK and MCP TOOLS summaries, and the answer naming Java 17 and the petclinic dependencies](../../assets/images/chat/preset-coding-agent-collapsed.png){ width="1084" }
 
 </div>
 </div>
 
 <div class="tcg-card tcg-card--clickable" id="research-agent" data-tool-id="research-agent" data-tool-title="Research agent" markdown>
-<div class="tcg-name"><span class="tcg-name__text">Research agent</span> <span class="cost">7 tools</span></div>
+<div class="tcg-name"><span class="tcg-name__text">Research agent</span> <span class="cost">5 tools</span></div>
 <div class="tcg-art" markdown>:material-book-search-outline:</div>
 <div class="tcg-type">agent · research</div>
 <div class="tcg-body" markdown>
 Multi-source research with citations.
 </div>
 <div class="tcg-stats" markdown>
-<div class="tcg-stats__line" markdown>**Tools** &nbsp; `searchWikipedia` · `searchArxiv` · `searchHackerNews` · `searchStackOverflow` · `extractPageContent` · ...</div>
+<div class="tcg-stats__line" markdown>**Tools** &nbsp; `searchWikipedia` · `searchArxiv` · `searchHackerNews` · `searchStackOverflow` · `extractPageContent`</div>
 <div class="tcg-stats__line" markdown>**Model** &nbsp; `qwen3.5:9b-mlx` · Reasoning `Low`</div>
 </div>
 <div class="tcg-cta">Click for a real run - input and result</div>
@@ -138,7 +140,7 @@ Multi-source research with citations.
 Source map:
 - Background and definitions -&gt; searchWikipedia
 - Papers -&gt; searchArxiv
-- Practitioner signal -&gt; searchHackerNews, searchStackOverflow, searchReddit
+- Practitioner signal -&gt; searchHackerNews, searchStackOverflow
 - Specific pages -&gt; extractPageContent (static HTML only)
 - Open web -&gt; googlePseSearch (only if its API key is configured)
 
@@ -146,7 +148,7 @@ Method: split the question into sub-questions; for each, gather evidence with to
 
 Output: short synthesis first, findings with inline [n] markers, then a Sources list with links. State remaining uncertainty plainly.
 
-Required tools: searchWikipedia, searchArxiv, searchHackerNews, searchStackOverflow, searchReddit, extractPageContent, googlePseSearch.
+Required tools: searchWikipedia, searchArxiv, searchHackerNews, searchStackOverflow, extractPageContent, googlePseSearch.
 Before starting, check these are callable in this chat. If one is missing, do not fake its output - tell the user which tool is missing and how to turn it on (Tool Studio &gt; enable the tool until it shows Local Pass, keep Built-in MCP on in the chat toolbar, then select it in the chat tool selector), and continue only with what is actually available.</pre>
 </details>
 
@@ -156,7 +158,7 @@ Before starting, check these are callable in this chat. If one is missing, do no
 
 **What happens** - the agent runs a dozen searches across Wikipedia, arXiv, and developer forums, then writes a structured summary: the RAG pipeline (retrieve, augment, generate), a trade-offs table, and numbered citations back to the sources it pulled. Its reasoning and tool calls run in collapsible **THINK** / **MCP TOOLS** panels (folded here; click any in the app to open).
 
-![Research agent result - the question, folded THINK and MCP TOOLS summaries, and a cited summary of how RAG works with a trade-offs table and numbered sources](../../assets/images/chat/preset-research-agent-collapsed.png)
+![Research agent result - the question, folded THINK and MCP TOOLS summaries, and a cited summary of how RAG works with a trade-offs table and numbered sources](../../assets/images/chat/preset-research-agent-collapsed.png){ width="1084" }
 
 </div>
 </div>
@@ -202,7 +204,7 @@ Before starting, check these are callable in this chat. If one is missing, do no
 
 **What happens** - the agent calls `getCurrentTime` and `evalExpression`, then answers from their results (the UTC time and 45.0). Its reasoning and tool calls run in collapsible **THINK** / **MCP TOOLS** panels (folded here; click any in the app to open).
 
-![Tool-using agent result - the question, folded THINK and MCP TOOLS summaries, and the final answer giving the UTC time and 45.0](../../assets/images/chat/preset-tool-using-agent-collapsed.png)
+![Tool-using agent result - the question, folded THINK and MCP TOOLS summaries, and the final answer giving the UTC time and 45.0](../../assets/images/chat/preset-tool-using-agent-collapsed.png){ width="1084" }
 
 </div>
 </div>
@@ -243,20 +245,20 @@ Before starting, check these are callable in this chat. If one is missing, do no
 
 **What happens** - the agent calls `parseCsv` and `stats` to compute the statistics (mean 83.75, max 95). Its reasoning and tool calls run in collapsible **THINK** / **MCP TOOLS** panels (folded here; click any in the app to open).
 
-![Data wrangler result - the CSV question, folded MCP TOOLS summary, and the stats table giving mean 83.75 and max 95](../../assets/images/chat/preset-data-wrangler-collapsed.png)
+![Data wrangler result - the CSV question, folded MCP TOOLS summary, and the stats table giving mean 83.75 and max 95](../../assets/images/chat/preset-data-wrangler-collapsed.png){ width="1084" }
 
 </div>
 </div>
 
 <div class="tcg-card tcg-card--clickable" id="korea-concierge" data-tool-id="korea-concierge" data-tool-title="Korea concierge" markdown>
-<div class="tcg-name"><span class="tcg-name__text">Korea concierge</span> <span class="cost">17 tools</span></div>
+<div class="tcg-name"><span class="tcg-name__text">Korea concierge</span> <span class="cost">9 tools</span></div>
 <div class="tcg-art" markdown>:material-map-marker-radius-outline:</div>
 <div class="tcg-type">agent · korea</div>
 <div class="tcg-body" markdown>
 Live Korean data - Upbit / Bithumb, weather, tour, events, KRX, and more.
 </div>
 <div class="tcg-stats" markdown>
-<div class="tcg-stats__line" markdown>**Tools** &nbsp; `getUpbitTicker` · `getBithumbTicker` · `getKmaShortTermForecast` · `searchKoreaTour` · `getKrxStockPrice` · ...</div>
+<div class="tcg-stats__line" markdown>**Tools** &nbsp; `getUpbitTicker` · `getBithumbTicker` · `searchKpopOnItunes` · `searchKBeautyProducts` · `geocodeAddress` · ...</div>
 <div class="tcg-stats__line" markdown>**Model** &nbsp; `qwen3.5:4b-mlx` · Reasoning `Low`</div>
 </div>
 <div class="tcg-cta">Click for a real run - input and result</div>
@@ -283,9 +285,9 @@ Before starting, check these are callable in this chat. If one is missing, do no
 
 > What is the current Bitcoin price on Upbit in KRW right now?
 
-**What happens** - the agent calls `getUpbitTicker` (a keyless public API) and reports the live KRW price. Many of this preset's other tools need a Korean API key, so applying it asks you to confirm before activating the available ones.
+**What happens** - the agent calls `getUpbitTicker` (a keyless public API) and reports the live KRW price. Applying the preset resets the built-in MCP server to expose its nine no-key Korean tools and starts the chat with them selected; the prompt still knows about the key-gated services (KMA, Naver, Kakao, KRX, ...) and explains how to enable them if you ask for one.
 
-![Korea concierge result - the question, folded MCP TOOLS summary, and the live Upbit BTC price in KRW](../../assets/images/chat/preset-korea-concierge-collapsed.png)
+![Korea concierge result - the question, folded MCP TOOLS summary, and the live Upbit BTC price in KRW](../../assets/images/chat/preset-korea-concierge-collapsed.png){ width="1084" }
 
 </div>
 </div>
@@ -330,7 +332,7 @@ Before starting, check these are callable in this chat. If one is missing, do no
 
 **What happens** - the agent calls `getGithubRepo` and related GitHub reads (no key needed for public repos), then assembles a health scorecard. Its reasoning and tool calls run in collapsible **THINK** / **MCP TOOLS** panels (folded here; click any in the app to open).
 
-![GitHub repo analyst result - the question, folded MCP TOOLS summary, and a health scorecard for spring-boot](../../assets/images/chat/preset-github-repo-analyst-collapsed.png)
+![GitHub repo analyst result - the question, folded MCP TOOLS summary, and a health scorecard for spring-boot](../../assets/images/chat/preset-github-repo-analyst-collapsed.png){ width="1084" }
 
 </div>
 </div>
@@ -372,7 +374,7 @@ Before starting, check these are callable in this chat. If one is missing, do no
 
 **What happens** - the agent pulls the latest release and its issues (`getGithubLatestRelease`, `listGithubRepoIssues`), then rewrites them into keep-a-changelog notes - Added / Fixed / Deprecated with linked issue numbers. Its reasoning and tool calls run in collapsible **THINK** / **MCP TOOLS** panels (folded here; click any in the app to open).
 
-![Release notes writer result - the question, folded THINK and MCP TOOLS summaries, and keep-a-changelog notes (Added, Fixed, Deprecated) for Spring Boot 4.1.0 with linked issues](../../assets/images/chat/preset-release-notes-writer-collapsed.png)
+![Release notes writer result - the question, folded THINK and MCP TOOLS summaries, and keep-a-changelog notes (Added, Fixed, Deprecated) for Spring Boot 4.1.0 with linked issues](../../assets/images/chat/preset-release-notes-writer-collapsed.png){ width="1084" }
 
 </div>
 </div>
@@ -417,7 +419,7 @@ Before starting, check these are callable in this chat. If one is missing, do no
 
 **What happens** - the agent calls `grepFile` / `sliceFile` over the sandbox log files, finds the ERROR lines, and reasons about the root cause (here, a payment-gateway timeout). Its reasoning and tool calls run in collapsible **THINK** / **MCP TOOLS** panels (folded here; click any in the app to open).
 
-![Log detective result - the question, folded MCP TOOLS summary, and an incident report tracing a gateway timeout](../../assets/images/chat/preset-log-detective-collapsed.png)
+![Log detective result - the question, folded MCP TOOLS summary, and an incident report tracing a gateway timeout](../../assets/images/chat/preset-log-detective-collapsed.png){ width="1084" }
 
 </div>
 </div>
@@ -461,7 +463,7 @@ Before starting, check these are callable in this chat. If one is missing, do no
 
 **What happens** - the agent pulls the Upbit (KRW) and global (USD) prices and uses `evalExpression` to compute the premium, showing the formula and result. Its reasoning and tool calls run in collapsible **THINK** / **MCP TOOLS** panels (folded here; click any in the app to open).
 
-![Crypto market watch result - the question, folded MCP TOOLS summary, and a kimchi-premium calculation with the formula and figure](../../assets/images/chat/preset-crypto-market-watch-collapsed.png)
+![Crypto market watch result - the question, folded MCP TOOLS summary, and a kimchi-premium calculation with the formula and figure](../../assets/images/chat/preset-crypto-market-watch-collapsed.png){ width="1084" }
 
 </div>
 </div>
@@ -509,7 +511,7 @@ Before starting, check these are callable in this chat. If one is missing, do no
 
 **What happens** - the agent geocodes Kyoto, pulls the forecast, daylight, and holidays, and assembles a dated plan. Its reasoning and tool calls run in collapsible **THINK** / **MCP TOOLS** panels (folded here; click any in the app to open).
 
-![Trip planner result - the question, folded MCP TOOLS summary, and a one-day Kyoto plan with weather and daylight](../../assets/images/chat/preset-trip-planner-collapsed.png)
+![Trip planner result - the question, folded MCP TOOLS summary, and a one-day Kyoto plan with weather and daylight](../../assets/images/chat/preset-trip-planner-collapsed.png){ width="1084" }
 
 </div>
 </div>
@@ -522,7 +524,7 @@ Before starting, check these are callable in this chat. If one is missing, do no
 A community trend digest with linked sources.
 </div>
 <div class="tcg-stats" markdown>
-<div class="tcg-stats__line" markdown>**Tools** &nbsp; `searchHackerNews` · `searchReddit` · `searchStackOverflow` · `searchArxiv` · `searchGithubRepos` · ...</div>
+<div class="tcg-stats__line" markdown>**Tools** &nbsp; `searchHackerNews` · `searchStackOverflow` · `searchArxiv` · `searchGithubRepos` · ...</div>
 <div class="tcg-stats__line" markdown>**Model** &nbsp; `qwen3.5:4b-mlx` · Reasoning `Low`</div>
 </div>
 <div class="tcg-cta">Click for a real run - input and result</div>
@@ -534,7 +536,6 @@ A community trend digest with linked sources.
 
 Sweep (no keys needed):
 - searchHackerNews - top stories and discussion volume on the topic
-- searchReddit - subreddit sentiment and recurring complaints
 - searchStackOverflow - what practitioners are actually stuck on
 - getGithubLatestRelease / searchGithubRepos - shipping velocity around the topic
 - searchArxiv - upcoming ideas when the topic is research-adjacent
@@ -543,7 +544,7 @@ Digest format: What is hot (3-5 items, each one sentence plus link), What people
 
 Date-stamp the digest with getCurrentTime, keep every claim attached to its source link, and say when a section came up empty rather than padding it.
 
-Required tools: searchHackerNews, searchReddit, searchStackOverflow, getGithubLatestRelease, searchGithubRepos, searchArxiv, getCurrentTime.
+Required tools: searchHackerNews, searchStackOverflow, getGithubLatestRelease, searchGithubRepos, searchArxiv, getCurrentTime.
 Before starting, check these are callable in this chat. If one is missing, do not fake its output - tell the user which tool is missing and how to turn it on (Tool Studio &gt; enable the tool until it shows Local Pass, keep Built-in MCP on in the chat toolbar, then select it in the chat tool selector), and continue only with what is actually available.</pre>
 </details>
 
@@ -553,7 +554,7 @@ Before starting, check these are callable in this chat. If one is missing, do no
 
 **What happens** - the agent calls `searchHackerNews` and returns the trending items with links. Its reasoning and tool calls run in collapsible **THINK** / **MCP TOOLS** panels (folded here; click any in the app to open).
 
-![Tech pulse result - the question, folded MCP TOOLS summary, and a list of trending AI items with links](../../assets/images/chat/preset-tech-pulse-collapsed.png)
+![Tech pulse result - the question, folded MCP TOOLS summary, and a list of trending AI items with links](../../assets/images/chat/preset-tech-pulse-collapsed.png){ width="1084" }
 
 </div>
 </div>

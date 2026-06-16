@@ -52,7 +52,7 @@ The token form is `{{name}}`, `{{name:type}}`, or `{{name:type(args)}}`, each op
 
 [`ReasoningEffort`](https://github.com/spring-ai-community/spring-ai-playground/blob/main/src/main/java/org/springaicommunity/playground/service/chat/ReasoningEffort.java) (`OFF`, `LOW`, `MEDIUM`, `HIGH`) is chosen on the selector row and applied **per turn** - it is not baked into the saved conversation options. A `null`/`OFF` choice leaves the model default untouched, which keeps non-reasoning models safe.
 
-Whether the control appears, and what it is called, comes from [`ChatProvider`](https://github.com/spring-ai-community/spring-ai-playground/blob/main/src/main/java/org/springaicommunity/playground/service/chat/ChatProvider.java) - resolved from the active `ChatModel` bean (`OpenAiSdkChatModel` → `OPENAI_SDK`, `OllamaChatModel` → `OLLAMA`, else `GENERIC`). The level is mapped at request-build time:
+Whether the control appears, and what it is called, comes from [`ChatProvider`](https://github.com/spring-ai-community/spring-ai-playground/blob/main/src/main/java/org/springaicommunity/playground/service/chat/ChatProvider.java) - resolved from the active `ChatModel` bean (`OpenAiChatModel` → `OPENAI`, `OllamaChatModel` → `OLLAMA`, else `GENERIC`). The level is mapped at request-build time:
 
 | Effort | OpenAI (`reasoning_effort`) | Ollama (thinking) |
 | --- | --- | --- |
@@ -70,7 +70,7 @@ Saved per conversation are the standard `DefaultChatOptions` (model, temperature
 [`ChatRequestOptionsFactory`](https://github.com/spring-ai-community/spring-ai-playground/blob/main/src/main/java/org/springaicommunity/playground/service/chat/ChatRequestOptionsFactory.java) turns these into the provider's native options object:
 
 1. `ChatProvider.from(chatModel)` selects the branch.
-2. **OpenAI** builds `OpenAiSdkChatOptions` with `streamUsage(true)` (so the streamed response carries token counts for the chat footer), plus seed, stop, and reasoning effort.
+2. **OpenAI** builds `OpenAiChatOptions` with `streamUsage(true)` (so the streamed response carries token counts for the chat footer), plus seed, stop, and reasoning effort.
 3. **Ollama** builds `OllamaChatOptions`, mapping max tokens to `numPredict`, carrying top-k, and applying the thinking level.
 4. **Generic** builds a plain `DefaultToolCallingChatOptions` with the common fields.
 5. The free-form **provider-options JSON** is overlaid last with Jackson `readerForUpdating` (override wins).
@@ -92,7 +92,7 @@ Memory is split in two, so that *what you keep* and *what the model sees* are de
 - The **full conversation** is retained locally - the screen and the on-disk history both read from it - bounded only by a generous safety cap (`spring.ai.playground.chat.history-max-messages`, default 2000 messages).
 - Only the **last N messages** are handed to the model on each turn. [`LlmWindowChatMemory`](https://github.com/spring-ai-community/spring-ai-playground/blob/main/src/main/java/org/springaicommunity/playground/service/chat/LlmWindowChatMemory.java) wraps the store as a `ChatMemory` decorator and, in its `get()`, returns just that tail window to the `MessageChatMemoryAdvisor` - so older turns stay on your machine without inflating every request.
 
-The window is `spring.ai.playground.chat.memory-max-messages` (default 10), and each conversation can override it through the **Memory (messages)** field in the [settings drawer](features/agentic-chat/index.md#the-chat-settings-drawer) (stored as `ChatExtraOptions.memoryWindow`, baked in on Apply & New Chat). This is the memory lever of context engineering: a longer window is more grounding but more tokens and latency on every turn.
+The window is `spring.ai.playground.chat.memory-max-messages` (default 10), and each conversation can override it through the **Recent messages** field in the [settings drawer](features/agentic-chat/index.md#the-chat-settings-drawer) (stored as `ChatExtraOptions.memoryWindow`, baked in on Apply & New Chat). This is the memory lever of context engineering: a longer window is more grounding but more tokens and latency on every turn.
 
 ## Provider awareness and the conversation lock
 

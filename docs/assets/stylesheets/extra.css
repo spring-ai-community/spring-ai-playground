@@ -160,6 +160,15 @@
    the scroll-attachment shadow), so wrapping tables show no false affordance. */
 .md-typeset .md-typeset__table {
   overflow-x: auto;
+  max-width: 100%;
+}
+
+/* Code blocks must clip + scroll within the viewport, not spill the page on
+   narrow screens: the inner <code> scroll alone still lets the .highlight
+   wrapper extend the document, so constrain and scroll at the wrapper too. */
+.md-typeset .highlight {
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 .md-typeset table:not([class]) {

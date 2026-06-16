@@ -101,15 +101,15 @@ Where you set the key depends on your install path: in the desktop app use the l
 
 ### OpenAI-compatible servers { #switching-to-openai-compatible-servers }
 
-Point the `openai-sdk` provider at any server that exposes an OpenAI-style `/v1` API - `LM Studio`, `vLLM`, `llama.cpp`, `TabbyAPI`, `Ollama`, and others:
+Point the `openai` provider at any server that exposes an OpenAI-style `/v1` API - `LM Studio`, `vLLM`, `llama.cpp`, `TabbyAPI`, `Ollama`, and others:
 
 ```yaml
 spring:
   ai:
     model:
-      chat: openai-sdk
+      chat: openai
       embedding: ollama
-    openai-sdk:
+    openai:
       api-key: "not-used"              # a real key if the server requires auth
       base-url: "http://localhost:1234/v1"
       chat:
