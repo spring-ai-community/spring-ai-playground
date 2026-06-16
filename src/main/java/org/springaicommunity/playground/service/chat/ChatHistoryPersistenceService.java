@@ -15,7 +15,8 @@
  */
 package org.springaicommunity.playground.service.chat;
 
-import com.fasterxml.jackson.core.type.TypeReference;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
 import org.springaicommunity.playground.service.PersistenceExecutor;
 import org.springaicommunity.playground.service.PersistenceServiceInterface;
 import org.slf4j.Logger;
@@ -64,7 +65,7 @@ public class ChatHistoryPersistenceService implements PersistenceServiceInterfac
         this.persistenceExecutor.submit(() -> {
             try {
                 save(chatHistory);
-            } catch (IOException e) {
+            } catch (IOException | JacksonException e) {
                 logger.error("Async save failed for chat history {}", chatHistory.conversationId(), e);
             }
         });

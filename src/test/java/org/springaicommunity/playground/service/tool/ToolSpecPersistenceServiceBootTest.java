@@ -15,14 +15,14 @@
  */
 package org.springaicommunity.playground.service.tool;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springaicommunity.playground.service.PersistenceExecutor;
 import org.springaicommunity.playground.service.tool.ToolSpecService.ToolMcpServerSetting;
-import org.springframework.boot.web.context.WebServerInitializedEvent;
+import org.springframework.boot.web.server.context.WebServerInitializedEvent;
 import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.core.io.ResourceLoader;
 
@@ -102,6 +102,27 @@ class ToolSpecPersistenceServiceBootTest {
 
         verify(toolSpecService).setToolMcpServerSetting(argThat((ToolMcpServerSetting s) ->
                 s != null && !s.autoAdd() && Set.of().equals(s.exposedToolIds())));
+    }
+
+    @Test
+    void corruptSaveFileIsSkippedAtBootInsteadOfCrashing() throws IOException {
+        Path saveDir = home.resolve("tool").resolve("save");
+        Files.createDirectories(saveDir);
+        Files.writeString(saveDir.resolve("toolSpecsMcpSetting.json"), "{ not valid json ]]");
+
+        ToolSpecService toolSpecService = mock(ToolSpecService.class);
+        ResourceLoader resourceLoader = mock(ResourceLoader.class);
+        DefaultToolsPreferenceService preferenceService = mock(DefaultToolsPreferenceService.class);
+        DefaultToolsPreferenceResolver resolver = mock(DefaultToolsPreferenceResolver.class);
+
+        // The @Service constructor calls loads() on the corrupt file; it must skip it, not crash boot.
+        ToolSpecPersistenceService service = new ToolSpecPersistenceService(home, toolSpecService, "",
+                new ObjectMapper(), resourceLoader, this.persistenceExecutor, preferenceService, resolver,
+                new ToolActivationCalculator());
+
+        service.onStart();
+
+        verify(toolSpecService, never()).setToolMcpServerSetting(any());
     }
 
     @Test

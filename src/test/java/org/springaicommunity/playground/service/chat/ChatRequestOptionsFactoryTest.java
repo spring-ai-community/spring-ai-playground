@@ -15,7 +15,7 @@
  */
 package org.springaicommunity.playground.service.chat;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.ChatOptions;
@@ -23,8 +23,8 @@ import org.springframework.ai.chat.prompt.DefaultChatOptions;
 import org.springframework.ai.model.tool.ToolCallingChatOptions;
 import org.springframework.ai.ollama.OllamaChatModel;
 import org.springframework.ai.ollama.api.OllamaChatOptions;
-import org.springframework.ai.openaisdk.OpenAiSdkChatModel;
-import org.springframework.ai.openaisdk.OpenAiSdkChatOptions;
+import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.ai.openai.OpenAiChatOptions;
 
 import java.util.List;
 
@@ -36,7 +36,7 @@ import static org.mockito.Mockito.mock;
 
 class ChatRequestOptionsFactoryTest {
 
-    private final ChatRequestOptionsFactory factory = new ChatRequestOptionsFactory(new ObjectMapper());
+    private final ChatRequestOptionsFactory factory = new ChatRequestOptionsFactory(new ObjectMapper(), null);
 
     private DefaultChatOptions baseOptions() {
         return (DefaultChatOptions) ChatOptions.builder()
@@ -49,10 +49,10 @@ class ChatRequestOptionsFactoryTest {
         ChatExtraOptions extra = new ChatExtraOptions(42, List.of("STOP"), null, null);
 
         ToolCallingChatOptions options =
-                this.factory.build(mock(OpenAiSdkChatModel.class), baseOptions(), extra, ReasoningEffort.MEDIUM);
+                this.factory.build(mock(OpenAiChatModel.class), baseOptions(), extra, ReasoningEffort.MEDIUM);
 
-        assertInstanceOf(OpenAiSdkChatOptions.class, options);
-        OpenAiSdkChatOptions openAi = (OpenAiSdkChatOptions) options;
+        assertInstanceOf(OpenAiChatOptions.class, options);
+        OpenAiChatOptions openAi = (OpenAiChatOptions) options;
         assertEquals("medium", openAi.getReasoningEffort());
         assertEquals(Integer.valueOf(42), openAi.getSeed());
         assertEquals(List.of("STOP"), openAi.getStop());
@@ -74,7 +74,7 @@ class ChatRequestOptionsFactoryTest {
 
     @Test
     void offDisablesOllamaThinkingButOmitsOpenAiReasoning() {
-        OpenAiSdkChatOptions openAi = (OpenAiSdkChatOptions) this.factory.build(mock(OpenAiSdkChatModel.class),
+        OpenAiChatOptions openAi = (OpenAiChatOptions) this.factory.build(mock(OpenAiChatModel.class),
                 baseOptions(), ChatExtraOptions.defaults(), ReasoningEffort.OFF);
         assertNull(openAi.getReasoningEffort());
 
@@ -85,7 +85,7 @@ class ChatRequestOptionsFactoryTest {
 
     @Test
     void nullReasoningLeavesProviderDefault() {
-        OpenAiSdkChatOptions openAi = (OpenAiSdkChatOptions) this.factory.build(mock(OpenAiSdkChatModel.class),
+        OpenAiChatOptions openAi = (OpenAiChatOptions) this.factory.build(mock(OpenAiChatModel.class),
                 baseOptions(), ChatExtraOptions.defaults(), null);
         assertNull(openAi.getReasoningEffort());
 
@@ -102,10 +102,10 @@ class ChatRequestOptionsFactoryTest {
                 new ChatExtraOptions(null, null, "{\"temperature\": 0.1, \"apiKey\": \"ignored\"}", null);
 
         ToolCallingChatOptions options =
-                this.factory.build(mock(OpenAiSdkChatModel.class), baseOptions(), extra, null);
+                this.factory.build(mock(OpenAiChatModel.class), baseOptions(), extra, null);
 
-        assertInstanceOf(OpenAiSdkChatOptions.class, options);
-        assertEquals(0.1, ((OpenAiSdkChatOptions) options).getTemperature().doubleValue());
+        assertInstanceOf(OpenAiChatOptions.class, options);
+        assertEquals(0.1, ((OpenAiChatOptions) options).getTemperature().doubleValue());
     }
 
     @Test
@@ -128,5 +128,28 @@ class ChatRequestOptionsFactoryTest {
 
         assertEquals("gpt-5-mini", options.getModel());
         assertEquals(0.7, options.getTemperature().doubleValue());
+    }
+
+    @Test
+    void ollamaJsonOverrideBindsAcronymCasedKeys() {
+        ChatExtraOptions extra = new ChatExtraOptions(null, null, "{\"num_gpu\": 2, \"use_mmap\": false}", null);
+
+        OllamaChatOptions ollama =
+                (OllamaChatOptions) this.factory.build(mock(OllamaChatModel.class), baseOptions(), extra, null);
+
+        assertEquals(Integer.valueOf(2), ollama.getNumGPU());
+        assertEquals(Boolean.FALSE, ollama.getUseMMap());
+    }
+
+    @Test
+    void caseVariantKeyCannotReachProtectedSetter() {
+        ChatExtraOptions extra =
+                new ChatExtraOptions(null, null, "{\"APIKEY\": \"evil\", \"temperature\": 0.3}", null);
+
+        OpenAiChatOptions openAi =
+                (OpenAiChatOptions) this.factory.build(mock(OpenAiChatModel.class), baseOptions(), extra, null);
+
+        assertNull(openAi.getApiKey());
+        assertEquals(0.3, openAi.getTemperature().doubleValue());
     }
 }

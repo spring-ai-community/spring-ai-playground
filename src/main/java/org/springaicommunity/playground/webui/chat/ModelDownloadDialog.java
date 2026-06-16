@@ -15,6 +15,7 @@
  */
 package org.springaicommunity.playground.webui.chat;
 
+import com.vaadin.flow.component.ModalityMode;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -39,7 +40,7 @@ class ModelDownloadDialog extends Dialog {
 
     ModelDownloadDialog(String model, OllamaModelDownloadService downloadService, Runnable onDownloaded) {
         setHeaderTitle("Download model");
-        setModal(true);
+        setModality(ModalityMode.STRICT);
         setCloseOnEsc(false);
         setCloseOnOutsideClick(false);
 

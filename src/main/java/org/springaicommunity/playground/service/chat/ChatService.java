@@ -106,8 +106,9 @@ public class ChatService {
         this.defaultMemoryWindow = playgroundOptions.chat().memoryMaxMessages();
         this.models = playgroundOptions.chat().models();
         this.chatModel = chatModel;
-        this.chatOptions = Optional.ofNullable((ChatOptions) playgroundOptions.chat().chatOptions())
-                .orElseGet(chatModel::getDefaultOptions);
+        this.chatOptions = Optional.ofNullable(playgroundOptions.chat().chatOptions())
+                .map(ChatService::toChatOptions)
+                .orElseGet(chatModel::getOptions);
         this.chatClient = chatClient;
         this.chatMemory = chatMemory;
         this.vectorStoreDocumentsReader = vectorStoreDocumentsReader;
@@ -254,7 +255,7 @@ public class ChatService {
         DefaultChatOptions chatOptions = chatHistory.chatOptions();
         ChatClient.ChatClientRequestSpec chatClientRequestSpec = this.chatClient.prompt().user(prompt).options(
                         this.chatRequestOptionsFactory.build(this.chatModel, chatOptions, chatHistory.extraOptions(),
-                                reasoning))
+                                reasoning).mutate())
                 .advisors(advisor -> {
                     advisor.param(CONVERSATION_ID, chatHistory.conversationId());
                     if (StringUtils.hasText(filterExpression)) {
@@ -272,7 +273,7 @@ public class ChatService {
             // Carry identity via tool context so McpToolCallingManager can restore it on the tool-exec thread.
             putIfPresent(toolContext, TOOL_CONTEXT_USER_ID, MDC.get(MdcIdentityFilter.USER_ID));
             putIfPresent(toolContext, TOOL_CONTEXT_SESSION_ID, MDC.get(MdcIdentityFilter.SESSION_ID));
-            chatClientRequestSpec.toolCallbacks(toolCallbacks).toolContext(toolContext);
+            chatClientRequestSpec.tools((Object[]) toolCallbacks.toArray(new ToolCallback[0])).toolContext(toolContext);
         }
         return Optional.ofNullable(chatHistory.systemPrompt()).filter(Predicate.not(String::isBlank))
                 .map(chatClientRequestSpec::system).orElse(chatClientRequestSpec);
@@ -321,6 +322,19 @@ public class ChatService {
 
     public ChatOptions getDefaultOptions() {
         return this.chatOptions;
+    }
+
+    private static ChatOptions toChatOptions(SpringAiPlaygroundOptions.ChatOptionsConfig config) {
+        ChatOptions.Builder<?> builder = ChatOptions.builder();
+        if (config.model() != null) builder.model(config.model());
+        if (config.temperature() != null) builder.temperature(config.temperature());
+        if (config.maxTokens() != null) builder.maxTokens(config.maxTokens());
+        if (config.topP() != null) builder.topP(config.topP());
+        if (config.topK() != null) builder.topK(config.topK());
+        if (config.frequencyPenalty() != null) builder.frequencyPenalty(config.frequencyPenalty());
+        if (config.presencePenalty() != null) builder.presencePenalty(config.presencePenalty());
+        if (config.stopSequences() != null) builder.stopSequences(config.stopSequences());
+        return builder.build();
     }
 
     public String getSystemPrompt() {

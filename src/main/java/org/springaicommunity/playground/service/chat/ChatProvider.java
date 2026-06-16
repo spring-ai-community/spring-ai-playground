@@ -17,14 +17,14 @@ package org.springaicommunity.playground.service.chat;
 
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.ollama.OllamaChatModel;
-import org.springframework.ai.openaisdk.OpenAiSdkChatModel;
+import org.springframework.ai.openai.OpenAiChatModel;
 
 // Single source of truth for provider-specific knowledge shared by the request-options factory and the chat UI
 // (reasoning control label, whether reasoning applies, the advanced-JSON placeholder). Resolved from the active
 // ChatModel bean.
 public enum ChatProvider {
 
-    OPENAI_SDK("OpenAI", "Reasoning effort", true, "{\"verbosity\": \"low\", \"serviceTier\": \"flex\"}"),
+    OPENAI("OpenAI", "Reasoning effort", true, "{\"verbosity\": \"low\", \"serviceTier\": \"flex\"}"),
     // Ollama option keys bind through @JsonProperty snake_case names; camelCase keys are silently dropped.
     OLLAMA("Ollama", "Thinking", true, "{\"top_k\": 40, \"repeat_penalty\": 1.1, \"num_ctx\": 8192}"),
     GENERIC("Model", "Reasoning", false, "{}");
@@ -58,7 +58,7 @@ public enum ChatProvider {
     }
 
     public static ChatProvider from(ChatModel chatModel) {
-        if (chatModel instanceof OpenAiSdkChatModel) return OPENAI_SDK;
+        if (chatModel instanceof OpenAiChatModel) return OPENAI;
         if (chatModel instanceof OllamaChatModel) return OLLAMA;
         return GENERIC;
     }

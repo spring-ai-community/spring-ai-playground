@@ -15,10 +15,11 @@
  */
 package org.springaicommunity.playground.service.chat;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
 import org.springaicommunity.playground.service.SpringAiPlaygroundRagAdvisor;
 import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
@@ -46,6 +47,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -62,11 +64,16 @@ class ChatServiceTest {
     @MockitoBean
     ChatModel chatModel;
 
+    @BeforeEach
+    void stubModelOptions() {
+        lenient().when(chatModel.getOptions()).thenReturn(ChatOptions.builder().build());
+    }
+
     @Test
     void testStream() {
         long timestamp = System.currentTimeMillis();
         ChatHistory chatHistory = new ChatHistory("test-chat", "Test Chat", timestamp, timestamp, "System prompt",
-                new DefaultChatOptions(), () -> List.of(new UserMessage("Test Chat")));
+                (DefaultChatOptions) ChatOptions.builder().build(), () -> List.of(new UserMessage("Test Chat")));
         String prompt = "Hello World";
 
         when(chatModel.stream(any(Prompt.class))).thenReturn(
@@ -95,7 +102,7 @@ class ChatServiceTest {
     void testStreamEmitsRoundUsage() {
         long timestamp = System.currentTimeMillis();
         ChatHistory chatHistory = new ChatHistory("test-chat", "Test Chat", timestamp, timestamp, "System prompt",
-                new DefaultChatOptions(), () -> List.of(new UserMessage("Test Chat")));
+                (DefaultChatOptions) ChatOptions.builder().build(), () -> List.of(new UserMessage("Test Chat")));
         String prompt = "Hello World";
         ChatResponse roundEnd = new ChatResponse(List.of(new Generation(new AssistantMessage(prompt))),
                 ChatResponseMetadata.builder().usage(new DefaultUsage(11, 320)).build());
@@ -119,7 +126,7 @@ class ChatServiceTest {
         long timestamp = System.currentTimeMillis();
         String prompt = "Hello World";
         ChatHistory chatHistory = new ChatHistory("test-chat", "Test Chat", timestamp, timestamp, "System prompt",
-                new DefaultChatOptions(), () -> List.of(new UserMessage(prompt)));
+                (DefaultChatOptions) ChatOptions.builder().build(), () -> List.of(new UserMessage(prompt)));
 
         when(chatModel.call(any(Prompt.class))).thenReturn(
                 new ChatResponse(List.of(new Generation(new AssistantMessage(prompt)))));
@@ -157,11 +164,11 @@ class ChatServiceTest {
         ChatClient chatClient = mock(ChatClient.class);
         SpringAiPlaygroundOptions playgroundOptions =
                 new SpringAiPlaygroundOptions(null, true, "", new SpringAiPlaygroundOptions.Chat("systemPrompt",
-                        List.of("MockLlmProvider"), (DefaultChatOptions) chatService.getDefaultOptions(), null, null,
-                        null), null, null);
+                        List.of("MockLlmProvider"), null, null, null,
+                        null, null), null, null);
         ChatMemory chatMemory = mock(ChatMemory.class);
         ChatService service = new ChatService(chatModel, chatClient, chatMemory, playgroundOptions,
-                vectorStoreDocumentService, null, new ChatRequestOptionsFactory(new ObjectMapper()));
+                vectorStoreDocumentService, null, new ChatRequestOptionsFactory(new ObjectMapper(), null));
         assertEquals("MockLlmProvider", service.getChatModelProvider());
     }
 

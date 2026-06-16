@@ -15,7 +15,8 @@
  */
 package org.springaicommunity.playground.service.chat;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import org.springaicommunity.playground.service.PersistenceExecutor;
 import org.springaicommunity.playground.service.chat.ChatSystemPromptPresetCatalog.Preset;
 import org.springaicommunity.playground.service.chat.ChatSystemPromptPresetCatalog.PresetKind;
@@ -63,7 +64,7 @@ public class ChatSystemPromptPresetService {
                     objectMapper.getTypeFactory().constructCollectionType(List.class, Preset.class));
             logger.info("Loaded {} saved system-prompt presets from {}", loaded.size(), saveFile);
             return List.copyOf(loaded);
-        } catch (IOException e) {
+        } catch (JacksonException e) {
             logger.error("Failed to read {} — ignoring saved system-prompt presets", saveFile, e);
             return List.of();
         }
@@ -145,7 +146,7 @@ public class ChatSystemPromptPresetService {
                 } catch (AtomicMoveNotSupportedException e) {
                     Files.move(tmp, saveFile, StandardCopyOption.REPLACE_EXISTING);
                 }
-            } catch (IOException e) {
+            } catch (IOException | JacksonException e) {
                 logger.error("Failed to save system-prompt presets", e);
             }
         });

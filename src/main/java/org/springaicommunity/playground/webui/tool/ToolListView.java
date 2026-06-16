@@ -15,8 +15,9 @@
  */
 package org.springaicommunity.playground.webui.tool;
 
-import com.fasterxml.jackson.core.type.TypeReference;
+import tools.jackson.core.type.TypeReference;
 import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.ModalityMode;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.details.Details;
@@ -380,7 +381,7 @@ public class ToolListView extends WorkspaceSidebar implements BeforeEnterObserve
     private void deleteTool() {
         this.getCurrentToolAsOpt().ifPresent(toolSpec -> {
             Dialog dialog = VaadinUtils.headerDialog("Delete Tool: " + toolSpec.name());
-            dialog.setModal(true);
+            dialog.setModality(ModalityMode.STRICT);
             dialog.add("Are you sure you want to delete toolSpec '" + toolSpec.name() + "' permanently?");
 
             Button deleteButton = new Button("Delete", e -> {

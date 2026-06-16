@@ -26,6 +26,7 @@ import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.ToolResponseMessage;
 import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.DefaultChatOptions;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -65,7 +66,7 @@ class ChatHistoryPersistenceServiceTest {
 
     private ChatHistory buildHistory(String id) {
         long now = System.currentTimeMillis();
-        return new ChatHistory(id, "T", now, now, "sys", new DefaultChatOptions(),
+        return new ChatHistory(id, "T", now, now, "sys", (DefaultChatOptions) ChatOptions.builder().build(),
                 () -> List.of(new UserMessage("Hi")));
     }
 
@@ -75,7 +76,7 @@ class ChatHistoryPersistenceServiceTest {
         String title = "Test Chat";
         long timestamp = System.currentTimeMillis();
         String systemPrompt = "You are a helpful assistant.";
-        DefaultChatOptions chatOptions = new DefaultChatOptions();
+        DefaultChatOptions chatOptions = (DefaultChatOptions) ChatOptions.builder().build();
 
         List<Message> messages = List.of(
                 new UserMessage("Hello!"),
@@ -202,7 +203,7 @@ class ChatHistoryPersistenceServiceTest {
                 .content("")
                 .toolCalls(List.of(toolCall))
                 .build();
-        ChatHistory history = new ChatHistory("chat-toolcalls", "T", 1L, 1L, "", new DefaultChatOptions(),
+        ChatHistory history = new ChatHistory("chat-toolcalls", "T", 1L, 1L, "", (DefaultChatOptions) ChatOptions.builder().build(),
                 () -> List.of(assistantWithToolCalls));
 
         chatHistoryPersistenceService.save(history);
@@ -220,7 +221,7 @@ class ChatHistoryPersistenceServiceTest {
         ToolResponseMessage toolMessage = ToolResponseMessage.builder()
                 .responses(List.of(response))
                 .build();
-        ChatHistory history = new ChatHistory("chat-toolresponse", "T", 1L, 1L, "", new DefaultChatOptions(),
+        ChatHistory history = new ChatHistory("chat-toolresponse", "T", 1L, 1L, "", (DefaultChatOptions) ChatOptions.builder().build(),
                 () -> List.of(toolMessage));
 
         chatHistoryPersistenceService.save(history);

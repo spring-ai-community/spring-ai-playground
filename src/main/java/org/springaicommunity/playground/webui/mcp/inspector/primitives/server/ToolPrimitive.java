@@ -15,7 +15,7 @@
  */
 package org.springaicommunity.playground.webui.mcp.inspector.primitives.server;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
+import tools.jackson.core.JacksonException;
 import com.vaadin.flow.component.AbstractField;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.button.Button;
@@ -222,7 +222,7 @@ public class ToolPrimitive extends Div {
         try {
             return InspectorHelpers.INSPECTOR_OBJECT_MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(
                     args == null ? Map.of() : args);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             return String.valueOf(args);
         }
     }
@@ -237,7 +237,7 @@ public class ToolPrimitive extends Div {
         envelope.put("params", params);
         try {
             return InspectorHelpers.INSPECTOR_OBJECT_MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(envelope);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             return String.valueOf(envelope);
         }
     }
@@ -284,7 +284,7 @@ public class ToolPrimitive extends Div {
         envelope.put("result", lastResult);
         try {
             return InspectorHelpers.INSPECTOR_OBJECT_MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(envelope);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             return String.valueOf(envelope);
         }
     }

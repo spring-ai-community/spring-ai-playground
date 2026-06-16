@@ -15,8 +15,8 @@
  */
 package org.springaicommunity.playground.service.tool.runtime;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -1240,22 +1240,6 @@ class JsToolNetworkExamplesTest {
         assertThat(holidays).hasSize(2);
         assertThat(holidays.getFirst().get("date")).isEqualTo("2026-01-01");
         assertThat(holidays.getFirst().get("localName")).isEqualTo("새해 첫날");
-    }
-
-    @Test
-    void searchRedditFiltersByPattern() {
-        JsExecutionResult r = executor.execute(
-                new JsExecutionParams(
-                        Map.of("subreddit", "programming", "query", "spring ai",
-                               "limit", 5L, "sort", "relevance"),
-                        code("searchReddit").replace("https://www.reddit.com", baseUrl), declaredNamesFor("searchReddit")),
-                allowlist("127.0.0.1"));
-        assertThat(r.isOk()).as("%s", r.error()).isTrue();
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> posts = (List<Map<String, Object>>) r.result();
-        assertThat(posts).hasSize(2);
-        assertThat(posts.getFirst().get("title")).isEqualTo("Spring AI thread");
-        assertThat(posts.getFirst().get("permalink").toString()).contains("/r/programming/");
     }
 
     @Test

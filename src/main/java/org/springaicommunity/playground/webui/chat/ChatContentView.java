@@ -19,7 +19,7 @@ import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.Key;
 import com.vaadin.flow.component.KeyModifier;
-import com.vaadin.flow.component.ScrollOptions;
+import com.vaadin.flow.component.ScrollIntoViewOption;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -99,11 +99,8 @@ import java.util.stream.Collectors;
 @JsModule("./playground/chat-stt.js")
 public class ChatContentView extends VerticalLayout {
 
-    private static final ScrollOptions DefaultScrollOptions = new ScrollOptions();
-    static {
-        DefaultScrollOptions.setBlock(ScrollOptions.Alignment.END);
-        DefaultScrollOptions.setInline(ScrollOptions.Alignment.NEAREST);
-    }
+    private static final ScrollIntoViewOption[] DefaultScrollOptions =
+            {ScrollIntoViewOption.Block.END, ScrollIntoViewOption.Inline.NEAREST};
 
     private static final int PROMPT_TOP_MARGIN_PX = 20;
 

@@ -15,9 +15,10 @@
  */
 package org.springaicommunity.playground.service.mcp.risk;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.SerializationFeature;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.junit.jupiter.api.io.TempDir;
@@ -81,9 +82,9 @@ class DefaultIntegrityManifestTest {
         Map<String, Object> manifest = new LinkedHashMap<>();
         manifest.put("version", 1);
         manifest.put("tools", computeRuntimeToolHashes());
-        ObjectMapper writer = new ObjectMapper()
+        ObjectMapper writer = JsonMapper.builder()
                 .enable(SerializationFeature.INDENT_OUTPUT)
-                .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
+                .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true).build();
         Files.createDirectories(MANIFEST_SOURCE_PATH.getParent());
         writer.writeValue(MANIFEST_SOURCE_PATH.toFile(), manifest);
     }
@@ -96,7 +97,7 @@ class DefaultIntegrityManifestTest {
         Map<String, String> committed = new TreeMap<>();
         try (var in = resource.getInputStream()) {
             JsonNode tools = new ObjectMapper().readTree(in).path("tools");
-            tools.fields().forEachRemaining(e -> committed.put(e.getKey(), e.getValue().asText()));
+            tools.properties().forEach(e -> committed.put(e.getKey(), e.getValue().asText()));
         }
         assertEquals(computeRuntimeToolHashes(), committed,
                 "shipped default tool hashes drifted from the committed integrity manifest — a default tool's "

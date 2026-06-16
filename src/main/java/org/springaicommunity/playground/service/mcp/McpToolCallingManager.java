@@ -52,8 +52,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 
-// Chat tool-execution seam: human-in-the-loop approval gating happens here (resolveDeclinedToolCalls), invoked
-// from the recursive LoggingToolCallAdvisor loop - the advisor only logs, this manager decides what actually runs.
 @Component
 public class McpToolCallingManager implements ToolCallingManager {
 

@@ -26,6 +26,15 @@ vaadin-message:focus-within .chat-message-actions {
 
 vaadin-markdown pre {
     position: relative;
+    background: var(--lumo-contrast-5pct);
+    border: 1px solid var(--lumo-contrast-10pct);
+    border-radius: var(--lumo-border-radius-m);
+    color: var(--lumo-body-text-color);
+}
+
+vaadin-markdown pre code,
+vaadin-markdown pre code.hljs {
+    background: transparent;
 }
 
 .saip-code-copy {

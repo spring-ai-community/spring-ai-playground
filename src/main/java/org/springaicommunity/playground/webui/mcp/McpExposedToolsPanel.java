@@ -129,6 +129,10 @@ public class McpExposedToolsPanel {
     }
 
     public void apply() {
+        // The drawer footer (and its Apply button) outlives the lazily-built body; ignore Apply until build() ran.
+        if (this.modeField == null) {
+            return;
+        }
         ExposureMode mode = this.modeField.getValue();
         this.toolSpecService.setExposureMode(mode);
         this.exposedToolService.apply(new ArrayList<>(this.selected.values()), this.capField.getValue());

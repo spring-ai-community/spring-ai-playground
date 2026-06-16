@@ -75,7 +75,7 @@ public class ChatSystemPromptTemplateRenderer implements TemplateRenderer {
     }
 
     @Override
-    public String apply(String template, Map<String, Object> variables) {
+    public String apply(String template, Map<String, ?> variables) {
         Map<String, String> values = new LinkedHashMap<>();
         if (variables != null) variables.forEach((name, value) -> values.put(name, String.valueOf(value)));
         return render(template, values);

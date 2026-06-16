@@ -15,8 +15,8 @@
  */
 package org.springaicommunity.playground.service.chat;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.stereotype.Service;
@@ -123,7 +123,7 @@ public class ChatExportService {
     private String writeJson(Object value) {
         try {
             return this.objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(value);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new IllegalStateException("Failed to serialize chat export", e);
         }
     }

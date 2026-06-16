@@ -15,7 +15,7 @@
  */
 package org.springaicommunity.playground.service.tool;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -139,7 +139,7 @@ class DefaultToolSpecMcpExposureTest {
                 "/tool/default-tool-specs-builtin.json",         16,
                 "/tool/default-tool-specs-builtin-helpers.json", 10,
                 "/tool/default-tool-specs-builtin-fs.json",      10,
-                "/tool/default-tool-specs-network.json",         22,
+                "/tool/default-tool-specs-network.json",         21,
                 "/tool/default-tool-specs-kr.json",              21
         );
         int expectedTotal = expectedCounts.values().stream().mapToInt(Integer::intValue).sum();

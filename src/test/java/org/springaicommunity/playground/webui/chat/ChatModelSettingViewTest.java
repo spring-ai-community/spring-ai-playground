@@ -15,7 +15,7 @@
  */
 package org.springaicommunity.playground.webui.chat;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.vaadin.flow.component.ComponentUtil;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.combobox.ComboBoxBase;
