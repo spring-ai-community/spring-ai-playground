@@ -48,9 +48,9 @@ const CONFIG_TEMPLATES = {
     yaml: `spring:
   ai:
     model:
-      chat: openai-sdk
-      embedding: openai-sdk
-    openai-sdk:
+      chat: openai
+      embedding: openai
+    openai:
       api-key: \${OPENAI_API_KEY}
       chat:
         options:
@@ -77,9 +77,9 @@ const CONFIG_TEMPLATES = {
     yaml: `spring:
   ai:
     model:
-      chat: openai-sdk
+      chat: openai
       embedding: ollama
-    openai-sdk:
+    openai:
       api-key: not-used
       base-url: http://localhost:11434/v1
       chat:
@@ -103,9 +103,9 @@ const CONFIG_TEMPLATES = {
     yaml: `spring:
   ai:
     model:
-      chat: openai-sdk
+      chat: openai
       embedding: ollama
-    openai-sdk:
+    openai:
       api-key: not-used
       base-url: http://localhost:8080/v1
       chat:
@@ -132,9 +132,9 @@ const CONFIG_TEMPLATES = {
     yaml: `spring:
   ai:
     model:
-      chat: openai-sdk
+      chat: openai
       embedding: ollama
-    openai-sdk:
+    openai:
       api-key: your-tabby-key
       base-url: http://localhost:5000/v1
       chat:
@@ -160,9 +160,9 @@ const CONFIG_TEMPLATES = {
     yaml: `spring:
   ai:
     model:
-      chat: openai-sdk
+      chat: openai
       embedding: ollama
-    openai-sdk:
+    openai:
       api-key: not-used
       base-url: http://localhost:1234/v1
       chat:
@@ -188,9 +188,9 @@ const CONFIG_TEMPLATES = {
     yaml: `spring:
   ai:
     model:
-      chat: openai-sdk
+      chat: openai
       embedding: ollama
-    openai-sdk:
+    openai:
       api-key: not-used
       base-url: http://localhost:8000/v1
       chat:
