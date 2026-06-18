@@ -311,6 +311,10 @@ public class ToolMcpServerSettingView extends VerticalLayout {
                 exposableBuiltinIds());
     }
 
+    public boolean isDirty() {
+        return this.dirty;
+    }
+
     public void markConfirmed(ToolMcpServerSetting newConfirmed) {
         this.confirmedSetting = newConfirmed;
         clearDirty();

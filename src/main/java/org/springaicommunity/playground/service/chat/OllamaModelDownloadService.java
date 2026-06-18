@@ -17,6 +17,7 @@ package org.springaicommunity.playground.service.chat;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.ollama.api.OllamaApi;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -36,15 +37,17 @@ public class OllamaModelDownloadService {
     public record PullProgress(String status, Long total, Long completed) {}
 
     private final OllamaApi ollamaApi;
+    private final boolean ollamaActive;
     private volatile Set<String> localModels = Set.of();
     private volatile boolean cacheLoaded;
 
-    public OllamaModelDownloadService(ObjectProvider<OllamaApi> ollamaApiProvider) {
+    public OllamaModelDownloadService(ObjectProvider<OllamaApi> ollamaApiProvider, ChatModel chatModel) {
         this.ollamaApi = ollamaApiProvider.getIfAvailable();
+        this.ollamaActive = ChatProvider.from(chatModel) == ChatProvider.OLLAMA;
     }
 
     public boolean isEnabled() {
-        return Objects.nonNull(this.ollamaApi);
+        return Objects.nonNull(this.ollamaApi) && this.ollamaActive;
     }
 
     @EventListener(ApplicationReadyEvent.class)

@@ -24,21 +24,24 @@ import org.springframework.ai.openai.OpenAiChatModel;
 // ChatModel bean.
 public enum ChatProvider {
 
-    OPENAI("OpenAI", "Reasoning effort", true, "{\"verbosity\": \"low\", \"serviceTier\": \"flex\"}"),
+    OPENAI("OpenAI", "Reasoning effort", true, "{\"verbosity\": \"low\", \"serviceTier\": \"flex\"}", 4),
     // Ollama option keys bind through @JsonProperty snake_case names; camelCase keys are silently dropped.
-    OLLAMA("Ollama", "Thinking", true, "{\"top_k\": 40, \"repeat_penalty\": 1.1, \"num_ctx\": 8192}"),
-    GENERIC("Model", "Reasoning", false, "{}");
+    OLLAMA("Ollama", "Thinking", true, "{\"top_k\": 40, \"repeat_penalty\": 1.1, \"num_ctx\": 8192}", null),
+    GENERIC("Model", "Reasoning", false, "{}", null);
 
     private final String displayName;
     private final String reasoningLabel;
     private final boolean supportsReasoning;
     private final String jsonPlaceholder;
+    private final Integer maxStopSequences;
 
-    ChatProvider(String displayName, String reasoningLabel, boolean supportsReasoning, String jsonPlaceholder) {
+    ChatProvider(String displayName, String reasoningLabel, boolean supportsReasoning, String jsonPlaceholder,
+            Integer maxStopSequences) {
         this.displayName = displayName;
         this.reasoningLabel = reasoningLabel;
         this.supportsReasoning = supportsReasoning;
         this.jsonPlaceholder = jsonPlaceholder;
+        this.maxStopSequences = maxStopSequences;
     }
 
     public String displayName() {
@@ -55,6 +58,10 @@ public enum ChatProvider {
 
     public String jsonPlaceholder() {
         return this.jsonPlaceholder;
+    }
+
+    public Integer maxStopSequences() {
+        return this.maxStopSequences;
     }
 
     public static ChatProvider from(ChatModel chatModel) {

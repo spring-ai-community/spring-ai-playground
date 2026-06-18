@@ -147,10 +147,10 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
         installConversationExportMenu();
         installPromptLibraryButton();
 
-        this.settingsDrawer = installSettingsDrawer(VaadinIcon.COG_O, "Chat Model Setting",
-                "Chat Model Setting");
+        this.settingsDrawer = installSettingsDrawer(VaadinIcon.COG_O, "Agentic Chat Setting",
+                "Agentic Chat Setting");
         this.settingsDrawer.setBodyFactory(this::buildChatModelSettingView);
-        this.settingsDrawer.setApplyButton("Apply & New Chat", this::applySettingsAndNewChat);
+        this.settingsDrawer.setApplyButton("Apply & New Chat", this::applySettingsAndNewChat, false);
 
         addNewChatContent();
     }
@@ -219,6 +219,11 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
     private void applySettingsAndNewChat() {
         if (Objects.isNull(this.chatModelSettingView)) {
             addNewChatContent();
+            this.settingsDrawer.close();
+            return;
+        }
+        if (!this.chatModelSettingView.validate()) {
+            Notification.show("Fix the highlighted settings before applying.", 3000, Notification.Position.MIDDLE);
             return;
         }
         String model = this.chatModelSettingView.getChatOptions().getModel();
@@ -236,12 +241,7 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
             commitSettingsAndNewChat(ChatToolPreferences.defaults());
             return;
         }
-        PresetToolMatch match = resolvePresetTools(presetTools);
-        if (match.unmatched().isEmpty()) {
-            commitSettingsAndNewChat(presetPreferences(match));
-            return;
-        }
-        openUnavailableToolsDialog(match);
+        openPresetExposureDialog(resolvePresetTools(presetTools));
     }
 
     private void commitSettingsAndNewChat(ChatToolPreferences toolPreferences) {
@@ -249,11 +249,21 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
         changeChatContent(this.chatHistoryService.createChatHistory(
                 this.chatModelSettingView.getSystemPromptTextArea(), this.chatModelSettingView.getChatOptions(),
                 this.chatModelSettingView.getChatExtraOptions(), toolPreferences));
+        this.settingsDrawer.close();
     }
 
-    // Matched preset tools become the new chat's exposed selection with built-in MCP turned on.
-    private ChatToolPreferences presetPreferences(PresetToolMatch match) {
-        Set<String> toolIds = match.matched().stream().map(ToolSpec::toolId)
+    private void applyPresetExposureAndNewChat(List<ToolSpec> matched) {
+        syncBuiltinExposureToPreset(matched);
+        commitSettingsAndNewChat(presetPreferences(matched));
+    }
+
+    private void syncBuiltinExposureToPreset(List<ToolSpec> matched) {
+        this.toolSpecPersistenceService.exposeBuiltinToolsAsPreference(
+                matched.stream().map(ToolSpec::name).toList());
+    }
+
+    private ChatToolPreferences presetPreferences(List<ToolSpec> matched) {
+        Set<String> toolIds = matched.stream().map(ToolSpec::toolId)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
         return new ChatToolPreferences(true, toolIds, List.of(), Map.of(), ReasoningEffort.OFF);
     }
@@ -262,16 +272,15 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
 
     private PresetToolMatch resolvePresetTools(List<String> presetTools) {
         Set<String> defaultIds = this.toolSpecPersistenceService.getDefaultToolIds();
-        Set<String> exposedIds = this.toolSpecService.getToolMcpServerSetting().exposedToolIds();
-        Map<String, ToolSpec> exposedBuiltinsByName = ExposedToolsSelector
+        Map<String, ToolSpec> exposableBuiltinsByName = ExposedToolsSelector
                 .exposableBuiltinsFrom(this.toolSpecService.getToolSpecList(), defaultIds,
                         this.toolActivationCalculator)
-                .stream().filter(spec -> exposedIds.contains(spec.toolId()))
+                .stream()
                 .collect(Collectors.toMap(ToolSpec::name, Function.identity(), (a, b) -> a, LinkedHashMap::new));
         List<ToolSpec> matched = new ArrayList<>();
         Map<String, String> unmatched = new LinkedHashMap<>();
         for (String name : presetTools) {
-            ToolSpec spec = exposedBuiltinsByName.get(name);
+            ToolSpec spec = exposableBuiltinsByName.get(name);
             if (spec != null) matched.add(spec);
             else unmatched.put(name, unavailableReason(name));
         }
@@ -287,35 +296,46 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
         };
     }
 
-    private void openUnavailableToolsDialog(PresetToolMatch match) {
-        Dialog dialog = VaadinUtils.headerDialog("Some preset tools are unavailable");
+    private void openPresetExposureDialog(PresetToolMatch match) {
+        Dialog dialog = VaadinUtils.headerDialog("Apply preset tools");
         VerticalLayout body = new VerticalLayout();
         body.setPadding(false);
         body.setSpacing(false);
         body.getStyle().set("gap", "var(--lumo-space-xs)");
         body.setMaxWidth("30rem");
-        body.add(new Span("These tools can't be activated for this chat:"));
-        match.unmatched().forEach((name, reason) -> {
-            Span line = new Span(name + " - " + reason);
-            line.getStyle().set("color", "var(--lumo-error-text-color)")
+        if (match.matched().isEmpty()) {
+            body.add(new Span("This preset has no tools that can be exposed without setup, so the built-in "
+                    + "MCP server is left unchanged and the chat starts with the current selection."));
+        } else {
+            body.add(new Span("Resets the built-in MCP server to expose exactly these "
+                    + match.matched().size() + " tool(s):"));
+            match.matched().forEach(spec -> {
+                Span line = new Span(spec.name());
+                line.getStyle().set("font-size", "var(--lumo-font-size-s)");
+                body.add(line);
+            });
+        }
+        if (!match.unmatched().isEmpty()) {
+            Span skippedHeading = new Span("These need an API key and are skipped:");
+            skippedHeading.getStyle().set("margin-top", "var(--lumo-space-s)")
                     .set("font-size", "var(--lumo-font-size-s)");
-            body.add(line);
-        });
-        Span note = new Span(match.matched().isEmpty()
-                ? "No preset tools are available, so applying keeps the current tool selection."
-                : "Apply anyway selects the " + match.matched().size() + " available tool(s) and skips the rest.");
-        note.getStyle().set("color", "var(--lumo-secondary-text-color)")
-                .set("font-size", "var(--lumo-font-size-s)");
-        body.add(note);
+            body.add(skippedHeading);
+            match.unmatched().forEach((name, reason) -> {
+                Span line = new Span(name + " - " + reason);
+                line.getStyle().set("color", "var(--lumo-error-text-color)")
+                        .set("font-size", "var(--lumo-font-size-s)");
+                body.add(line);
+            });
+        }
         dialog.add(body);
         Button cancel = new Button("Cancel", event -> dialog.close());
-        Button applyAnyway = new Button("Apply anyway", event -> {
+        Button apply = new Button("Apply", event -> {
             dialog.close();
-            commitSettingsAndNewChat(match.matched().isEmpty()
-                    ? ChatToolPreferences.defaults() : presetPreferences(match));
+            if (match.matched().isEmpty()) commitSettingsAndNewChat(ChatToolPreferences.defaults());
+            else applyPresetExposureAndNewChat(match.matched());
         });
-        applyAnyway.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-        dialog.getFooter().add(cancel, applyAnyway);
+        apply.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        dialog.getFooter().add(cancel, apply);
         dialog.open();
     }
 

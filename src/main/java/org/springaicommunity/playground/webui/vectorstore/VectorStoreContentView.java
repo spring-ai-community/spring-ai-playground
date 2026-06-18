@@ -169,6 +169,18 @@ public class VectorStoreContentView extends VerticalLayout implements BeforeEnte
                     }
                 });
             }
+
+            @Override
+            public void refreshGrid() {
+                try {
+                    super.refreshGrid();
+                    grid.setEmptyStateText("No items found.");
+                } catch (Exception e) {
+                    VaadinUtils.showErrorNotification(e.getMessage());
+                    grid.setItems(List.<VectorStoreContentItem>of());
+                    grid.setEmptyStateText("Search unavailable - check the embedding provider configuration.");
+                }
+            }
         };
 
         Button findAllButton = this.gridCrud.getFindAllButton();

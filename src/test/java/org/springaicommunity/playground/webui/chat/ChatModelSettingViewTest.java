@@ -29,6 +29,7 @@ import org.springaicommunity.playground.service.chat.ChatProvider;
 import org.springaicommunity.playground.service.chat.ChatSystemPromptPresetCatalog;
 import org.springaicommunity.playground.service.chat.ChatSystemPromptPresetService;
 import org.springaicommunity.playground.service.chat.OllamaModelDownloadService;
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.ollama.api.OllamaApi;
 import org.springframework.beans.factory.ObjectProvider;
@@ -57,7 +58,7 @@ class ChatModelSettingViewTest {
                 new ChatSystemPromptPresetCatalog());
         @SuppressWarnings("unchecked")
         ObjectProvider<OllamaApi> noOllama = mock(ObjectProvider.class);
-        this.downloadService = new OllamaModelDownloadService(noOllama);
+        this.downloadService = new OllamaModelDownloadService(noOllama, mock(ChatModel.class));
     }
 
     @AfterEach
@@ -106,6 +107,27 @@ class ChatModelSettingViewTest {
     @Test
     void emptyMemoryWindowFieldYieldsNullForDefaultFallback() {
         assertThat(newView("qwen3.5:2b-mlx").getChatExtraOptions().memoryWindow()).isNull();
+    }
+
+    @Test
+    void openAiStopCapRejectsMoreThanFourSequences() {
+        assertThat(viewWithStop(ChatProvider.OPENAI, List.of("a", "b", "c", "d", "e")).validate()).isFalse();
+    }
+
+    @Test
+    void openAiStopWithinCapIsValid() {
+        assertThat(viewWithStop(ChatProvider.OPENAI, List.of("a", "b", "c", "d")).validate()).isTrue();
+    }
+
+    @Test
+    void ollamaHasNoStopSequenceCap() {
+        assertThat(viewWithStop(ChatProvider.OLLAMA, List.of("a", "b", "c", "d", "e", "f")).validate()).isTrue();
+    }
+
+    private ChatModelSettingView viewWithStop(ChatProvider provider, List<String> stop) {
+        return new ChatModelSettingView(List.of("model-a"), "",
+                ChatOptions.builder().model("model-a").build(), new ChatExtraOptions(null, stop, null, null),
+                provider, this.presetService, this.downloadService, List.of(), spec -> "L0", spec -> "General", 10);
     }
 
     private ChatModelSettingView newView(String model) {

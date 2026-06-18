@@ -862,6 +862,7 @@ public class ChatContentView extends VerticalLayout {
 
         public void appendRagProcessMessage(Object content) {
             this.currentStage = STAGE_RAG;
+            markGenerating();
             if (content instanceof SpringAiPlaygroundRagAdvisor.RagRetrievedDocumentsInfo info) {
                 this.ragRetrievedDocCount = info.count();
                 this.ragRetrievedDocTitles.addAll(info.titles());
@@ -895,6 +896,7 @@ public class ChatContentView extends VerticalLayout {
 
         public void appendMcpToolProcessMessage(Object content) {
             this.currentStage = STAGE_MCP;
+            markGenerating();
             long timestamp = System.currentTimeMillis();
             String contentStr = content.toString();
             String markdownSnippet = getLocalDateTime(timestamp) + " : " + contentStr + "\n\n";
@@ -930,6 +932,7 @@ public class ChatContentView extends VerticalLayout {
 
         public void appendBotThinkProcessMessage(Object content) {
             this.currentStage = STAGE_THINK;
+            markGenerating();
             long timestamp = System.currentTimeMillis();
             String markdownSnippet = content.toString();
             getBotThinkResponse(timestamp).appendMarkdown(markdownSnippet);
@@ -1325,6 +1328,10 @@ public class ChatContentView extends VerticalLayout {
             }
             this.botResponse.removeClassName("blink");
             this.botResponse.appendMarkdown(content);
+        }
+
+        private void markGenerating() {
+            if (Objects.nonNull(this.botResponse)) this.botResponse.addClassName("blink");
         }
 
         private void initBotResponse(long epochMillis) {

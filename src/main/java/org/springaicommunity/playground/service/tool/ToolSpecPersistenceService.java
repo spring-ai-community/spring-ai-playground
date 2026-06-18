@@ -34,8 +34,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -207,6 +209,11 @@ public class ToolSpecPersistenceService implements
     // skipped, drawer un-checks (excludedToolIds) are honored, and user-authored selections are preserved.
     private void applyPresetDrivenBuiltinExposure(Set<String> active) {
         ToolMcpServerSetting setting = this.toolSpecService.getToolMcpServerSetting();
+        this.toolSpecService.setToolMcpServerSetting(new ToolMcpServerSetting(setting.autoAdd(),
+                computePresetDrivenExposure(active, setting), setting.excludedToolIds()));
+    }
+
+    private Set<String> computePresetDrivenExposure(Set<String> active, ToolMcpServerSetting setting) {
         Set<String> exposed = new HashSet<>();
         for (ToolSpec spec : this.defaultToolSpecs) {
             String toolId = spec.toolId();
@@ -217,7 +224,17 @@ public class ToolSpecPersistenceService implements
         }
         setting.exposedToolIds().stream()
                 .filter(toolId -> !this.defaultToolIds.contains(toolId)).forEach(exposed::add);
-        this.toolSpecService.setToolMcpServerSetting(
-                new ToolMcpServerSetting(setting.autoAdd(), exposed, setting.excludedToolIds()));
+        return exposed;
+    }
+
+    public void exposeBuiltinToolsAsPreference(Collection<String> toolNames) {
+        this.preferenceService.update(new DefaultToolsPreference(3, null,
+                new DefaultToolsPreference.Rule(new LinkedHashSet<>(toolNames), Set.of(), Set.of()),
+                DefaultToolsPreference.Rule.empty()));
+        Set<String> active = this.preferenceResolver.resolveActiveNames(
+                this.preferenceService.current(), this.defaultToolSpecs);
+        ToolMcpServerSetting setting = this.toolSpecService.getToolMcpServerSetting();
+        this.toolSpecService.updateToolMcpServerSetting(new ToolMcpServerSetting(setting.autoAdd(),
+                computePresetDrivenExposure(active, setting), setting.excludedToolIds()));
     }
 }

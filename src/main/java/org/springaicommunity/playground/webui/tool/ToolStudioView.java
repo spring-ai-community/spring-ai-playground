@@ -211,6 +211,10 @@ public class ToolStudioView extends ContentWorkspaceView {
     @Override
     protected void onAttach(AttachEvent attachEvent) {
         super.onAttach(attachEvent);
+        if (!this.toolMcpServerSettingView.isDirty()) {
+            this.toolMcpServerSettingView.update(
+                    this.toolSpecService.getToolSpecList(), this.toolSpecService.getToolMcpServerSetting());
+        }
         attachEvent.getUI().getPage().fetchCurrentURL(url -> {
             String toolName = queryParam(url.getQuery(), "tool");
             if (toolName == null || toolName.isBlank()) return;

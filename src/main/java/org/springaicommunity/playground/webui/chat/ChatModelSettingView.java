@@ -74,6 +74,7 @@ public class ChatModelSettingView extends VerticalLayout {
     private final IntegerField memoryWindowInput;
     private final TextField stopInput;
     private final JsonEditorWrapper providerOptionsJsonEditor;
+    private final ChatProvider provider;
 
     public ChatModelSettingView(List<String> models, String systemPrompt, ChatOptions chatOption,
             ChatExtraOptions extraOptions, ChatProvider provider, ChatSystemPromptPresetService presetService,
@@ -81,6 +82,7 @@ public class ChatModelSettingView extends VerticalLayout {
             Function<ToolSpec, String> riskLevelFn, Function<ToolSpec, String> categoryFn, int defaultMemoryWindow) {
         this.riskLevelFn = riskLevelFn;
         this.categoryFn = categoryFn;
+        this.provider = provider;
         this.builtinTools = builtinTools.stream()
                 .sorted(Comparator.comparing((ToolSpec spec) -> categoryFn.apply(spec), String.CASE_INSENSITIVE_ORDER)
                         .thenComparing(ToolSpec::name, String.CASE_INSENSITIVE_ORDER))
@@ -137,7 +139,16 @@ public class ChatModelSettingView extends VerticalLayout {
         modelSection.add(modelComboBox);
         add(modelSection);
 
-        VerticalLayout promptSection = section("System Prompt");
+        VerticalLayout contextSection = section("Context");
+        this.memoryWindowInput = boundedIntegerField("Recent messages", 1, null);
+        this.memoryWindowInput.setHelperText("How many recent messages the model sees each turn. "
+                + "Older ones stay in saved history. Empty uses the default (" + defaultMemoryWindow + ").");
+        if (extraOptions != null && extraOptions.memoryWindow() != null)
+            this.memoryWindowInput.setValue(extraOptions.memoryWindow());
+
+        Span systemPromptLabel = new Span("System prompt");
+        systemPromptLabel.getStyle().set("font-size", "var(--lumo-font-size-s)")
+                .set("color", "var(--lumo-secondary-text-color)").set("margin-top", "var(--lumo-space-s)");
         this.systemPromptTextArea = new TextArea();
         this.systemPromptTextArea.setWidthFull();
         this.systemPromptTextArea.setMinHeight("7em");
@@ -145,8 +156,9 @@ public class ChatModelSettingView extends VerticalLayout {
             this.systemPromptTextArea.setValue(systemPrompt);
         }
         this.systemPromptPresetComboBox = new ComboBox<>();
-        promptSection.add(buildSystemPromptPresetRow(presetService), systemPromptTextArea);
-        add(promptSection);
+        contextSection.add(this.memoryWindowInput, systemPromptLabel,
+                buildSystemPromptPresetRow(presetService), this.systemPromptTextArea);
+        add(contextSection);
 
         VerticalLayout generationSection = section("Generation");
         FormLayout generationForm = new FormLayout();
@@ -163,28 +175,15 @@ public class ChatModelSettingView extends VerticalLayout {
         this.presencePenaltyInput = boundedNumberField("Presence Penalty", -2, 2);
         generationForm.add(sliderCell(this.presencePenaltyInput, -2, 2, chatOption.getPresencePenalty(), 0.0));
 
-        this.maxTokensInput = new IntegerField("Max Tokens");
-        this.maxTokensInput.setMin(1);
-        this.maxTokensInput.setWidthFull();
-        this.maxTokensInput.setI18n(new IntegerField.IntegerFieldI18n()
-                .setBadInputErrorMessage("Invalid number format")
-                .setMinErrorMessage("Quantity must be at least 1"));
+        this.maxTokensInput = boundedIntegerField("Max Tokens", 1, null);
         Integer maxTokens = chatOption.getMaxTokens();
         if (maxTokens != null) {
             this.maxTokensInput.setValue(maxTokens);
         }
-        this.seedInput = new IntegerField("Seed");
-        this.seedInput.setWidthFull();
+        this.seedInput = boundedIntegerField("Seed", null, null);
         if (extraOptions != null && extraOptions.seed() != null) this.seedInput.setValue(extraOptions.seed());
 
-        this.memoryWindowInput = new IntegerField("Memory (messages)");
-        this.memoryWindowInput.setMin(1);
-        this.memoryWindowInput.setWidthFull();
-        this.memoryWindowInput.setHelperText(
-                "Recent messages sent to the model. Empty uses the default (" + defaultMemoryWindow + ").");
-        if (extraOptions != null && extraOptions.memoryWindow() != null)
-            this.memoryWindowInput.setValue(extraOptions.memoryWindow());
-        generationForm.add(this.maxTokensInput, this.seedInput, this.memoryWindowInput);
+        generationForm.add(this.maxTokensInput, this.seedInput);
         generationSection.add(generationForm);
         add(generationSection);
 
@@ -193,6 +192,12 @@ public class ChatModelSettingView extends VerticalLayout {
         boolean hasStop = extraOptions != null && extraOptions.stop() != null && !extraOptions.stop().isEmpty();
         if (hasStop)
             this.stopInput.setValue(String.join(", ", extraOptions.stop()));
+        if (provider.maxStopSequences() != null)
+            this.stopInput.setHelperText(provider.displayName() + " allows up to "
+                    + provider.maxStopSequences() + " stop sequences.");
+        this.stopInput.addValueChangeListener(e -> validateStop());
+        validateStop();
+        generationSection.add(this.stopInput);
 
         Span overrideCaption = new Span("Provider options (JSON) - applied last, overrides every field above. "
                 + "Example: " + provider.jsonPlaceholder());
@@ -204,7 +209,7 @@ public class ChatModelSettingView extends VerticalLayout {
         this.providerOptionsJsonEditor.setHeight("180px");
         this.providerOptionsJsonEditor.setJson(existingJson != null ? existingJson : "{}");
 
-        VerticalLayout advancedContent = new VerticalLayout(this.stopInput, overrideCaption,
+        VerticalLayout advancedContent = new VerticalLayout(overrideCaption,
                 this.providerOptionsJsonEditor);
         advancedContent.setPadding(false);
         advancedContent.setSpacing(false);
@@ -212,7 +217,7 @@ public class ChatModelSettingView extends VerticalLayout {
         Details advanced = new Details("Advanced", advancedContent);
         advanced.addThemeVariants(DetailsVariant.FILLED);
         advanced.setWidthFull();
-        advanced.setOpened(hasStop || existingJson != null);
+        advanced.setOpened(existingJson != null);
         add(advanced);
     }
 
@@ -243,6 +248,45 @@ public class ChatModelSettingView extends VerticalLayout {
 
     private static String formatBound(double bound) {
         return bound == Math.rint(bound) ? String.valueOf((long) bound) : String.valueOf(bound);
+    }
+
+    private static IntegerField boundedIntegerField(String label, Integer min, Integer max) {
+        IntegerField field = new IntegerField(label);
+        field.setWidthFull();
+        field.setStepButtonsVisible(true);
+        IntegerField.IntegerFieldI18n i18n = new IntegerField.IntegerFieldI18n()
+                .setBadInputErrorMessage("Invalid number format");
+        if (min != null) {
+            field.setMin(min);
+            i18n.setMinErrorMessage("Value must be at least " + min);
+        }
+        if (max != null) {
+            field.setMax(max);
+            i18n.setMaxErrorMessage("Value cannot exceed " + max);
+        }
+        field.setI18n(i18n);
+        return field;
+    }
+
+    private void validateStop() {
+        Integer max = this.provider.maxStopSequences();
+        List<String> parsed = parseStop(this.stopInput.getValue());
+        int count = parsed == null ? 0 : parsed.size();
+        if (max != null && count > max) {
+            this.stopInput.setErrorMessage(this.provider.displayName() + " allows at most " + max
+                    + " stop sequences.");
+            this.stopInput.setInvalid(true);
+        } else {
+            this.stopInput.setInvalid(false);
+        }
+    }
+
+    public boolean validate() {
+        validateStop();
+        return !this.maxTokensInput.isInvalid() && !this.seedInput.isInvalid()
+                && !this.memoryWindowInput.isInvalid() && !this.temperatureInput.isInvalid()
+                && !this.topPInput.isInvalid() && !this.frequencyPenaltyInput.isInvalid()
+                && !this.presencePenaltyInput.isInvalid() && !this.stopInput.isInvalid();
     }
 
     private static VerticalLayout sliderCell(NumberField field, double min, double max, Double value,

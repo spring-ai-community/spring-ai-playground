@@ -16,7 +16,10 @@
 package org.springaicommunity.playground.service.chat;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.ollama.OllamaChatModel;
 import org.springframework.ai.ollama.api.OllamaApi;
+import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.beans.factory.ObjectProvider;
 import reactor.core.publisher.Flux;
 
@@ -40,6 +43,10 @@ class OllamaModelDownloadServiceTest {
         return provider;
     }
 
+    private static ChatModel ollamaModel() {
+        return mock(OllamaChatModel.class);
+    }
+
     private static OllamaApi.ListModelResponse modelList(String... names) {
         List<OllamaApi.Model> models = java.util.Arrays.stream(names)
                 .map(name -> new OllamaApi.Model(name, name, null, null, null, null)).toList();
@@ -48,16 +55,25 @@ class OllamaModelDownloadServiceTest {
 
     @Test
     void testDisabledWithoutOllamaProvider() {
-        OllamaModelDownloadService service = new OllamaModelDownloadService(providerOf(null));
+        OllamaModelDownloadService service = new OllamaModelDownloadService(providerOf(null), ollamaModel());
         assertFalse(service.isEnabled());
         assertTrue(service.isDownloaded("qwen3.5:2b"));
+    }
+
+    @Test
+    void testDisabledWhenActiveProviderIsNotOllama() {
+        OllamaApi api = mock(OllamaApi.class);
+        OllamaModelDownloadService service =
+                new OllamaModelDownloadService(providerOf(api), mock(OpenAiChatModel.class));
+        assertFalse(service.isEnabled());
+        assertTrue(service.isDownloaded("gpt-5.4-mini"));
     }
 
     @Test
     void testIsDownloadedAfterRefresh() {
         OllamaApi api = mock(OllamaApi.class);
         when(api.listModels()).thenReturn(modelList("qwen3.5:4b-mlx", "llama3:latest"));
-        OllamaModelDownloadService service = new OllamaModelDownloadService(providerOf(api));
+        OllamaModelDownloadService service = new OllamaModelDownloadService(providerOf(api), ollamaModel());
         service.refreshLocalModels();
 
         assertTrue(service.isDownloaded("qwen3.5:4b-mlx"));
@@ -71,7 +87,7 @@ class OllamaModelDownloadServiceTest {
     void testFailOpenWhenListingFails() {
         OllamaApi api = mock(OllamaApi.class);
         when(api.listModels()).thenThrow(new IllegalStateException("ollama down"));
-        OllamaModelDownloadService service = new OllamaModelDownloadService(providerOf(api));
+        OllamaModelDownloadService service = new OllamaModelDownloadService(providerOf(api), ollamaModel());
         service.refreshLocalModels();
 
         assertTrue(service.isDownloaded("qwen3.5:4b-mlx"));
@@ -84,7 +100,7 @@ class OllamaModelDownloadServiceTest {
         when(api.pullModel(any(OllamaApi.PullModelRequest.class))).thenReturn(
                 Flux.just(new OllamaApi.ProgressResponse("pulling", null, 100L, 50L),
                         new OllamaApi.ProgressResponse("success", null, 100L, 100L)));
-        OllamaModelDownloadService service = new OllamaModelDownloadService(providerOf(api));
+        OllamaModelDownloadService service = new OllamaModelDownloadService(providerOf(api), ollamaModel());
         service.refreshLocalModels();
         assertFalse(service.isDownloaded("qwen3.6:35b-mlx"));
 
