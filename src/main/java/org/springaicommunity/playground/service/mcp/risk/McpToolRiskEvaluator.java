@@ -15,8 +15,8 @@
  */
 package org.springaicommunity.playground.service.mcp.risk;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.mcp.catalog.McpCatalogEntry;
@@ -31,7 +31,7 @@ import java.util.Map;
 import java.util.Optional;
 
 @Component
-public class McpToolRiskAdvisor {
+public class McpToolRiskEvaluator {
 
     private final McpCatalogService catalogService;
     private final McpRiskInputsResolver inputsResolver;
@@ -43,7 +43,7 @@ public class McpToolRiskAdvisor {
     private final ToolSpecService toolSpecService;
     private final SpringAiPlaygroundOptions playgroundOptions;
 
-    public McpToolRiskAdvisor(McpCatalogService catalogService, McpRiskInputsResolver inputsResolver,
+    public McpToolRiskEvaluator(McpCatalogService catalogService, McpRiskInputsResolver inputsResolver,
             McpServerRiskCalculator serverCalc, McpToolPublishRiskCalculator publishCalc,
             McpToolRiskComposer composer, McpToolPoisoningScanner poisoningScanner,
             ObjectMapper objectMapper, ToolSpecService toolSpecService,
