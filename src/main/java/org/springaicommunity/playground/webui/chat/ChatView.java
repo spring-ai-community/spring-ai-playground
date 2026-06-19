@@ -143,7 +143,6 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
                 styledButton("New Chat", VaadinIcon.CHAT.create(), event -> addNewChatContent());
         addHeaderAction(newChatButton);
 
-        // Export and Prompts go first so the settings cog stays the right-most header action (app-wide convention).
         installConversationExportMenu();
         installPromptLibraryButton();
 
@@ -183,14 +182,12 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
                 .filter(spec -> spec.name() != null).toList();
     }
 
-    // Library detail pages flag each required tool: ready, active-but-not-exposed, missing-key, or not enabled.
     private PromptLibraryDialog.ToolReadiness toolReadiness(String toolName) {
         return this.toolSpecService.getToolSpecAsOpt(toolName)
                 .map(this::toolReadiness)
                 .orElse(PromptLibraryDialog.ToolReadiness.NOT_ENABLED);
     }
 
-    // READY must mean "Apply & New Chat will pick it up", so it requires the MCP exposure check-mark too.
     private PromptLibraryDialog.ToolReadiness toolReadiness(ToolSpec spec) {
         if (this.toolActivationCalculator.calculate(spec) != ToolActivationCalculator.State.ACTIVE)
             return PromptLibraryDialog.ToolReadiness.NEEDS_SETUP;
@@ -199,8 +196,6 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
                 : PromptLibraryDialog.ToolReadiness.NOT_EXPOSED;
     }
 
-    // Save & apply from the library lands here: open the settings drawer and select the (just-saved) preset, so the
-    // user reviews it and commits with the drawer's single Apply & New Chat action.
     private void applyPromptFromLibrary(Preset preset) {
         this.settingsDrawer.open();
         if (Objects.nonNull(this.chatModelSettingView)) this.chatModelSettingView.applyPreset(preset);
@@ -212,8 +207,15 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
                 this.chatContentView.getExtraOptions(), this.chatService.getChatProvider(),
                 this.chatSystemPromptPresetService, this.ollamaModelDownloadService, builtinToolSpecs(),
                 this.toolSpecService::riskLevelOf, this.toolSpecService::categoryOf,
-                this.chatService.getDefaultMemoryWindow());
+                this.chatService.getDefaultMemoryWindow(),
+                this::presetToolMissingKeys, this.settingsDrawer::setApplyEnabled);
         return this.chatModelSettingView;
+    }
+
+    private List<String> presetToolMissingKeys(String toolName) {
+        return this.toolSpecService.getToolSpecAsOpt(toolName)
+                .map(this.toolActivationCalculator::missingEnvVars)
+                .orElse(List.of());
     }
 
     private void applySettingsAndNewChat() {
@@ -228,8 +230,6 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
         }
         String model = this.chatModelSettingView.getChatOptions().getModel();
         if (!this.ollamaModelDownloadService.isDownloaded(model)) {
-            // Re-enter the gate after the pull: the drawer stays open meanwhile, so settings (even the
-            // model) may have changed and must be re-validated before the new chat starts.
             new ModelDownloadDialog(model, this.ollamaModelDownloadService, () -> {
                 if (Objects.nonNull(this.chatModelSettingView)) this.chatModelSettingView.refreshModelItems();
                 applySettingsAndNewChat();
@@ -379,7 +379,6 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
         if (existing != null) {
             changeChatContent(existing);
         } else {
-            // In trace data but not in active chat memory (cleared/restart) — surface it instead of silently starting fresh.
             Notification n = Notification.show(
                     "Conversation " + shortenId(convId) + " is not in active chat history — starting a fresh chat.",
                     6000, Notification.Position.TOP_CENTER);

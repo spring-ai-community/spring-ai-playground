@@ -15,6 +15,8 @@
  */
 package org.springaicommunity.playground.webui.chat;
 
+import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.combobox.ComboBox;
@@ -50,8 +52,11 @@ import org.springframework.ai.chat.prompt.ChatOptions;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -59,10 +64,12 @@ public class ChatModelSettingView extends VerticalLayout {
     private final TextArea systemPromptTextArea;
     private final ComboBox<Preset> systemPromptPresetComboBox;
     private List<Preset> selectablePresets = List.of();
-    // Sorted by category then name so the categorized picker keeps each category's tools adjacent.
     private final List<ToolSpec> builtinTools;
     private final Function<ToolSpec, String> riskLevelFn;
     private final Function<ToolSpec, String> categoryFn;
+    private final Function<String, List<String>> presetToolMissingKeys;
+    private final Consumer<Boolean> applyEnabledSetter;
+    private final VerticalLayout presetToolGapPanel = new VerticalLayout();
     private List<String> activePresetTools = List.of();
     private final ComboBox<String> modelComboBox;
     private final IntegerField maxTokensInput;
@@ -79,9 +86,12 @@ public class ChatModelSettingView extends VerticalLayout {
     public ChatModelSettingView(List<String> models, String systemPrompt, ChatOptions chatOption,
             ChatExtraOptions extraOptions, ChatProvider provider, ChatSystemPromptPresetService presetService,
             OllamaModelDownloadService modelDownloadService, List<ToolSpec> builtinTools,
-            Function<ToolSpec, String> riskLevelFn, Function<ToolSpec, String> categoryFn, int defaultMemoryWindow) {
+            Function<ToolSpec, String> riskLevelFn, Function<ToolSpec, String> categoryFn, int defaultMemoryWindow,
+            Function<String, List<String>> presetToolMissingKeys, Consumer<Boolean> applyEnabledSetter) {
         this.riskLevelFn = riskLevelFn;
         this.categoryFn = categoryFn;
+        this.presetToolMissingKeys = presetToolMissingKeys;
+        this.applyEnabledSetter = applyEnabledSetter;
         this.provider = provider;
         this.builtinTools = builtinTools.stream()
                 .sorted(Comparator.comparing((ToolSpec spec) -> categoryFn.apply(spec), String.CASE_INSENSITIVE_ORDER)
@@ -102,7 +112,6 @@ public class ChatModelSettingView extends VerticalLayout {
             modelComboBox.setValue(model);
         }
         modelComboBox.setAllowCustomValue(true);
-        // Without this listener a typed tag shows in the field but getValue() keeps the previous selection.
         modelComboBox.addCustomValueSetListener(event -> {
             String customModel = event.getDetail();
             if (customModel == null || customModel.isBlank())
@@ -156,9 +165,12 @@ public class ChatModelSettingView extends VerticalLayout {
             this.systemPromptTextArea.setValue(systemPrompt);
         }
         this.systemPromptPresetComboBox = new ComboBox<>();
-        contextSection.add(this.memoryWindowInput, systemPromptLabel,
-                buildSystemPromptPresetRow(presetService), this.systemPromptTextArea);
+        configurePresetToolGapPanel();
+        HorizontalLayout presetRow = buildSystemPromptPresetRow(presetService);
+        contextSection.add(this.memoryWindowInput, systemPromptLabel, presetRow,
+                this.presetToolGapPanel, this.systemPromptTextArea);
         add(contextSection);
+        refreshPresetToolGaps();
 
         VerticalLayout generationSection = section("Generation");
         FormLayout generationForm = new FormLayout();
@@ -283,10 +295,68 @@ public class ChatModelSettingView extends VerticalLayout {
 
     public boolean validate() {
         validateStop();
-        return !this.maxTokensInput.isInvalid() && !this.seedInput.isInvalid()
+        boolean presetToolsReady = refreshPresetToolGaps();
+        return presetToolsReady && !this.maxTokensInput.isInvalid() && !this.seedInput.isInvalid()
                 && !this.memoryWindowInput.isInvalid() && !this.temperatureInput.isInvalid()
                 && !this.topPInput.isInvalid() && !this.frequencyPenaltyInput.isInvalid()
                 && !this.presencePenaltyInput.isInvalid() && !this.stopInput.isInvalid();
+    }
+
+    private void configurePresetToolGapPanel() {
+        this.presetToolGapPanel.setPadding(false);
+        this.presetToolGapPanel.setSpacing(false);
+        this.presetToolGapPanel.setWidthFull();
+        this.presetToolGapPanel.setVisible(false);
+        this.presetToolGapPanel.getStyle().set("gap", "var(--lumo-space-xs)")
+                .set("border", "1px solid var(--lumo-error-color-50pct)")
+                .set("border-radius", "var(--lumo-border-radius-m)")
+                .set("background", "var(--lumo-error-color-10pct)")
+                .set("padding", "var(--lumo-space-s)");
+    }
+
+    private boolean refreshPresetToolGaps() {
+        Map<String, List<String>> gaps = new LinkedHashMap<>();
+        for (String tool : this.activePresetTools) {
+            List<String> missing = this.presetToolMissingKeys.apply(tool);
+            if (missing != null && !missing.isEmpty()) {
+                gaps.put(tool, missing);
+            }
+        }
+        this.presetToolGapPanel.removeAll();
+        boolean satisfied = gaps.isEmpty();
+        this.presetToolGapPanel.setVisible(!satisfied);
+        if (!satisfied) {
+            this.presetToolGapPanel.add(presetGapHeading());
+            gaps.forEach((tool, keys) -> this.presetToolGapPanel.add(presetGapLine(tool, keys)));
+            this.presetToolGapPanel.add(presetGapHint());
+        }
+        this.applyEnabledSetter.accept(satisfied);
+        return satisfied;
+    }
+
+    private static Span presetGapHeading() {
+        Span heading = new Span("These tools need an API key and can't be set up - Apply is blocked:");
+        heading.getStyle().set("color", "var(--lumo-error-text-color)")
+                .set("font-size", "var(--lumo-font-size-s)").set("font-weight", "600");
+        return heading;
+    }
+
+    private static Span presetGapLine(String tool, List<String> keys) {
+        Span line = new Span(tool + " - missing " + String.join(", ", keys));
+        line.getStyle().set("color", "var(--lumo-error-text-color)").set("font-size", "var(--lumo-font-size-s)");
+        return line;
+    }
+
+    private static HorizontalLayout presetGapHint() {
+        Span hint = new Span("Add the key(s) in Tool Studio, or pick a preset that doesn't need them.");
+        hint.getStyle().set("color", "var(--lumo-secondary-text-color)").set("font-size", "var(--lumo-font-size-xs)");
+        Button open = new Button("Open Tool Studio", VaadinIcon.EXTERNAL_LINK.create(),
+                event -> UI.getCurrent().navigate("tool-studio"));
+        open.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
+        HorizontalLayout row = new HorizontalLayout(hint, open);
+        row.setAlignItems(FlexComponent.Alignment.CENTER);
+        row.setPadding(false);
+        return row;
     }
 
     private static VerticalLayout sliderCell(NumberField field, double min, double max, Double value,
@@ -323,6 +393,7 @@ public class ChatModelSettingView extends VerticalLayout {
         this.selectablePresets = selectablePresets(presetService);
         this.systemPromptPresetComboBox.setItems(this.selectablePresets);
         this.systemPromptPresetComboBox.setItemLabelGenerator(Preset::displayName);
+        this.systemPromptPresetComboBox.setRenderer(new ComponentRenderer<>(this::presetItem));
         this.systemPromptPresetComboBox.setPlaceholder("Select a preset");
         this.systemPromptPresetComboBox.setClearButtonVisible(true);
         this.systemPromptPresetComboBox.setWidthFull();
@@ -335,6 +406,7 @@ public class ChatModelSettingView extends VerticalLayout {
             } else {
                 this.systemPromptPresetComboBox.setHelperText(null);
             }
+            refreshPresetToolGaps();
         });
         String current = this.systemPromptTextArea.getValue();
         this.selectablePresets.stream().filter(preset -> preset.prompt().equals(current))
@@ -350,8 +422,6 @@ public class ChatModelSettingView extends VerticalLayout {
         return row;
     }
 
-    // The drawer combo offers only ready-to-use presets (built-in examples + saved); variable templates need the
-    // Prompt Library dialog to fill in their {{placeholders}} before they become a usable system prompt.
     private List<Preset> selectablePresets(ChatSystemPromptPresetService presetService) {
         List<Preset> selectable = new ArrayList<>(presetService.builtInExamples());
         selectable.addAll(presetService.userExamples());
@@ -362,13 +432,34 @@ public class ChatModelSettingView extends VerticalLayout {
         this.systemPromptTextArea.setValue(preset.prompt());
         if (this.selectablePresets.contains(preset)) this.systemPromptPresetComboBox.setValue(preset);
         else this.systemPromptPresetComboBox.clear();
-        // Set after the combo ops: an ad-hoc preset (edited in the library) clears the combo, whose
-        // listener would otherwise wipe the tools it carries.
         this.activePresetTools = preset.tools();
+        refreshPresetToolGaps();
     }
 
     public List<String> getSelectedPresetTools() {
         return this.activePresetTools;
+    }
+
+    private Component presetItem(Preset preset) {
+        Span name = new Span(preset.displayName());
+        name.getStyle().set("font-weight", "600").set("font-size", "var(--lumo-font-size-s)");
+        VerticalLayout item = new VerticalLayout(name);
+        item.setPadding(false);
+        item.setSpacing(false);
+        item.setWidthFull();
+        item.getStyle().set("gap", "0").set("padding", "var(--lumo-space-xs) 0");
+        String description = preset.description();
+        if (description != null && !description.isBlank()) {
+            Span desc = new Span(description);
+            desc.getStyle().set("font-size", "var(--lumo-font-size-xs)")
+                    .set("color", "var(--lumo-secondary-text-color)").set("white-space", "nowrap")
+                    .set("overflow", "hidden").set("text-overflow", "ellipsis")
+                    .set("max-width", "32em").set("display", "block");
+            item.add(desc);
+        }
+        item.getElement().setAttribute("title",
+                description == null || description.isBlank() ? preset.displayName() : description);
+        return item;
     }
 
     private static String presetHelperText(Preset preset) {
