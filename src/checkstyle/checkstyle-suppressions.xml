@@ -71,7 +71,6 @@
     <suppress files="src[\\/]main[\\/]java[\\/]org[\\/]springaicommunity[\\/]playground[\\/]service[\\/]vectorstore[\\/]VectorStoreService\.java$" checks=".*"/>
     <suppress files="src[\\/]main[\\/]java[\\/]org[\\/]springaicommunity[\\/]playground[\\/]webui[\\/]JsonEditorWrapper\.java$" checks=".*"/>
     <suppress files="src[\\/]main[\\/]java[\\/]org[\\/]springaicommunity[\\/]playground[\\/]webui[\\/]PersistentUiDataStorage\.java$" checks=".*"/>
-    <suppress files="src[\\/]main[\\/]java[\\/]org[\\/]springaicommunity[\\/]playground[\\/]webui[\\/]SttMicButton\.java$" checks=".*"/>
     <suppress files="src[\\/]main[\\/]java[\\/]org[\\/]springaicommunity[\\/]playground[\\/]webui[\\/]VaadinUtils\.java$" checks=".*"/>
     <suppress files="src[\\/]main[\\/]java[\\/]org[\\/]springaicommunity[\\/]playground[\\/]webui[\\/]chat[\\/]ChatHistoryView\.java$" checks=".*"/>
     <suppress files="src[\\/]main[\\/]java[\\/]org[\\/]springaicommunity[\\/]playground[\\/]webui[\\/]common[\\/]WorkspaceContentHeader\.java$" checks=".*"/>

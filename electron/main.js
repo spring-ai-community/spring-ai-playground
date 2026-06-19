@@ -25,6 +25,26 @@ const {
   toMlxModel,
 } = require('./launcher-config');
 const ollamaManager = require('./ollama-manager');
+const whisperManager = require('./whisper-manager');
+const whisperStt = require('./whisper-stt');
+
+function preloadWhisperIfEnabled() {
+  if (!whisperManager.isSttEnabled()) {
+    appendLog('[whisper-stt] preload skipped (STT disabled)');
+    return;
+  }
+  const status = whisperManager.getInstallationStatus({});
+  const modelPath = status && status.activeModel && status.activeModel.path;
+  if (!modelPath || !whisperStt.isReady(modelPath)) {
+    appendLog('[whisper-stt] preload skipped (model not downloaded)');
+    return;
+  }
+  const t0 = Date.now();
+  appendLog(`[whisper-stt] preload starting: ${modelPath}`);
+  Promise.resolve(whisperStt.preload(modelPath))
+      .then(() => appendLog(`[whisper-stt] preload done in ${Date.now() - t0} ms`))
+      .catch((err) => appendLog(`[whisper-stt] preload failed: ${err && err.message}`, true));
+}
 
 let tempServer = null;
 let mainWindow, splashWindow, serverSplashWindow, configWindow, serverProcess, ollamaManagerWindow;
@@ -1885,6 +1905,7 @@ function createMainWindow() {
       sandbox: false,
       allowRunningInsecureContent: true,
       webSecurity: false,
+      preload: PRELOAD_PATH,
     },
   });
   mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
@@ -2446,6 +2467,7 @@ function launchApplicationWithConfig(configPath) {
   createServerSplashWindow();
   sendServerSplashState();
   if (configWindow && !configWindow.isDestroyed()) configWindow.close();
+  preloadWhisperIfEnabled();
   prepareOllamaForLaunch(configPath).then(async (shouldProceed) => {
     if (shouldProceed === false) {
       if (serverSplashWindow && !serverSplashWindow.isDestroyed()) serverSplashWindow.close();
@@ -2888,6 +2910,98 @@ ipcMain.handle('app:retry-launch-readiness', async () => {
 ipcMain.handle('app:quit-launcher', async () => {
   await shutdownApplication({ exitCode: 0 });
   return { ok: true };
+});
+
+ipcMain.handle('stt:status', async (event, payload) => {
+  return whisperManager.getInstallationStatus(payload || {});
+});
+
+ipcMain.handle('stt:open-folder', async () => {
+  const dir = whisperManager.whisperHomeDir();
+  fs.mkdirSync(dir, { recursive: true });
+  shell.openPath(dir).catch(() => {});
+  return { ok: true, dir };
+});
+
+ipcMain.handle('stt:cancel-download', async () => {
+  const canceled = whisperManager.cancelModelDownload();
+  return { ok: true, canceled };
+});
+
+ipcMain.handle('stt:set-preferred-model', async (event, payload) => {
+  const filename = payload && typeof payload.filename === 'string' ? payload.filename.trim() : '';
+  if (!filename) return { ok: false, error: 'filename required' };
+  whisperManager.setPreferredModelFilename(filename);
+  appendLog(`[whisper] preferred-model.txt set to ${filename}`);
+  return { ok: true, filename };
+});
+
+ipcMain.handle('stt:set-enabled', async (event, payload) => {
+  const enabled = !payload || payload.enabled !== false;
+  whisperManager.setSttEnabled(enabled);
+  if (!enabled) whisperStt.shutdown();
+  appendLog(`[whisper] STT ${enabled ? 'enabled' : 'disabled'}`);
+  return { ok: true, enabled };
+});
+
+ipcMain.handle('stt:transcribe', async (event, payload) => {
+  if (!whisperManager.isSttEnabled()) {
+    return { ok: false, code: 'STT_DISABLED', message: 'STT is disabled in Settings.' };
+  }
+  const status = whisperManager.getInstallationStatus({});
+  const modelPath = status && status.activeModel && status.activeModel.path;
+  if (!modelPath) return { ok: false, code: 'MODEL_MISSING', message: 'Active model not resolved.' };
+  if (!whisperStt.isReady(modelPath)) {
+    return { ok: false, code: 'MODEL_MISSING', message: `Model file not found: ${modelPath}` };
+  }
+  const samples = payload && payload.samples;
+  if (!samples) return { ok: false, code: 'EMPTY_AUDIO', message: 'samples (Float32Array) required' };
+  const float32 = samples instanceof Float32Array
+    ? samples
+    : (samples.buffer ? new Float32Array(samples.buffer, samples.byteOffset || 0, samples.byteLength / 4)
+                      : new Float32Array(samples));
+  try {
+    const text = await whisperStt.transcribe({
+      samples: float32,
+      modelPath,
+      language: (payload && payload.language) || 'auto',
+    });
+    return { ok: true, text };
+  } catch (e) {
+    const message = e && e.message ? e.message : String(e);
+    return { ok: false, code: 'STT_RUNTIME_ERROR', message };
+  }
+});
+
+ipcMain.handle('stt:download-model', async (event, payload) => {
+  if (whisperManager.isDownloading())
+    return { ok: false, error: 'A download is already in progress.' };
+  const sender = event.sender;
+  const safeSend = (channel, message) => {
+    if (!sender.isDestroyed()) sender.send(channel, message);
+  };
+  const opts = payload || {};
+  try {
+    const result = await whisperManager.downloadModel({
+      url: opts.url,
+      dest: opts.filename ? path.join(whisperManager.whisperHomeDir(), opts.filename) : undefined,
+      onProgress: ({ downloadedBytes, totalBytes }) =>
+        safeSend('stt:download-progress', {
+          downloadedBytes, totalBytes,
+          modelFilename: opts.filename || whisperManager.DEFAULT_MODEL_FILENAME,
+        }),
+      onLog: (msg) => appendLog(msg),
+    });
+    safeSend('stt:download-complete', {
+      path: result.path, size: result.size,
+      modelFilename: opts.filename || whisperManager.DEFAULT_MODEL_FILENAME,
+    });
+    return { ok: true, ...result };
+  } catch (e) {
+    const message = e && e.message ? e.message : String(e);
+    safeSend('stt:download-error', { message });
+    return { ok: false, error: message };
+  }
 });
 
 ipcMain.handle('app:restart-to-config', async () => {

@@ -10,12 +10,17 @@ const ALLOWED_INVOKE = new Set([
   'ollama-manager:open',
   'app:launch-state', 'app:restart-to-config', 'app:quit-launcher', 'app:set-auto-copy-logs',
   'app:retry-launch-readiness',
+  'stt:status', 'stt:download-model', 'stt:cancel-download', 'stt:open-folder',
+  'stt:set-preferred-model', 'stt:set-enabled', 'stt:transcribe',
 ]);
 
 const ALLOWED_ON = new Set([
   'server-log',
   'server-error',
   'launch-state',
+  'stt:download-progress',
+  'stt:download-complete',
+  'stt:download-error',
 ]);
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -35,4 +40,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);
   },
+  platform: process.platform,
+  arch: process.arch,
 });
