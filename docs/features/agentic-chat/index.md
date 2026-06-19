@@ -59,6 +59,15 @@ The **tools** icon on the selector row opens the tool popover. It is the per-cha
 
 The document selector beside it enables [Vector Database](../vector-database.md) collections for RAG grounding. Both selections are remembered per conversation.
 
+### Voice input
+
+The microphone icon by the prompt box dictates your message - click to start, click again to stop. Transcribed text streams into the input as you speak and keeps anything you already typed. The backend is picked automatically by where the app runs:
+
+- **Desktop app** - on-device **Whisper**: the native desktop app transcribes your voice locally on the machine, with no cloud round-trip. It is opt-in - turn it on and download a model once in the launcher's settings ([Local Speech-to-Text card](../../getting-started/desktop.md#local-speech-to-text-whisper)). Supported on Apple Silicon Macs; Intel Macs show a short notice instead.
+- **Chrome browser** - the browser's built-in Web Speech API: nothing to download, but recognition is handled by the browser. Safari and Firefox prompt you to switch to Chrome or the desktop app.
+
+While recording, the mic doubles as a stop button with a countdown wedge that fills as silence builds up - it auto-stops after a few seconds of quiet, or click to stop immediately. It is the input-side complement to [Read aloud](#message-actions).
+
 ### System prompts and presets
 
 The system prompt frames every turn. You can type one in the [settings drawer](#the-chat-settings-drawer), or pull a ready-made **[preset](prompt-presets.md)** or a variable-driven **[template](prompt-templates.md)** from the Prompt Library (clipboard icon in the header). The two are related but distinct - a preset is a complete prompt you apply as-is; a template has `{{variables}}` you fill in first - and each has its own page below.

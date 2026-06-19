@@ -345,7 +345,7 @@ If you install the app, you can run Spring AI Playground immediately without set
 
 <div style="text-align: center;">
   <a href="assets/images/launcher-first-launch.png">
-    <img src="assets/images/launcher-first-launch.png" width="600" alt="Spring AI Playground first-launch configuration screen with numbered markers 1 to 7 from top to bottom - 1 Current Config and Setup Notes, 2 Spring AI Playground Config, 3 Ollama Startup, 4 Default MCP Tools, 5 Environment Variables, 6 JVM Settings, 7 the Save and Launch action bar"/>
+    <img src="assets/images/launcher-first-launch.png" width="600" alt="Spring AI Playground first-launch configuration screen with numbered markers 1 to 8 from top to bottom - 1 Current Config and Setup Notes, 2 Spring AI Playground Config, 3 Ollama Startup, 4 Local Speech-to-Text, 5 Default MCP Tools, 6 Environment Variables, 7 JVM Settings, 8 the Save and Launch action bar"/>
   </a>
 </div>
 
@@ -354,10 +354,11 @@ The markers run top to bottom, and each card has a detailed step in the [Desktop
 1. **Current Config and Setup Notes** - explains the selected setting before you edit it ([details](getting-started/desktop.md#1-read-the-setup-notes-first))
 2. **Spring AI Playground Config** - pick the provider type, choose a saved setting, and edit the override YAML ([details](getting-started/desktop.md#2-choose-a-config-type))
 3. **Ollama Startup** - Ollama endpoint, install / connection status, and the configured models ([details](getting-started/desktop.md#6-understand-the-ollama-startup-card))
-4. **Default MCP Tools** - choose which preset of built-in tools the MCP server exposes at boot ([details](getting-started/desktop.md#8-pick-your-default-mcp-tools))
-5. **Environment Variables** - API keys and tool secrets, encrypted by your OS keychain ([details](getting-started/desktop.md#9-use-environment-variables-for-keys-and-secrets))
-6. **JVM Settings** - optional launch-time JVM options and application args ([details](getting-started/desktop.md#10-set-jvm-and-app-args-only-when-needed))
-7. **Save and Launch action bar** - Export, Import, Factory Reset, Save, and Save and Launch ([details](getting-started/desktop.md#4-save-clone-delete-or-reset-settings))
+4. **Local Speech-to-Text** - opt in to on-device voice input and download a Whisper model ([details](getting-started/desktop.md#local-speech-to-text-whisper))
+5. **Default MCP Tools** - choose which preset of built-in tools the MCP server exposes at boot ([details](getting-started/desktop.md#8-pick-your-default-mcp-tools))
+6. **Environment Variables** - API keys and tool secrets, encrypted by your OS keychain ([details](getting-started/desktop.md#9-use-environment-variables-for-keys-and-secrets))
+7. **JVM Settings** - optional launch-time JVM options and application args ([details](getting-started/desktop.md#10-set-jvm-and-app-args-only-when-needed))
+8. **Save and Launch action bar** - Export, Import, Factory Reset, Save, and Save and Launch ([details](getting-started/desktop.md#4-save-clone-delete-or-reset-settings))
 
 <div style="text-align: center;">
   <b>Ollama Model Manager</b><br/>
