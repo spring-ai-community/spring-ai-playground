@@ -107,6 +107,7 @@ nav:
       - "Vector Database": features/vector-database.md
       - "Agentic Chat":
           - features/agentic-chat/index.md
+          - "Self-equipping Agents": features/agentic-chat/dynamic-tool-discovery.md
           - "Prompt Templates": features/agentic-chat/prompt-templates.md
           - "Prompt Presets": features/agentic-chat/prompt-presets.md
       - "Human-in-the-Loop": features/human-in-the-loop.md
