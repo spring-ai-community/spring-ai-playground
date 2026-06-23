@@ -88,7 +88,7 @@ class LocalFileBrowserServiceTest {
     }
 
     private LocalFileBrowserService service(Path workspace) {
-        return new LocalFileBrowserService(new ToolWorkspace(buildOptions(workspace.toString())));
+        return new LocalFileBrowserService(new ToolWorkspace(buildOptions(workspace.toString()), workspace));
     }
 
     private SpringAiPlaygroundOptions buildOptions(String basePath) {
