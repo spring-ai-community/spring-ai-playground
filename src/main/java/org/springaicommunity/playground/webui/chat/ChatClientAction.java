@@ -13,8 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.springaicommunity.playground.service.chat;
+package org.springaicommunity.playground.webui.chat;
 
-public enum ReasoningEffort {
-    OFF, LOW, MEDIUM, HIGH, DEFAULT
+public interface ChatClientAction {
+
+    String name();
+
+    void handle(String payload);
+
+    default boolean isAvailable() {
+        return true;
+    }
 }

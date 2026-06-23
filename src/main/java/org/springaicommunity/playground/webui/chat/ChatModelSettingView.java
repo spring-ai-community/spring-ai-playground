@@ -30,6 +30,7 @@ import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
+import com.vaadin.flow.component.orderedlayout.FlexLayout;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.IntegerField;
@@ -70,7 +71,9 @@ public class ChatModelSettingView extends VerticalLayout {
     private final Function<String, List<String>> presetToolMissingKeys;
     private final Consumer<Boolean> applyEnabledSetter;
     private final VerticalLayout presetToolGapPanel = new VerticalLayout();
+    private final FlexLayout presetToolChips = new FlexLayout();
     private List<String> activePresetTools = List.of();
+    private boolean activePresetDynamicTools;
     private final ComboBox<String> modelComboBox;
     private final IntegerField maxTokensInput;
     private final NumberField temperatureInput;
@@ -166,10 +169,12 @@ public class ChatModelSettingView extends VerticalLayout {
         }
         this.systemPromptPresetComboBox = new ComboBox<>();
         configurePresetToolGapPanel();
+        configurePresetToolChips();
         HorizontalLayout presetRow = buildSystemPromptPresetRow(presetService);
         contextSection.add(this.memoryWindowInput, systemPromptLabel, presetRow,
-                this.presetToolGapPanel, this.systemPromptTextArea);
+                this.presetToolChips, this.presetToolGapPanel, this.systemPromptTextArea);
         add(contextSection);
+        refreshPresetToolChips();
         refreshPresetToolGaps();
 
         VerticalLayout generationSection = section("Generation");
@@ -314,6 +319,40 @@ public class ChatModelSettingView extends VerticalLayout {
                 .set("padding", "var(--lumo-space-s)");
     }
 
+    private void configurePresetToolChips() {
+        this.presetToolChips.setFlexWrap(FlexLayout.FlexWrap.WRAP);
+        this.presetToolChips.setWidthFull();
+        this.presetToolChips.setVisible(false);
+        this.presetToolChips.getStyle().set("gap", "var(--lumo-space-xs)").set("align-items", "center");
+    }
+
+    private void refreshPresetToolChips() {
+        this.presetToolChips.removeAll();
+        this.presetToolChips.setVisible(!this.activePresetTools.isEmpty());
+        if (this.activePresetTools.isEmpty()) return;
+        Span label = new Span("Activates tools");
+        label.getStyle().set("width", "100%").set("font-size", "var(--lumo-font-size-xs)")
+                .set("color", "var(--lumo-secondary-text-color)");
+        this.presetToolChips.add(label);
+        for (String tool : this.activePresetTools) {
+            List<String> missing = this.presetToolMissingKeys.apply(tool);
+            this.presetToolChips.add(presetToolChip(tool, missing != null && !missing.isEmpty()));
+        }
+    }
+
+    private static Span presetToolChip(String tool, boolean needsKey) {
+        Span chip = new Span(needsKey ? tool + " (key)" : tool);
+        chip.getStyle().set("font-size", "var(--lumo-font-size-xs)").set("border-radius", "999px")
+                .set("padding", "0.1em 0.7em").set("white-space", "nowrap");
+        if (needsKey)
+            chip.getStyle().set("background", "var(--lumo-warning-color-10pct)")
+                    .set("color", "var(--lumo-warning-text-color)");
+        else
+            chip.getStyle().set("background", "var(--lumo-primary-color-10pct)")
+                    .set("color", "var(--lumo-primary-text-color)");
+        return chip;
+    }
+
     private boolean refreshPresetToolGaps() {
         Map<String, List<String>> gaps = new LinkedHashMap<>();
         for (String tool : this.activePresetTools) {
@@ -400,12 +439,14 @@ public class ChatModelSettingView extends VerticalLayout {
         this.systemPromptPresetComboBox.addValueChangeListener(event -> {
             Preset selected = event.getValue();
             this.activePresetTools = selected == null ? List.of() : selected.tools();
+            this.activePresetDynamicTools = selected != null && selected.dynamicTools();
             if (selected != null) {
                 this.systemPromptTextArea.setValue(selected.prompt());
                 this.systemPromptPresetComboBox.setHelperText(presetHelperText(selected));
             } else {
                 this.systemPromptPresetComboBox.setHelperText(null);
             }
+            refreshPresetToolChips();
             refreshPresetToolGaps();
         });
         String current = this.systemPromptTextArea.getValue();
@@ -433,11 +474,17 @@ public class ChatModelSettingView extends VerticalLayout {
         if (this.selectablePresets.contains(preset)) this.systemPromptPresetComboBox.setValue(preset);
         else this.systemPromptPresetComboBox.clear();
         this.activePresetTools = preset.tools();
+        this.activePresetDynamicTools = preset.dynamicTools();
+        refreshPresetToolChips();
         refreshPresetToolGaps();
     }
 
     public List<String> getSelectedPresetTools() {
         return this.activePresetTools;
+    }
+
+    public boolean isActivePresetDynamicTools() {
+        return this.activePresetDynamicTools;
     }
 
     private Component presetItem(Preset preset) {
@@ -464,9 +511,7 @@ public class ChatModelSettingView extends VerticalLayout {
 
     private static String presetHelperText(Preset preset) {
         String description = preset.description() == null ? "" : preset.description();
-        if (preset.tools().isEmpty()) return description.isBlank() ? null : description;
-        String tools = "Activates tools: " + String.join(", ", preset.tools());
-        return description.isBlank() ? tools : description + " · " + tools;
+        return description.isBlank() ? null : description;
     }
 
     private void openSavePresetDialog(ChatSystemPromptPresetService presetService) {

@@ -31,6 +31,7 @@ import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.auth.AnonymousAllowed;
 import com.vaadin.flow.spring.annotation.SpringComponent;
 import com.vaadin.flow.spring.annotation.UIScope;
+import org.springaicommunity.playground.SpringAiPlaygroundOptions;
 import org.springaicommunity.playground.service.chat.ChatExportService;
 import org.springaicommunity.playground.service.chat.ChatExtraOptions;
 import org.springaicommunity.playground.service.chat.ChatHistory;
@@ -43,6 +44,7 @@ import org.springaicommunity.playground.service.chat.ChatToolPreferences;
 import org.springaicommunity.playground.service.chat.OllamaModelDownloadService;
 import org.springaicommunity.playground.service.chat.ReasoningEffort;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
+import org.springaicommunity.playground.service.mcp.risk.McpCompositionToolCallbackProvider;
 import org.springaicommunity.playground.service.tool.ToolActivationCalculator;
 import org.springaicommunity.playground.service.tool.ToolSpec;
 import org.springaicommunity.playground.service.tool.ToolSpecPersistenceService;
@@ -92,6 +94,9 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
     private final ToolActivationCalculator toolActivationCalculator;
     private final McpServerInfoService mcpServerInfoService;
     private final ChatExportService chatExportService;
+    private final McpCompositionToolCallbackProvider compositionProvider;
+    private final SpringAiPlaygroundOptions playgroundOptions;
+    private final ChatClientActionRegistry clientActionRegistry;
     private final ChatSystemPromptPresetService chatSystemPromptPresetService;
     private final ChatSystemPromptTemplateRenderer chatSystemPromptTemplateRenderer;
     private final OllamaModelDownloadService ollamaModelDownloadService;
@@ -107,7 +112,9 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
             McpServerInfoService mcpServerInfoService, ChatExportService chatExportService,
             ChatSystemPromptPresetService chatSystemPromptPresetService,
             ChatSystemPromptTemplateRenderer chatSystemPromptTemplateRenderer,
-            OllamaModelDownloadService ollamaModelDownloadService) {
+            OllamaModelDownloadService ollamaModelDownloadService,
+            McpCompositionToolCallbackProvider compositionProvider, SpringAiPlaygroundOptions playgroundOptions,
+            ChatClientActionRegistry clientActionRegistry) {
         this.persistentUiDataStorage = persistentUiDataStorage;
         this.chatService = chatService;
         this.chatHistoryService = chatHistoryService;
@@ -120,6 +127,9 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
         this.chatSystemPromptPresetService = chatSystemPromptPresetService;
         this.chatSystemPromptTemplateRenderer = chatSystemPromptTemplateRenderer;
         this.ollamaModelDownloadService = ollamaModelDownloadService;
+        this.compositionProvider = compositionProvider;
+        this.playgroundOptions = playgroundOptions;
+        this.clientActionRegistry = clientActionRegistry;
 
         PropertyChangeSupport chatHistoryChangeSupport = new PropertyChangeSupport(this);
         chatHistoryChangeSupport.addPropertyChangeListener(CHAT_HISTORY_SELECT_EVENT,
@@ -238,7 +248,8 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
         }
         List<String> presetTools = this.chatModelSettingView.getSelectedPresetTools();
         if (presetTools.isEmpty()) {
-            commitSettingsAndNewChat(ChatToolPreferences.defaults());
+            commitSettingsAndNewChat(this.chatModelSettingView.isActivePresetDynamicTools()
+                    ? ChatToolPreferences.defaults().withDynamicTools(true) : ChatToolPreferences.defaults());
             return;
         }
         openPresetExposureDialog(resolvePresetTools(presetTools));
@@ -265,7 +276,7 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
     private ChatToolPreferences presetPreferences(List<ToolSpec> matched) {
         Set<String> toolIds = matched.stream().map(ToolSpec::toolId)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
-        return new ChatToolPreferences(true, toolIds, List.of(), Map.of(), ReasoningEffort.OFF);
+        return new ChatToolPreferences(true, toolIds, List.of(), Map.of(), ReasoningEffort.DEFAULT, false);
     }
 
     private record PresetToolMatch(List<ToolSpec> matched, Map<String, String> unmatched) {}
@@ -360,7 +371,8 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
         this.chatContentView = new ChatContentView(this.chatService, this.chatHistoryService, chatHistory,
                 this.completeChatHistoryConsumer, this.mcpClientService,
                 this.toolSpecService, this.toolSpecPersistenceService, this.toolActivationCalculator,
-                this.mcpServerInfoService, this.chatExportService);
+                this.mcpServerInfoService, this.chatExportService,
+                this.compositionProvider, this.playgroundOptions, this.clientActionRegistry);
         ChatOptions chatOptions = chatHistory.chatOptions();
         String label = String.format("%s: %s", this.chatService.getChatModelProvider(), chatOptions.getModel());
         VaadinUtils.getUi(this).access(() -> {

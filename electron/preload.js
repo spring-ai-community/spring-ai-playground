@@ -12,6 +12,7 @@ const ALLOWED_INVOKE = new Set([
   'app:retry-launch-readiness',
   'stt:status', 'stt:download-model', 'stt:cancel-download', 'stt:open-folder',
   'stt:set-preferred-model', 'stt:set-enabled', 'stt:transcribe',
+  'calendar:open-ics',
 ]);
 
 const ALLOWED_ON = new Set([

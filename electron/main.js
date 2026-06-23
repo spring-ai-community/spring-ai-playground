@@ -2867,6 +2867,16 @@ ipcMain.handle('config:open-ollama-download', async () => {
   return { ok: true };
 });
 
+ipcMain.handle('calendar:open-ics', async (event, payload) => {
+  const content = payload && typeof payload.content === 'string' ? payload.content : '';
+  if (!content) return { ok: false };
+  const safe = String((payload && payload.filename) || 'event').replace(/[\\/:*?"<>|]+/g, '_').slice(0, 60) || 'event';
+  const file = path.join(app.getPath('downloads'), safe + '.ics');
+  fs.writeFileSync(file, content, 'utf8');
+  const error = await shell.openPath(file);
+  return { ok: !error, path: file, error: error || undefined };
+});
+
 ipcMain.handle('app:launch-state', async () => {
   const index = readConfigIndex();
   const selectedConfigId = currentConfigId || index.activeConfigId;

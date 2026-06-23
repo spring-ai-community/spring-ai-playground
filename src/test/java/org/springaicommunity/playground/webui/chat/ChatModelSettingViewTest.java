@@ -87,9 +87,27 @@ class ChatModelSettingViewTest {
         ChatModelSettingView view = newView("qwen3.5:2b-mlx");
         ChatSystemPromptPresetCatalog.Preset adHoc = new ChatSystemPromptPresetCatalog.Preset(
                 "lib-edited", "Edited in library", "", "You are a tool-using agent.",
-                ChatSystemPromptPresetCatalog.PresetKind.EXAMPLE, List.of("getWeather", "getCurrentTime"));
+                ChatSystemPromptPresetCatalog.PresetKind.EXAMPLE, List.of("getWeather", "getCurrentTime"), false);
         view.applyPreset(adHoc);
         assertThat(view.getSelectedPresetTools()).containsExactly("getWeather", "getCurrentTime");
+    }
+
+    @Test
+    void applyingDynamicPresetMarksDynamicToolDiscovery() {
+        ChatModelSettingView view = newView("qwen3.5:2b-mlx");
+        ChatSystemPromptPresetCatalog.Preset dynamic = new ChatSystemPromptPresetCatalog.Preset(
+                "dyn", "Dynamic agent", "", "You discover tools on demand.",
+                ChatSystemPromptPresetCatalog.PresetKind.EXAMPLE, List.of(), true);
+        view.applyPreset(dynamic);
+        assertThat(view.isActivePresetDynamicTools()).isTrue();
+        assertThat(view.getSelectedPresetTools()).isEmpty();
+    }
+
+    @Test
+    void applyingStaticPresetClearsDynamicToolDiscovery() {
+        ChatModelSettingView view = newView("qwen3.5:2b-mlx");
+        view.applyPreset(presetWithTools(List.of("getCurrentTime")));
+        assertThat(view.isActivePresetDynamicTools()).isFalse();
     }
 
     @Test
@@ -176,7 +194,7 @@ class ChatModelSettingViewTest {
 
     private static ChatSystemPromptPresetCatalog.Preset presetWithTools(List<String> tools) {
         return new ChatSystemPromptPresetCatalog.Preset("kr", "KR", "", "prompt",
-                ChatSystemPromptPresetCatalog.PresetKind.EXAMPLE, tools);
+                ChatSystemPromptPresetCatalog.PresetKind.EXAMPLE, tools, false);
     }
 
     private static void fireCustomValue(ChatModelSettingView view, String typed) throws Exception {
