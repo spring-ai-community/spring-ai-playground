@@ -8,8 +8,6 @@ const { execFileSync } = require('child_process');
 const ADDON_PACKAGE = '@kutalia/whisper-node-addon';
 
 let addonModule = null;
-let preloadPromise = null;
-let activeModelPath = null;
 
 function patchMacOsAddonOnce() {
     if (process.platform !== 'darwin') return;
@@ -52,27 +50,20 @@ function isReady(modelPath) {
 
 function preload(modelPath) {
     if (!modelPath || !fs.existsSync(modelPath)) return Promise.resolve();
-    if (activeModelPath === modelPath && preloadPromise) return preloadPromise;
-    activeModelPath = modelPath;
-    const addon = loadAddon();
-    const silentSamples = new Float32Array(16000 * 0.2);
-    const t0 = Date.now();
-    preloadPromise = addon.transcribe({
-        model: modelPath,
-        pcmf32: silentSamples,
-        language: 'auto',
-        use_gpu: true,
-        no_prints: true,
-        translate: false,
-        no_timestamps: true,
-    }).then(() => {
-        console.log(`[whisper-stt] preload done in ${Date.now() - t0} ms (${path.basename(modelPath)})`);
-    }).catch((err) => {
-        console.warn('[whisper-stt] preload failed (will retry on first use):', err && err.message);
-        preloadPromise = null;
-        activeModelPath = null;
-    });
-    return preloadPromise;
+    try {
+        const addon = loadAddon();
+        return addon.transcribe({
+            model: modelPath,
+            pcmf32: new Float32Array(16000 * 0.2),
+            language: 'auto',
+            use_gpu: true,
+            no_prints: true,
+            translate: false,
+            no_timestamps: true,
+        }).then(() => undefined, () => undefined);
+    } catch (err) {
+        return Promise.reject(err);
+    }
 }
 
 async function transcribe({ samples, modelPath, language }) {
@@ -80,10 +71,6 @@ async function transcribe({ samples, modelPath, language }) {
     if (!fs.existsSync(modelPath)) throw new Error(`Model file not found: ${modelPath}`);
     if (!samples || samples.length === 0) throw new Error('Empty audio payload');
     const addon = loadAddon();
-    if (activeModelPath !== modelPath) {
-        activeModelPath = modelPath;
-        preloadPromise = null;
-    }
     const result = await addon.transcribe({
         model: modelPath,
         pcmf32: samples instanceof Float32Array ? samples : new Float32Array(samples),
@@ -100,9 +87,4 @@ async function transcribe({ samples, modelPath, language }) {
         .trim();
 }
 
-function shutdown() {
-    preloadPromise = null;
-    activeModelPath = null;
-}
-
-module.exports = { isReady, preload, transcribe, shutdown };
+module.exports = { isReady, preload, transcribe };
