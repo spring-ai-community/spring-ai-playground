@@ -28,16 +28,8 @@
       "buildResources": "resources"
     },
     "files": [
-      "config-editor.html",
-      "main.js",
-      "ollama-manager.html",
-      "ollama-manager.js",
-      "ollama-manager-preload.js",
-      "preload.js",
-      "launcher-config.js",
-      "splash.html",
-      "server-splash.html",
-      "telemetry.js",
+      "*.js",
+      "*.html",
       "static/**/*",
       "resources/**/*",
       "!resources/app.jar",
