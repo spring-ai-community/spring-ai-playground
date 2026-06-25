@@ -142,6 +142,19 @@ for (const assetName of ['ace.js', 'mode-yaml.js', 'theme-textmate.js', 'worker-
   console.log(`Copied editor asset: ${source} -> ${destination}`);
 }
 
+const whisperDistDir = path.join(repoRoot, 'electron', 'node_modules', '@kutalia', 'whisper-node-addon', 'dist');
+if (process.platform === 'darwin' && fs.existsSync(whisperDistDir)) {
+  for (const addonArch of ['arm64', 'x64']) {
+    const macArchDir = path.join(whisperDistDir, `mac-${addonArch}`);
+    const darwinArchDir = path.join(whisperDistDir, `darwin-${addonArch}`);
+    if (fs.existsSync(macArchDir)) {
+      fs.rmSync(darwinArchDir, { recursive: true, force: true });
+      fs.cpSync(macArchDir, darwinArchDir, { recursive: true });
+      console.log(`Materialized whisper addon dir: darwin-${addonArch} (real copy of mac-${addonArch})`);
+    }
+  }
+}
+
 fs.rmSync(path.join(electronResourcesDir, 'icons'), { recursive: true, force: true });
 fs.rmSync(path.join(electronResourcesDir, 'generated'), { recursive: true, force: true });
 fs.rmSync(jreOutputDir, { recursive: true, force: true });
