@@ -151,8 +151,19 @@ if (process.platform === 'darwin' && fs.existsSync(whisperDistDir)) {
       fs.rmSync(darwinArchDir, { recursive: true, force: true });
       fs.cpSync(macArchDir, darwinArchDir, { recursive: true });
       console.log(`Materialized whisper addon dir: darwin-${addonArch} (real copy of mac-${addonArch})`);
+      patchWhisperAddonRpath(path.join(darwinArchDir, 'whisper.node'));
     }
   }
+}
+
+const whisperLinuxDir = path.join(whisperDistDir, 'linux-x64');
+if (process.platform === 'linux' && fs.existsSync(whisperLinuxDir)) {
+  const elfNames = fs.readdirSync(whisperLinuxDir)
+    .filter((name) => name === 'whisper.node' || name.includes('.so'));
+  for (const name of elfNames) {
+    execFileSync('patchelf', ['--set-rpath', '$ORIGIN', path.join(whisperLinuxDir, name)]);
+  }
+  console.log(`Patched whisper linux addon rpath ($ORIGIN) on ${elfNames.length} ELF files`);
 }
 
 fs.rmSync(path.join(electronResourcesDir, 'icons'), { recursive: true, force: true });
@@ -221,4 +232,16 @@ function clearQuarantineAttribute(targetPath) {
     const message = error instanceof Error ? error.message : String(error);
     console.warn(`Skipping quarantine cleanup for ${targetPath}: ${message}`);
   }
+}
+
+function patchWhisperAddonRpath(addonFile) {
+  if (!fs.existsSync(addonFile)) {
+    throw new Error(`Whisper addon missing after copy: ${addonFile}`);
+  }
+  const loadCommands = execFileSync('otool', ['-l', addonFile], { encoding: 'utf8' });
+  if (!loadCommands.includes('@loader_path')) {
+    execFileSync('install_name_tool', ['-add_rpath', '@loader_path', addonFile]);
+  }
+  execFileSync('codesign', ['--force', '--sign', '-', addonFile]);
+  console.log(`Patched whisper addon rpath (@loader_path) and ad-hoc signed: ${addonFile}`);
 }
