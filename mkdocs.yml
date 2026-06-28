@@ -81,6 +81,7 @@ nav:
       - "Human-in-the-Loop Approval": hitl-architecture.md
       - "AI Agent Observability": observability-architecture.md
       - "Context Engineering": context-engineering-architecture.md
+      - "OWASP MCP Top 10": mcp-owasp-top-10.md
   - "Features":
       - features/index.md
       - "Tool Studio":
