@@ -450,6 +450,12 @@ function writeSecretsStore(store) {
 }
 
 function getSecretsStorageStatus() {
+  const hasStore = fs.existsSync(getSecretsStorePath())
+    || fs.existsSync(path.join(getConfigDirectory(), 'secrets.json.enc'));
+  // macOS: probing OS encryption reaches the keychain and can prompt on ad-hoc builds; skip it until a secret is actually saved.
+  if (process.platform === 'darwin' && !hasStore && secretsEncryptionAvailable == null) {
+    return { encrypted: true, label: 'Encrypted by your OS secure storage' };
+  }
   const encrypted = isSecretsEncryptionAvailable();
   return {
     encrypted,
