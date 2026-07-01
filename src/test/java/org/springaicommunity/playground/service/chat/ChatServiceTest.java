@@ -110,7 +110,7 @@ class ChatServiceTest {
 
         List<ChatService.RoundUsage> rounds = new ArrayList<>();
         chatService.stream(chatHistory, "Test Chat", null, null, null, null, null, null, rounds::add, null, null,
-                null).toStream().collect(Collectors.joining());
+                null, null).toStream().collect(Collectors.joining());
 
         assertEquals(1, rounds.size());
         ChatService.RoundUsage round = rounds.get(0);

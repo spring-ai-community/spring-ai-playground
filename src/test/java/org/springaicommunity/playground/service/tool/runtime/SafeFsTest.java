@@ -26,6 +26,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -79,6 +80,19 @@ class SafeFsTest {
     void writeTextCreatesParentDirs() throws IOException {
         SafeFs.writeText(scope, "a/b/c/note.txt", "nested write");
         assertTrue(Files.exists(base.resolve("a/b/c/note.txt")));
+    }
+
+    @Test
+    void writeBytesCreatesFileInUploadsDir() throws IOException {
+        byte[] data = {0, 1, 2, 3, 65, 66, 67};
+        SafeFs.writeBytes(scope, "uploads/blob.bin", data);
+        assertArrayEquals(data, Files.readAllBytes(base.resolve("uploads/blob.bin")));
+    }
+
+    @Test
+    void writeBytesRejectsEscapeOutsideWorkspace() {
+        assertThrows(FsPolicyException.class,
+                () -> SafeFs.writeBytes(scope, "../escape.bin", new byte[]{1}));
     }
 
     @Test

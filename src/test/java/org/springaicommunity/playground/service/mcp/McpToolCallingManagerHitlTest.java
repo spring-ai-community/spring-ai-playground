@@ -18,6 +18,7 @@ package org.springaicommunity.playground.service.mcp;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springaicommunity.playground.service.tool.FileUploadHandler;
 import org.springaicommunity.playground.service.tool.HumanQuestion;
 import org.springaicommunity.playground.service.tool.HumanQuestionHandler;
 import org.springaicommunity.playground.service.tool.ToolManifest;
@@ -212,6 +213,40 @@ class McpToolCallingManagerHitlTest {
 
         assertEquals("12:00", ((ToolResponseMessage) result.conversationHistory().getLast())
                 .getResponses().get(0).responseData());
+    }
+
+    @Test
+    void requestFileUploadIsInterceptedAndReturnsSavedPath() {
+        ChatResponse response = responseWith(toolCall("1", "requestFileUpload"));
+        Prompt prompt = promptWithUpload(request -> FileUploadHandler.Result.of("uploads/data.csv", "data.csv",
+                "text/csv", 42));
+
+        ToolExecutionResult result = manager().executeToolCalls(prompt, response);
+
+        verify(delegate, never()).executeToolCalls(any(), any());
+        ToolResponseMessage trm = (ToolResponseMessage) result.conversationHistory().getLast();
+        assertEquals(1, trm.getResponses().size());
+        assertEquals("requestFileUpload", trm.getResponses().get(0).name());
+        assertTrue(trm.getResponses().get(0).responseData().contains("uploads/data.csv"));
+    }
+
+    @Test
+    void requestFileUploadCancelledReturnsTheHandlerNote() {
+        ChatResponse response = responseWith(toolCall("1", "requestFileUpload"));
+        Prompt prompt = promptWithUpload(request -> FileUploadHandler.Result.none("The user cancelled the upload."));
+
+        ToolExecutionResult result = manager().executeToolCalls(prompt, response);
+
+        verify(delegate, never()).executeToolCalls(any(), any());
+        String data = ((ToolResponseMessage) result.conversationHistory().getLast())
+                .getResponses().get(0).responseData();
+        assertTrue(data.toLowerCase().contains("cancel"));
+    }
+
+    private Prompt promptWithUpload(FileUploadHandler handler) {
+        return new Prompt(List.of(new UserMessage("do it")),
+                ToolCallingChatOptions.builder()
+                        .toolContext(Map.of(FileUploadHandler.TOOL_CONTEXT_KEY, handler)).build());
     }
 
     private ToolExecutionResult delegateResultWith(String id, String name, String data) {

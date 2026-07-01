@@ -22,6 +22,7 @@ import tools.jackson.databind.ObjectMapper;
 import org.slf4j.MDC;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
 import org.springaicommunity.playground.config.MdcIdentityFilter;
+import org.springaicommunity.playground.service.tool.FileUploadHandler;
 import org.springaicommunity.playground.service.tool.HumanQuestion;
 import org.springaicommunity.playground.service.tool.HumanQuestionHandler;
 import org.springaicommunity.playground.service.tool.ToolManifest;
@@ -64,6 +65,7 @@ public class McpToolCallingManager implements ToolCallingManager {
     public static final String MCP_PROCESS_MESSAGE_CONSUMER = "mcpProcessMessageConsumer";
     public static final String MCP_TOOL_EXECUTION_COMPLETED_MESSAGE = "MCP tool execution completed.";
     static final String ACTION_RETURN_DIRECT_MARKER = "```saip-action-return-direct";
+    static final String REQUEST_FILE_UPLOAD_TOOL = "requestFileUpload";
     private static final ObjectMapper ACTION_MAPPER = new ObjectMapper();
     public static final String TOOL_CONTEXT_USER_ID = "playgroundUserId";
     public static final String TOOL_CONTEXT_SESSION_ID = "playgroundSessionId";
@@ -118,12 +120,14 @@ public class McpToolCallingManager implements ToolCallingManager {
         }
         Set<String> declinedToolCallIds = resolveDeclinedToolCalls(chatResponse,
                 toolCallingChatOptions.getToolContext());
+        Map<String, String> fileUploadResponses = resolveFileUploadCalls(chatResponse,
+                toolCallingChatOptions.getToolContext());
         Map<String, String> previousIdentity = pushIdentity(toolCallingChatOptions.getToolContext());
         ToolExecutionResult rawResult;
         try {
-            rawResult = declinedToolCallIds.isEmpty()
+            rawResult = declinedToolCallIds.isEmpty() && fileUploadResponses.isEmpty()
                     ? toolCallingManager.executeToolCalls(prompt, chatResponse)
-                    : executeWithDeclined(prompt, chatResponse, declinedToolCallIds);
+                    : executeWithIntercepted(prompt, chatResponse, declinedToolCallIds, fileUploadResponses);
         } finally {
             popIdentity(previousIdentity);
         }
@@ -302,8 +306,10 @@ public class McpToolCallingManager implements ToolCallingManager {
         this.meterRegistry.counter("mcp.hitl.decision", "outcome", outcome, "side", "chat").increment();
     }
 
-    private ToolExecutionResult executeWithDeclined(Prompt prompt, ChatResponse chatResponse,
-            Set<String> declinedToolCallIds) {
+    private ToolExecutionResult executeWithIntercepted(Prompt prompt, ChatResponse chatResponse,
+            Set<String> declinedToolCallIds, Map<String, String> fileUploadResponses) {
+        Set<String> interceptedToolCallIds = new HashSet<>(declinedToolCallIds);
+        interceptedToolCallIds.addAll(fileUploadResponses.keySet());
         AssistantMessage assistantMessage = chatResponse.getResults().stream()
                 .map(Generation::getOutput)
                 .filter(output -> !output.getToolCalls().isEmpty())
@@ -311,7 +317,7 @@ public class McpToolCallingManager implements ToolCallingManager {
                 .orElseThrow(() -> new IllegalStateException("No tool call requested by the chat model"));
         List<ToolCall> allToolCalls = assistantMessage.getToolCalls();
         List<ToolCall> approvedToolCalls = allToolCalls.stream()
-                .filter(toolCall -> !declinedToolCallIds.contains(toolCall.id())).toList();
+                .filter(toolCall -> !interceptedToolCallIds.contains(toolCall.id())).toList();
 
         Map<String, ToolResponseMessage.ToolResponse> responsesById = new LinkedHashMap<>();
         if (!approvedToolCalls.isEmpty()) {
@@ -328,7 +334,10 @@ public class McpToolCallingManager implements ToolCallingManager {
             }
         }
         for (ToolCall toolCall : allToolCalls) {
-            if (declinedToolCallIds.contains(toolCall.id())) {
+            if (fileUploadResponses.containsKey(toolCall.id())) {
+                responsesById.put(toolCall.id(), new ToolResponseMessage.ToolResponse(
+                        toolCall.id(), toolCall.name(), fileUploadResponses.get(toolCall.id())));
+            } else if (declinedToolCallIds.contains(toolCall.id())) {
                 responsesById.put(toolCall.id(), new ToolResponseMessage.ToolResponse(
                         toolCall.id(), toolCall.name(), declinedMessage(toolCall.name())));
             }
@@ -355,6 +364,50 @@ public class McpToolCallingManager implements ToolCallingManager {
                 + "Do not call '" + toolName + "' again for this request. If another available tool can accomplish "
                 + "the goal, use it instead; otherwise tell the user the action could not be completed because they "
                 + "declined approval.";
+    }
+
+    private Map<String, String> resolveFileUploadCalls(ChatResponse chatResponse, Map<String, Object> toolContext) {
+        FileUploadHandler handler = toolContext == null ? null
+                : (FileUploadHandler) toolContext.get(FileUploadHandler.TOOL_CONTEXT_KEY);
+        if (handler == null) return Map.of();
+        List<ToolCall> toolCalls = chatResponse.getResults().stream()
+                .flatMap(result -> result.getOutput().getToolCalls().stream()).toList();
+        Map<String, String> responses = new LinkedHashMap<>();
+        for (ToolCall toolCall : toolCalls) {
+            if (!REQUEST_FILE_UPLOAD_TOOL.equals(toolCall.name())) continue;
+            FileUploadHandler.Result result;
+            try {
+                result = handler.requestUpload(parseUploadRequest(toolCall.arguments()));
+            } catch (RuntimeException e) {
+                logger.warn("file-upload.request-failed error={}", e.getMessage());
+                result = FileUploadHandler.Result.none("The file upload could not be completed.");
+            }
+            responses.put(toolCall.id(), uploadResultMessage(result));
+        }
+        return responses;
+    }
+
+    private static FileUploadHandler.Request parseUploadRequest(String arguments) {
+        String prompt = null;
+        String accept = null;
+        if (arguments != null && !arguments.isBlank()) {
+            try {
+                JsonNode node = ACTION_MAPPER.readTree(arguments);
+                if (node.has("prompt") && node.get("prompt").isTextual()) prompt = node.get("prompt").asText();
+                if (node.has("accept") && node.get("accept").isTextual()) accept = node.get("accept").asText();
+            } catch (RuntimeException ignore) {
+            }
+        }
+        return new FileUploadHandler.Request(prompt, accept);
+    }
+
+    private static String uploadResultMessage(FileUploadHandler.Result result) {
+        if (result == null || !result.uploaded()) {
+            return result == null || result.note() == null ? "The user did not upload a file." : result.note();
+        }
+        return "The user uploaded a file. It is saved in the conversation workspace at \"" + result.path()
+                + "\" (" + result.mediaType() + ", " + result.bytes() + " bytes). Read its contents with "
+                + "readTextFile(\"" + result.path() + "\"). If it is CSV data, pass that text to parseCsv.";
     }
 
     private Object formatUserMessageForMcp(UserMessage msg) {

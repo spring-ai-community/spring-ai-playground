@@ -60,6 +60,7 @@ import org.springaicommunity.playground.service.mcp.McpToolCallingManager;
 import org.springaicommunity.playground.service.mcp.risk.McpCompositionToolCallbackProvider;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.service.mcp.client.McpTransportType;
+import org.springaicommunity.playground.service.tool.ConversationFileUploadStore;
 import org.springaicommunity.playground.service.tool.ToolActivationCalculator;
 import org.springaicommunity.playground.service.tool.ToolSpec;
 import org.springaicommunity.playground.service.tool.ToolSpecPersistenceService;
@@ -128,6 +129,7 @@ public class ChatContentView extends VerticalLayout {
     private final ToolActivationCalculator toolActivationCalculator;
     private final McpServerInfoService mcpServerInfoService;
     private final ChatExportService chatExportService;
+    private final ConversationFileUploadStore fileUploadStore;
     private final MultiSelectComboBox<ToolSpec> customToolsComboBox;
     private final MultiSelectComboBox<ToolSpec> builtinToolsComboBox;
     private final MultiSelectComboBox<ToolSpec> composedToolsComboBox;
@@ -151,7 +153,7 @@ public class ChatContentView extends VerticalLayout {
             ToolActivationCalculator toolActivationCalculator,
             McpServerInfoService mcpServerInfoService, ChatExportService chatExportService,
             McpCompositionToolCallbackProvider compositionProvider, SpringAiPlaygroundOptions playgroundOptions,
-            ChatClientActionRegistry clientActionRegistry) {
+            ChatClientActionRegistry clientActionRegistry, ConversationFileUploadStore fileUploadStore) {
         this.chatHistory = chatHistory;
         this.chatService = chatService;
         this.chatHistoryService = chatHistoryService;
@@ -164,6 +166,7 @@ public class ChatContentView extends VerticalLayout {
         this.chatExportService = chatExportService;
         this.compositionProvider = compositionProvider;
         this.clientActionRegistry = clientActionRegistry;
+        this.fileUploadStore = fileUploadStore;
         this.toolSearch = playgroundOptions.chat().toolSearch();
         this.customToolsComboBox = ExposedToolsSelector.newCustomSelector(
                 toolSpecService::riskLevelOf, toolSpecService::categoryOf);
@@ -718,7 +721,9 @@ public class ChatContentView extends VerticalLayout {
                             if (reactor.core.publisher.SignalType.CANCEL.equals(signalType))
                                 chatContentManager.markStopped();
                             doFinally(chatContentManager);
-                        }), new ChatHumanQuestionHandler(ui), this.reasoningSelect.getValue())
+                        }), new ChatHumanQuestionHandler(ui),
+                        new ChatFileUploadHandler(ui, this.fileUploadStore),
+                        this.reasoningSelect.getValue())
                 .doOnError(throwable -> ui.access(() -> {
                     chatContentManager.markError(throwable);
                     VaadinUtils.showErrorNotification(throwable.getMessage());

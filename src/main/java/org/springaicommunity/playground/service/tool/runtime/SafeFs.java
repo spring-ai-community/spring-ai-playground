@@ -73,6 +73,15 @@ public final class SafeFs {
         return target;
     }
 
+    public static Path writeBytes(FsScope scope, String userPath, byte[] content) throws IOException {
+        Path target = resolveWrite(scope, userPath);
+        if (target.getParent() != null && !Files.exists(target.getParent())) {
+            Files.createDirectories(target.getParent());
+        }
+        Files.write(target, content == null ? new byte[0] : content);
+        return target;
+    }
+
     public static List<String> list(FsScope scope, String userDir) throws IOException {
         String input = userDir == null || userDir.isEmpty() ? "." : userDir;
         Path dir = resolveRead(scope, input);

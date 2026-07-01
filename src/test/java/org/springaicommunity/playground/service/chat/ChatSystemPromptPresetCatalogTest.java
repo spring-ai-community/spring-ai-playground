@@ -17,8 +17,14 @@ package org.springaicommunity.playground.service.chat;
 
 import org.junit.jupiter.api.Test;
 import org.springaicommunity.playground.service.chat.ChatSystemPromptPresetCatalog.Preset;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -34,7 +40,8 @@ class ChatSystemPromptPresetCatalogTest {
                         "self-equipping-agent",
                         "data-wrangler", "korea-concierge", "github-repo-analyst",
                         "release-notes-writer", "log-detective", "crypto-market-watch",
-                        "trip-planner", "tech-pulse");
+                        "trip-planner", "tech-pulse", "data-visualizer",
+                        "market-charts", "data-analysis", "diff-inspector");
     }
 
     @Test
@@ -63,6 +70,37 @@ class ChatSystemPromptPresetCatalogTest {
         assertThat(catalog.findById("log-detective").orElseThrow().tools())
                 .contains("findFiles", "grepFile", "sliceFile", "stats");
         assertThat(catalog.findById("skill-agent").orElseThrow().tools()).isEmpty();
+    }
+
+    @Test
+    void everyPresetToolResolvesToAShippedBuiltinTool() throws IOException {
+        Set<String> toolNames = shippedToolNames();
+        ChatSystemPromptPresetCatalog catalog = new ChatSystemPromptPresetCatalog();
+        for (Preset preset : catalog.presets()) {
+            assertThat(toolNames)
+                    .as("preset '%s' names a tool that no shipped spec file defines", preset.id())
+                    .containsAll(preset.tools());
+        }
+    }
+
+    private static Set<String> shippedToolNames() throws IOException {
+        ObjectMapper mapper = new ObjectMapper();
+        Set<String> names = new HashSet<>();
+        for (String file : List.of(
+                "/tool/default-tool-specs.json",
+                "/tool/default-tool-specs-builtin.json",
+                "/tool/default-tool-specs-builtin-helpers.json",
+                "/tool/default-tool-specs-builtin-fs.json",
+                "/tool/default-tool-specs-network.json",
+                "/tool/default-tool-specs-kr.json")) {
+            try (InputStream in = ChatSystemPromptPresetCatalogTest.class.getResourceAsStream(file)) {
+                if (in == null) continue;
+                for (JsonNode node : mapper.readTree(in)) {
+                    if (node.has("name")) names.add(node.get("name").asText());
+                }
+            }
+        }
+        return names;
     }
 
     @Test

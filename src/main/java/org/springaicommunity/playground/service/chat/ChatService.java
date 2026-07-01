@@ -22,6 +22,7 @@ import org.springaicommunity.playground.SpringAiPlaygroundOptions;
 import org.springaicommunity.playground.config.MdcIdentityFilter;
 import org.springaicommunity.playground.service.SharedDataReader;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
+import org.springaicommunity.playground.service.tool.FileUploadHandler;
 import org.springaicommunity.playground.service.tool.HumanQuestionHandler;
 import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentInfo;
 import org.slf4j.Logger;
@@ -131,7 +132,7 @@ public class ChatService {
             Consumer<Object> thinkProcessMessageConsumer) {
         return stream(chatHistory, prompt, filterExpression, completeChatHistoryConsumer, toolCallbacks,
                 mcpToolProcessMessageConsumer, ragProcessMessageConsumer, thinkProcessMessageConsumer, null, null,
-                null, null);
+                null, null, null);
     }
 
     public Flux<String> stream(ChatHistory chatHistory, String prompt, String filterExpression,
@@ -139,10 +140,10 @@ public class ChatService {
             Consumer<Object> mcpToolProcessMessageConsumer, Consumer<Object> ragProcessMessageConsumer,
             Consumer<Object> thinkProcessMessageConsumer, Consumer<RoundUsage> roundUsageConsumer,
             Consumer<SignalType> beforeHistoryCommit, HumanQuestionHandler humanQuestionHandler,
-            ReasoningEffort reasoning) {
+            FileUploadHandler fileUploadHandler, ReasoningEffort reasoning) {
         return streamWithRaw(chatHistory, prompt, filterExpression, toolCallbacks, mcpToolProcessMessageConsumer,
                 ragProcessMessageConsumer, thinkProcessMessageConsumer, roundUsageConsumer, humanQuestionHandler,
-                reasoning).map(Generation::getOutput)
+                fileUploadHandler, reasoning).map(Generation::getOutput)
                 .map(assistantMessage -> Optional.ofNullable(assistantMessage.getText()).orElse(""))
                 .doFinally(signalType -> {
                     boolean finished = SignalType.ON_COMPLETE.equals(signalType)
@@ -158,14 +159,14 @@ public class ChatService {
             List<ToolCallback> toolCallbacks, Consumer<Object> mcpToolProcessMessageConsumer,
             Consumer<Object> ragProcessMessageConsumer, Consumer<Object> thinkProcessMessageConsumer) {
         return streamWithRaw(chatHistory, prompt, filterExpression, toolCallbacks, mcpToolProcessMessageConsumer,
-                ragProcessMessageConsumer, thinkProcessMessageConsumer, null, null, null);
+                ragProcessMessageConsumer, thinkProcessMessageConsumer, null, null, null, null);
     }
 
     public Flux<Generation> streamWithRaw(ChatHistory chatHistory, String prompt, String filterExpression,
             List<ToolCallback> toolCallbacks, Consumer<Object> mcpToolProcessMessageConsumer,
             Consumer<Object> ragProcessMessageConsumer, Consumer<Object> thinkProcessMessageConsumer,
             Consumer<RoundUsage> roundUsageConsumer, HumanQuestionHandler humanQuestionHandler,
-            ReasoningEffort reasoning) {
+            FileUploadHandler fileUploadHandler, ReasoningEffort reasoning) {
         AtomicReference<ChatClientResponse> lastChatResponse = new AtomicReference<>();
         StringBuilder accumulatedText = new StringBuilder();
         String userMessageId = UUID.randomUUID().toString();
@@ -174,7 +175,8 @@ public class ChatService {
         AtomicBoolean roundHadToolCalls = new AtomicBoolean();
         AtomicBoolean roundHadThinking = new AtomicBoolean();
         return getChatClientRequestSpec(chatHistory, prompt, filterExpression, toolCallbacks,
-                mcpToolProcessMessageConsumer, ragProcessMessageConsumer, humanQuestionHandler, reasoning)
+                mcpToolProcessMessageConsumer, ragProcessMessageConsumer, humanQuestionHandler, fileUploadHandler,
+                reasoning)
                 .stream().chatClientResponse().map(
                         chatClientResponse -> {
                     if (Objects.nonNull(thinkProcessMessageConsumer) || Objects.nonNull(roundUsageConsumer)) {
@@ -252,7 +254,7 @@ public class ChatService {
     private ChatClient.ChatClientRequestSpec getChatClientRequestSpec(ChatHistory chatHistory, String prompt,
             String filterExpression, List<ToolCallback> toolCallbacks, Consumer<Object> mcpToolProcessMessageConsumer,
             Consumer<Object> ragProcessMessageConsumer, HumanQuestionHandler humanQuestionHandler,
-            ReasoningEffort reasoning) {
+            FileUploadHandler fileUploadHandler, ReasoningEffort reasoning) {
         DefaultChatOptions chatOptions = chatHistory.chatOptions();
         ChatClient.ChatClientRequestSpec chatClientRequestSpec = this.chatClient.prompt().user(prompt).options(
                         this.chatRequestOptionsFactory.build(this.chatModel, chatOptions, chatHistory.extraOptions(),
@@ -272,6 +274,8 @@ public class ChatService {
             toolContext.put(MCP_PROCESS_MESSAGE_CONSUMER, mcpToolProcessMessageConsumer);
             if (Objects.nonNull(humanQuestionHandler))
                 toolContext.put(HumanQuestionHandler.TOOL_CONTEXT_KEY, humanQuestionHandler);
+            if (Objects.nonNull(fileUploadHandler))
+                toolContext.put(FileUploadHandler.TOOL_CONTEXT_KEY, fileUploadHandler);
             putIfPresent(toolContext, TOOL_CONTEXT_USER_ID, MDC.get(MdcIdentityFilter.USER_ID));
             putIfPresent(toolContext, TOOL_CONTEXT_SESSION_ID, MDC.get(MdcIdentityFilter.SESSION_ID));
             putIfPresent(toolContext, TOOL_CONTEXT_CONVERSATION_ID, chatHistory.conversationId());
@@ -320,7 +324,7 @@ public class ChatService {
         try {
             return applyChatResponseMetadataToLastUserMessage(chatHistory,
                     getChatClientRequestSpec(chatHistory, prompt, filterExpression, toolCallbacks,
-                            mcpToolProcessMessageConsumer, null, null, null).call()
+                            mcpToolProcessMessageConsumer, null, null, null, null).call()
                             .chatClientResponse()).getResult();
         } finally {
             MDC.remove(MDC_CONVERSATION_ID);
