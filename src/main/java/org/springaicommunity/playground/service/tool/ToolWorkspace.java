@@ -71,6 +71,17 @@ public class ToolWorkspace {
         }
     }
 
+    public int conversationFileCount(String conversationId) {
+        Path dir = conversationDir(conversationId);
+        if (dir == null || !Files.isDirectory(dir)) return 0;
+        try (Stream<Path> walk = Files.walk(dir)) {
+            return (int) walk.filter(Files::isRegularFile).count();
+        } catch (IOException e) {
+            log.warn("Failed to count conversation workspace {}: {}", dir, e.getMessage());
+            return 0;
+        }
+    }
+
     public static String safeSegment(String conversationId) {
         if (conversationId == null) return null;
         String cleaned = conversationId.replaceAll("[^A-Za-z0-9._-]", "_");

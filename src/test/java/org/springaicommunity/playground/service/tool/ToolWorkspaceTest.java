@@ -79,6 +79,19 @@ class ToolWorkspaceTest {
         assertThat(ws.scopeFor("..").workspace()).isEqualTo(ws.base());
     }
 
+    @Test
+    void conversationFileCountCountsRegularFiles(@TempDir Path tempDir) throws IOException {
+        ToolWorkspace ws = new ToolWorkspace(buildOptions(tempDir.toString()), tempDir);
+        assertThat(ws.conversationFileCount("Chat-z")).isZero();
+
+        Path convDir = ws.conversationDir("Chat-z");
+        Files.createDirectories(convDir.resolve("sub"));
+        Files.writeString(convDir.resolve("a.txt"), "x");
+        Files.writeString(convDir.resolve("sub").resolve("b.txt"), "y");
+
+        assertThat(ws.conversationFileCount("Chat-z")).isEqualTo(2);
+    }
+
     private SpringAiPlaygroundOptions buildOptions(String basePath) {
         return new SpringAiPlaygroundOptions(
                 new ToolStudio(30L, null, new FsConfig(basePath),
