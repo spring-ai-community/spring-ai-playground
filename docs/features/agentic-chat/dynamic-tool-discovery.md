@@ -47,7 +47,7 @@ Most of the saving comes from prompt tokens (the definitions that are no longer 
 
 Those numbers are on large hosted models. The bigger story for a **local-first** playground is what dynamic discovery does for *small* models running on your own machine.
 
-The Playground ships **88 built-in tools** (72 of them Local-Passed and callable), and you can add many more in Tool Studio or by connecting MCP servers. Inlining 70+ tool schemas every turn is exactly what a small local model handles worst: it floods a limited context window and the model loses the thread among similar tools. Dynamic discovery takes that wall away - the model searches the catalog and pulls in only what each step needs, so the size of your toolbox stops being a ceiling on what a local model can drive.
+The Playground ships **107 built-in tools** (77 of them Local-Passed and callable), and you can add many more in Tool Studio or by connecting MCP servers. Inlining 70+ tool schemas every turn is exactly what a small local model handles worst: it floods a limited context window and the model loses the thread among similar tools. Dynamic discovery takes that wall away - the model searches the catalog and pulls in only what each step needs, so the size of your toolbox stops being a ceiling on what a local model can drive.
 
 The result is a genuine local agent. Below, the default local model (`qwen3.5:4b-mlx` on Ollama) answers a three-part request - local time, live weather, and a tip calculation - by discovering and chaining the right tools out of the 72-tool catalog, using roughly **1,850 input tokens** instead of inlining every definition:
 

@@ -1,10 +1,10 @@
-description: Default Tools - 88 ready-to-call JavaScript tools across 6 source bundles, exposed through the built-in MCP server, OS-agnostic by design.
+description: Default Tools - 107 ready-to-call JavaScript tools across 6 source bundles, exposed through the built-in MCP server, OS-agnostic by design.
 
 # Default Tools
 
 **Where:** top navigation → **Tool Studio** - the default tools ship pre-loaded; tune the exposed subset in the **Built-in MCP Server Native Tools** drawer.
 
-Spring AI Playground ships with **88 default tools** spread across six JSON source bundles. They are ready to call the moment a model provider is connected - you do not need to author anything yourself to see agentic workflows work end-to-end. They also serve as editable references when you start writing your own tools.
+Spring AI Playground ships with **107 default tools** spread across six JSON source bundles. They are ready to call the moment a model provider is connected - you do not need to author anything yourself to see agentic workflows work end-to-end. They also serve as editable references when you start writing your own tools.
 
 Tools that reach an external API read their keys from **environment variables** - each tool's card below lists the variables it needs. How to supply env vars (desktop launcher, Docker `-e`, or a source run) is covered once in the [Configuration reference](../../getting-started/configuration.md#how).
 
@@ -24,14 +24,14 @@ Every tool carries a **Risk Level** (`L0`-`L5`) - the sandbox posture the [Safe 
 | <span class="rl rl-l4">L4 - Broad access</span> | File *write*, `*` allowlist / `open` egress, or reflection class added | the file-write filesystem tool |
 | <span class="rl rl-l5">L5 - Unsandboxed</span> | `System` / `Runtime` / `Process` re-enabled, or raw file-write class | none ship by default |
 
-Levels are derived from each tool's declared `sandboxOverrides` (by `SandboxPostureCalculator`); the full bullet-by-bullet rule set is in [AI Agent Tool Safety → Risk Level decision matrix](../../safety-architecture.md#risk-level-decision-matrix). Across the 88 default tools: **30 are L0**, **57 are L3** (allowlisted-host `fetch` or file read), and **1 is L4** (file write) - none ship at L5.
+Levels are derived from each tool's declared `sandboxOverrides` (by `SandboxPostureCalculator`); the full bullet-by-bullet rule set is in [AI Agent Tool Safety → Risk Level decision matrix](../../safety-architecture.md#risk-level-decision-matrix). Across the 107 default tools: **49 are L0**, **57 are L3** (allowlisted-host `fetch` or file read), and **1 is L4** (file write) - none ship at L5.
 
 !!! question "Why no L1 or L2 here?"
     The **sandbox** rubric only ever produces **L0 / L3 / L4 / L5** - the calculator jumps from the `L0` baseline straight to `L3` the moment a tool declares *any* widening (network, file, or class change), so a tool is never L1 or L2. `L1` (*Safe*) and `L2` (*Low*) exist only in the [MCP server rubric](../../mcp-server-safety.md#risk-chip), which scores a different thing (connecting to an external server) on the same `L0`-`L5` enum.
 
-## Browse all 88 tools { #browse-all-tools }
+## Browse all 107 tools { #browse-all-tools }
 
-Click a card to jump to its full reference (with the JS source pre-expanded) on the right sub-page - same UX as the **Built-in MCP Server Native Tools** drawer in Tool Studio. Five reference pages organise the catalog by source bundle and concern: [Examples](examples.md) · [Utilities](utilities.md) · [Filesystem](filesystem.md) · [Global](global.md) · [Korea](korea.md).
+Click a card to jump to its full reference (with the JS source pre-expanded) on the right sub-page - same UX as the **Built-in MCP Server Native Tools** drawer in Tool Studio. Six reference pages organise the catalog by source bundle and concern: [Examples](examples.md) · [Utilities](utilities.md) · [Filesystem](filesystem.md) · [Global](global.md) · [Korea](korea.md) · [Visualization](visualization.md).
 
 **Filter modes**: pick a **Preset** for an exclusive view (just the tools in that preset, all other filters cleared); or combine a **search** keyword with one or more **Tag** / **Category** chips - search is AND, tag and category are OR (a card is shown when it matches *any* selected tag OR category and also matches the search keyword).
 
@@ -42,13 +42,13 @@ Click a card to jump to its full reference (with the JS source pre-expanded) on 
 <div class="tool-directory__controls">
 <input type="search" class="tool-directory__search" placeholder="Search by name or description..." aria-label="Search tools">
 <div class="tool-directory__chips">
-<span class="tool-directory__chip-label">Tag</span> <button class="tool-directory__chip" data-group="tag" data-value="example" aria-pressed="false">example</button> <button class="tool-directory__chip" data-group="tag" data-value="finance" aria-pressed="false">finance</button> <button class="tool-directory__chip" data-group="tag" data-value="geo" aria-pressed="false">geo</button> <button class="tool-directory__chip" data-group="tag" data-value="github" aria-pressed="false">github</button> <button class="tool-directory__chip" data-group="tag" data-value="korea" aria-pressed="false">korea</button> <button class="tool-directory__chip" data-group="tag" data-value="pipeline" aria-pressed="false">pipeline</button> <button class="tool-directory__chip" data-group="tag" data-value="search" aria-pressed="false">search</button> <button class="tool-directory__chip" data-group="tag" data-value="util" aria-pressed="false">util</button> <button class="tool-directory__chip" data-group="tag" data-value="weather" aria-pressed="false">weather</button>
+<span class="tool-directory__chip-label">Tag</span> <button class="tool-directory__chip" data-group="tag" data-value="example" aria-pressed="false">example</button> <button class="tool-directory__chip" data-group="tag" data-value="finance" aria-pressed="false">finance</button> <button class="tool-directory__chip" data-group="tag" data-value="geo" aria-pressed="false">geo</button> <button class="tool-directory__chip" data-group="tag" data-value="github" aria-pressed="false">github</button> <button class="tool-directory__chip" data-group="tag" data-value="korea" aria-pressed="false">korea</button> <button class="tool-directory__chip" data-group="tag" data-value="pipeline" aria-pressed="false">pipeline</button> <button class="tool-directory__chip" data-group="tag" data-value="search" aria-pressed="false">search</button> <button class="tool-directory__chip" data-group="tag" data-value="util" aria-pressed="false">util</button> <button class="tool-directory__chip" data-group="tag" data-value="visualization" aria-pressed="false">visualization</button> <button class="tool-directory__chip" data-group="tag" data-value="weather" aria-pressed="false">weather</button>
 </div>
 <div class="tool-directory__chips">
 <span class="tool-directory__chip-label">Category</span> <button class="tool-directory__chip" data-group="category" data-value="ai" aria-pressed="false">AI</button> <button class="tool-directory__chip" data-group="category" data-value="crypto" aria-pressed="false">CRYPTO</button> <button class="tool-directory__chip" data-group="category" data-value="data" aria-pressed="false">DATA</button> <button class="tool-directory__chip" data-group="category" data-value="datetime" aria-pressed="false">DATETIME</button> <button class="tool-directory__chip" data-group="category" data-value="encoding" aria-pressed="false">ENCODING</button> <button class="tool-directory__chip" data-group="category" data-value="file" aria-pressed="false">FILE</button> <button class="tool-directory__chip" data-group="category" data-value="math" aria-pressed="false">MATH</button> <button class="tool-directory__chip" data-group="category" data-value="messaging" aria-pressed="false">MESSAGING</button> <button class="tool-directory__chip" data-group="category" data-value="productivity" aria-pressed="false">PRODUCTIVITY</button> <button class="tool-directory__chip" data-group="category" data-value="security" aria-pressed="false">SECURITY</button> <button class="tool-directory__chip" data-group="category" data-value="text" aria-pressed="false">TEXT</button> <button class="tool-directory__chip" data-group="category" data-value="web" aria-pressed="false">WEB</button>
 </div>
 </div>
-<div class="tool-directory__count">Showing 88 of 88 tools</div>
+<div class="tool-directory__count">Showing 107 of 107 tools</div>
 <div class="tool-directory__list" markdown>
 
 <div class="tcg-grid tcg-grid--directory" markdown>
@@ -123,6 +123,21 @@ Renders an interactive Google Map of a place directly in the chat - no API key n
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `query` · `label`</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
+</div>
+<div class="tcg-page">→ Examples</div>
+</div>
+
+<div class="tcg-card tcg-card--directory" data-name="requestfileupload" data-desc="asks the user to upload a file (csv, excel, image, or any document) and returns its workspace path - the chat opens an upload dialog. excel is converted to csv in the browser via sheetjs." data-category="productivity" data-tags="util" data-preset="" data-env="" markdown>
+<a class="tcg-stretched-link" href="examples/#requestFileUpload" aria-label="Open requestFileUpload in Examples">requestFileUpload</a>
+<div class="tcg-name"><span class="tcg-name__text">requestFileUpload</span> <span class="cost">🆓</span></div>
+<div class="tcg-art" markdown>:material-file-upload-outline:</div>
+<div class="tcg-type">productivity · util <span class="risk risk-l0">L0</span></div>
+<div class="tcg-body" markdown>
+Opens an upload dialog in chat; the user uploads a file (Excel auto-converts to CSV) and the tool returns its workspace path.
+</div>
+<div class="tcg-stats" markdown>
+<div class="tcg-stats__line" markdown>**Params** &nbsp; `prompt` · `accept`</div>
 <div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Examples</div>
@@ -1373,6 +1388,278 @@ MOIS (Ministry of the Interior & Safety) emergency disaster-alert SMS history (K
 <div class="tcg-page">→ Korea</div>
 </div>
 
+<div class="tcg-card tcg-card--directory" data-name="renderchart" data-desc="renders a chart directly in the chat from data you provide: bar, line, area, pie, radar, scatter, or gauge." data-category="productivity" data-tags="visualization" data-preset="everything" data-env="" markdown>
+<a class="tcg-stretched-link" href="visualization/#renderChart" aria-label="Open renderChart in Visualization">renderChart</a>
+<div class="tcg-name"><span class="tcg-name__text">renderChart</span> <span class="cost">🆓</span></div>
+<div class="tcg-art" markdown>:material-chart-bar:</div>
+<div class="tcg-type">productivity · visualization <span class="risk risk-l0">L0</span></div>
+<div class="tcg-body" markdown>
+Renders a chart directly in the chat from data you provide: bar, line, area, pie, radar, scatter, or gauge. Use this to visualize numbers you have gathered.
+</div>
+<div class="tcg-stats" markdown>
+<div class="tcg-stats__line" markdown>**Params** &nbsp; `chartType` · `labels` · `series` · `title` · `max`</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
+</div>
+<div class="tcg-page">→ Visualization</div>
+</div>
+
+<div class="tcg-card tcg-card--directory" data-name="plotpointsonmap" data-desc="renders an interactive world map with multiple markers directly in the chat. plot several geographic points at once (earthquakes, cities, store locations)." data-category="productivity" data-tags="visualization" data-preset="everything" data-env="" markdown>
+<a class="tcg-stretched-link" href="visualization/#plotPointsOnMap" aria-label="Open plotPointsOnMap in Visualization">plotPointsOnMap</a>
+<div class="tcg-name"><span class="tcg-name__text">plotPointsOnMap</span> <span class="cost">🆓</span></div>
+<div class="tcg-art" markdown>:material-map-marker-multiple:</div>
+<div class="tcg-type">productivity · visualization <span class="risk risk-l0">L0</span></div>
+<div class="tcg-body" markdown>
+Renders an interactive world map with MULTIPLE markers directly in the chat. Use this to plot several geographic points at once (e.g. earthquakes, cities, store locations). Each point sizes and colors by an optional numeric weight.
+</div>
+<div class="tcg-stats" markdown>
+<div class="tcg-stats__line" markdown>**Params** &nbsp; `points` · `title` · `style`</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
+</div>
+<div class="tcg-page">→ Visualization</div>
+</div>
+
+<div class="tcg-card tcg-card--directory" data-name="renderdiagram" data-desc="renders a mermaid diagram directly in the chat (flowchart, sequence, gantt, mindmap, pie, er, state, timeline, and more)." data-category="productivity" data-tags="visualization" data-preset="everything" data-env="" markdown>
+<a class="tcg-stretched-link" href="visualization/#renderDiagram" aria-label="Open renderDiagram in Visualization">renderDiagram</a>
+<div class="tcg-name"><span class="tcg-name__text">renderDiagram</span> <span class="cost">🆓</span></div>
+<div class="tcg-art" markdown>:material-sitemap:</div>
+<div class="tcg-type">productivity · visualization <span class="risk risk-l0">L0</span></div>
+<div class="tcg-body" markdown>
+Renders a Mermaid diagram directly in the chat (flowchart, sequence, gantt, mindmap, pie, ER, state, timeline, and more). Show a process, architecture, relationship, or org chart as a real diagram instead of plain text.
+</div>
+<div class="tcg-stats" markdown>
+<div class="tcg-stats__line" markdown>**Params** &nbsp; `code` · `title`</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
+</div>
+<div class="tcg-page">→ Visualization</div>
+</div>
+
+<div class="tcg-card tcg-card--directory" data-name="showimage" data-desc="displays an image from a public url directly in the chat (a photo, a chart image, a diagram, or a qr code you have a link to)." data-category="productivity" data-tags="visualization" data-preset="everything" data-env="" markdown>
+<a class="tcg-stretched-link" href="visualization/#showImage" aria-label="Open showImage in Visualization">showImage</a>
+<div class="tcg-name"><span class="tcg-name__text">showImage</span> <span class="cost">🆓</span></div>
+<div class="tcg-art" markdown>:material-image:</div>
+<div class="tcg-type">productivity · visualization <span class="risk risk-l0">L0</span></div>
+<div class="tcg-body" markdown>
+Displays an image from a public URL directly in the chat (a photo, a chart image, a diagram, or a QR code you have a link to). Provide a direct https image URL and an optional caption.
+</div>
+<div class="tcg-stats" markdown>
+<div class="tcg-stats__line" markdown>**Params** &nbsp; `url` · `caption` · `alt`</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
+</div>
+<div class="tcg-page">→ Visualization</div>
+</div>
+
+<div class="tcg-card tcg-card--directory" data-name="renderdiff" data-desc="compares two texts (or two files you have read) line by line and shows a side-by-side diff card." data-category="productivity" data-tags="visualization" data-preset="everything" data-env="" markdown>
+<a class="tcg-stretched-link" href="visualization/#renderDiff" aria-label="Open renderDiff in Visualization">renderDiff</a>
+<div class="tcg-name"><span class="tcg-name__text">renderDiff</span> <span class="cost">🆓</span></div>
+<div class="tcg-art" markdown>:material-file-compare:</div>
+<div class="tcg-type">productivity · visualization <span class="risk risk-l0">L0</span></div>
+<div class="tcg-body" markdown>
+Compares two texts (or two files you have read) line by line and shows a side-by-side diff card: lines only on the left are red, lines only on the right are green.
+</div>
+<div class="tcg-stats" markdown>
+<div class="tcg-stats__line" markdown>**Params** &nbsp; `left` · `right` · `leftLabel` · `rightLabel` · `title`</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
+</div>
+<div class="tcg-page">→ Visualization</div>
+</div>
+
+<div class="tcg-card tcg-card--directory" data-name="rendertable" data-desc="renders a sortable, searchable data table in the chat. good for any list of records (prices, issues, search results)." data-category="productivity" data-tags="visualization" data-preset="everything" data-env="" markdown>
+<a class="tcg-stretched-link" href="visualization/#renderTable" aria-label="Open renderTable in Visualization">renderTable</a>
+<div class="tcg-name"><span class="tcg-name__text">renderTable</span> <span class="cost">🆓</span></div>
+<div class="tcg-art" markdown>:material-table:</div>
+<div class="tcg-type">productivity · visualization <span class="risk risk-l0">L0</span></div>
+<div class="tcg-body" markdown>
+Renders a sortable, searchable data table in the chat. Good for any list of records (prices, issues, search results); columns support right-align, number format, and per-cell heat shading.
+</div>
+<div class="tcg-stats" markdown>
+<div class="tcg-stats__line" markdown>**Params** &nbsp; `columns` · `rows` · `title` · `sortable` · `searchable`</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
+</div>
+<div class="tcg-page">→ Visualization</div>
+</div>
+
+<div class="tcg-card tcg-card--directory" data-name="renderstatcards" data-desc="renders a row of kpi / metric tiles in the chat. use for headline numbers like prices, counts, or weather readings." data-category="productivity" data-tags="visualization" data-preset="everything" data-env="" markdown>
+<a class="tcg-stretched-link" href="visualization/#renderStatCards" aria-label="Open renderStatCards in Visualization">renderStatCards</a>
+<div class="tcg-name"><span class="tcg-name__text">renderStatCards</span> <span class="cost">🆓</span></div>
+<div class="tcg-art" markdown>:material-card-text:</div>
+<div class="tcg-type">productivity · visualization <span class="risk risk-l0">L0</span></div>
+<div class="tcg-body" markdown>
+Renders a row of KPI / metric tiles in the chat. Use for headline numbers like prices, counts, or weather readings, each with an optional delta and up/down/flat trend.
+</div>
+<div class="tcg-stats" markdown>
+<div class="tcg-stats__line" markdown>**Params** &nbsp; `cards` · `title`</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
+</div>
+<div class="tcg-page">→ Visualization</div>
+</div>
+
+<div class="tcg-card tcg-card--directory" data-name="rendercomparison" data-desc="renders a side-by-side comparison table for two or more entities, optionally highlighting the winning value per row." data-category="productivity" data-tags="visualization" data-preset="everything" data-env="" markdown>
+<a class="tcg-stretched-link" href="visualization/#renderComparison" aria-label="Open renderComparison in Visualization">renderComparison</a>
+<div class="tcg-name"><span class="tcg-name__text">renderComparison</span> <span class="cost">🆓</span></div>
+<div class="tcg-art" markdown>:material-compare:</div>
+<div class="tcg-type">productivity · visualization <span class="risk risk-l0">L0</span></div>
+<div class="tcg-body" markdown>
+Renders a side-by-side comparison table for two or more entities. Entities become the columns; each row carries one value per entity and can mark the winning value.
+</div>
+<div class="tcg-stats" markdown>
+<div class="tcg-stats__line" markdown>**Params** &nbsp; `entities` · `rows` · `title`</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
+</div>
+<div class="tcg-page">→ Visualization</div>
+</div>
+
+<div class="tcg-card tcg-card--directory" data-name="rendertimeline" data-desc="renders a vertical event timeline in the chat. use for histories, schedules, or sequences of dated events." data-category="productivity" data-tags="visualization" data-preset="everything" data-env="" markdown>
+<a class="tcg-stretched-link" href="visualization/#renderTimeline" aria-label="Open renderTimeline in Visualization">renderTimeline</a>
+<div class="tcg-name"><span class="tcg-name__text">renderTimeline</span> <span class="cost">🆓</span></div>
+<div class="tcg-art" markdown>:material-timeline:</div>
+<div class="tcg-type">productivity · visualization <span class="risk risk-l0">L0</span></div>
+<div class="tcg-body" markdown>
+Renders a vertical event timeline in the chat. Use for histories, schedules, or sequences of dated events, each with a date, title, and optional detail.
+</div>
+<div class="tcg-stats" markdown>
+<div class="tcg-stats__line" markdown>**Params** &nbsp; `events` · `title`</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
+</div>
+<div class="tcg-page">→ Visualization</div>
+</div>
+
+<div class="tcg-card tcg-card--directory" data-name="rendercandlestick" data-desc="renders an ohlc candlestick chart in the chat. pairs with crypto or stock candle tools." data-category="productivity" data-tags="visualization" data-preset="everything" data-env="" markdown>
+<a class="tcg-stretched-link" href="visualization/#renderCandlestick" aria-label="Open renderCandlestick in Visualization">renderCandlestick</a>
+<div class="tcg-name"><span class="tcg-name__text">renderCandlestick</span> <span class="cost">🆓</span></div>
+<div class="tcg-art" markdown>:material-finance:</div>
+<div class="tcg-type">productivity · visualization <span class="risk risk-l0">L0</span></div>
+<div class="tcg-body" markdown>
+Renders an OHLC candlestick chart in the chat from open/high/low/close data, optionally overlaying trading volume. Pairs with crypto or stock candle tools.
+</div>
+<div class="tcg-stats" markdown>
+<div class="tcg-stats__line" markdown>**Params** &nbsp; `data` · `title` · `volume`</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
+</div>
+<div class="tcg-page">→ Visualization</div>
+</div>
+
+<div class="tcg-card tcg-card--directory" data-name="renderheatmap" data-desc="renders a 2d heatmap in the chat. good for activity-by-day-and-hour, correlation, or any matrix of numbers." data-category="productivity" data-tags="visualization" data-preset="everything" data-env="" markdown>
+<a class="tcg-stretched-link" href="visualization/#renderHeatmap" aria-label="Open renderHeatmap in Visualization">renderHeatmap</a>
+<div class="tcg-name"><span class="tcg-name__text">renderHeatmap</span> <span class="cost">🆓</span></div>
+<div class="tcg-art" markdown>:material-grid:</div>
+<div class="tcg-type">productivity · visualization <span class="risk risk-l0">L0</span></div>
+<div class="tcg-body" markdown>
+Renders a 2D heatmap in the chat from x/y category labels and [xIndex, yIndex, value] triples. Good for activity-by-day-and-hour, correlation, or any matrix of numbers.
+</div>
+<div class="tcg-stats" markdown>
+<div class="tcg-stats__line" markdown>**Params** &nbsp; `xLabels` · `yLabels` · `data` · `title`</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
+</div>
+<div class="tcg-page">→ Visualization</div>
+</div>
+
+<div class="tcg-card tcg-card--directory" data-name="rendersankey" data-desc="renders a sankey flow diagram in the chat from nodes and weighted links between them." data-category="productivity" data-tags="visualization" data-preset="everything" data-env="" markdown>
+<a class="tcg-stretched-link" href="visualization/#renderSankey" aria-label="Open renderSankey in Visualization">renderSankey</a>
+<div class="tcg-name"><span class="tcg-name__text">renderSankey</span> <span class="cost">🆓</span></div>
+<div class="tcg-art" markdown>:material-transit-connection-variant:</div>
+<div class="tcg-type">productivity · visualization <span class="risk risk-l0">L0</span></div>
+<div class="tcg-body" markdown>
+Renders a Sankey flow diagram in the chat from a list of nodes and weighted {source, target, value} links between them.
+</div>
+<div class="tcg-stats" markdown>
+<div class="tcg-stats__line" markdown>**Params** &nbsp; `nodes` · `links` · `title`</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
+</div>
+<div class="tcg-page">→ Visualization</div>
+</div>
+
+<div class="tcg-card tcg-card--directory" data-name="renderfunnel" data-desc="renders a funnel chart for staged, descending values in the chat." data-category="productivity" data-tags="visualization" data-preset="everything" data-env="" markdown>
+<a class="tcg-stretched-link" href="visualization/#renderFunnel" aria-label="Open renderFunnel in Visualization">renderFunnel</a>
+<div class="tcg-name"><span class="tcg-name__text">renderFunnel</span> <span class="cost">🆓</span></div>
+<div class="tcg-art" markdown>:material-filter:</div>
+<div class="tcg-type">productivity · visualization <span class="risk risk-l0">L0</span></div>
+<div class="tcg-body" markdown>
+Renders a funnel chart for staged, descending values in the chat from a list of {name, value} stages, usually ordered largest to smallest.
+</div>
+<div class="tcg-stats" markdown>
+<div class="tcg-stats__line" markdown>**Params** &nbsp; `data` · `title`</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
+</div>
+<div class="tcg-page">→ Visualization</div>
+</div>
+
+<div class="tcg-card tcg-card--directory" data-name="rendertreemap" data-desc="renders a treemap of hierarchical part-of-whole data in the chat. nested children are allowed for hierarchy." data-category="productivity" data-tags="visualization" data-preset="everything" data-env="" markdown>
+<a class="tcg-stretched-link" href="visualization/#renderTreemap" aria-label="Open renderTreemap in Visualization">renderTreemap</a>
+<div class="tcg-name"><span class="tcg-name__text">renderTreemap</span> <span class="cost">🆓</span></div>
+<div class="tcg-art" markdown>:material-view-grid:</div>
+<div class="tcg-type">productivity · visualization <span class="risk risk-l0">L0</span></div>
+<div class="tcg-body" markdown>
+Renders a treemap of hierarchical part-of-whole data in the chat from {name, value, children?} nodes; nested children are allowed for hierarchy.
+</div>
+<div class="tcg-stats" markdown>
+<div class="tcg-stats__line" markdown>**Params** &nbsp; `data` · `title`</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
+</div>
+<div class="tcg-page">→ Visualization</div>
+</div>
+
+<div class="tcg-card tcg-card--directory" data-name="rendergraph" data-desc="renders a force-directed relationship graph in the chat from nodes and links. good for dependencies, knowledge maps, or social graphs." data-category="productivity" data-tags="visualization" data-preset="everything" data-env="" markdown>
+<a class="tcg-stretched-link" href="visualization/#renderGraph" aria-label="Open renderGraph in Visualization">renderGraph</a>
+<div class="tcg-name"><span class="tcg-name__text">renderGraph</span> <span class="cost">🆓</span></div>
+<div class="tcg-art" markdown>:material-graph-outline:</div>
+<div class="tcg-type">productivity · visualization <span class="risk risk-l0">L0</span></div>
+<div class="tcg-body" markdown>
+Renders a force-directed relationship graph in the chat from nodes and links. Good for dependencies, knowledge maps, or social graphs.
+</div>
+<div class="tcg-stats" markdown>
+<div class="tcg-stats__line" markdown>**Params** &nbsp; `nodes` · `links` · `directed` · `title`</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
+</div>
+<div class="tcg-page">→ Visualization</div>
+</div>
+
+<div class="tcg-card tcg-card--directory" data-name="renderwindrose" data-desc="renders a wind rose (polar bar) chart showing magnitude by compass or category direction. good for wind direction or any directional frequency." data-category="productivity" data-tags="visualization" data-preset="everything" data-env="" markdown>
+<a class="tcg-stretched-link" href="visualization/#renderWindRose" aria-label="Open renderWindRose in Visualization">renderWindRose</a>
+<div class="tcg-name"><span class="tcg-name__text">renderWindRose</span> <span class="cost">🆓</span></div>
+<div class="tcg-art" markdown>:material-compass-rose:</div>
+<div class="tcg-type">productivity · visualization <span class="risk risk-l0">L0</span></div>
+<div class="tcg-body" markdown>
+Renders a wind rose (polar bar) chart showing magnitude by compass or category direction. Good for wind direction or any directional frequency.
+</div>
+<div class="tcg-stats" markdown>
+<div class="tcg-stats__line" markdown>**Params** &nbsp; `directions` · `series` · `title`</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
+</div>
+<div class="tcg-page">→ Visualization</div>
+</div>
+
+<div class="tcg-card tcg-card--directory" data-name="renderchoropleth" data-desc="renders a region-shaded choropleth map from a geojson you supply and per-region values. good for any statistic broken out by region." data-category="productivity" data-tags="visualization" data-preset="everything" data-env="" markdown>
+<a class="tcg-stretched-link" href="visualization/#renderChoropleth" aria-label="Open renderChoropleth in Visualization">renderChoropleth</a>
+<div class="tcg-name"><span class="tcg-name__text">renderChoropleth</span> <span class="cost">🆓</span></div>
+<div class="tcg-art" markdown>:material-map-legend:</div>
+<div class="tcg-type">productivity · visualization <span class="risk risk-l0">L0</span></div>
+<div class="tcg-body" markdown>
+Renders a region-shaded choropleth map from a GeoJSON you supply and per-region values. Good for any statistic broken out by region.
+</div>
+<div class="tcg-stats" markdown>
+<div class="tcg-stats__line" markdown>**Params** &nbsp; `geoJson` · `values` · `nameProperty` · `title`</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
+</div>
+<div class="tcg-page">→ Visualization</div>
+</div>
+
+<div class="tcg-card tcg-card--directory" data-name="rendergeoheat" data-desc="renders a geographic density heatmap over a real basemap. good for incident density, sightings, or any lat/lng hotspot map." data-category="productivity" data-tags="visualization" data-preset="everything" data-env="" markdown>
+<a class="tcg-stretched-link" href="visualization/#renderGeoHeat" aria-label="Open renderGeoHeat in Visualization">renderGeoHeat</a>
+<div class="tcg-name"><span class="tcg-name__text">renderGeoHeat</span> <span class="cost">🆓</span></div>
+<div class="tcg-art" markdown>:material-heat-wave:</div>
+<div class="tcg-type">productivity · visualization <span class="risk risk-l0">L0</span></div>
+<div class="tcg-body" markdown>
+Renders a geographic density heatmap over a real basemap (Light/Dark toggle). Good for incident density, sightings, or any lat/lng hotspot map.
+</div>
+<div class="tcg-stats" markdown>
+<div class="tcg-stats__line" markdown>**Params** &nbsp; `points` · `radius` · `title`</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
+</div>
+<div class="tcg-page">→ Visualization</div>
+</div>
+
+</div>
+
 </div>
 
 </div>
@@ -1445,7 +1732,7 @@ The two transports differ in **who owns the server's lifetime**: in Streamable H
 
 Most MCP server implementations ship one **native binary per OS** (Python wheels, Node binaries, Go / Rust executables) and require the user to install a platform-matching build, often plus a toolchain (Python, Node, Cargo) to author new tools.
 
-Spring AI Playground's tool runtime is **OS-agnostic by design**. One JVM artifact - distributed as a JAR, a Docker image, or an Electron-packaged desktop launcher - runs identically on macOS, Windows, and Linux. All 88 default tools are pure JavaScript executed through GraalVM Polyglot, and so is every tool you author. There is no per-OS build step, no native dependency, no toolchain on the user's machine.
+Spring AI Playground's tool runtime is **OS-agnostic by design**. One JVM artifact - distributed as a JAR, a Docker image, or an Electron-packaged desktop launcher - runs identically on macOS, Windows, and Linux. All 107 default tools are pure JavaScript executed through GraalVM Polyglot, and so is every tool you author. There is no per-OS build step, no native dependency, no toolchain on the user's machine.
 
 Full mechanics - including how every cross-bridged helper rides on JVM stdlib so `/` vs `\`, TLS, parsers, and crypto behave identically across OSes - in [Tool Studio → Cross-platform by design](../tool-studio/index.md#cross-platform-by-design).
 

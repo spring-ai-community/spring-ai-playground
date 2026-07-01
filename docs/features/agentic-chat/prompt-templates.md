@@ -1,4 +1,4 @@
-description: Prompt Templates - variable-driven system prompts for Agentic Chat. Fill double-brace variables and a renderer builds the final prompt. 9 built-in templates.
+description: Prompt Templates - variable-driven system prompts for Agentic Chat. Fill double-brace variables and a renderer builds the final prompt. 8 built-in templates.
 
 # Prompt Templates
 
@@ -18,8 +18,10 @@ Selecting a template shows a form on the right, one field per `{{variable}}`. As
 
 When the form is ready:
 
-- **Save as preset & apply** assembles the prompt, stores it under *My presets*, and applies it to the chat in one step.
-- **Save as preset** keeps the assembled prompt under *My presets* without applying it.
+- **Apply to chat** assembles the prompt and applies it to a new chat right away, without saving a preset.
+- **Save as preset...** opens a dialog where you **name** the assembled prompt and keep it under *My presets* for reuse (it does not apply it).
+
+A **Use dynamic tool discovery** checkbox sits above the tools picker in the fill view, so you can switch a fixed tool set for on-demand discovery before you apply or save.
 
 The assembled prompt becomes a [preset](prompt-presets.md) - this is the bridge between the two: a template is how you *generate* a preset.
 
@@ -48,7 +50,7 @@ A `=value` suffix on any type sets the default. The rendering rules, and why the
 
 ## Required tools
 
-A template can declare the built-in tools it uses - for example **Research brief writer** names three tools (`searchArxiv`, `searchHackerNews`, `extractPageContent`). The detail pane lists them under **Required tools**, and they reference only key-less (**Local Pass**) tools. Filling a template produces a preset, so applying it behaves like any [preset](prompt-presets.md#required-tools): it **resets the built-in MCP server to expose exactly those tools**, turns built-in MCP on for the new chat, and selects them - with a confirmation dialog first. Tools are never enabled silently; you stay in control of what the agent can call.
+A template can declare the built-in tools it uses - for example **Data analysis** names the tools it needs (`requestFileUpload`, `readTextFile`, `parseCsv`, and the render tools). The detail pane lists them under **Required tools**, and they reference only key-less (**Local Pass**) tools. Filling a template produces a preset, so applying it behaves like any [preset](prompt-presets.md#required-tools): it **resets the built-in MCP server to expose exactly those tools**, turns built-in MCP on for the new chat, and selects them - with a confirmation dialog first. Tools are never enabled silently; you stay in control of what the agent can call.
 
 ## Create your own template
 
@@ -72,7 +74,7 @@ The storage layout and load order are covered in [Context Engineering → System
 
 ## Worked example: a template, filled and run
 
-Take the email-writer template built above. Filling its form - tone `formal`, recipient `Dr. Park`, a one-line topic - and clicking **Save as preset & apply** opens the settings drawer with the **assembled** system prompt already in place. This rendered text is the template's output, now a reusable [preset](prompt-presets.md):
+Take the email-writer template built above. Filling its form - tone `formal`, recipient `Dr. Park`, a one-line topic - and clicking **Apply to chat** opens the settings drawer with the **assembled** system prompt already in place (or **Save as preset...** to keep it as a named, reusable [preset](prompt-presets.md) first). This rendered text is the template's output:
 
 ![The settings drawer after applying - the System prompt field holds the rendered email-writer prompt with the variable values substituted in](../../assets/images/chat/prompt-template-create-applied.png){ width="1460" }
 
@@ -84,7 +86,7 @@ That is the point of a template: author the structure once, then produce a tailo
 
 ## Built-in templates
 
-Spring AI Playground ships **9 templates**. Each assembles into a ready-to-use [preset](prompt-presets.md) once you fill its variables.
+Spring AI Playground ships **8 templates**. Each assembles into a ready-to-use [preset](prompt-presets.md) once you fill its variables.
 
 | Template | Variables | What it produces |
 | --- | --- | --- |
@@ -92,11 +94,12 @@ Spring AI Playground ships **9 templates**. Each assembles into a ready-to-use [
 | **Domain expert** | domain, focus_area, audience | An expert persona calibrated to an audience level. |
 | **Custom role** | role, task, tone | Any role, task, and tone. |
 | **Structured output** | format, fields, strictness | Locks every reply into one format (table / JSON / bullets / steps). |
-| **Research brief writer** | topic, angle, word_limit | A bounded research brief with a word limit. Activates 3 tools. |
 | **Summarizer** | content_type, output_length, focus | Faithful summaries by content type and length. Activates `extractPageContent`. |
 | **Translator** | source_language, target_language, register | Format-preserving translation. |
 | **Tutor** | subject, learner_level, teaching_style | A personal tutor by subject, level, and teaching style. |
-| **Decision matrix** | decision, options, criteria | Weighted option-vs-criteria scoring with the arithmetic shown. Activates `evalExpression`, `stats`. |
+| **Data analysis** | question | Opens a file upload (or reuses a file already uploaded via `listDir`), converts Excel (.xlsx/.xls) to CSV in the browser, then analyzes and visualizes the findings as a table, chart, and KPI tiles. Activates `requestFileUpload`, `readTextFile`, `listDir`, `listAllowedDirectories`, `parseCsv`, `stats`, `evalExpression`, and the render tools. |
+
+![The Data analysis template selected in the Prompt Library - its single question variable highlighted in the prompt and its required tools requestFileUpload, readTextFile, parseCsv, and the render tools listed above](../../assets/images/chat/prompt-library-data-analysis.png){ width="1280" }
 
 The tools a template names are built-in [Default Tools](../default-tools/index.md); enable them from the chat tool selector (or let the template select them on apply). Tools that need a key stay dormant until you supply the matching environment variable.
 

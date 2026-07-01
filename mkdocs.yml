@@ -93,6 +93,7 @@ nav:
               - "Filesystem": features/default-tools/filesystem.md
               - "Global": features/default-tools/global.md
               - "Korea": features/default-tools/korea.md
+              - "Visualization & cards": features/default-tools/visualization.md
       - "MCP Server":
           - features/mcp-server/index.md
           - "Default MCP Servers":
@@ -147,6 +148,8 @@ nav:
       - "9. MCP Everything Walkthrough": tutorials/9-mcp-everything.md
       - "10. Proxy an MCP Server": tutorials/10-proxy-external-tool.md
       - "11. Approve a Tool in Chat": tutorials/11-human-approval.md
+      - "12. Template to Preset": tutorials/12-template-to-preset.md
+      - "13. Upload and Analyze a File": tutorials/13-upload-a-file.md
   # Changelog is published in the repo as CHANGELOG.md (and rendered at
   # /changelog/ when reached by URL via the docs/changelog.md include).
   # Intentionally omitted from main nav to avoid duplicating GitHub-hosted

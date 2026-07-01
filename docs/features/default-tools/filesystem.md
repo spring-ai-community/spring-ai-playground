@@ -31,7 +31,7 @@ Reports the filesystem boundaries these tools operate within: the readable roots
 
 **More detail**
 
-Reports which directories the filesystem tools may touch: the readable roots (anything under them can be read) and the working directory (the only writable location, where relative paths resolve; a per-conversation subdirectory when run from a chat). Call this first to learn the absolute paths before reading or writing files. Takes no arguments. Uses safety.fs.readRoots() / workspace().
+Reports which directories the filesystem tools may touch: the readable roots (your home directory and the app's spring-ai-playground folder - anything under them can be read) and the single working directory for this chat (the only writable location, where relative paths resolve). Files the user uploads are saved under the working directory's `uploads/` subfolder, so after calling this you can `listDir` the working directory or its `uploads/` folder to see the files already there, then `readTextFile` one to re-process it. Call this first to learn the absolute paths. Takes no arguments. Uses safety.fs.readRoots() / workspace().
 
 **Parameters**
 
