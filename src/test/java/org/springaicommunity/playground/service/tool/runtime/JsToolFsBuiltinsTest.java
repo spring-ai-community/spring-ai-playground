@@ -360,7 +360,8 @@ class JsToolFsBuiltinsTest {
 
     @Test
     void everyFsToolDeclaresFileReadAndBlockedNetwork() {
-        Set<String> writeTools = Set.of("writeTextFile");
+        Set<String> writeTools = Set.of("writeTextFile", "appendTextFile", "editTextFile",
+                "copyFile", "moveFile", "deleteFile", "deleteDir");
         for (Map<String, Object> spec : specs) {
             String name = (String) spec.get("name");
             @SuppressWarnings("unchecked")

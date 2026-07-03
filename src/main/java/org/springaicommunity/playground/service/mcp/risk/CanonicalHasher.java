@@ -130,6 +130,7 @@ public class CanonicalHasher {
         out.put("fileRead", s.fileRead());
         out.put("fileWrite", s.fileWrite());
         out.put("fsBasePath", nz(s.fsBasePath()));
+        out.put("destructive", s.destructive());
         return out;
     }
 

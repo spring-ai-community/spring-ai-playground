@@ -136,7 +136,7 @@ class DefaultToolSpecMcpExposureTest {
                 "/tool/default-tool-specs.json",                 28,
                 "/tool/default-tool-specs-builtin.json",         16,
                 "/tool/default-tool-specs-builtin-helpers.json", 10,
-                "/tool/default-tool-specs-builtin-fs.json",      11,
+                "/tool/default-tool-specs-builtin-fs.json",      18,
                 "/tool/default-tool-specs-network.json",         21,
                 "/tool/default-tool-specs-kr.json",              21
         );
