@@ -354,7 +354,26 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
     }
 
     private void addNewChatContent() {
-        addNewChatContent(this.chatService.getSystemPrompt(), this.chatService.getDefaultOptions());
+        Preset def = defaultChatPreset();
+        if (def == null) {
+            addNewChatContent(this.chatService.getSystemPrompt(), this.chatService.getDefaultOptions());
+            return;
+        }
+        String prompt = (def.prompt() == null || def.prompt().isBlank())
+                ? this.chatService.getSystemPrompt() : def.prompt();
+        ChatToolPreferences prefs = def.dynamicTools()
+                ? ChatToolPreferences.defaults().withDynamicTools(true)
+                : ChatToolPreferences.defaults();
+        this.chatHistoryView.clearSelectHistory();
+        changeChatContent(this.chatHistoryService.createChatHistory(prompt, this.chatService.getDefaultOptions(),
+                ChatExtraOptions.defaults(), prefs));
+    }
+
+    private Preset defaultChatPreset() {
+        String id = this.playgroundOptions.chat().defaultPreset();
+        if (id == null || id.isBlank()) return null;
+        return this.chatSystemPromptPresetService.presets().stream()
+                .filter(preset -> id.equals(preset.id())).findFirst().orElse(null);
     }
 
     private void addNewChatContent(String systemPrompt, ChatOptions chatOptions) {

@@ -34,14 +34,14 @@ class ChatSystemPromptPresetCatalogTest {
     void loadsShippedPresetsInOrder() throws IOException {
         ChatSystemPromptPresetCatalog catalog = new ChatSystemPromptPresetCatalog();
         assertThat(catalog.presets()).extracting(Preset::id)
-                .containsExactly("skill-agent", "domain-expert", "custom-role", "structured-output",
-                        "research-brief", "summarizer", "translator", "socratic-tutor", "decision-matrix",
-                        "general-assistant", "daily-assistant", "coding-agent", "research-agent",
-                        "self-equipping-agent",
+                .containsExactly("self-equipping-agent",
+                        "skill-agent", "domain-expert", "custom-role", "structured-output",
+                        "summarizer", "translator", "socratic-tutor", "decision-matrix",
+                        "general-assistant", "daily-assistant", "research-agent",
                         "data-wrangler", "korea-concierge", "github-repo-analyst",
                         "release-notes-writer", "log-detective", "crypto-market-watch",
                         "trip-planner", "tech-pulse", "data-visualizer",
-                        "market-charts", "data-analysis", "diff-inspector");
+                        "market-charts", "data-analysis", "diff-inspector", "workspace-organizer");
     }
 
     @Test
@@ -53,7 +53,7 @@ class ChatSystemPromptPresetCatalogTest {
     @Test
     void findByIdReturnsPresetOrEmpty() throws IOException {
         ChatSystemPromptPresetCatalog catalog = new ChatSystemPromptPresetCatalog();
-        assertThat(catalog.findById("coding-agent")).isPresent();
+        assertThat(catalog.findById("research-agent")).isPresent();
         assertThat(catalog.findById("nope")).isEmpty();
         assertThat(catalog.findById(null)).isEmpty();
     }

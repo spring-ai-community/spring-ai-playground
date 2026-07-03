@@ -81,7 +81,7 @@ public record SpringAiPlaygroundOptions(@NestedConfigurationProperty ToolStudio 
     public record Chat(String systemPrompt, List<String> models,
                        @NestedConfigurationProperty ChatOptionsConfig chatOptions, Integer toolResultMaxChars,
                        Integer memoryMaxMessages, Integer historyMaxMessages, Integer defaultMaxTokens,
-                       @NestedConfigurationProperty ToolSearch toolSearch) {
+                       @NestedConfigurationProperty ToolSearch toolSearch, String defaultPreset) {
         public Chat {
             if (toolResultMaxChars == null) toolResultMaxChars = 12_000;
             if (memoryMaxMessages == null || memoryMaxMessages <= 0) memoryMaxMessages = 10;
