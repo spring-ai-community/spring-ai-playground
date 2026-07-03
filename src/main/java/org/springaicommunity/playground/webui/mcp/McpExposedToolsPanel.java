@@ -217,7 +217,7 @@ public class McpExposedToolsPanel {
         String originalDescription = tool.description() == null ? "" : tool.description();
         McpToolRiskEvaluator.ToolRiskView risk = this.riskEvaluator.evaluateTool(server, tool.name(),
                 tool.description(), toolInfo.propertySchemas());
-        RiskLevel baseLevel = risk.finalLevel();
+        RiskLevel baseLevel = risk.inherentLevel();
         McpComposition.Member existing = this.selected.get(rowKey);
 
         Checkbox check = new Checkbox(existing != null);
