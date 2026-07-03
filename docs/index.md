@@ -393,7 +393,7 @@ Then open `http://localhost:8282`.
 
 ## :material-flash: What used to take an afternoon - already wired in
 
-Installing an external MCP server normally means cloning a repo, installing the right runtime, registering an OAuth app, exporting tokens, and restarting your host. We did that 57 times so you don't have to. The 107 default tools ship in the same box. Every tool carries a visible **Risk Level (L0-L5)** - the sandbox, Local Pass, `${ENV_VAR}` substitution, and SecretMasking handle the rest.
+Installing an external MCP server normally means cloning a repo, installing the right runtime, registering an OAuth app, exporting tokens, and restarting your host. We did that 57 times so you don't have to. The 114 default tools ship in the same box. Every tool carries a visible **Risk Level (L0-L5)** - the sandbox, Local Pass, `${ENV_VAR}` substitution, and SecretMasking handle the rest.
 
 ### Built-in tools - call from chat the moment you launch
 
@@ -443,7 +443,7 @@ Installing an external MCP server normally means cloning a repo, installing the 
 
 </div>
 
-<p class="home-spotlight-cta">→ <a href="features/default-tools/index.md">Browse all 107 default tools</a> across Examples (28) · Utilities (26) · Filesystem (11) · Global (21) · Korea (21).</p>
+<p class="home-spotlight-cta">→ <a href="features/default-tools/index.md">Browse all 114 default tools</a> across Examples (28) · Utilities (26) · Filesystem (18) · Global (21) · Korea (21).</p>
 
 ### External MCP - one click in the sidebar, fill `${ENV_VAR}`, done
 

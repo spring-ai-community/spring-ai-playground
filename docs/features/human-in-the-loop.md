@@ -49,7 +49,7 @@ The mode **defaults to Required above `L0`** and to Disabled at `L0` - the more 
 When you [proxy an external tool](mcp-server/proxy.md) through the built-in server, each row in the **Composed Tools** drawer has a **HITL** toggle:
 
 - Ticking **HITL** means *"require explicit human approval before this tool runs when called from an external MCP client. Chat on this device gates these tools too."*
-- It also **lowers the tool's displayed risk by one band** (a `HITL -1` annotation), because a human now gates every call - see [Composed risk and HITL mitigation](../mcp-server-safety.md#composed-risk).
+- It also **lowers the tool's displayed risk by one band** (a `HITL -1` annotation), because a human now gates every call - see [Composed risk and HITL mitigation](../mcp-server-safety.md#composed-risk). Built-in tools that ship with approval required (the filesystem write and destructive tools) carry the same credit, rendered as a dual chip such as `L5 → L4`.
 
 You can toggle approval per tool, or for all selected tools at once. The same setting is available in YAML via the `hitl: true` key on a composed tool - see the [Configuration reference](../getting-started/configuration.md#mcp).
 

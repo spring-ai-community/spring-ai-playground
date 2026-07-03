@@ -190,7 +190,7 @@ Approval is a **deny-by-default** gate: the call runs only on an explicit, affir
 HITL and the L0-L5 risk model reinforce each other:
 
 - **Defaults track risk.** When you author a tool, the approval mode defaults to `DISABLED` at `L0` and `REQUIRED` above `L0` - the more capable the tool, the more it asks by default. Lowering that protection prompts a confirmation.
-- **Approval lowers *displayed* risk.** Marking a re-exposed external tool HITL also lowers its composed risk by one band (`McpToolRiskComposer.applyHitlMitigation`, floored at `L1`) - a human gating every call genuinely reduces exposure. See [MCP Server Safety → Composed risk and HITL mitigation](mcp-server-safety.md#composed-risk).
+- **Approval lowers *displayed* risk.** Marking a re-exposed external tool HITL also lowers its composed risk by one band (`McpToolRiskComposer.applyHitlMitigation`, floored at `L1`) - a human gating every call genuinely reduces exposure. Built-in tools whose spec requires approval get the same one-band credit, shown as a dual chip (`L5 → L4`): the inherent level keeps driving sandbox permissions and the audit log, the effective level reflects the mandatory gate. The credit is conditional - a tool whose description trips the poisoning scanner keeps its inherent level, since a deceptive description undermines the very approval dialog the credit relies on. See [MCP Server Safety → Composed risk and HITL mitigation](mcp-server-safety.md#composed-risk).
 
 The risk level is the *advice*; HITL is the *enforcement* that makes a high-risk tool safe to keep within reach.
 

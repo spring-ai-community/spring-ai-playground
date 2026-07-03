@@ -4,11 +4,22 @@ description: Default Tools - 107 ready-to-call JavaScript tools across 6 source 
 
 **Where:** top navigation → **Tool Studio** - the default tools ship pre-loaded; tune the exposed subset in the **Built-in MCP Server Native Tools** drawer.
 
-Spring AI Playground ships with **107 default tools** spread across six JSON source bundles. They are ready to call the moment a model provider is connected - you do not need to author anything yourself to see agentic workflows work end-to-end. They also serve as editable references when you start writing your own tools.
+Spring AI Playground ships with **114 default tools** spread across six JSON source bundles. They are ready to call the moment a model provider is connected - you do not need to author anything yourself to see agentic workflows work end-to-end. They also serve as editable references when you start writing your own tools.
 
 Tools that reach an external API read their keys from **environment variables** - each tool's card below lists the variables it needs. How to supply env vars (desktop launcher, Docker `-e`, or a source run) is covered once in the [Configuration reference](../../getting-started/configuration.md#how).
 
 Every tool is **Local-Passed** (published to the built-in MCP server) out of the box - except any that are still missing a required `${ENV_VAR}`, which stay as **drafts** until you supply it. A **preset** decides something separate: which of the Local-Passed tools the server actually **exposes** to agents at boot (the default is **Starter 5**), with per-tool include / exclude rules layering on top. That preference lives in `<home>/spring-ai-playground/tool/save/default-tools-preference.json` and is chosen at setup - the desktop launcher's Default MCP Tools card, or CLI / yaml (full breakdown in [Tool Studio → Where preset choices live](../tool-studio/index.md#where-preset-choices-live)). Tool Studio's **Built-in MCP Server Native Tools** drawer then selects which Local-Passed tools the MCP server exposes. Applying a chat-side **[prompt preset](../agentic-chat/prompt-presets.md)** that declares tools writes this same preference, resetting the exposed set to that preset's key-less tools - so it persists across restarts and the chat, Tool Studio, and the server stay in agreement.
+
+<a id="one-exposed-set"></a>
+
+!!! info "Two presets, one exposed set"
+    The built-in MCP server publishes a **single** exposed-tool set (`default-tools-preference.json`). Three places write it, and the **last write wins and persists across restarts**:
+
+    1. **Startup tool preset** (`Starter 5`, `Everything`, ...) - establishes the initial exposed set, chosen once at setup. It is the baseline the server shows to external MCP clients and before any chat role is applied.
+    2. **Applying a chat prompt preset** (`Data wrangler`, `Log detective`, ...) - re-exposes exactly that role's tools, because the chat agent calls them through this same built-in server. The new set sticks until the next change, and a confirmation dialog lists it first.
+    3. **Tool Studio's Native Tools drawer** - manual per-tool edits.
+
+    So the *tool* preset and the *prompt* preset are not two competing systems: they are entry points to the **same** setting at different moments (once at setup vs each time you pick a chat role). Because they share one set, applying a chat role also changes what external MCP clients see - which is why the confirmation dialog spells out the new exposure before you commit.
 
 ## Risk Level { #risk-level }
 
@@ -21,10 +32,10 @@ Every tool carries a **Risk Level** (`L0`-`L5`) - the sandbox posture the [Safe 
 |---|---|---|
 | <span class="rl rl-l0">L0 - Safest</span> | Pure compute - no declared network or filesystem widening | helper / utility tools with no I/O |
 | <span class="rl rl-l3">L3 - Scoped widening</span> | Allowlisted-host `fetch`, `strict` egress, or file *read* | the network, Korea, and most filesystem tools |
-| <span class="rl rl-l4">L4 - Broad access</span> | File *write*, `*` allowlist / `open` egress, or reflection class added | the file-write filesystem tool |
-| <span class="rl rl-l5">L5 - Unsandboxed</span> | `System` / `Runtime` / `Process` re-enabled, or raw file-write class | none ship by default |
+| <span class="rl rl-l4">L4 - Broad access</span> | File *write*, `*` allowlist / `open` egress, or reflection class added | the file write / append / edit / copy filesystem tools |
+| <span class="rl rl-l5">L5 - Unsandboxed</span> | `System` / `Runtime` / `Process` re-enabled, raw file-write class, or a `destructive` filesystem tool | the destructive move / delete / deleteDir tools |
 
-Levels are derived from each tool's declared `sandboxOverrides` (by `SandboxPostureCalculator`); the full bullet-by-bullet rule set is in [AI Agent Tool Safety → Risk Level decision matrix](../../safety-architecture.md#risk-level-decision-matrix). Across the 107 default tools: **49 are L0**, **57 are L3** (allowlisted-host `fetch` or file read), and **1 is L4** (file write) - none ship at L5.
+Levels are derived from each tool's declared `sandboxOverrides` (by `SandboxPostureCalculator`); the full bullet-by-bullet rule set is in [AI Agent Tool Safety → Risk Level decision matrix](../../safety-architecture.md#risk-level-decision-matrix). Across the 114 default tools: **49 are L0**, **58 are L3** (allowlisted-host `fetch` or file read/search), **4 are L4** (file write / append / edit / copy), and **3 are L5** (the `destructive` move / delete / deleteDir tools). Every L4 and L5 filesystem tool is additionally gated by human-in-the-loop approval, which lowers its *effective* chip by one band (`L4 → L3`, `L5 → L4`) while the inherent level shown here still drives sandbox permissions and the audit log.
 
 !!! question "Why no L1 or L2 here?"
     The **sandbox** rubric only ever produces **L0 / L3 / L4 / L5** - the calculator jumps from the `L0` baseline straight to `L3` the moment a tool declares *any* widening (network, file, or class change), so a tool is never L1 or L2. `L1` (*Safe*) and `L2` (*Low*) exist only in the [MCP server rubric](../../mcp-server-safety.md#risk-chip), which scores a different thing (connecting to an external server) on the same `L0`-`L5` enum.
@@ -753,6 +764,111 @@ Writes a UTF-8 text file inside the working directory (creating parent directori
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `path` · `content`</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
+</div>
+<div class="tcg-page">→ Filesystem</div>
+</div>
+
+<div class="tcg-card tcg-card--directory" data-name="searchinfiles" data-desc="recursively searches file contents across a directory tree for lines matching a regex, returning each hit as file/line/text. multi-file counterpart to grepfile." data-category="file" data-tags="pipeline" data-preset="" data-env="" markdown>
+<a class="tcg-stretched-link" href="filesystem/#searchInFiles" aria-label="Open searchInFiles in Filesystem">searchInFiles</a>
+<div class="tcg-name"><span class="tcg-name__text">searchInFiles</span> <span class="cost">🆓</span></div>
+<div class="tcg-art" markdown>:material-text-search:</div>
+<div class="tcg-type">file · pipeline <span class="risk risk-l3">L3</span></div>
+<div class="tcg-body" markdown>
+Recursively searches file contents across a directory tree for lines matching a regex, returning each hit as `{ file, line, text }`. The multi-file counterpart to grepFile.
+</div>
+<div class="tcg-stats" markdown>
+<div class="tcg-stats__line" markdown>**Params** &nbsp; `pattern` · `dir` · `glob` · `caseInsensitive` · `maxDepth` · `limit`</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
+</div>
+<div class="tcg-page">→ Filesystem</div>
+</div>
+
+<div class="tcg-card tcg-card--directory" data-name="appendtextfile" data-desc="appends utf-8 text to the end of a file, creating it if absent. ideal for logs and incremental output. requires filewrite; gated by human-in-the-loop." data-category="file" data-tags="pipeline" data-preset="" data-env="" markdown>
+<a class="tcg-stretched-link" href="filesystem/#appendTextFile" aria-label="Open appendTextFile in Filesystem">appendTextFile</a>
+<div class="tcg-name"><span class="tcg-name__text">appendTextFile</span> <span class="cost">🆓</span></div>
+<div class="tcg-art" markdown>:material-file-plus-outline:</div>
+<div class="tcg-type">file · pipeline <span class="risk risk-l4">L4</span></div>
+<div class="tcg-body" markdown>
+Appends UTF-8 text to the end of a file, creating it if absent. Ideal for logs and incremental output. Requires `fileWrite`; gated by human-in-the-loop (`L4 → L3`).
+</div>
+<div class="tcg-stats" markdown>
+<div class="tcg-stats__line" markdown>**Params** &nbsp; `path` · `content`</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
+</div>
+<div class="tcg-page">→ Filesystem</div>
+</div>
+
+<div class="tcg-card tcg-card--directory" data-name="edittextfile" data-desc="makes a targeted edit by replacing an exact substring without rewriting the whole file. oldstring must be unique unless replaceall is set. requires filewrite; gated by human-in-the-loop." data-category="file" data-tags="pipeline" data-preset="" data-env="" markdown>
+<a class="tcg-stretched-link" href="filesystem/#editTextFile" aria-label="Open editTextFile in Filesystem">editTextFile</a>
+<div class="tcg-name"><span class="tcg-name__text">editTextFile</span> <span class="cost">🆓</span></div>
+<div class="tcg-art" markdown>:material-file-replace-outline:</div>
+<div class="tcg-type">file · pipeline <span class="risk risk-l4">L4</span></div>
+<div class="tcg-body" markdown>
+Makes a targeted edit by replacing an exact substring without rewriting the whole file. `oldString` must be unique unless `replaceAll` is set. Requires `fileWrite`; gated by human-in-the-loop (`L4 → L3`).
+</div>
+<div class="tcg-stats" markdown>
+<div class="tcg-stats__line" markdown>**Params** &nbsp; `path` · `oldString` · `newString` · `replaceAll`</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
+</div>
+<div class="tcg-page">→ Filesystem</div>
+</div>
+
+<div class="tcg-card tcg-card--directory" data-name="copyfile" data-desc="copies a file to a new location. source may be any readable file; destination must be inside the working directory. source is left intact. requires filewrite; gated by human-in-the-loop." data-category="file" data-tags="pipeline" data-preset="" data-env="" markdown>
+<a class="tcg-stretched-link" href="filesystem/#copyFile" aria-label="Open copyFile in Filesystem">copyFile</a>
+<div class="tcg-name"><span class="tcg-name__text">copyFile</span> <span class="cost">🆓</span></div>
+<div class="tcg-art" markdown>:material-content-copy:</div>
+<div class="tcg-type">file · pipeline <span class="risk risk-l4">L4</span></div>
+<div class="tcg-body" markdown>
+Copies a file to a new location. The source may be any readable file; the destination must be inside the working directory. The source is left intact. Requires `fileWrite`; gated by human-in-the-loop (`L4 → L3`).
+</div>
+<div class="tcg-stats" markdown>
+<div class="tcg-stats__line" markdown>**Params** &nbsp; `from` · `to`</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
+</div>
+<div class="tcg-page">→ Filesystem</div>
+</div>
+
+<div class="tcg-card tcg-card--directory" data-name="movefile" data-desc="moves or renames a file within the working directory. destructive: the source is removed and an existing destination is overwritten. requires filewrite plus the destructive flag; gated by human-in-the-loop." data-category="file" data-tags="pipeline" data-preset="" data-env="" markdown>
+<a class="tcg-stretched-link" href="filesystem/#moveFile" aria-label="Open moveFile in Filesystem">moveFile</a>
+<div class="tcg-name"><span class="tcg-name__text">moveFile</span> <span class="cost">🆓</span></div>
+<div class="tcg-art" markdown>:material-file-move-outline:</div>
+<div class="tcg-type">file · pipeline <span class="risk risk-l5">L5</span></div>
+<div class="tcg-body" markdown>
+Moves or renames a file within the working directory. Destructive: the source is removed and an existing destination is overwritten. Requires `fileWrite` plus the `destructive` flag; gated by human-in-the-loop (`L5 → L4`).
+</div>
+<div class="tcg-stats" markdown>
+<div class="tcg-stats__line" markdown>**Params** &nbsp; `from` · `to`</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
+</div>
+<div class="tcg-page">→ Filesystem</div>
+</div>
+
+<div class="tcg-card tcg-card--directory" data-name="deletefile" data-desc="permanently deletes a single file from the working directory. destructive and irreversible. directories are rejected. requires filewrite plus the destructive flag; gated by human-in-the-loop." data-category="file" data-tags="pipeline" data-preset="" data-env="" markdown>
+<a class="tcg-stretched-link" href="filesystem/#deleteFile" aria-label="Open deleteFile in Filesystem">deleteFile</a>
+<div class="tcg-name"><span class="tcg-name__text">deleteFile</span> <span class="cost">🆓</span></div>
+<div class="tcg-art" markdown>:material-file-remove-outline:</div>
+<div class="tcg-type">file · pipeline <span class="risk risk-l5">L5</span></div>
+<div class="tcg-body" markdown>
+Permanently deletes a single file from the working directory. Destructive and irreversible; directories are rejected (use deleteDir). Requires `fileWrite` plus the `destructive` flag; gated by human-in-the-loop (`L5 → L4`).
+</div>
+<div class="tcg-stats" markdown>
+<div class="tcg-stats__line" markdown>**Params** &nbsp; `path`</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
+</div>
+<div class="tcg-page">→ Filesystem</div>
+</div>
+
+<div class="tcg-card tcg-card--directory" data-name="deletedir" data-desc="permanently deletes a directory and all of its contents recursively from the working directory. destructive and irreversible. the workspace root and plain files are rejected. requires filewrite plus the destructive flag; gated by human-in-the-loop." data-category="file" data-tags="pipeline" data-preset="" data-env="" markdown>
+<a class="tcg-stretched-link" href="filesystem/#deleteDir" aria-label="Open deleteDir in Filesystem">deleteDir</a>
+<div class="tcg-name"><span class="tcg-name__text">deleteDir</span> <span class="cost">🆓</span></div>
+<div class="tcg-art" markdown>:material-folder-remove-outline:</div>
+<div class="tcg-type">file · pipeline <span class="risk risk-l5">L5</span></div>
+<div class="tcg-body" markdown>
+Permanently deletes a directory and all of its contents (recursive) from the working directory. Destructive and irreversible; the workspace root and plain files are rejected. Requires `fileWrite` plus the `destructive` flag; gated by human-in-the-loop (`L5 → L4`).
+</div>
+<div class="tcg-stats" markdown>
+<div class="tcg-stats__line" markdown>**Params** &nbsp; `path`</div>
 <div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Filesystem</div>
@@ -1732,7 +1848,7 @@ The two transports differ in **who owns the server's lifetime**: in Streamable H
 
 Most MCP server implementations ship one **native binary per OS** (Python wheels, Node binaries, Go / Rust executables) and require the user to install a platform-matching build, often plus a toolchain (Python, Node, Cargo) to author new tools.
 
-Spring AI Playground's tool runtime is **OS-agnostic by design**. One JVM artifact - distributed as a JAR, a Docker image, or an Electron-packaged desktop launcher - runs identically on macOS, Windows, and Linux. All 107 default tools are pure JavaScript executed through GraalVM Polyglot, and so is every tool you author. There is no per-OS build step, no native dependency, no toolchain on the user's machine.
+Spring AI Playground's tool runtime is **OS-agnostic by design**. One JVM artifact - distributed as a JAR, a Docker image, or an Electron-packaged desktop launcher - runs identically on macOS, Windows, and Linux. All 114 default tools are pure JavaScript executed through GraalVM Polyglot, and so is every tool you author. There is no per-OS build step, no native dependency, no toolchain on the user's machine.
 
 Full mechanics - including how every cross-bridged helper rides on JVM stdlib so `/` vs `\`, TLS, parsers, and crypto behave identically across OSes - in [Tool Studio → Cross-platform by design](../tool-studio/index.md#cross-platform-by-design).
 

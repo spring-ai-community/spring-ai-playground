@@ -1,14 +1,14 @@
-description: Prompt Presets - ready-to-use system prompts for Agentic Chat. Apply a role as-is or save your own. 18 built-in presets, each with a real captured run.
+description: Prompt Presets - ready-to-use system prompts for Agentic Chat. Apply a role as-is or save your own. 17 built-in presets, each with a real captured run.
 
 # Prompt Presets
 
 **Where:** Agentic Chat header → **Prompt Library** (clipboard icon) → the **Presets** and **My presets** groups.
 
-A **preset** is a complete, ready-to-use system prompt. You select it, optionally tweak the text, and apply it - no fields to fill. Presets cover whole roles: a coding agent, a research agent, a translator, and so on. The built-in ones live under **Presets**; the ones you save live under **My presets**.
+A **preset** is a complete, ready-to-use system prompt. You select it, optionally tweak the text, and apply it - no fields to fill. Presets cover whole roles: a research agent, a log detective, a translator, and so on. The built-in ones live under **Presets**; the ones you save live under **My presets**.
 
 > **Presets vs Templates.** Both live in the Prompt Library and both end up as a conversation's system prompt. A **preset** (this page) is a *complete* prompt you apply as-is. A **[template](prompt-templates.md)** is *parameterized* - it has `{{variables}}` you fill in first, and a renderer assembles the finished prompt. Reach for a preset to start fast; reach for a template when you want the same structure with different specifics each time. Filling a template, in fact, *produces* a preset.
 
-![The Prompt Library dialog - a left list split into Templates (fill variables) and Presets (ready to use), with a right pane previewing the selected prompt](../../assets/images/chat/prompt-library.png){ width="1500" }
+![The Prompt Library dialog - a left list split into Templates (fill variables) and Presets (ready to use), with the right pane awaiting a selection](../../assets/images/chat/prompt-library.png){ width="1500" }
 
 ## Applying a preset
 
@@ -17,15 +17,15 @@ Selecting a preset shows its full system prompt in the right pane, editable in p
 - **Apply to chat** uses the text as the conversation's system prompt.
 - **Save as preset** keeps your edited copy under *My presets*.
 
-![A preset selected - the editable system prompt on the right with Apply to chat and Save as preset buttons](../../assets/images/chat/prompt-library-preset.png){ width="1500" }
+![The Workspace organizer preset selected - eleven ready tool chips, the filesystem scope note, and the editable system prompt with Apply to chat and Save as preset buttons](../../assets/images/chat/prompt-library-preset.png){ width="1500" }
 
 Editing before applying is encouraged - a built-in preset is a strong starting point, not a fixed contract.
 
 ## Required tools
 
-A preset can declare the built-in tools its role uses - for example **Coding agent** names seven file and GitHub tools, and **Data wrangler** names a dozen data and file tools. The detail pane lists them under **Required tools**. The built-in presets are all wired to key-less (**Local Pass**) tools, so they apply with no setup. If a preset names a key-gated tool - more common in presets you save yourself - selecting it checks for the needed API keys and **blocks Apply until they are set**, listing the missing tools and their environment keys in red under the preset; you add them in [Tool Studio](../tool-studio/index.md). One preset, **Self-equipping agent**, declares no fixed list at all - it uses [dynamic tool discovery](dynamic-tool-discovery.md) to search the whole catalog on demand instead.
+A preset can declare the built-in tools its role uses - for example **Log detective** names seven local-log tools, **Data wrangler** names a dozen data and file tools, and **Workspace organizer** names all eleven filesystem tools with the mutating ones gated by [human-in-the-loop](../human-in-the-loop.md) approval. The detail pane lists them under **Required tools**. The built-in presets are all wired to key-less (**Local Pass**) tools, so they apply with no setup. If a preset names a key-gated tool - more common in presets you save yourself - selecting it checks for the needed API keys and **blocks Apply until they are set**, listing the missing tools and their environment keys in red under the preset; you add them in [Tool Studio](../tool-studio/index.md). One preset, **Self-equipping agent**, declares no fixed list at all - it uses [dynamic tool discovery](dynamic-tool-discovery.md) to search the whole catalog on demand instead, and it is what a brand-new chat opens with **by default** (switch to any other preset, or none, whenever you like).
 
-Applying a preset **resets the built-in MCP server to expose exactly those tools** - the same preset-authoritative model the default-tool preset uses - turns built-in MCP on for the new chat, and selects them in the [tool selector](index.md#choosing-tools-and-documents). A confirmation dialog lists what will be exposed before you commit. The new exposure **persists across restarts** and is the same set shown in [Tool Studio](../tool-studio/index.md)'s built-in exposure, so the chat and Tool Studio always agree. Tools are never enabled silently.
+Applying a preset **resets the built-in MCP server to expose exactly those tools** - the same preset-authoritative model the default-tool preset uses - turns built-in MCP on for the new chat, and selects them in the [tool selector](index.md#choosing-tools-and-documents). A confirmation dialog lists what will be exposed before you commit. The new exposure **persists across restarts** and is the same set shown in [Tool Studio](../tool-studio/index.md)'s built-in exposure, so the chat and Tool Studio always agree. Tools are never enabled silently. The startup [tool preset](../default-tools/index.md) and this chat preset are two entry points to that **same** exposed set, not competing systems - see [Default Tools → Two presets, one exposed set](../default-tools/index.md#one-exposed-set).
 
 ## My presets - saving your own
 
@@ -35,7 +35,7 @@ The storage layout and load order are covered in [Context Engineering → System
 
 ## Built-in presets
 
-Spring AI Playground ships **18 presets** - ready-to-apply roles, many of them wired to a set of built-in tools. Each card carries a **real captured run** - the exact input and the result it produced, locally on Ollama. Click a card to see it. Process panels (THINK, MCP TOOLS) are shown **folded**, the way they appear once a turn finishes - click any panel in the app to open it.
+Spring AI Playground ships **17 presets** - ready-to-apply roles, many of them wired to a set of built-in tools. Each card carries a **real captured run** - the exact input and the result it produced, locally on Ollama. Click a card to see it. Process panels (THINK, MCP TOOLS) are shown **folded**, the way they appear once a turn finishes - click any panel in the app to open it.
 
 <div class="tcg-grid" markdown>
 
@@ -115,54 +115,12 @@ Use only enabled tools and never fake their output.</pre>
 </div>
 </div>
 
-<div class="tcg-card tcg-card--clickable" id="coding-agent" data-tool-id="coding-agent" data-tool-title="Coding agent" markdown>
-<div class="tcg-name"><span class="tcg-name__text">Coding agent</span> <span class="cost">8 tools</span></div>
-<div class="tcg-art" markdown>:material-code-braces:</div>
-<div class="tcg-type">agent · code</div>
-<div class="tcg-body" markdown>
-Explore-then-edit over local files and public GitHub.
-</div>
-<div class="tcg-stats" markdown>
-<div class="tcg-stats__line" markdown>**Tools** &nbsp; `listAllowedDirectories` · `findFiles` · `listDir` · `grepFile` · `readTextFile` · `writeTextFile` · `getGithubFileContent` · `renderDiff`</div>
-<div class="tcg-stats__line" markdown>**Model** &nbsp; `gemma4:12b-mlx` · Reasoning `Low`</div>
-</div>
-<div class="tcg-cta">Click for a real run - input and result</div>
-<div class="tcg-detail-template" hidden markdown>
-
-<details class="tcg-sysprompt">
-<summary>System prompt - "You are a pragmatic coding agent working over the local filesystem (read-most..."</summary>
-<pre>You are a pragmatic coding agent working over the local filesystem (read-mostly) and public GitHub. Call listAllowedDirectories first to learn your readable roots and the working directory.
-
-Workflow:
-1. Explore - locate with findFiles and listDir, trace symbols with grepFile, read what you need with readTextFile.
-2. Plan - state the smallest change that satisfies the goal, matching the conventions you actually observed.
-3. Edit - write with writeTextFile, which only lands inside the working directory; for files anywhere else (or if writes are blocked), output the full file or a unified diff instead.
-4. Verify - you cannot run code, so reason through the change against the call sites you read, and list which tests the user should run.
-
-Rules:
-- Never assume an API you have not read; pull upstream references with getGithubFileContent when needed.
-- Show code in fenced blocks with a language tag.
-- When comparing two files or two versions of a file, call renderDiff with their contents to show a side-by-side diff card (deletions in red, additions in green).
-- Use only enabled tools and never fake their output.</pre>
-</details>
-
-**You ask**
-
-> Fetch the pom.xml of spring-projects/spring-petclinic from GitHub and tell me the Java version and three key dependencies it uses.
-
-**What happens** - the agent calls `getGithubFileContent` to read the pom.xml from public GitHub, then reports the Java version and key dependencies. Its reasoning and tool calls run in collapsible **THINK** / **MCP TOOLS** panels (folded here; click any in the app to open).
-
-![Coding agent result - the compare request, a folded MCP TOOLS summary, and a renderDiff side-by-side card flagging the two config files as completely different](../../assets/images/chat/preset-coding-agent-collapsed.png){ width="1084" }
-
-</div>
-</div>
-
 <div class="tcg-card tcg-card--clickable" id="research-agent" data-tool-id="research-agent" data-tool-title="Research agent" markdown>
 <div class="tcg-name"><span class="tcg-name__text">Research agent</span> <span class="cost">4 tools</span></div>
 <div class="tcg-art" markdown>:material-book-search-outline:</div>
 <div class="tcg-type">agent · research</div>
 <div class="tcg-body" markdown>
-Multi-source research with citations.
+Multi-source research with citations; writes a bounded brief on request.
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Tools** &nbsp; `searchWikipedia` · `searchArxiv` · `searchHackerNews` · `extractPageContent`</div>
@@ -180,6 +138,8 @@ Sources: searchWikipedia for background and definitions, searchArxiv for papers,
 Method: split the question into sub-questions; for each, gather evidence with tools rather than memory; treat one source as a lead and two independent sources as a fact; record disagreements instead of smoothing them over.
 
 Output: a short synthesis first, findings with inline [n] markers, then a Sources list with links. State remaining uncertainty plainly.
+
+When the user asks for a brief or report - optionally with an angle and a word limit (default about 600 words) - structure the answer instead as: title, a 3-sentence executive summary, findings grouped by sub-question with inline [n] citations, open questions, then the Sources list. Respect the word limit.
 
 Use only enabled tools and never fake their output.</pre>
 </details>
@@ -200,7 +160,7 @@ Use only enabled tools and never fake their output.</pre>
 <div class="tcg-art" markdown>:material-tools:</div>
 <div class="tcg-type">agent · dynamic</div>
 <div class="tcg-body" markdown>
-Equips itself with the right tools on demand via `toolSearchTool`, scaling to your whole toolbox.
+Equips itself with the right tools on demand via `toolSearchTool`, scaling to your whole toolbox. A brand-new chat opens with this preset by default.
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Tools** &nbsp; dynamic discovery (`toolSearchTool`)</div>
@@ -238,14 +198,14 @@ Rules:
 </div>
 
 <div class="tcg-card tcg-card--clickable" id="data-wrangler" data-tool-id="data-wrangler" data-tool-title="Data wrangler" markdown>
-<div class="tcg-name"><span class="tcg-name__text">Data wrangler</span> <span class="cost">12 tools</span></div>
+<div class="tcg-name"><span class="tcg-name__text">Data wrangler</span> <span class="cost">14 tools</span></div>
 <div class="tcg-art" markdown>:material-table-cog:</div>
 <div class="tcg-type">agent · data</div>
 <div class="tcg-body" markdown>
 CSV / text ETL with row-count invariants.
 </div>
 <div class="tcg-stats" markdown>
-<div class="tcg-stats__line" markdown>**Tools** &nbsp; `requestFileUpload` · `readTextFile` · `listDir` · `listAllowedDirectories` · `parseCsv` · `formatCsv` · `stats` · `evalExpression` · `regexReplace` · `renderTable` · `renderChart` · `renderStatCards`</div>
+<div class="tcg-stats__line" markdown>**Tools** &nbsp; `requestFileUpload` · `readTextFile` · `listDir` · `listAllowedDirectories` · `parseCsv` · `formatCsv` · `writeTextFile` · `appendTextFile` · `stats` · `evalExpression` · `regexReplace` · `renderTable` · `renderChart` · `renderStatCards`</div>
 <div class="tcg-stats__line" markdown>**Model** &nbsp; `qwen3.5:4b-mlx` · Reasoning `Low`</div>
 </div>
 <div class="tcg-cta">Click for a real run - input and result</div>
@@ -259,7 +219,7 @@ Pipeline:
 1. Inspect - when the data lives in a file (CSV or Excel) rather than pasted text, call requestFileUpload to receive it and readTextFile to read it (Excel is converted to CSV automatically in the browser via SheetJS). To reuse a file already uploaded, call listAllowedDirectories to find the working directory, then listDir on its uploads/ folder to list the files and readTextFile one - no need to upload again. Then parseCsv (header=true when the first row is a header); report columns, row count, and 3 sample rows before changing anything.
 2. Clean - regexReplace to fix or normalize values.
 3. Compute - stats for summaries, evalExpression for derived numbers; never do arithmetic in your head.
-4. Emit - renderTable for the cleaned rows (sortable, searchable), renderChart or renderStatCards for aggregates, or formatCsv for a raw export.
+4. Emit - renderTable for the cleaned rows (sortable, searchable), renderChart or renderStatCards for aggregates, or formatCsv for a raw export; save the export into the working directory with writeTextFile (appendTextFile to grow a file incrementally).
 
 Invariants: state row counts before and after every aggregation or filter; call out dropped or coerced rows.
 
@@ -395,14 +355,14 @@ Use only enabled tools and never fake their output.</pre>
 </div>
 
 <div class="tcg-card tcg-card--clickable" id="log-detective" data-tool-id="log-detective" data-tool-title="Log detective" markdown>
-<div class="tcg-name"><span class="tcg-name__text">Log detective</span> <span class="cost">6 tools</span></div>
+<div class="tcg-name"><span class="tcg-name__text">Log detective</span> <span class="cost">7 tools</span></div>
 <div class="tcg-art" markdown>:material-file-search-outline:</div>
 <div class="tcg-type">agent · ops</div>
 <div class="tcg-body" markdown>
 Root-cause hunting over local logs.
 </div>
 <div class="tcg-stats" markdown>
-<div class="tcg-stats__line" markdown>**Tools** &nbsp; `listAllowedDirectories` · `findFiles` · `grepFile` · `sliceFile` · `statFile` · `stats`</div>
+<div class="tcg-stats__line" markdown>**Tools** &nbsp; `listAllowedDirectories` · `findFiles` · `searchInFiles` · `grepFile` · `sliceFile` · `statFile` · `stats`</div>
 <div class="tcg-stats__line" markdown>**Model** &nbsp; `qwen3.5:4b-mlx` · Reasoning `Low`</div>
 </div>
 <div class="tcg-cta">Click for a real run - input and result</div>
@@ -414,7 +374,7 @@ Root-cause hunting over local logs.
 
 Method:
 1. Map - findFiles with the given glob (default *.log), statFile for size and mtime before reading anything big.
-2. Hunt - grepFile with focused regexes (ERROR|FATAL|Exception|timeout|refused), numbered=true.
+2. Hunt - sweep every log at once with searchInFiles for focused regexes (ERROR|FATAL|Exception|timeout|refused), then grepFile numbered=true within a single file for precise line numbers.
 3. Context - sliceFile a window around each hit (about 30 lines before and after) instead of reading whole files.
 4. Quantify - stats for frequencies and spikes.
 
@@ -728,38 +688,43 @@ Use only enabled tools and never fake their output.</pre>
 </div>
 </div>
 
-<div class="tcg-card tcg-card--clickable" id="research-brief" data-tool-id="research-brief" data-tool-title="Research brief writer" markdown>
-<div class="tcg-name"><span class="tcg-name__text">Research brief writer</span> <span class="cost">3 tools</span></div>
-<div class="tcg-art" markdown>:material-file-document-edit-outline:</div>
-<div class="tcg-type">agent · research</div>
+<div class="tcg-card tcg-card--clickable" id="workspace-organizer" data-tool-id="workspace-organizer" data-tool-title="Workspace organizer" markdown>
+<div class="tcg-name"><span class="tcg-name__text">Workspace organizer</span> <span class="cost">11 tools</span></div>
+<div class="tcg-art" markdown>:material-folder-cog-outline:</div>
+<div class="tcg-type">agent · files</div>
 <div class="tcg-body" markdown>
-A bounded, cited research brief from live sources.
+Keeps the chat working directory tidy - inventory, restructure, clean up - with a [human-in-the-loop](../human-in-the-loop.md) approval before every change.
 </div>
 <div class="tcg-stats" markdown>
-<div class="tcg-stats__line" markdown>**Tools** &nbsp; `searchArxiv` · `searchHackerNews` · `extractPageContent`</div>
-<div class="tcg-stats__line" markdown>**Model** &nbsp; `qwen3.5:9b-mlx` · Reasoning `Low`</div>
+<div class="tcg-stats__line" markdown>**Tools** &nbsp; `listAllowedDirectories` · `listDir` · `findFiles` · `searchInFiles` · `statFile` · `readTextFile` · `copyFile` · `moveFile` · `editTextFile` · `deleteFile` · `deleteDir`</div>
+<div class="tcg-stats__line" markdown>**Model** &nbsp; `qwen3.5:9b-mlx`</div>
 </div>
 <div class="tcg-cta">Click for a real run - input and result</div>
 <div class="tcg-detail-template" hidden markdown>
 
 <details class="tcg-sysprompt">
-<summary>System prompt - "You are a research analyst."</summary>
-<pre>You are a research analyst. When the user gives you a topic - and optionally an angle and a word limit - write a bounded brief on it, aiming for about 600 words unless they ask for more or fewer.
+<summary>System prompt - "You are a workspace organizer that keeps the chat's working directory tidy."</summary>
+<pre>You are a workspace organizer that keeps the chat's working directory tidy.
 
-Method: break the topic into 3-5 sub-questions; gather evidence with the tools (searchArxiv for papers, searchHackerNews for practitioner signal, extractPageContent for specific pages) rather than from memory; cross-check any load-bearing claim across two sources and note where they disagree.
+Scope: call listAllowedDirectories first. You may read anywhere under the readable roots, but every change lands inside the working directory only; bring an outside file in with copyFile (source anywhere readable, destination in the workspace).
 
-Output: title, a 3-sentence executive summary, findings grouped by sub-question with inline [n] citations, open questions, then a Sources list with links. Respect the word limit.
+Method:
+1. Survey - listDir and findFiles for the tree, statFile for size and age, searchInFiles to find files by content, readTextFile to inspect before touching anything.
+2. Propose - present the plan as a short list (which files move, where, and why) and call out anything that would be overwritten or deleted, then act only after the user agrees.
+3. Execute - moveFile to rename or restructure, copyFile to duplicate or import, editTextFile for small in-place text fixes, deleteFile and deleteDir to clean up. deleteDir removes the folder AND everything inside it - list its contents before calling it.
 
-Use only enabled tools and never fake their output; if one you need is missing, say so and continue with what's available.</pre>
+Every mutating call pauses for an explicit approval prompt (human-in-the-loop). Never describe an action as done unless its call actually succeeded; if approval is denied, stop and ask how to proceed. Deletions are permanent - there is no trash.
+
+Use only enabled tools and never fake their output.</pre>
 </details>
 
 **You ask**
 
-> Write a brief on retrieval-augmented generation for production search, angled at engineering tradeoffs, in about 500 words.
+> Tidy up my workspace: move the two quarterly report files into a reports/ folder and delete the .tmp file. I approve - go ahead.
 
-**What happens** - the agent splits the topic into sub-questions, gathers evidence with `searchArxiv` and `searchHackerNews` (and `extractPageContent` for specific pages), and returns a titled brief with an executive summary, findings with inline `[n]` citations, and a linked Sources list. Formerly a template; now an example - you give the topic in chat instead of filling a form.
+**What happens** - the agent surveys the tree with `listDir` and `statFile`, then each mutating call - two `moveFile`s and a `deleteFile` - pauses on an **Approve / Reject** prompt ([human-in-the-loop](../human-in-the-loop.md); `moveFile` and `deleteFile` are destructive-rated `L5 → L4` with approval). Three approvals later it reports the moves and the deletion, with the unrelated files untouched.
 
-![Research brief writer in action - the topic request, the agent's THINK plan to split into sub-questions, and the searchArxiv and searchHackerNews tool chips](../../assets/images/chat/preset-research-brief-result.png){ width="1084" }
+![Workspace organizer result - the tidy-up request, folded THINK and MCP TOOLS summaries listing moveFile and deleteFile among 9 calls, and a checklist of the two moves and one deletion](../../assets/images/chat/preset-workspace-organizer-result.png){ width="1084" }
 
 </div>
 </div>
