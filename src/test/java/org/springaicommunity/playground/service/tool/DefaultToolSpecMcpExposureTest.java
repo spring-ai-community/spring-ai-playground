@@ -133,7 +133,7 @@ class DefaultToolSpecMcpExposureTest {
     @Test
     void globLoaderPicksUpEverySpecFile() throws Exception {
         Map<String, Integer> expectedCounts = Map.of(
-                "/tool/default-tool-specs.json",                 28,
+                "/tool/default-tool-specs.json",                 29,
                 "/tool/default-tool-specs-builtin.json",         16,
                 "/tool/default-tool-specs-builtin-helpers.json", 10,
                 "/tool/default-tool-specs-builtin-fs.json",      18,

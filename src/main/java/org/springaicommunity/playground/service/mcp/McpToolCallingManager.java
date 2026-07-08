@@ -25,6 +25,7 @@ import org.springaicommunity.playground.config.MdcIdentityFilter;
 import org.springaicommunity.playground.service.tool.FileUploadHandler;
 import org.springaicommunity.playground.service.tool.HumanQuestion;
 import org.springaicommunity.playground.service.tool.HumanQuestionHandler;
+import org.springaicommunity.playground.service.tool.ImageReferenceHandler;
 import org.springaicommunity.playground.service.tool.ToolManifest;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
 import org.slf4j.Logger;
@@ -37,6 +38,7 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.content.Media;
 import org.springframework.ai.model.tool.ToolCallingChatOptions;
 import org.springframework.ai.model.tool.ToolCallingManager;
 import org.springframework.ai.model.tool.ToolExecutionResult;
@@ -47,6 +49,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
+import org.springframework.util.MimeType;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -66,6 +69,7 @@ public class McpToolCallingManager implements ToolCallingManager {
     public static final String MCP_TOOL_EXECUTION_COMPLETED_MESSAGE = "MCP tool execution completed.";
     static final String ACTION_RETURN_DIRECT_MARKER = "```saip-action-return-direct";
     static final String REQUEST_FILE_UPLOAD_TOOL = "requestFileUpload";
+    static final String DESCRIBE_IMAGE_TOOL = "describeImage";
     private static final ObjectMapper ACTION_MAPPER = new ObjectMapper();
     public static final String TOOL_CONTEXT_USER_ID = "playgroundUserId";
     public static final String TOOL_CONTEXT_SESSION_ID = "playgroundSessionId";
@@ -122,12 +126,15 @@ public class McpToolCallingManager implements ToolCallingManager {
                 toolCallingChatOptions.getToolContext());
         Map<String, String> fileUploadResponses = resolveFileUploadCalls(chatResponse,
                 toolCallingChatOptions.getToolContext());
+        Map<String, ImageReferenceHandler.Resolved> imageResponses = resolveImageReferenceCalls(chatResponse,
+                toolCallingChatOptions.getToolContext());
         Map<String, String> previousIdentity = pushIdentity(toolCallingChatOptions.getToolContext());
         ToolExecutionResult rawResult;
         try {
-            rawResult = declinedToolCallIds.isEmpty() && fileUploadResponses.isEmpty()
+            rawResult = declinedToolCallIds.isEmpty() && fileUploadResponses.isEmpty() && imageResponses.isEmpty()
                     ? toolCallingManager.executeToolCalls(prompt, chatResponse)
-                    : executeWithIntercepted(prompt, chatResponse, declinedToolCallIds, fileUploadResponses);
+                    : executeWithIntercepted(prompt, chatResponse, declinedToolCallIds, fileUploadResponses,
+                            imageResponses);
         } finally {
             popIdentity(previousIdentity);
         }
@@ -307,9 +314,11 @@ public class McpToolCallingManager implements ToolCallingManager {
     }
 
     private ToolExecutionResult executeWithIntercepted(Prompt prompt, ChatResponse chatResponse,
-            Set<String> declinedToolCallIds, Map<String, String> fileUploadResponses) {
+            Set<String> declinedToolCallIds, Map<String, String> fileUploadResponses,
+            Map<String, ImageReferenceHandler.Resolved> imageResponses) {
         Set<String> interceptedToolCallIds = new HashSet<>(declinedToolCallIds);
         interceptedToolCallIds.addAll(fileUploadResponses.keySet());
+        interceptedToolCallIds.addAll(imageResponses.keySet());
         AssistantMessage assistantMessage = chatResponse.getResults().stream()
                 .map(Generation::getOutput)
                 .filter(output -> !output.getToolCalls().isEmpty())
@@ -337,6 +346,9 @@ public class McpToolCallingManager implements ToolCallingManager {
             if (fileUploadResponses.containsKey(toolCall.id())) {
                 responsesById.put(toolCall.id(), new ToolResponseMessage.ToolResponse(
                         toolCall.id(), toolCall.name(), fileUploadResponses.get(toolCall.id())));
+            } else if (imageResponses.containsKey(toolCall.id())) {
+                responsesById.put(toolCall.id(), new ToolResponseMessage.ToolResponse(
+                        toolCall.id(), toolCall.name(), imageResultText(imageResponses.get(toolCall.id()))));
             } else if (declinedToolCallIds.contains(toolCall.id())) {
                 responsesById.put(toolCall.id(), new ToolResponseMessage.ToolResponse(
                         toolCall.id(), toolCall.name(), declinedMessage(toolCall.name())));
@@ -349,6 +361,8 @@ public class McpToolCallingManager implements ToolCallingManager {
         List<Message> conversationHistory = new ArrayList<>(prompt.getInstructions());
         conversationHistory.add(assistantMessage);
         conversationHistory.add(ToolResponseMessage.builder().responses(orderedResponses).build());
+        for (ImageReferenceHandler.Resolved resolved : imageResponses.values())
+            if (resolved.resolved()) conversationHistory.add(toMediaMessage(resolved));
         return ToolExecutionResult.builder().conversationHistory(conversationHistory).build();
     }
 
@@ -364,6 +378,59 @@ public class McpToolCallingManager implements ToolCallingManager {
                 + "Do not call '" + toolName + "' again for this request. If another available tool can accomplish "
                 + "the goal, use it instead; otherwise tell the user the action could not be completed because they "
                 + "declined approval.";
+    }
+
+    static Map<String, ImageReferenceHandler.Resolved> resolveImageReferenceCalls(ChatResponse chatResponse,
+            Map<String, Object> toolContext) {
+        ImageReferenceHandler handler = toolContext == null ? null
+                : (ImageReferenceHandler) toolContext.get(ImageReferenceHandler.TOOL_CONTEXT_KEY);
+        if (handler == null) return Map.of();
+        Map<String, ImageReferenceHandler.Resolved> responses = new LinkedHashMap<>();
+        for (ToolCall toolCall : chatResponse.getResults().stream()
+                .flatMap(result -> result.getOutput().getToolCalls().stream()).toList()) {
+            if (!DESCRIBE_IMAGE_TOOL.equals(toolCall.name())) continue;
+            ImageReferenceHandler.Resolved resolved;
+            try {
+                resolved = handler.resolve(parseImageRequest(toolCall.arguments()));
+            } catch (RuntimeException e) {
+                logger.warn("image-reference.resolve-failed error={}", e.getMessage());
+                resolved = ImageReferenceHandler.Resolved.none("The image could not be loaded.");
+            }
+            responses.put(toolCall.id(), resolved);
+        }
+        return responses;
+    }
+
+    static ImageReferenceHandler.Request parseImageRequest(String arguments) {
+        String ref = null;
+        String question = null;
+        if (arguments != null && !arguments.isBlank()) {
+            try {
+                JsonNode node = ACTION_MAPPER.readTree(arguments);
+                if (node.has("ref") && node.get("ref").isTextual()) ref = node.get("ref").asText();
+                if (node.has("question") && node.get("question").isTextual())
+                    question = node.get("question").asText();
+            } catch (RuntimeException ignore) {
+            }
+        }
+        return new ImageReferenceHandler.Request(ref, question);
+    }
+
+    static String imageResultText(ImageReferenceHandler.Resolved resolved) {
+        if (!resolved.resolved())
+            return resolved.note() == null ? "No matching image was available." : resolved.note();
+        String suffix = resolved.description() == null || resolved.description().isBlank()
+                ? "" : " (" + resolved.description() + ")";
+        return "The requested image" + suffix + " is attached to the following message. Analyze it to answer "
+                + "the user.";
+    }
+
+    static UserMessage toMediaMessage(ImageReferenceHandler.Resolved resolved) {
+        Media media = Media.builder().mimeType(MimeType.valueOf(resolved.mimeType()))
+                .data(resolved.bytes()).build();
+        String text = resolved.description() == null || resolved.description().isBlank()
+                ? "Attached image." : "Attached image. " + resolved.description();
+        return UserMessage.builder().text(text).media(media).build();
     }
 
     private Map<String, String> resolveFileUploadCalls(ChatResponse chatResponse, Map<String, Object> toolContext) {
