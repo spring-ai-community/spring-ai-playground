@@ -110,6 +110,7 @@ public class McpToolCallingManager implements ToolCallingManager {
     public ToolExecutionResult executeToolCalls(Prompt prompt, ChatResponse chatResponse) {
         ToolCallingChatOptions toolCallingChatOptions = (ToolCallingChatOptions) prompt.getOptions();
         prompt = resolveDynamicToolCalls(prompt, chatResponse, toolCallingChatOptions);
+        prompt = guardUnknownToolCalls(prompt, chatResponse);
         Optional<Consumer<Object>> mcpProcessMessageConsumerAsOpt = Optional.ofNullable(
                 (Consumer<Object>) toolCallingChatOptions.getToolContext().get(MCP_PROCESS_MESSAGE_CONSUMER));
 
@@ -164,10 +165,35 @@ public class McpToolCallingManager implements ToolCallingManager {
             ToolCallback pooled = dynamicPool.get(name);
             additions.add(pooled != null ? pooled : notLoadedCallback(name));
         }
+        return withAdditionalCallbacks(prompt, toolCallingChatOptions, additions);
+    }
+
+    // An unresolvable tool name would throw in the delegate and kill the stream; answer it with a recovery hint.
+    private Prompt guardUnknownToolCalls(Prompt prompt, ChatResponse chatResponse) {
+        ToolCallingChatOptions options = (ToolCallingChatOptions) prompt.getOptions();
+        List<ToolCallback> callbacks = options.getToolCallbacks();
+        if (callbacks == null || callbacks.isEmpty()) return prompt;
+        Set<String> available = new HashSet<>();
+        for (ToolCallback callback : callbacks)
+            available.add(callback.getToolDefinition().name());
+        List<ToolCallback> additions = new ArrayList<>();
+        Set<String> handled = new HashSet<>();
+        for (ToolCall toolCall : chatResponse.getResults().stream()
+                .flatMap(result -> result.getOutput().getToolCalls().stream()).toList()) {
+            String name = toolCall.name();
+            if (available.contains(name) || !handled.add(name)) continue;
+            logger.warn("tool.call.unknown tool={}", name);
+            additions.add(unknownToolCallback(name, available));
+        }
+        return withAdditionalCallbacks(prompt, options, additions);
+    }
+
+    private static Prompt withAdditionalCallbacks(Prompt prompt, ToolCallingChatOptions options,
+            List<ToolCallback> additions) {
         if (additions.isEmpty()) return prompt;
-        List<ToolCallback> merged = new ArrayList<>(toolCallingChatOptions.getToolCallbacks());
+        List<ToolCallback> merged = new ArrayList<>(options.getToolCallbacks());
         merged.addAll(additions);
-        ToolCallingChatOptions augmented = ((ToolCallingChatOptions.Builder<?>) toolCallingChatOptions.mutate())
+        ToolCallingChatOptions augmented = ((ToolCallingChatOptions.Builder<?>) options.mutate())
                 .toolCallbacks(merged).build();
         return prompt.mutate().chatOptions(augmented).build();
     }
@@ -177,6 +203,19 @@ public class McpToolCallingManager implements ToolCallingManager {
                         "Tool '" + toolName + "' is not loaded. Call toolSearchTool with a short query to discover "
                                 + "the tools you need, then call the tool by its exact name.")
                 .description("Discoverable tool that has not been loaded yet")
+                .inputType(MAP_TYPE)
+                .build();
+    }
+
+    private static ToolCallback unknownToolCallback(String toolName, Set<String> available) {
+        String closest = available.stream().filter(name -> name.equalsIgnoreCase(toolName)
+                || name.endsWith("_" + toolName) || name.endsWith("." + toolName)).findFirst().orElse(null);
+        String hint = closest == null
+                ? "Use only the tools listed for this conversation."
+                : "Did you mean '" + closest + "'? Call it by that exact name.";
+        return FunctionToolCallback.builder(toolName, (Function<Map<String, Object>, Object>) arguments ->
+                        "Unknown tool '" + toolName + "' - it is not exposed to this chat. " + hint)
+                .description("Guard for a tool name that is not exposed to this chat")
                 .inputType(MAP_TYPE)
                 .build();
     }

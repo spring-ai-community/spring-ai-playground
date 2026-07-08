@@ -128,14 +128,18 @@ class McpToolCallingManagerDynamicToolTest {
     }
 
     @Test
-    void withoutDynamicPoolPromptIsLeftUntouched() {
+    void withoutDynamicPoolUnknownCallGetsTheGuardCallback() {
         stubDelegate();
         Prompt prompt = promptWith(Map.of(), tool("getTime"));
         ChatResponse response = responseCalling("getWeather");
 
         manager().executeToolCalls(prompt, response);
 
-        verify(delegate).executeToolCalls(prompt, response);
+        Prompt delegated = captureDelegatedPrompt();
+        assertThat(offeredToolNames(delegated)).containsExactly("getTime", "getWeather");
+        ToolCallback guard = ((ToolCallingChatOptions) delegated.getOptions()).getToolCallbacks().stream()
+                .filter(callback -> callback.getToolDefinition().name().equals("getWeather")).findFirst().orElseThrow();
+        assertThat(guard.call("{}")).contains("not exposed to this chat");
     }
 
     private void stubDelegateOutput(String toolName, String data) {
