@@ -18,6 +18,7 @@ package org.springaicommunity.playground.service.tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
+import org.springaicommunity.playground.service.tool.runtime.SafeFs;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -40,6 +41,11 @@ public class ToolWorkspace {
 
     public Path base() {
         return base;
+    }
+
+    public SafeFs.FsScope scopeFor(String conversationId) {
+        Path dir = conversationDir(conversationId);
+        return SafeFs.FsScope.confined(dir != null ? dir : base);
     }
 
     public Path conversationDir(String conversationId) {

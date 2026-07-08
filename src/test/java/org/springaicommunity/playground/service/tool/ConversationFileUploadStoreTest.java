@@ -31,14 +31,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ConversationFileUploadStoreTest {
 
+    private static final String CONV = "conv-1";
+
     @Test
-    void storeWritesToUploadsDirAndReturnsRelativePath(@TempDir Path tempDir) throws IOException {
+    void storeWritesToConversationUploadsDirAndReturnsRelativePath(@TempDir Path tempDir) throws IOException {
         ConversationFileUploadStore.Stored stored =
-                store(tempDir).store("sales.csv", "a,b\n1,2".getBytes(StandardCharsets.UTF_8));
+                store(tempDir).store(CONV, "sales.csv", "a,b\n1,2".getBytes(StandardCharsets.UTF_8));
 
         assertThat(stored.path()).isEqualTo("uploads/sales.csv");
         assertThat(stored.bytes()).isEqualTo(7);
-        Path written = tempDir.resolve("uploads/sales.csv");
+        Path written = tempDir.resolve(CONV).resolve("uploads/sales.csv");
         assertThat(written).exists();
         assertThat(Files.readString(written)).isEqualTo("a,b\n1,2");
     }
@@ -46,31 +48,42 @@ class ConversationFileUploadStoreTest {
     @Test
     void storeSanitizesUnsafeFileName(@TempDir Path tempDir) throws IOException {
         ConversationFileUploadStore.Stored stored =
-                store(tempDir).store("../../etc/pa ss wd.txt", new byte[] {1});
+                store(tempDir).store(CONV, "../../etc/pa ss wd.txt", new byte[] {1});
 
         assertThat(stored.fileName()).doesNotContain("/").doesNotContain("..").doesNotContain(" ");
-        assertThat(tempDir.resolve("uploads").resolve(stored.fileName())).exists();
+        assertThat(tempDir.resolve(CONV).resolve("uploads").resolve(stored.fileName())).exists();
     }
 
     @Test
     void storeUniquifiesOnNameCollision(@TempDir Path tempDir) throws IOException {
         ConversationFileUploadStore store = store(tempDir);
-        ConversationFileUploadStore.Stored first = store.store("data.csv", new byte[] {1});
-        ConversationFileUploadStore.Stored second = store.store("data.csv", new byte[] {2});
+        ConversationFileUploadStore.Stored first = store.store(CONV, "data.csv", new byte[] {1});
+        ConversationFileUploadStore.Stored second = store.store(CONV, "data.csv", new byte[] {2});
 
         assertThat(first.fileName()).isEqualTo("data.csv");
         assertThat(second.fileName()).isNotEqualTo("data.csv");
         assertThat(second.fileName()).startsWith("data-").endsWith(".csv");
-        assertThat(tempDir.resolve("uploads/data.csv")).exists();
-        assertThat(tempDir.resolve("uploads").resolve(second.fileName())).exists();
+        assertThat(tempDir.resolve(CONV).resolve("uploads/data.csv")).exists();
+        assertThat(tempDir.resolve(CONV).resolve("uploads").resolve(second.fileName())).exists();
     }
 
     @Test
     void storeWritesBinaryBytesIntact(@TempDir Path tempDir) throws IOException {
         byte[] data = {0, 1, 2, (byte) 255, 65};
-        ConversationFileUploadStore.Stored stored = store(tempDir).store("image.bin", data);
+        ConversationFileUploadStore.Stored stored = store(tempDir).store(CONV, "image.bin", data);
 
-        assertThat(Files.readAllBytes(tempDir.resolve("uploads").resolve(stored.fileName()))).isEqualTo(data);
+        assertThat(Files.readAllBytes(tempDir.resolve(CONV).resolve("uploads").resolve(stored.fileName())))
+                .isEqualTo(data);
+    }
+
+    @Test
+    void conversationsGetSeparateUploadDirs(@TempDir Path tempDir) throws IOException {
+        ConversationFileUploadStore store = store(tempDir);
+        store.store("conv-a", "x.csv", new byte[] {1});
+        store.store("conv-b", "x.csv", new byte[] {2});
+
+        assertThat(Files.readAllBytes(tempDir.resolve("conv-a").resolve("uploads/x.csv"))).isEqualTo(new byte[] {1});
+        assertThat(Files.readAllBytes(tempDir.resolve("conv-b").resolve("uploads/x.csv"))).isEqualTo(new byte[] {2});
     }
 
     private ConversationFileUploadStore store(Path base) {

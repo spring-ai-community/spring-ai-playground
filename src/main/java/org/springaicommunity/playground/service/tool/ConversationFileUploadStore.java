@@ -34,11 +34,10 @@ public class ConversationFileUploadStore {
         this.workspace = workspace;
     }
 
-    public Stored store(String fileName, byte[] content) throws IOException {
-        Path base = this.workspace.base();
-        Path uploadsDir = base.resolve(UPLOADS_DIR);
+    public Stored store(String conversationId, String fileName, byte[] content) throws IOException {
+        SafeFs.FsScope scope = this.workspace.scopeFor(conversationId);
+        Path uploadsDir = scope.workspace().resolve(UPLOADS_DIR);
         String name = uniqueName(uploadsDir, sanitize(fileName));
-        SafeFs.FsScope scope = SafeFs.FsScope.confined(base);
         Path written = SafeFs.writeBytes(scope, UPLOADS_DIR + "/" + name, content);
         return new Stored(UPLOADS_DIR + "/" + name, name, written.toAbsolutePath().normalize().toString(),
                 content == null ? 0L : content.length);

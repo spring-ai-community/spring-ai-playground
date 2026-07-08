@@ -24,6 +24,7 @@ import org.springaicommunity.playground.service.SharedDataReader;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.tool.FileUploadHandler;
 import org.springaicommunity.playground.service.tool.HumanQuestionHandler;
+import org.springaicommunity.playground.service.tool.ImageReferenceHandler;
 import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,6 +45,7 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.DefaultChatOptions;
+import org.springframework.ai.content.Media;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.beans.factory.ObjectProvider;
@@ -52,7 +54,9 @@ import org.springframework.util.StringUtils;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.SignalType;
 
+import java.time.Duration;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -82,6 +86,11 @@ public class ChatService {
             "thinking");
 
     public static final String CHAT_META = "chatMeta";
+    static final Duration STREAM_INTER_SIGNAL_TIMEOUT = Duration.ofSeconds(300);
+    public static final String USER_IMAGES = "userImages";
+    public static final String USER_IMAGE_HASH = "hash";
+    public static final String USER_IMAGE_FILE_NAME = "fileName";
+    public static final String USER_IMAGE_MIME_TYPE = "mimeType";
     public static final String RAG_FILTER_EXPRESSION = "ragFilterExpression";
     public static final String MDC_CONVERSATION_ID = "conversationId";
     public static final String MDC_USER_MESSAGE_ID = "userMessageId";
@@ -132,7 +141,7 @@ public class ChatService {
             Consumer<Object> thinkProcessMessageConsumer) {
         return stream(chatHistory, prompt, filterExpression, completeChatHistoryConsumer, toolCallbacks,
                 mcpToolProcessMessageConsumer, ragProcessMessageConsumer, thinkProcessMessageConsumer, null, null,
-                null, null, null);
+                null, null, null, null, List.of());
     }
 
     public Flux<String> stream(ChatHistory chatHistory, String prompt, String filterExpression,
@@ -140,10 +149,11 @@ public class ChatService {
             Consumer<Object> mcpToolProcessMessageConsumer, Consumer<Object> ragProcessMessageConsumer,
             Consumer<Object> thinkProcessMessageConsumer, Consumer<RoundUsage> roundUsageConsumer,
             Consumer<SignalType> beforeHistoryCommit, HumanQuestionHandler humanQuestionHandler,
-            FileUploadHandler fileUploadHandler, ReasoningEffort reasoning) {
+            FileUploadHandler fileUploadHandler, ImageReferenceHandler imageReferenceHandler,
+            ReasoningEffort reasoning, List<Media> media) {
         return streamWithRaw(chatHistory, prompt, filterExpression, toolCallbacks, mcpToolProcessMessageConsumer,
                 ragProcessMessageConsumer, thinkProcessMessageConsumer, roundUsageConsumer, humanQuestionHandler,
-                fileUploadHandler, reasoning).map(Generation::getOutput)
+                fileUploadHandler, imageReferenceHandler, reasoning, media).map(Generation::getOutput)
                 .map(assistantMessage -> Optional.ofNullable(assistantMessage.getText()).orElse(""))
                 .doFinally(signalType -> {
                     boolean finished = SignalType.ON_COMPLETE.equals(signalType)
@@ -159,14 +169,15 @@ public class ChatService {
             List<ToolCallback> toolCallbacks, Consumer<Object> mcpToolProcessMessageConsumer,
             Consumer<Object> ragProcessMessageConsumer, Consumer<Object> thinkProcessMessageConsumer) {
         return streamWithRaw(chatHistory, prompt, filterExpression, toolCallbacks, mcpToolProcessMessageConsumer,
-                ragProcessMessageConsumer, thinkProcessMessageConsumer, null, null, null, null);
+                ragProcessMessageConsumer, thinkProcessMessageConsumer, null, null, null, null, null, List.of());
     }
 
     public Flux<Generation> streamWithRaw(ChatHistory chatHistory, String prompt, String filterExpression,
             List<ToolCallback> toolCallbacks, Consumer<Object> mcpToolProcessMessageConsumer,
             Consumer<Object> ragProcessMessageConsumer, Consumer<Object> thinkProcessMessageConsumer,
             Consumer<RoundUsage> roundUsageConsumer, HumanQuestionHandler humanQuestionHandler,
-            FileUploadHandler fileUploadHandler, ReasoningEffort reasoning) {
+            FileUploadHandler fileUploadHandler, ImageReferenceHandler imageReferenceHandler,
+            ReasoningEffort reasoning, List<Media> media) {
         AtomicReference<ChatClientResponse> lastChatResponse = new AtomicReference<>();
         StringBuilder accumulatedText = new StringBuilder();
         String userMessageId = UUID.randomUUID().toString();
@@ -174,11 +185,15 @@ public class ChatService {
         String sessionId = MDC.get(MdcIdentityFilter.SESSION_ID);
         AtomicBoolean roundHadToolCalls = new AtomicBoolean();
         AtomicBoolean roundHadThinking = new AtomicBoolean();
+        AtomicBoolean imageRefsApplied = new AtomicBoolean();
         return getChatClientRequestSpec(chatHistory, prompt, filterExpression, toolCallbacks,
                 mcpToolProcessMessageConsumer, ragProcessMessageConsumer, humanQuestionHandler, fileUploadHandler,
-                reasoning)
-                .stream().chatClientResponse().map(
-                        chatClientResponse -> {
+                imageReferenceHandler, reasoning, media)
+                .stream().chatClientResponse()
+                .timeout(STREAM_INTER_SIGNAL_TIMEOUT)
+                .map(chatClientResponse -> {
+                    if (imageRefsApplied.compareAndSet(false, true))
+                        applyImageRefsToLastUserMessage(chatHistory, media);
                     if (Objects.nonNull(thinkProcessMessageConsumer) || Objects.nonNull(roundUsageConsumer)) {
                         Generation generation = chatClientResponse.chatResponse().getResult();
                         extractThinking(generation).ifPresent(thinking -> {
@@ -254,9 +269,11 @@ public class ChatService {
     private ChatClient.ChatClientRequestSpec getChatClientRequestSpec(ChatHistory chatHistory, String prompt,
             String filterExpression, List<ToolCallback> toolCallbacks, Consumer<Object> mcpToolProcessMessageConsumer,
             Consumer<Object> ragProcessMessageConsumer, HumanQuestionHandler humanQuestionHandler,
-            FileUploadHandler fileUploadHandler, ReasoningEffort reasoning) {
+            FileUploadHandler fileUploadHandler, ImageReferenceHandler imageReferenceHandler,
+            ReasoningEffort reasoning, List<Media> media) {
         DefaultChatOptions chatOptions = chatHistory.chatOptions();
-        ChatClient.ChatClientRequestSpec chatClientRequestSpec = this.chatClient.prompt().user(prompt).options(
+        ChatClient.ChatClientRequestSpec chatClientRequestSpec = this.chatClient.prompt()
+                .user(userSpec -> applyUserContent(userSpec, prompt, media)).options(
                         this.chatRequestOptionsFactory.build(this.chatModel, chatOptions, chatHistory.extraOptions(),
                                 reasoning).mutate())
                 .advisors(advisor -> {
@@ -276,6 +293,8 @@ public class ChatService {
                 toolContext.put(HumanQuestionHandler.TOOL_CONTEXT_KEY, humanQuestionHandler);
             if (Objects.nonNull(fileUploadHandler))
                 toolContext.put(FileUploadHandler.TOOL_CONTEXT_KEY, fileUploadHandler);
+            if (Objects.nonNull(imageReferenceHandler))
+                toolContext.put(ImageReferenceHandler.TOOL_CONTEXT_KEY, imageReferenceHandler);
             putIfPresent(toolContext, TOOL_CONTEXT_USER_ID, MDC.get(MdcIdentityFilter.USER_ID));
             putIfPresent(toolContext, TOOL_CONTEXT_SESSION_ID, MDC.get(MdcIdentityFilter.SESSION_ID));
             putIfPresent(toolContext, TOOL_CONTEXT_CONVERSATION_ID, chatHistory.conversationId());
@@ -285,6 +304,12 @@ public class ChatService {
         }
         return Optional.ofNullable(chatHistory.systemPrompt()).filter(Predicate.not(String::isBlank))
                 .map(chatClientRequestSpec::system).orElse(chatClientRequestSpec);
+    }
+
+    private static void applyUserContent(ChatClient.PromptUserSpec userSpec, String prompt, List<Media> media) {
+        userSpec.text(prompt == null ? "" : prompt);
+        if (Objects.nonNull(media) && !media.isEmpty())
+            userSpec.media(media.toArray(new Media[0]));
     }
 
     private static void putIfPresent(Map<String, Object> toolContext, String key, String value) {
@@ -324,12 +349,31 @@ public class ChatService {
         try {
             return applyChatResponseMetadataToLastUserMessage(chatHistory,
                     getChatClientRequestSpec(chatHistory, prompt, filterExpression, toolCallbacks,
-                            mcpToolProcessMessageConsumer, null, null, null, null).call()
+                            mcpToolProcessMessageConsumer, null, null, null, null, null, List.of()).call()
                             .chatClientResponse()).getResult();
         } finally {
             MDC.remove(MDC_CONVERSATION_ID);
             MDC.remove(MDC_USER_MESSAGE_ID);
         }
+    }
+
+    static void applyImageRefsToLastUserMessage(ChatHistory chatHistory, List<Media> media) {
+        if (Objects.isNull(media) || media.isEmpty()) return;
+        List<Map<String, String>> refs = media.stream().map(item -> {
+            Map<String, String> ref = new LinkedHashMap<>();
+            if (Objects.nonNull(item.getId())) ref.put(USER_IMAGE_HASH, item.getId());
+            if (Objects.nonNull(item.getName())) ref.put(USER_IMAGE_FILE_NAME, item.getName());
+            if (Objects.nonNull(item.getMimeType())) ref.put(USER_IMAGE_MIME_TYPE, item.getMimeType().toString());
+            return ref;
+        }).filter(ref -> !ref.isEmpty()).toList();
+        if (refs.isEmpty()) return;
+        chatHistory.messagesSupplier().get().reversed().stream()
+                .filter(message -> MessageType.USER.equals(message.getMessageType())).findFirst()
+                .map(Message::getMetadata).ifPresent(metadata -> {
+                    synchronized (metadata) {
+                        metadata.put(USER_IMAGES, refs);
+                    }
+                });
     }
 
     private ChatResponse applyChatResponseMetadataToLastUserMessage(ChatHistory chatHistory,

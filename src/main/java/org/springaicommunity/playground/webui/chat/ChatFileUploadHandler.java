@@ -40,10 +40,12 @@ public final class ChatFileUploadHandler implements FileUploadHandler {
 
     private final UI ui;
     private final ConversationFileUploadStore store;
+    private final String conversationId;
 
-    public ChatFileUploadHandler(UI ui, ConversationFileUploadStore store) {
+    public ChatFileUploadHandler(UI ui, ConversationFileUploadStore store, String conversationId) {
         this.ui = ui;
         this.store = store;
+        this.conversationId = conversationId;
     }
 
     @Override
@@ -101,7 +103,7 @@ public final class ChatFileUploadHandler implements FileUploadHandler {
     private void onBytes(String fileName, String mediaType, byte[] bytes, Dialog dialog,
             CompletableFuture<Result> done) {
         try {
-            ConversationFileUploadStore.Stored stored = this.store.store(fileName, bytes);
+            ConversationFileUploadStore.Stored stored = this.store.store(this.conversationId, fileName, bytes);
             done.complete(Result.of(stored.path(), stored.fileName(), mediaType, stored.bytes()));
             dialog.close();
         } catch (IOException e) {

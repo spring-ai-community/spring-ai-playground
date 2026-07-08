@@ -43,8 +43,10 @@ import org.springaicommunity.playground.service.chat.ChatSystemPromptTemplateRen
 import org.springaicommunity.playground.service.chat.ChatToolPreferences;
 import org.springaicommunity.playground.service.chat.OllamaModelDownloadService;
 import org.springaicommunity.playground.service.chat.ReasoningEffort;
+import org.springaicommunity.playground.service.chat.VisionCapabilityService;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
 import org.springaicommunity.playground.service.mcp.risk.McpCompositionToolCallbackProvider;
+import org.springaicommunity.playground.service.tool.ChatImageStore;
 import org.springaicommunity.playground.service.tool.ConversationFileUploadStore;
 import org.springaicommunity.playground.service.tool.ToolActivationCalculator;
 import org.springaicommunity.playground.service.tool.ToolSpec;
@@ -99,6 +101,8 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
     private final SpringAiPlaygroundOptions playgroundOptions;
     private final ChatClientActionRegistry clientActionRegistry;
     private final ConversationFileUploadStore fileUploadStore;
+    private final ChatImageStore imageStore;
+    private final VisionCapabilityService visionCapabilityService;
     private final ChatSystemPromptPresetService chatSystemPromptPresetService;
     private final ChatSystemPromptTemplateRenderer chatSystemPromptTemplateRenderer;
     private final OllamaModelDownloadService ollamaModelDownloadService;
@@ -116,7 +120,9 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
             ChatSystemPromptTemplateRenderer chatSystemPromptTemplateRenderer,
             OllamaModelDownloadService ollamaModelDownloadService,
             McpCompositionToolCallbackProvider compositionProvider, SpringAiPlaygroundOptions playgroundOptions,
-            ChatClientActionRegistry clientActionRegistry, ConversationFileUploadStore fileUploadStore) {
+            ChatClientActionRegistry clientActionRegistry, ConversationFileUploadStore fileUploadStore,
+            ChatImageStore imageStore,
+            VisionCapabilityService visionCapabilityService) {
         this.persistentUiDataStorage = persistentUiDataStorage;
         this.chatService = chatService;
         this.chatHistoryService = chatHistoryService;
@@ -133,6 +139,8 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
         this.playgroundOptions = playgroundOptions;
         this.clientActionRegistry = clientActionRegistry;
         this.fileUploadStore = fileUploadStore;
+        this.imageStore = imageStore;
+        this.visionCapabilityService = visionCapabilityService;
 
         PropertyChangeSupport chatHistoryChangeSupport = new PropertyChangeSupport(this);
         chatHistoryChangeSupport.addPropertyChangeListener(CHAT_HISTORY_SELECT_EVENT,
@@ -394,7 +402,8 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
                 this.completeChatHistoryConsumer, this.mcpClientService,
                 this.toolSpecService, this.toolSpecPersistenceService, this.toolActivationCalculator,
                 this.mcpServerInfoService, this.chatExportService,
-                this.compositionProvider, this.playgroundOptions, this.clientActionRegistry, this.fileUploadStore);
+                this.compositionProvider, this.playgroundOptions, this.clientActionRegistry, this.fileUploadStore,
+                this.imageStore, this.visionCapabilityService);
         ChatOptions chatOptions = chatHistory.chatOptions();
         String label = String.format("%s: %s", this.chatService.getChatModelProvider(), chatOptions.getModel());
         VaadinUtils.getUi(this).access(() -> {

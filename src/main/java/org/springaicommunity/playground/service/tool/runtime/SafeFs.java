@@ -70,6 +70,10 @@ public final class SafeFs {
         return Files.readString(resolveRead(scope, userPath), StandardCharsets.UTF_8);
     }
 
+    public static byte[] readBytes(FsScope scope, String userPath) throws IOException {
+        return Files.readAllBytes(resolveRead(scope, userPath));
+    }
+
     public static Path writeText(FsScope scope, String userPath, String content) throws IOException {
         Path target = resolveWrite(scope, userPath);
         if (target.getParent() != null && !Files.exists(target.getParent())) {

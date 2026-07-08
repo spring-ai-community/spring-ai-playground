@@ -152,4 +152,8 @@ class ChatMessage extends Component implements HasStyle {
     void addActionBar(Component bar) {
         getElement().appendChild(bar.getElement());
     }
+
+    void addAttachments(Component attachments) {
+        this.content.insertChild(0, attachments.getElement());
+    }
 }

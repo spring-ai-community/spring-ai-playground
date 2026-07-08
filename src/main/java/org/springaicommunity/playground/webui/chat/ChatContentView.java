@@ -29,6 +29,9 @@ import com.vaadin.flow.component.combobox.MultiSelectComboBox;
 import com.vaadin.flow.component.dependency.JsModule;
 import com.vaadin.flow.component.details.Details;
 import com.vaadin.flow.component.details.DetailsVariant;
+import com.vaadin.flow.component.dialog.Dialog;
+import com.vaadin.flow.component.html.Div;
+import com.vaadin.flow.component.html.Image;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
@@ -54,12 +57,14 @@ import org.springaicommunity.playground.service.chat.ChatProvider;
 import org.springaicommunity.playground.service.chat.ChatService;
 import org.springaicommunity.playground.service.chat.ChatToolPreferences;
 import org.springaicommunity.playground.service.chat.ReasoningEffort;
+import org.springaicommunity.playground.service.chat.VisionCapabilityService;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
 import org.springaicommunity.playground.service.mcp.McpToolCallingManager;
 import org.springaicommunity.playground.service.mcp.risk.McpCompositionToolCallbackProvider;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.service.mcp.client.McpTransportType;
+import org.springaicommunity.playground.service.tool.ChatImageStore;
 import org.springaicommunity.playground.service.tool.ConversationFileUploadStore;
 import org.springaicommunity.playground.service.tool.ToolActivationCalculator;
 import org.springaicommunity.playground.service.tool.ToolSpec;
@@ -69,23 +74,29 @@ import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentI
 import org.springaicommunity.playground.webui.SttMicButton;
 import org.springaicommunity.playground.webui.VaadinUtils;
 import org.springaicommunity.playground.webui.tool.ExposedToolsSelector;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.prompt.ChatOptions;
+import org.springframework.ai.content.Media;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
+import org.springframework.util.MimeType;
 import reactor.core.Disposable;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
@@ -96,6 +107,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -105,10 +117,13 @@ import java.util.stream.Collectors;
 @JsModule("./playground/chat-stt.js")
 public class ChatContentView extends VerticalLayout {
 
+    private static final Logger logger = LoggerFactory.getLogger(ChatContentView.class);
+
     private static final ScrollIntoViewOption[] DefaultScrollOptions =
             {ScrollIntoViewOption.Block.END, ScrollIntoViewOption.Inline.NEAREST};
 
     private static final int PROMPT_TOP_MARGIN_PX = 20;
+    private static final int MAX_IMAGES = 5;
 
     private static final String ACTION_BLOCK_MARKER = "```saip-action";
     private static final ObjectMapper ACTION_MAPPER = new ObjectMapper();
@@ -130,6 +145,12 @@ public class ChatContentView extends VerticalLayout {
     private final McpServerInfoService mcpServerInfoService;
     private final ChatExportService chatExportService;
     private final ConversationFileUploadStore fileUploadStore;
+    private final ChatImageStore imageStore;
+    private final VisionCapabilityService visionCapabilityService;
+    private final List<PendingImage> pendingImages = new ArrayList<>();
+    private int inFlightImageAttaches;
+    private Button attachButton;
+    private final HorizontalLayout pendingImagesBar = new HorizontalLayout();
     private final MultiSelectComboBox<ToolSpec> customToolsComboBox;
     private final MultiSelectComboBox<ToolSpec> builtinToolsComboBox;
     private final MultiSelectComboBox<ToolSpec> composedToolsComboBox;
@@ -153,7 +174,9 @@ public class ChatContentView extends VerticalLayout {
             ToolActivationCalculator toolActivationCalculator,
             McpServerInfoService mcpServerInfoService, ChatExportService chatExportService,
             McpCompositionToolCallbackProvider compositionProvider, SpringAiPlaygroundOptions playgroundOptions,
-            ChatClientActionRegistry clientActionRegistry, ConversationFileUploadStore fileUploadStore) {
+            ChatClientActionRegistry clientActionRegistry, ConversationFileUploadStore fileUploadStore,
+            ChatImageStore imageStore,
+            VisionCapabilityService visionCapabilityService) {
         this.chatHistory = chatHistory;
         this.chatService = chatService;
         this.chatHistoryService = chatHistoryService;
@@ -167,6 +190,8 @@ public class ChatContentView extends VerticalLayout {
         this.compositionProvider = compositionProvider;
         this.clientActionRegistry = clientActionRegistry;
         this.fileUploadStore = fileUploadStore;
+        this.imageStore = imageStore;
+        this.visionCapabilityService = visionCapabilityService;
         this.toolSearch = playgroundOptions.chat().toolSearch();
         this.customToolsComboBox = ExposedToolsSelector.newCustomSelector(
                 toolSpecService::riskLevelOf, toolSpecService::categoryOf);
@@ -266,7 +291,7 @@ public class ChatContentView extends VerticalLayout {
                 && !savedProvider.equalsIgnoreCase(currentProvider);
 
         this.micButton = new SttMicButton(this.userPromptTextArea);
-        Icon submitIcon = VaadinUtils.styledLargeIcon(VaadinIcon.ARROW_CIRCLE_UP.create());
+        Icon submitIcon = VaadinUtils.styledIcon(VaadinIcon.ARROW_CIRCLE_UP.create());
         this.submitButton = new Button(submitIcon);
         submitButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
         submitButton.setTooltipText("Submit");
@@ -282,13 +307,13 @@ public class ChatContentView extends VerticalLayout {
                 return;
             }
             this.userPromptTextArea.getElement().executeJs("return this.value;").then(String.class, userPrompt -> {
-                if (userPrompt.isBlank())
+                if (userPrompt.isBlank() && this.pendingImages.isEmpty())
                     return;
                 this.userPromptTextArea.getElement().executeJs("this.value='';");
                 this.userPromptTextArea.clear();
                 this.userPromptTextArea.setReadOnly(true);
                 micButton.setEnabled(false);
-                Icon stopIcon = VaadinUtils.styledLargeIcon(VaadinIcon.STOP.create());
+                Icon stopIcon = VaadinUtils.styledIcon(VaadinIcon.STOP.create());
                 submitButton.setIcon(stopIcon);
                 submitButton.setTooltipText("Stop");
                 this.currentStream = inputEvent(zoneIdFuture, userPrompt);
@@ -300,16 +325,31 @@ public class ChatContentView extends VerticalLayout {
                 submitButton.click();
         });
 
-        HorizontalLayout suffix = new HorizontalLayout(micButton, submitButton);
+        String attachAccept = "image/*";
+        ChatAttach attach = new ChatAttach(attachAccept, this::onImageAttached,
+                this::onImageProcessingStarted, this::onImageAttachError);
+        attach.bindTo(this.userPromptTextArea);
+        this.attachButton = new Button(VaadinUtils.styledIcon(VaadinIcon.PICTURE.create()));
+        this.attachButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
+        this.attachButton.setTooltipText("Attach image");
+        this.attachButton.addClickListener(e -> attach.openPicker());
+        HorizontalLayout suffix = new HorizontalLayout(this.attachButton, micButton, submitButton, attach);
+        suffix.addClassName("chat-input-suffix");
         suffix.setSpacing(false);
         suffix.setPadding(false);
         this.userPromptTextArea.setSuffixComponent(suffix);
 
-        Icon ragIcon = VaadinUtils.styledLargeIcon(VaadinIcon.SEARCH_PLUS.create());
+        this.pendingImagesBar.setSpacing(false);
+        this.pendingImagesBar.setPadding(false);
+        this.pendingImagesBar.getStyle().set("flex-wrap", "wrap").set("gap", "var(--lumo-space-s)")
+                .set("padding", "10px 4px 4px 4px");
+        this.pendingImagesBar.setVisible(false);
+
+        Icon ragIcon = VaadinUtils.styledIcon(VaadinIcon.SEARCH_PLUS.create());
         ragIcon.setTooltipText("Select documents in VectorDB");
         ragIcon.addSingleClickListener(event -> this.documentsComboBox.setOpened(true));
         ragIcon.getStyle().set("margin-right", "0px");
-        Icon toolIcon = VaadinUtils.styledLargeIcon(VaadinIcon.TOOLBOX.create());
+        Icon toolIcon = VaadinUtils.styledIcon(VaadinIcon.TOOLBOX.create());
         toolIcon.setTooltipText("Access Tools via external MCP connections");
         toolIcon.getStyle().set("margin-right", "0px");
         toolIcon.addSingleClickListener(event -> this.mcpToolProviderComboBox.setOpened(true));
@@ -345,7 +385,7 @@ public class ChatContentView extends VerticalLayout {
             }
         });
 
-        Icon toolStudioIcon = VaadinUtils.styledLargeIcon(VaadinIcon.TOOLS.create());
+        Icon toolStudioIcon = VaadinUtils.styledIcon(VaadinIcon.TOOLS.create());
         toolStudioIcon.setTooltipText("Built-in tools used in this chat");
         toolStudioIcon.getStyle().set("margin-right", "0px");
 
@@ -411,7 +451,7 @@ public class ChatContentView extends VerticalLayout {
         });
         applyReasoningActiveStyle();
 
-        Icon reasoningIcon = VaadinUtils.styledLargeIcon(VaadinIcon.LIGHTBULB.create());
+        Icon reasoningIcon = VaadinUtils.styledIcon(VaadinIcon.LIGHTBULB.create());
         reasoningIcon.setTooltipText("Reasoning effort");
         reasoningIcon.getStyle().set("margin-right", "0px");
         HorizontalLayout reasoningLayout = new HorizontalLayout(reasoningIcon, this.reasoningSelect);
@@ -423,7 +463,8 @@ public class ChatContentView extends VerticalLayout {
                 reasoningLayout, exposedToolsLayout, toolLayout, ragLayout);
         userInputMenuLayout.getStyle().set("flex-wrap", "wrap");
 
-        VerticalLayout userInputLayout = new VerticalLayout(userInputMenuLayout, this.userPromptTextArea);
+        VerticalLayout userInputLayout = new VerticalLayout(this.pendingImagesBar, userInputMenuLayout,
+                this.userPromptTextArea);
         userInputLayout.setWidthFull();
         userInputLayout.setMargin(false);
         userInputLayout.setSpacing(false);
@@ -675,6 +716,12 @@ public class ChatContentView extends VerticalLayout {
         this.chatHistoryService.updateChatHistory(this.chatHistory);
         ChatContentManager chatContentManager = new ChatContentManager(this.messageListLayout, userPrompt, zoneIdFuture,
                 this.chatHistory);
+        List<PendingImage> sentImages = List.copyOf(this.pendingImages);
+        this.pendingImages.clear();
+        refreshPendingImagesBar();
+        if (!sentImages.isEmpty())
+            chatContentManager.userMessage.addAttachments(attachmentRowOf(sentImages.stream()
+                    .map(image -> thumbnailOf(image.mimeType(), image.bytes(), image.fileName())).toList()));
 
         List<String> selectedDocInfoIds =
                 this.documentsComboBox.getSelectedItems().stream().map(VectorStoreDocumentInfo::docInfoId).toList();
@@ -722,11 +769,15 @@ public class ChatContentView extends VerticalLayout {
                                 chatContentManager.markStopped();
                             doFinally(chatContentManager);
                         }), new ChatHumanQuestionHandler(ui),
-                        new ChatFileUploadHandler(ui, this.fileUploadStore),
-                        this.reasoningSelect.getValue())
+                        new ChatFileUploadHandler(ui, this.fileUploadStore, this.chatHistory.conversationId()),
+                        new ChatImageReferenceHandler(ui, this.imageStore, this.chatHistory.conversationId()),
+                        this.reasoningSelect.getValue(), sentImages.stream()
+                                .map(image -> Media.builder().id(image.hash()).name(image.fileName())
+                                        .mimeType(MimeType.valueOf(image.mimeType())).data(image.bytes()).build())
+                                .toList())
                 .doOnError(throwable -> ui.access(() -> {
                     chatContentManager.markError(throwable);
-                    VaadinUtils.showErrorNotification(throwable.getMessage());
+                    VaadinUtils.showErrorNotification(ChatErrorMessages.friendly(throwable));
                     doFinally(chatContentManager);
                 }))
                 .subscribe(content -> {
@@ -735,11 +786,148 @@ public class ChatContentView extends VerticalLayout {
                 });
     }
 
+    private void onImageProcessingStarted() {
+        if (this.pendingImages.size() + this.inFlightImageAttaches >= MAX_IMAGES) {
+            VaadinUtils.showErrorNotification("You can attach up to " + MAX_IMAGES + " images.");
+            return;
+        }
+        this.inFlightImageAttaches++;
+        refreshPendingImagesBar();
+    }
+
+    private void onImageAttachError(String message) {
+        if (this.inFlightImageAttaches > 0) this.inFlightImageAttaches--;
+        refreshPendingImagesBar();
+        VaadinUtils.showErrorNotification(message);
+    }
+
+    private void onImageAttached(String fileName, byte[] bytes, String mimeType, String exifJson) {
+        if (this.inFlightImageAttaches > 0) this.inFlightImageAttaches--;
+        if (this.pendingImages.size() >= MAX_IMAGES) {
+            refreshPendingImagesBar();
+            return;
+        }
+        ChatImageStore.Stored stored;
+        try {
+            stored = this.imageStore.store(this.chatHistory.conversationId(), bytes, fileName, mimeType, exifJson);
+        } catch (IOException e) {
+            refreshPendingImagesBar();
+            VaadinUtils.showErrorNotification("Could not save the image: " + e.getMessage());
+            return;
+        }
+        this.pendingImages.add(new PendingImage(stored.hash(), fileName, mimeType, bytes));
+        refreshPendingImagesBar();
+        warnIfModelLacksVision();
+    }
+
+    private void refreshPendingImagesBar() {
+        this.pendingImagesBar.removeAll();
+        for (PendingImage image : List.copyOf(this.pendingImages)) {
+            this.pendingImagesBar.add(pendingImageChip(image));
+        }
+        for (int i = 0; i < this.inFlightImageAttaches; i++) {
+            this.pendingImagesBar.add(imageSkeletonChip());
+        }
+        int used = this.pendingImages.size() + this.inFlightImageAttaches;
+        if (used > 0) {
+            Span count = new Span(used + " / " + MAX_IMAGES);
+            count.getStyle().set("font-size", "var(--lumo-font-size-xs)")
+                    .set("color", "var(--lumo-secondary-text-color)").set("align-self", "center")
+                    .set("margin-left", "var(--lumo-space-xs)");
+            this.pendingImagesBar.add(count);
+        }
+        this.pendingImagesBar.setVisible(used > 0);
+        if (this.attachButton != null) this.attachButton.setEnabled(used < MAX_IMAGES);
+    }
+
+    private Div pendingImageChip(PendingImage image) {
+        Div chip = new Div();
+        chip.getStyle().set("position", "relative").set("width", "58px").set("height", "58px")
+                .set("flex", "0 0 auto");
+        Image thumbnail = thumbnailOf(image.mimeType(), image.bytes(), image.fileName());
+        thumbnail.getStyle().set("width", "58px").set("height", "58px").set("object-fit", "cover")
+                .set("cursor", "zoom-in").set("border", "1px solid var(--lumo-contrast-10pct)")
+                .set("box-shadow", "0 1px 4px rgba(0, 0, 0, 0.18)");
+        thumbnail.addClickListener(e -> openImageLightbox(image));
+        Icon closeIcon = VaadinIcon.CLOSE_SMALL.create();
+        closeIcon.getStyle().set("width", "12px").set("height", "12px").set("color", "var(--lumo-base-color)");
+        Div remove = new Div(closeIcon);
+        remove.getElement().setAttribute("title", "Remove " + image.fileName());
+        remove.getStyle().set("position", "absolute").set("top", "-7px").set("right", "-7px")
+                .set("width", "18px").set("height", "18px").set("border-radius", "50%")
+                .set("background", "var(--lumo-contrast-70pct)").set("cursor", "pointer")
+                .set("display", "flex").set("align-items", "center").set("justify-content", "center")
+                .set("box-shadow", "0 1px 3px rgba(0, 0, 0, 0.35)");
+        remove.addClickListener(e -> {
+            this.pendingImages.remove(image);
+            refreshPendingImagesBar();
+        });
+        chip.add(thumbnail, remove);
+        return chip;
+    }
+
+    private Div imageSkeletonChip() {
+        Div skeleton = new Div();
+        skeleton.addClassName("saip-attach-skeleton");
+        skeleton.getStyle().set("width", "58px").set("height", "58px").set("flex", "0 0 auto")
+                .set("border-radius", "var(--lumo-border-radius-m)")
+                .set("background", "var(--lumo-contrast-10pct)")
+                .set("border", "1px solid var(--lumo-contrast-10pct)");
+        return skeleton;
+    }
+
+    private void openImageLightbox(PendingImage image) {
+        Dialog dialog = new Dialog();
+        dialog.setCloseOnOutsideClick(true);
+        dialog.setCloseOnEsc(true);
+        Image full = thumbnailOf(image.mimeType(), image.bytes(), image.fileName());
+        full.getStyle().set("max-width", "84vw").set("max-height", "84vh").set("object-fit", "contain")
+                .set("cursor", "zoom-out");
+        full.addClickListener(e -> dialog.close());
+        dialog.add(full);
+        dialog.open();
+    }
+
+    private static Image thumbnailOf(String mimeType, byte[] bytes, String fileName) {
+        Image image = new Image("data:" + mimeType + ";base64," + Base64.getEncoder().encodeToString(bytes),
+                fileName);
+        image.getStyle().set("border-radius", "var(--lumo-border-radius-m)").set("display", "block");
+        return image;
+    }
+
+    private static HorizontalLayout attachmentRowOf(List<Image> thumbnails) {
+        HorizontalLayout row = new HorizontalLayout();
+        row.setSpacing(false);
+        row.setPadding(false);
+        row.getStyle().set("flex-wrap", "wrap").set("gap", "var(--lumo-space-xs)")
+                .set("margin-bottom", "var(--lumo-space-xs)");
+        thumbnails.forEach(thumbnail -> {
+            thumbnail.getStyle().set("max-height", "160px").set("max-width", "240px").set("object-fit", "contain");
+            row.add(thumbnail);
+        });
+        return row;
+    }
+
+    private void warnIfModelLacksVision() {
+        // Off the session-locked attach thread: the probe is a blocking HTTP call and a slow Ollama must not freeze the UI.
+        String model = this.chatHistory.chatOptions().getModel();
+        UI ui = VaadinUtils.getUi(this);
+        CompletableFuture.supplyAsync(() -> this.visionCapabilityService.check(model))
+                .orTimeout(6, TimeUnit.SECONDS)
+                .whenComplete((support, error) -> {
+                    if (error != null || support == null
+                            || support == VisionCapabilityService.VisionSupport.SUPPORTED)
+                        return;
+                    ui.access(() -> VaadinUtils.showErrorNotification(
+                            this.visionCapabilityService.warningFor(support, model)));
+                });
+    }
+
     private void doFinally(ChatContentManager chatContentManager) {
         chatContentManager.doFinally();
         this.userPromptTextArea.setReadOnly(false);
         this.userPromptTextArea.setEnabled(true);
-        this.submitButton.setIcon(VaadinUtils.styledLargeIcon(VaadinIcon.ARROW_CIRCLE_UP.create()));
+        this.submitButton.setIcon(VaadinUtils.styledIcon(VaadinIcon.ARROW_CIRCLE_UP.create()));
         this.submitButton.setTooltipText("Submit");
         this.micButton.setEnabled(true);
         if (this.currentStream != null) {
@@ -1298,8 +1486,12 @@ public class ChatContentView extends VerticalLayout {
                 components.add(new Pair<>(mcpToolProcessTimestamp, details));
             }
             long messageTimestamp = timestampOf(metadata);
-            if (MessageType.USER.equals(messageType))
-                messageListLayout.add(buildMessage(text, messageType, messageTimestamp));
+            if (MessageType.USER.equals(messageType)) {
+                ChatMessage userChatMessage = buildMessage(text, messageType, messageTimestamp);
+                List<Image> thumbnails = restoredThumbnailsOf(metadata);
+                if (!thumbnails.isEmpty()) userChatMessage.addAttachments(attachmentRowOf(thumbnails));
+                messageListLayout.add(userChatMessage);
+            }
             components.stream().sorted(Comparator.comparing(Pair::getFirst)).map(Pair::getSecond)
                     .forEach(messageListLayout::add);
             if (!MessageType.USER.equals(messageType)) {
@@ -1313,6 +1505,26 @@ public class ChatContentView extends VerticalLayout {
                         (String) metadata.get(STREAM_STATUS_MESSAGE));
                 if (Objects.nonNull(indicator)) messageListLayout.add(indicator);
             }
+        }
+
+        private List<Image> restoredThumbnailsOf(Map<String, Object> metadata) {
+            Object refs = metadata.get(ChatService.USER_IMAGES);
+            if (!(refs instanceof List<?> refList)) return List.of();
+            String conversationId = ChatContentView.this.chatHistory.conversationId();
+            List<Image> thumbnails = new ArrayList<>();
+            for (Object entry : refList) {
+                if (!(entry instanceof Map<?, ?> ref)) continue;
+                String hash = Objects.toString(ref.get(ChatService.USER_IMAGE_HASH), null);
+                if (Objects.isNull(hash)) continue;
+                String fileName = Objects.toString(ref.get(ChatService.USER_IMAGE_FILE_NAME), hash);
+                try {
+                    ChatContentView.this.imageStore.load(conversationId, hash).ifPresent(loaded ->
+                            thumbnails.add(thumbnailOf(loaded.mimeType(), loaded.bytes(), fileName)));
+                } catch (IOException e) {
+                    logger.warn("chat-image.restore-failed hash={} error={}", hash, e.getMessage());
+                }
+            }
+            return thumbnails;
         }
 
         private static long timestampOf(Map<String, Object> metadata) {
@@ -1627,4 +1839,6 @@ public class ChatContentView extends VerticalLayout {
         }
 
     }
+
+    private record PendingImage(String hash, String fileName, String mimeType, byte[] bytes) {}
 }
