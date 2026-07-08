@@ -1,4 +1,4 @@
-description: Prompt Presets - ready-to-use system prompts for Agentic Chat. Apply a role as-is or save your own. 17 built-in presets, each with a real captured run.
+description: Prompt Presets - ready-to-use system prompts for Agentic Chat. Apply a role as-is or save your own. 19 built-in presets, each with a real captured run.
 
 # Prompt Presets
 
@@ -35,7 +35,7 @@ The storage layout and load order are covered in [Context Engineering → System
 
 ## Built-in presets
 
-Spring AI Playground ships **17 presets** - ready-to-apply roles, many of them wired to a set of built-in tools. Each card carries a **real captured run** - the exact input and the result it produced, locally on Ollama. Click a card to see it. Process panels (THINK, MCP TOOLS) are shown **folded**, the way they appear once a turn finishes - click any panel in the app to open it.
+Spring AI Playground ships **19 presets** - ready-to-apply roles, many of them wired to a set of built-in tools. Each card carries a **real captured run** - the exact input and the result it produced, locally on Ollama. Click a card to see it. Process panels (THINK, MCP TOOLS) are shown **folded**, the way they appear once a turn finishes - click any panel in the app to open it.
 
 <div class="tcg-grid" markdown>
 
@@ -396,6 +396,51 @@ Use only enabled tools and never fake their output.</pre>
 </div>
 </div>
 
+<div class="tcg-card tcg-card--clickable" id="document-detective" data-tool-id="document-detective" data-tool-title="Document detective" markdown>
+<div class="tcg-name"><span class="tcg-name__text">Document detective</span> <span class="cost">12 tools</span></div>
+<div class="tcg-art" markdown>:material-text-box-search-outline:</div>
+<div class="tcg-type">agent · files</div>
+<div class="tcg-body" markdown>
+Investigates documents the Unix-pipeline way - upload a file or point at a folder, then find, grep, slice, and count with the filesystem tools.
+</div>
+<div class="tcg-stats" markdown>
+<div class="tcg-stats__line" markdown>**Tools** &nbsp; `listAllowedDirectories` · `requestFileUpload` · `listDir` · `findFiles` · `searchInFiles` · `grepFile` · `sliceFile` · `lineCount` · `readTextFile` · `sortFile` · `cutFileFields` · `statFile`</div>
+<div class="tcg-stats__line" markdown>**Model** &nbsp; `qwen3.5:9b-mlx`</div>
+</div>
+<div class="tcg-cta">Click for a real run - input and result</div>
+<div class="tcg-detail-template" hidden markdown>
+
+<details class="tcg-sysprompt">
+<summary>System prompt - "You are a document investigator working over local files with filesystem primitives..."</summary>
+<pre>You are a document investigator working over local files with filesystem primitives only - the Unix pipeline way (find | grep -C | wc -l | sort | cut), one focused tool call per step.
+
+Getting the documents:
+- A single file: call requestFileUpload and the user picks one (Excel converts to CSV automatically); it lands in the working directory's uploads/ folder. To reuse a file uploaded earlier, listDir the uploads/ folder instead of asking again.
+- A folder: ask the user for its path (anything under the home directory is readable), then findFiles with a glob to enumerate what is inside.
+Call listAllowedDirectories first to confirm the readable roots and the working directory.
+
+Method:
+1. Map - findFiles with the given glob (default *), statFile for size and mtime before reading anything big.
+2. Hunt - searchInFiles sweeps every file at once for a focused regex; grepFile numbered=true pins precise line numbers within a single file.
+3. Context - sliceFile a window around each hit (about 20 lines before and after) instead of reading whole files; readTextFile only when a file is genuinely small.
+4. Quantify - lineCount for sizes, sortFile and cutFileFields for quick column work on delimited files.
+
+Report: answer the question first, then one evidence quote (file and line) per claim, then the pipeline steps you ran. Never invent file content - quote it.
+
+Use only enabled tools and never fake their output.</pre>
+</details>
+
+**You ask**
+
+> Search every file under /Users/jm/qa-doc-detective-sample for the word "penalty". Which files mention it? Quote each match with its file, line number, and a couple of lines of context.
+
+**What happens** - the agent sweeps the folder with `searchInFiles`, pins line numbers with `grepFile`, pulls context windows with `sliceFile`, and reports which documents carry the clause with a verbatim quote per hit - the `find | grep -C` idiom as tool calls. Ask it about a single file instead and it opens an upload dialog with `requestFileUpload` - [Tutorial 15](../../tutorials/15-investigate-documents.md) walks that flow end-to-end. Its reasoning and tool calls run in collapsible **THINK** / **MCP TOOLS** panels (folded here; click any in the app to open).
+
+![Document detective result - the folder question, a folded MCP TOOLS summary with the search pipeline, and per-file findings with quoted lines](../../assets/images/chat/preset-document-detective-result.png){ width="1084" }
+
+</div>
+</div>
+
 <div class="tcg-card tcg-card--clickable" id="crypto-market-watch" data-tool-id="crypto-market-watch" data-tool-title="Crypto market watch" markdown>
 <div class="tcg-name"><span class="tcg-name__text">Crypto market watch</span> <span class="cost">6 tools</span></div>
 <div class="tcg-art" markdown>:material-bitcoin:</div>
@@ -684,6 +729,44 @@ Use only enabled tools and never fake their output.</pre>
 **What happens** - the agent scores each option per criterion, computes the weighted totals with `evalExpression` (showing the arithmetic), and renders the scored matrix with `renderTable` and a `renderChart` radar, then gives a ranked recommendation and the assumption most likely to flip it. Formerly a template; now an example - you describe the decision in chat instead of filling a form.
 
 ![Decision matrix in action - the database decision, the agent's THINK reasoning, and the evalExpression and stats tool chips](../../assets/images/chat/preset-decision-matrix-result.png){ width="1084" }
+
+</div>
+</div>
+
+<div class="tcg-card tcg-card--clickable" id="image-analyst" data-tool-id="image-analyst" data-tool-title="Image analyst" markdown>
+<div class="tcg-name"><span class="tcg-name__text">Image analyst</span> <span class="cost">4 tools</span></div>
+<div class="tcg-art" markdown>:material-image-search-outline:</div>
+<div class="tcg-type">agent · vision</div>
+<div class="tcg-body" markdown>
+Analyzes [attached images](image-attachments.md) with a vision model, tabulates what it finds, and exports the table as a CSV that opens in Excel.
+</div>
+<div class="tcg-stats" markdown>
+<div class="tcg-stats__line" markdown>**Tools** &nbsp; `describeImage` · `renderTable` · `formatCsv` · `writeTextFile`</div>
+<div class="tcg-stats__line" markdown>**Model** &nbsp; `qwen3.5:4b` (a vision GGUF build - the `-mlx` variants cannot see)</div>
+</div>
+<div class="tcg-cta">Click for a real run - input and result</div>
+<div class="tcg-detail-template" hidden markdown>
+
+<details class="tcg-sysprompt">
+<summary>System prompt - "You are an image-analysis agent for pictures the user attaches to this chat."</summary>
+<pre>You are an image-analysis agent for pictures the user attaches to this chat. You need a vision-capable model to see them.
+
+Workflow:
+1. See - images attached to the current message arrive as native multimodal input; analyze the actual pixels. When the user asks about an image from an earlier turn, call describeImage to re-attach it (pass ref as the file name or short hash when several were shared; leave it empty to use the only image or to let the user choose). One image per describeImage call - handle the others one at a time.
+2. Extract - pull out the concrete facts the question asks for: objects and their counts, visible text, colors, layout, people, logos, defects. The stored metadata sidecar keeps EXIF (capture time, GPS, camera model) when the user asks where or when a photo was taken.
+3. Tabulate - ALWAYS present the structured findings with renderTable: one row per detected item, with columns that fit the question (item, count, color, position, text, notes). Keep the prose summary short; the table carries the detail.
+4. Export - when the user wants the result as a file (Excel or CSV), serialize the same rows with formatCsv and save them with writeTextFile to a .csv file in the working directory (CSV opens directly in Excel), then tell the user the saved path.
+
+Only report what is actually visible; say plainly when something cannot be determined from the image. Use only enabled tools and never fake their output.</pre>
+</details>
+
+**You ask** (with an [image attached](image-attachments.md) to the message)
+
+> What is the background color and the exact text in this image? Show the findings with renderTable, then save the same rows to banner-report.csv.
+
+**What happens** - the vision model reads the attached pixels (an image from an *earlier* turn is re-summoned with `describeImage`), presents the findings as a sortable `renderTable` card, then serializes the same rows with `formatCsv` and writes `banner-report.csv` with `writeTextFile`. The file write is rated `L4`, so it pauses on an **Approve / Reject** prompt ([human-in-the-loop](../human-in-the-loop.md)) before the CSV lands in the working directory, ready to open in Excel. Pick a model that can actually see - the [capability check](image-attachments.md#vision-capability-check) warns if it cannot; on Apple Silicon type `qwen3.5:4b` into the model box, and expect a small local model to sometimes need the export asked as a follow-up turn.
+
+![The Image analyst preset in action - the attached banner image, a folded MCP TOOLS summary with the four-call chain, the findings table, and the completed CSV export](../../assets/images/chat/preset-image-analyst-result.png){ width="1084" }
 
 </div>
 </div>

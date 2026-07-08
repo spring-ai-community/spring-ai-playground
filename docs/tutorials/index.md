@@ -2,7 +2,7 @@ description: End-to-end Spring AI Playground tutorials - Tool Studio authoring, 
 
 # Tutorials
 
-These thirteen tutorials walk you from creating a single tool to composing chains over the bundled default catalog, with optional deep-dives off the main path - the MCP protocol surface, re-publishing tools through the MCP Server Proxy, gating tool calls behind human approval, turning a Prompt Library template into a reusable preset, and uploading a file into chat for an agent to analyze. They follow the natural product workflow: build → validate → ground → compose.
+These fifteen tutorials walk you from creating a single tool to composing chains over the bundled default catalog, with optional deep-dives off the main path - the MCP protocol surface, re-publishing tools through the MCP Server Proxy, gating tool calls behind human approval, turning a Prompt Library template into a reusable preset, uploading a file into chat for an agent to analyze, attaching an image for a vision model to see, and investigating documents with a filesystem pipeline. They follow the natural product workflow: build → validate → ground → compose.
 
 The shipped chat default is **`qwen3.5:2b`** - fast, fine for the early tutorials. Switch to **`qwen3.5:9b`** or **`gemma4:e4b`** when you reach tutorials 4-7, where tool-calling reliability matters. Embeddings use **`qwen3-embedding:0.6b`** throughout. See [Picking a model](#picking-a-model) for the tradeoffs.
 
@@ -23,6 +23,8 @@ flowchart LR
   T11["11. Approve in Chat<br/>Human-in-the-Loop"]
   T12["12. Template to Preset<br/>Prompt Library"]
   T13["13. Upload & Analyze<br/>requestFileUpload"]
+  T14["14. Attach an Image<br/>native vision input"]
+  T15["15. Investigate Documents<br/>Unix-pipeline tools"]
   T1 --> T2
   T2 --> T4
   T3 --> T5
@@ -35,6 +37,8 @@ flowchart LR
   T4 -. approve .-> T11
   T4 -. preset .-> T12
   T4 -. upload .-> T13
+  T4 -. vision .-> T14
+  T13 -. pipeline .-> T15
   classDef build fill:#eef2ff,stroke:#3F51B5,color:#1e1b4b
   classDef validate fill:#ecfdf5,stroke:#10b981,color:#064e3b
   classDef ground fill:#fff7ed,stroke:#f59e0b,color:#7c2d12
@@ -44,10 +48,10 @@ flowchart LR
   class T2 validate
   class T3 ground
   class T4,T5,T6,T7,T8 compose
-  class T9,T10,T11,T12,T13 bonus
+  class T9,T10,T11,T12,T13,T14,T15 bonus
 ```
 
-Tutorials 1-3 produce reusable assets (a tool, an MCP connection, an indexed document). Tutorials 4-8 compose those assets in chat (4-6) and as code-level chains over the bundled default catalog (7-8). Tutorial 9 is an optional **deep dive** off Tutorial 2 - activate MCP Everything from the Default MCP Servers and exercise every Inspector primitive (Tools / Resources / Prompts / Ping / Notifications / Roots / Sampling / Elicitation) end-to-end. Tutorial 10 is a second deep dive off Tutorial 2 - re-publish a connected server's tool through the built-in [MCP Server Proxy](../features/mcp-server/proxy.md) so chat and external clients can call it. Each tutorial is independently runnable in 3-20 minutes; the full main sequence takes about 50 minutes, plus ~23 minutes for the three deep dives (MCP Everything, Server Proxy, and Human-in-the-Loop approval).
+Tutorials 1-3 produce reusable assets (a tool, an MCP connection, an indexed document). Tutorials 4-8 compose those assets in chat (4-6) and as code-level chains over the bundled default catalog (7-8). Tutorial 9 is an optional **deep dive** off Tutorial 2 - activate MCP Everything from the Default MCP Servers and exercise every Inspector primitive (Tools / Resources / Prompts / Ping / Notifications / Roots / Sampling / Elicitation) end-to-end. Tutorial 10 is a second deep dive off Tutorial 2 - re-publish a connected server's tool through the built-in [MCP Server Proxy](../features/mcp-server/proxy.md) so chat and external clients can call it. Each tutorial is independently runnable in 3-20 minutes; the full main sequence takes about 50 minutes, plus ~44 minutes for the deep dives (MCP Everything, Server Proxy, Human-in-the-Loop approval, the file and image attachments, and the document pipeline).
 
 !!! abstract "What you'll need"
     - Spring AI Playground running on `http://localhost:8282`. Follow [Getting Started](../getting-started/index.md) first if you haven't.
@@ -153,6 +157,20 @@ Tutorials 1-3 produce reusable assets (a tool, an MCP connection, an indexed doc
 
     Upload a CSV or Excel file with the interactive requestFileUpload tool, then have the agent read and analyze it.  
     **7 min** · ★★☆ · Agentic Chat · *deep dive*
+
+-   :material-image-search-outline:{ .lg .middle } **[14. Attach and Analyze an Image](14-analyze-an-image.md)**
+
+    ---
+
+    Attach an image to the chat and have a local vision model analyze it, then re-reference it later with describeImage.  
+    **5 min** · ★☆☆ · Agentic Chat · *deep dive*
+
+-   :material-text-box-search-outline:{ .lg .middle } **[15. Investigate Documents with a Pipeline](15-investigate-documents.md)**
+
+    ---
+
+    Upload a contract with the Document detective preset and pull facts out of it the Unix-pipeline way - find, grep, slice, quote with line numbers.  
+    **6 min** · ★★☆ · Agentic Chat · *deep dive*
 
 </div>
 

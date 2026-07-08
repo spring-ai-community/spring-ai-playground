@@ -112,6 +112,7 @@ nav:
           - "Self-equipping Agents": features/agentic-chat/dynamic-tool-discovery.md
           - "Prompt Templates": features/agentic-chat/prompt-templates.md
           - "Prompt Presets": features/agentic-chat/prompt-presets.md
+          - "Image Attachments": features/agentic-chat/image-attachments.md
       - "Human-in-the-Loop": features/human-in-the-loop.md
       - "Observability":
           - features/observability/index.md
@@ -150,6 +151,8 @@ nav:
       - "11. Approve a Tool in Chat": tutorials/11-human-approval.md
       - "12. Template to Preset": tutorials/12-template-to-preset.md
       - "13. Upload and Analyze a File": tutorials/13-upload-a-file.md
+      - "14. Attach and Analyze an Image": tutorials/14-analyze-an-image.md
+      - "15. Investigate Documents": tutorials/15-investigate-documents.md
   # Changelog is published in the repo as CHANGELOG.md (and rendered at
   # /changelog/ when reached by URL via the docs/changelog.md include).
   # Intentionally omitted from main nav to avoid duplicating GitHub-hosted

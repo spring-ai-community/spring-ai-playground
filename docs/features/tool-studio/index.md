@@ -76,7 +76,7 @@ The JS-on-JVM design is what lets every tool in this app - both the bundled defa
 Concretely:
 
 - One artifact runs on all three OSes - the same JAR is repackaged into the Docker image and the Electron-packaged desktop launcher, all from one `pom.xml`. See [Getting Started](../../getting-started/index.md) for the platform-specific launchers.
-- All 114 default tools are pure JavaScript executed through GraalVM Polyglot. No native dependencies, no per-OS build step, no install-time compile.
+- All 115 default tools are pure JavaScript executed through GraalVM Polyglot. No native dependencies, no per-OS build step, no install-time compile.
 - Every cross-bridged helper resolves to a Java standard library or well-known JVM library, so platform quirks are handled at the JVM layer:
     - `safety.fs` rides on `java.nio.file.Path` / `Files` - `/` vs `\` and case folding are normalised before any I/O.
     - `fetch` uses the JDK `HttpClient` - same TLS stack, same redirect handling, same connection pool everywhere.
@@ -404,7 +404,7 @@ You can keep many tools in your workspace, expose only a controlled subset, vali
 
 </div>
 
-The app ships with a bundled catalog of **114 default tools** across six JSON source bundles. They are ready to call from chat the moment a model provider is connected, and they also serve as editable references when you start writing your own.
+The app ships with a bundled catalog of **115 default tools** across six JSON source bundles. They are ready to call from chat the moment a model provider is connected, and they also serve as editable references when you start writing your own.
 
 **Not all of them are Local-Passed (active) by default.** A **preset** decides the starting Local-Passed subset, and **include / exclude rules** layer per-tool tweaks on top. Each preset stands on its own - `Dev Essentials`, `Korea Toolkit`, and `File Toolkit` do **not** automatically inherit Starter 5 (only `getCurrentTime` and `evalExpression` carry through deliberately).
 
@@ -414,7 +414,7 @@ The app ships with a bundled catalog of **114 default tools** across six JSON so
 | `Dev Essentials` | `getCurrentTime`, `evalExpression`, `uuid`, `hash`, `base64`, `jwtDecode`, `regexExtract` | Everyday local utilities |
 | `Korea Toolkit (free)` | `getCurrentTime`, `evalExpression`, `getUpbitTicker`, `getBithumbTicker`, `searchKpopOnItunes`, `searchKBeautyProducts` | Free Korean services |
 | `File Toolkit` | `getCurrentTime`, `evalExpression`, `listAllowedDirectories`, `readTextFile`, `listDir`, `grepFile`, `findFiles`, `sliceFile`, `sortFile`, `cutFileFields` | Filesystem read pipeline - reads anywhere under home, writes to the working directory; set `TOOL_STUDIO_FS_BASE` to relocate it (default `${user.home}/spring-ai-playground/workspace`) |
-| `Everything` | All 114 default tools | Heavy MCP catalog |
+| `Everything` | All 115 default tools | Heavy MCP catalog |
 
 Per-tool **include / exclude rules** layer on top: name-add → tag-add → category-add → name-remove → tag-remove → category-remove. These rules are configured at setup - the desktop launcher's **Default MCP Tools** card (include-by-tag / -category / -name, exclude-by-tag / -name) or CLI / yaml; `exclude.categories` is data-supported but currently only reachable via CLI / yaml override.
 

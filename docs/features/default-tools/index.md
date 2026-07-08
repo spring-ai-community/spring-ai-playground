@@ -1,10 +1,10 @@
-description: Default Tools - 107 ready-to-call JavaScript tools across 6 source bundles, exposed through the built-in MCP server, OS-agnostic by design.
+description: Default Tools - 108 ready-to-call JavaScript tools across 6 source bundles, exposed through the built-in MCP server, OS-agnostic by design.
 
 # Default Tools
 
 **Where:** top navigation → **Tool Studio** - the default tools ship pre-loaded; tune the exposed subset in the **Built-in MCP Server Native Tools** drawer.
 
-Spring AI Playground ships with **114 default tools** spread across six JSON source bundles. They are ready to call the moment a model provider is connected - you do not need to author anything yourself to see agentic workflows work end-to-end. They also serve as editable references when you start writing your own tools.
+Spring AI Playground ships with **115 default tools** spread across six JSON source bundles. They are ready to call the moment a model provider is connected - you do not need to author anything yourself to see agentic workflows work end-to-end. They also serve as editable references when you start writing your own tools.
 
 Tools that reach an external API read their keys from **environment variables** - each tool's card below lists the variables it needs. How to supply env vars (desktop launcher, Docker `-e`, or a source run) is covered once in the [Configuration reference](../../getting-started/configuration.md#how).
 
@@ -35,12 +35,12 @@ Every tool carries a **Risk Level** (`L0`-`L5`) - the sandbox posture the [Safe 
 | <span class="rl rl-l4">L4 - Broad access</span> | File *write*, `*` allowlist / `open` egress, or reflection class added | the file write / append / edit / copy filesystem tools |
 | <span class="rl rl-l5">L5 - Unsandboxed</span> | `System` / `Runtime` / `Process` re-enabled, raw file-write class, or a `destructive` filesystem tool | the destructive move / delete / deleteDir tools |
 
-Levels are derived from each tool's declared `sandboxOverrides` (by `SandboxPostureCalculator`); the full bullet-by-bullet rule set is in [AI Agent Tool Safety → Risk Level decision matrix](../../safety-architecture.md#risk-level-decision-matrix). Across the 114 default tools: **49 are L0**, **58 are L3** (allowlisted-host `fetch` or file read/search), **4 are L4** (file write / append / edit / copy), and **3 are L5** (the `destructive` move / delete / deleteDir tools). Every L4 and L5 filesystem tool is additionally gated by human-in-the-loop approval, which lowers its *effective* chip by one band (`L4 → L3`, `L5 → L4`) while the inherent level shown here still drives sandbox permissions and the audit log.
+Levels are derived from each tool's declared `sandboxOverrides` (by `SandboxPostureCalculator`); the full bullet-by-bullet rule set is in [AI Agent Tool Safety → Risk Level decision matrix](../../safety-architecture.md#risk-level-decision-matrix). Across the 115 default tools: **50 are L0**, **58 are L3** (allowlisted-host `fetch` or file read/search), **4 are L4** (file write / append / edit / copy), and **3 are L5** (the `destructive` move / delete / deleteDir tools). Every L4 and L5 filesystem tool is additionally gated by human-in-the-loop approval, which lowers its *effective* chip by one band (`L4 → L3`, `L5 → L4`) while the inherent level shown here still drives sandbox permissions and the audit log.
 
 !!! question "Why no L1 or L2 here?"
     The **sandbox** rubric only ever produces **L0 / L3 / L4 / L5** - the calculator jumps from the `L0` baseline straight to `L3` the moment a tool declares *any* widening (network, file, or class change), so a tool is never L1 or L2. `L1` (*Safe*) and `L2` (*Low*) exist only in the [MCP server rubric](../../mcp-server-safety.md#risk-chip), which scores a different thing (connecting to an external server) on the same `L0`-`L5` enum.
 
-## Browse all 107 tools { #browse-all-tools }
+## Browse all 108 tools { #browse-all-tools }
 
 Click a card to jump to its full reference (with the JS source pre-expanded) on the right sub-page - same UX as the **Built-in MCP Server Native Tools** drawer in Tool Studio. Six reference pages organise the catalog by source bundle and concern: [Examples](examples.md) · [Utilities](utilities.md) · [Filesystem](filesystem.md) · [Global](global.md) · [Korea](korea.md) · [Visualization](visualization.md).
 
@@ -59,7 +59,7 @@ Click a card to jump to its full reference (with the JS source pre-expanded) on 
 <span class="tool-directory__chip-label">Category</span> <button class="tool-directory__chip" data-group="category" data-value="ai" aria-pressed="false">AI</button> <button class="tool-directory__chip" data-group="category" data-value="crypto" aria-pressed="false">CRYPTO</button> <button class="tool-directory__chip" data-group="category" data-value="data" aria-pressed="false">DATA</button> <button class="tool-directory__chip" data-group="category" data-value="datetime" aria-pressed="false">DATETIME</button> <button class="tool-directory__chip" data-group="category" data-value="encoding" aria-pressed="false">ENCODING</button> <button class="tool-directory__chip" data-group="category" data-value="file" aria-pressed="false">FILE</button> <button class="tool-directory__chip" data-group="category" data-value="math" aria-pressed="false">MATH</button> <button class="tool-directory__chip" data-group="category" data-value="messaging" aria-pressed="false">MESSAGING</button> <button class="tool-directory__chip" data-group="category" data-value="productivity" aria-pressed="false">PRODUCTIVITY</button> <button class="tool-directory__chip" data-group="category" data-value="security" aria-pressed="false">SECURITY</button> <button class="tool-directory__chip" data-group="category" data-value="text" aria-pressed="false">TEXT</button> <button class="tool-directory__chip" data-group="category" data-value="web" aria-pressed="false">WEB</button>
 </div>
 </div>
-<div class="tool-directory__count">Showing 107 of 107 tools</div>
+<div class="tool-directory__count">Showing 108 of 108 tools</div>
 <div class="tool-directory__list" markdown>
 
 <div class="tcg-grid tcg-grid--directory" markdown>
@@ -149,6 +149,21 @@ Opens an upload dialog in chat; the user uploads a file (Excel auto-converts to 
 </div>
 <div class="tcg-stats" markdown>
 <div class="tcg-stats__line" markdown>**Params** &nbsp; `prompt` · `accept`</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
+</div>
+<div class="tcg-page">→ Examples</div>
+</div>
+
+<div class="tcg-card tcg-card--directory" data-name="describeimage" data-desc="analyze or describe an image the user shared in this conversation. the chat resolves the reference and attaches the image with its metadata so a vision-capable model can see it." data-category="productivity" data-tags="util" data-preset="" data-env="" markdown>
+<a class="tcg-stretched-link" href="examples/#describeImage" aria-label="Open describeImage in Examples">describeImage</a>
+<div class="tcg-name"><span class="tcg-name__text">describeImage</span> <span class="cost">🆓</span></div>
+<div class="tcg-art" markdown>:material-image-search-outline:</div>
+<div class="tcg-type">productivity · util <span class="risk risk-l0">L0</span></div>
+<div class="tcg-body" markdown>
+Re-attaches an image the user shared earlier (or asks for one) so a vision model can analyze it - even images from turns outside the context window.
+</div>
+<div class="tcg-stats" markdown>
+<div class="tcg-stats__line" markdown>**Params** &nbsp; `ref` · `question`</div>
 <div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
 </div>
 <div class="tcg-page">→ Examples</div>
@@ -1848,7 +1863,7 @@ The two transports differ in **who owns the server's lifetime**: in Streamable H
 
 Most MCP server implementations ship one **native binary per OS** (Python wheels, Node binaries, Go / Rust executables) and require the user to install a platform-matching build, often plus a toolchain (Python, Node, Cargo) to author new tools.
 
-Spring AI Playground's tool runtime is **OS-agnostic by design**. One JVM artifact - distributed as a JAR, a Docker image, or an Electron-packaged desktop launcher - runs identically on macOS, Windows, and Linux. All 114 default tools are pure JavaScript executed through GraalVM Polyglot, and so is every tool you author. There is no per-OS build step, no native dependency, no toolchain on the user's machine.
+Spring AI Playground's tool runtime is **OS-agnostic by design**. One JVM artifact - distributed as a JAR, a Docker image, or an Electron-packaged desktop launcher - runs identically on macOS, Windows, and Linux. All 115 default tools are pure JavaScript executed through GraalVM Polyglot, and so is every tool you author. There is no per-OS build step, no native dependency, no toolchain on the user's machine.
 
 Full mechanics - including how every cross-bridged helper rides on JVM stdlib so `/` vs `\`, TLS, parsers, and crypto behave identically across OSes - in [Tool Studio → Cross-platform by design](../tool-studio/index.md#cross-platform-by-design).
 

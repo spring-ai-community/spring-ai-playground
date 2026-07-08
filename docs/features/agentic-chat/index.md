@@ -13,6 +13,7 @@ This unified interface lets you:
 - run RAG workflows grounded in indexed documents
 - execute tool-enabled agent flows through MCP
 - steer the model with reusable system-prompt **[presets](prompt-presets.md)** and **[templates](prompt-templates.md)** from the Prompt Library
+- attach **[images](image-attachments.md)** for native multimodal input to vision-capable models
 - dial **reasoning effort** up or down per turn
 - read responses with syntax-highlighted code, rendered math, and diagrams
 - test complete agent strategies by combining documents and tools in a single chat session
@@ -66,6 +67,10 @@ Ticking one mode unticks the other. Beside the popover, the **MCP servers** sele
 By default a chat sends the model the full schema of every tool you expose - fine for a handful, but a broad agent setup can push **tens of thousands of tokens of definitions into every turn**. **Dynamic tool discovery** removes that cost: the chat hands the model a single `toolSearchTool`, and the model searches the catalog on demand instead of receiving every definition up front. Tick it at the top of the tool popover (the exposed-tools box then reads **Dynamic — searching all tools**); it stays disabled until the searchable pool clears the `tool-search.min-tools` floor (default 10), so add more in [Tool Studio](../tool-studio/index.md) if it is greyed out.
 
 It is also how the built-in **[Self-equipping agent](prompt-presets.md)** preset works. For the full picture - why it matters for agents, the 34-64% token-savings experiment behind it, how it lets a small local model drive a large toolbox, and the configuration - see **[Dynamic tool discovery](dynamic-tool-discovery.md)**.
+
+### Image attachments
+
+The picture icon by the prompt box attaches images (up to five per message) - or drop a file onto the prompt, or paste a screenshot. Attached images show as removable chips above the prompt, are resized and EXIF-tagged in the browser, stored content-addressed under the playground home, and sent to the model as native multimodal input. A capability check warns when the selected model cannot actually see (including the mlx false-positive case on Apple Silicon). The full pipeline - storage, vision checks, error handling, and the `describeImage` re-reference tool - is on the [Image Attachments](image-attachments.md) page.
 
 ### Voice input
 
@@ -264,7 +269,7 @@ By leveraging these elements, Agentic Chat goes beyond basic Q&A and becomes a p
 
 Agentic Chat is a **consumer** of three inventories curated elsewhere in the Playground. Use these references to know what's available before composing a chat session:
 
-- **[Default Tools](../default-tools/index.md)** - 107 pre-loaded built-in tools (Examples · Utilities · Filesystem · Global · Korea · Visualization) callable directly from chat without any external setup. Each carries a Risk Level (L0-L5) and `${ENV_VAR}` requirements per page.
+- **[Default Tools](../default-tools/index.md)** - 108 pre-loaded built-in tools (Examples · Utilities · Filesystem · Global · Korea · Visualization) callable directly from chat without any external setup. Each carries a Risk Level (L0-L5) and `${ENV_VAR}` requirements per page.
 - **[Default MCP Servers](../default-mcp-catalog/index.md)** - 57 preset external MCP server connections (Gmail, Notion, GitHub, Linear, BigQuery, Stripe, ...). One-click activation from the MCP Server sidebar adds them as tool sources for chat.
 - **[Vector Database](../vector-database.md)** - indexed document collections that the **RAG advisor chain** retrieves from at chat time (`SpringAiPlaygroundRagAdvisor` short-circuits when no documents are selected, so retrieval is opt-in per conversation).
 

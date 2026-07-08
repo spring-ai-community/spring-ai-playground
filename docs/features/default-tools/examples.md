@@ -383,6 +383,48 @@ return 'File upload is interactive and only runs inside the Spring AI Playground
 </div>
 </div>
 
+<div class="tcg-card tcg-card--clickable" id="describeImage" data-tool-id="describeImage" data-tool-title="describeImage" markdown>
+<div class="tcg-name"><span class="tcg-name__text">describeImage</span> <span class="cost">🆓</span></div>
+<div class="tcg-art" markdown>:material-image-search-outline:</div>
+<div class="tcg-type">productivity · util <span class="risk risk-l0">L0</span></div>
+<div class="tcg-body" markdown>
+Analyzes an image the user shared in this conversation - the chat resolves the reference and attaches the image with its metadata so a vision-capable model can see it.
+</div>
+<div class="tcg-stats" markdown>
+<div class="tcg-stats__line" markdown>**Params** &nbsp; `ref` · `question`</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; -</div>
+</div>
+<div class="tcg-cta">Click for full reference · params · sandbox · JS source</div>
+<div class="tcg-detail-template" hidden markdown>
+
+**More detail**
+
+In Agentic Chat this tool is interactive: when the model calls it, the chat looks up the conversation's stored images (every attached image is saved content-addressed under the conversation's workspace `images/` directory). If `ref` names a stored image it is loaded directly; with no `ref` and exactly one stored image that image is used; with several the chat opens a chooser dialog; with none it opens an upload dialog. The resolved image and its metadata are then attached to the next model call as native multimodal content, so a vision-capable model actually sees the pixels - including images from turns that have already fallen out of the context window ("what was in that photo I sent earlier?"). Outside the chat (Tool Studio, an external MCP client) there is no image UI, so it returns a notice instead.
+
+**Parameters**
+
+| Param | Type | Req | Description |
+|---|---|---|---|
+| `ref` | `STRING` |  | Optional identifier of the image to analyze (its hash or file name shown earlier). Leave empty to use the only image or to let the user choose. |
+| `question` | `STRING` |  | Optional specific question about the image. |
+
+**Sandbox** - Runs at the sandbox **L0** baseline (Safest) - pure compute: no network, no filesystem. The image is loaded and attached by the host's chat interceptor, not by the tool's JS.
+
+<details class="tcg-sysprompt" markdown>
+<summary>JS source</summary>
+
+````javascript
+// Interactive image analysis. In the chat UI the host intercepts this call,
+// resolves the referenced image (asking the user when needed), and attaches it
+// with its metadata so a vision model can see it. Outside the chat there is no image UI.
+return 'Image analysis is interactive and only runs inside the Spring AI Playground chat. When called there it attaches the referenced image and its metadata for a vision-capable model. No image interface is available in this context.';
+````
+
+</details>
+
+</div>
+</div>
+
 <div class="tcg-card tcg-card--clickable" id="getWeather" data-tool-id="getWeather" data-tool-title="getWeather" markdown>
 <div class="tcg-name"><span class="tcg-name__text">getWeather</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:material-weather-partly-cloudy:</div>
