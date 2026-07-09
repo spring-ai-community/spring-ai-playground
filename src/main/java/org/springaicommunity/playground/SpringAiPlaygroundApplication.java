@@ -15,7 +15,6 @@
  */
 package org.springaicommunity.playground;
 
-import com.vaadin.flow.component.dependency.JavaScript;
 import com.vaadin.flow.component.dependency.StyleSheet;
 import com.vaadin.flow.component.page.AppShellConfigurator;
 import com.vaadin.flow.component.page.Inline;
@@ -70,7 +69,6 @@ import java.util.function.Predicate;
 @StyleSheet(Lumo.UTILITY_STYLESHEET)
 @Push
 @PWA(name = "Spring AI Playground", shortName = "Playground", offlinePath = "offline.html")
-@JavaScript("./playground/pwa-installer.js")
 @SpringBootApplication
 @ConfigurationPropertiesScan
 @EnableScheduling

@@ -72,14 +72,8 @@
     <suppress files="src[\\/]main[\\/]java[\\/]org[\\/]springaicommunity[\\/]playground[\\/]webui[\\/]VaadinUtils\.java$" checks=".*"/>
     <suppress files="src[\\/]main[\\/]java[\\/]org[\\/]springaicommunity[\\/]playground[\\/]webui[\\/]chat[\\/]ChatHistoryView\.java$" checks=".*"/>
     <suppress files="src[\\/]main[\\/]java[\\/]org[\\/]springaicommunity[\\/]playground[\\/]webui[\\/]common[\\/]WorkspaceContentHeader\.java$" checks=".*"/>
-    <suppress files="src[\\/]main[\\/]java[\\/]org[\\/]springaicommunity[\\/]playground[\\/]webui[\\/]home[\\/]HomeChecklist\.java$" checks=".*"/>
-    <suppress files="src[\\/]main[\\/]java[\\/]org[\\/]springaicommunity[\\/]playground[\\/]webui[\\/]home[\\/]HomeInfoView\.java$" checks=".*"/>
-    <suppress files="src[\\/]main[\\/]java[\\/]org[\\/]springaicommunity[\\/]playground[\\/]webui[\\/]home[\\/]HomeItemView\.java$" checks=".*"/>
-    <suppress files="src[\\/]main[\\/]java[\\/]org[\\/]springaicommunity[\\/]playground[\\/]webui[\\/]home[\\/]HomeProviderStatus\.java$" checks=".*"/>
     <suppress files="src[\\/]main[\\/]java[\\/]org[\\/]springaicommunity[\\/]playground[\\/]webui[\\/]home[\\/]HomeRecentActivity\.java$" checks=".*"/>
-    <suppress files="src[\\/]main[\\/]java[\\/]org[\\/]springaicommunity[\\/]playground[\\/]webui[\\/]home[\\/]HomeSurfaceCards\.java$" checks=".*"/>
     <suppress files="src[\\/]main[\\/]java[\\/]org[\\/]springaicommunity[\\/]playground[\\/]webui[\\/]home[\\/]HomeUi\.java$" checks=".*"/>
-    <suppress files="src[\\/]main[\\/]java[\\/]org[\\/]springaicommunity[\\/]playground[\\/]webui[\\/]home[\\/]HomeView\.java$" checks=".*"/>
     <suppress files="src[\\/]main[\\/]java[\\/]org[\\/]springaicommunity[\\/]playground[\\/]webui[\\/]mcp[\\/]OAuth21SubForm\.java$" checks=".*"/>
     <suppress files="src[\\/]main[\\/]java[\\/]org[\\/]springaicommunity[\\/]playground[\\/]webui[\\/]mcp[\\/]OAuthCompleteView\.java$" checks=".*"/>
     <suppress files="src[\\/]main[\\/]java[\\/]org[\\/]springaicommunity[\\/]playground[\\/]webui[\\/]mcp[\\/]inspector[\\/]ElicitationTab\.java$" checks=".*"/>
