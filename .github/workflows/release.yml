@@ -245,29 +245,40 @@ jobs:
             artifact_paths: |
               electron/dist/*x64*.dmg
 
+          # Windows and Linux ship electron-updater metadata (latest*.yml) so
+          # installed apps can self-update; macOS stays download-only because
+          # Squirrel.Mac requires a signed build.
           - name: Windows NSIS
             runs_on: windows-latest
             dist_command: npm run dist:win
             artifact_name: spring-ai-playground-windows-nsis
             artifact_paths: |
               electron/dist/*.exe
+              electron/dist/*.exe.blockmap
+              electron/dist/latest.yml
 
           # Linux DEB and RPM run as separate matrix entries so each format
           # builds on its own runner in parallel. `electron-builder --linux deb rpm`
-          # would otherwise build them sequentially inside one job.
+          # would otherwise build them sequentially inside one job. Each job
+          # renames its latest-linux.yml per format; publish-release merges the
+          # two back into the single latest-linux.yml electron-updater expects.
           - name: Linux DEB
             runs_on: ubuntu-latest
             dist_command: npm run dist:linux:deb
+            update_metadata_format: deb
             artifact_name: spring-ai-playground-linux-deb
             artifact_paths: |
               electron/dist/*.deb
+              electron/dist/latest-linux-deb.yml
 
           - name: Linux RPM
             runs_on: ubuntu-latest
             dist_command: npm run dist:linux:rpm
+            update_metadata_format: rpm
             artifact_name: spring-ai-playground-linux-rpm
             artifact_paths: |
               electron/dist/*.rpm
+              electron/dist/latest-linux-rpm.yml
 
     steps:
       - name: Checkout
@@ -361,6 +372,11 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: ${{ matrix.dist_command }}
 
+      - name: Stage per-format Linux update metadata
+        if: matrix.update_metadata_format != ''
+        working-directory: electron/dist
+        run: mv latest-linux.yml "latest-linux-${{ matrix.update_metadata_format }}.yml"
+
       - name: Upload installer artifacts
         uses: actions/upload-artifact@v6
         with:
@@ -396,6 +412,29 @@ jobs:
           path: release-assets
           pattern: spring-ai-playground-*
           merge-multiple: true
+
+      # Recombine the per-format Linux metadata into the single
+      # latest-linux.yml that DebUpdater/RpmUpdater resolve at runtime.
+      - name: Merge Linux update metadata
+        working-directory: release-assets
+        run: |
+          python3 -m pip install --quiet pyyaml
+          python3 - <<'EOF'
+          import os
+          import yaml
+          parts = [p for p in ('latest-linux-deb.yml', 'latest-linux-rpm.yml') if os.path.exists(p)]
+          if parts:
+              merged = yaml.safe_load(open(parts[0]))
+              for part in parts[1:]:
+                  merged['files'] = merged.get('files', []) + yaml.safe_load(open(part)).get('files', [])
+              with open('latest-linux.yml', 'w') as f:
+                  yaml.safe_dump(merged, f, sort_keys=False)
+              for part in parts:
+                  os.remove(part)
+              print('merged', parts, '-> latest-linux.yml')
+          else:
+              print('no linux update metadata to merge')
+          EOF
 
       - name: Generate SHA-256 checksums
         working-directory: release-assets
@@ -448,8 +487,10 @@ jobs:
           files: |
             release-assets/*.dmg
             release-assets/*.exe
+            release-assets/*.exe.blockmap
             release-assets/*.deb
             release-assets/*.rpm
             release-assets/*.jar
             release-assets/*.sha256
+            release-assets/latest*.yml
           generate_release_notes: true

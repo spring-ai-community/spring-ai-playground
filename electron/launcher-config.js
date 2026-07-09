@@ -10,6 +10,8 @@ const OLLAMA_MANAGER_PRELOAD_PATH = path.join(__dirname, 'ollama-manager-preload
 const SPLASH_PATH = path.join(__dirname, 'splash.html');
 const CONFIG_EDITOR_PATH = path.join(__dirname, 'config-editor.html');
 const OLLAMA_MANAGER_PATH = path.join(__dirname, 'ollama-manager.html');
+const WHISPER_MANAGER_PATH = path.join(__dirname, 'whisper-manager.html');
+const WHISPER_MANAGER_PRELOAD_PATH = path.join(__dirname, 'whisper-manager-preload.js');
 const SERVER_SPLASH_PATH = path.join(__dirname, 'server-splash.html');
 
 const CONFIG_TEMPLATES = {
@@ -332,6 +334,8 @@ module.exports = {
   SPLASH_PATH,
   CONFIG_EDITOR_PATH,
   OLLAMA_MANAGER_PATH,
+  WHISPER_MANAGER_PATH,
+  WHISPER_MANAGER_PRELOAD_PATH,
   SERVER_SPLASH_PATH,
   CONFIG_TEMPLATES,
   DEFAULT_STARTER_TEMPLATE_IDS,

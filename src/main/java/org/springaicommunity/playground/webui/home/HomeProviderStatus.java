@@ -104,6 +104,7 @@ class HomeProviderStatus extends Div {
                     .set("color", "var(--lumo-primary-text-color)")
                     .set("text-decoration", "none")
                     .set("font-weight", "500");
+            HomeUi.routeToLauncherOnDesktop(configureLink, "config-card");
             pill.add(configureLink);
             this.chatReadinessDot = null;
             this.chatReadinessLabel = null;

@@ -367,6 +367,7 @@ public class HomeInfoView extends Div {
         configure.setTarget("_blank");
         configure.getElement().setAttribute("rel", "noopener");
         styleCtaAnchor(configure);
+        HomeUi.routeToLauncherOnDesktop(configure, "config-card");
 
         Button dismiss = new Button(VaadinIcon.CLOSE_SMALL.create(),
                 e -> alertBannerSlot.setVisible(false));

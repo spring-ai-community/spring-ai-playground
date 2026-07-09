@@ -340,6 +340,7 @@ class HomeSystemPanel extends Div {
                 .set("color", "var(--lumo-primary-text-color)")
                 .set("text-decoration", "none")
                 .set("font-size", "var(--lumo-font-size-xs)");
+        HomeUi.routeToLauncherOnDesktop(docs, "env-card");
         envDetail.add(docs);
         return envDetail;
     }
