@@ -15,7 +15,7 @@
  */
 package org.springaicommunity.playground.service.tool;
 
-public interface FileUploadHandler {
+public interface FileUploadHandler extends PendingInteraction {
 
     String TOOL_CONTEXT_KEY = "fileUploadHandler";
 

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.springaicommunity.playground.service.mcp;
+package org.springaicommunity.playground.service.agent;
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
@@ -46,15 +46,15 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-class McpToolCallingManagerUnknownToolTest {
+class AgentLoopManagerUnknownToolTest {
 
     private final ToolCallingManager delegate = mock(ToolCallingManager.class);
 
     @SuppressWarnings("unchecked")
-    private McpToolCallingManager manager() {
+    private AgentLoopManager manager() {
         ObjectProvider<ToolSpecService> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(mock(ToolSpecService.class));
-        return new McpToolCallingManager(delegate, provider, new SimpleMeterRegistry(), 12_000);
+        return new AgentLoopManager(delegate, provider, new SimpleMeterRegistry(), 12_000);
     }
 
     private static ToolCallback callbackNamed(String name) {
@@ -134,8 +134,10 @@ class McpToolCallingManagerUnknownToolTest {
         assertEquals(1, options.getToolCallbacks().size());
     }
 
+    // A hallucinated call with zero registered tools used to crash in the delegate; now it gets
+    // the same guard callback as any other unknown name.
     @Test
-    void testPromptWithoutCallbacksIsNotGuarded() {
+    void testPromptWithoutCallbacksStillGetsTheGuard() {
         stubDelegatePassThrough();
         Prompt prompt = new Prompt(List.of(new UserMessage("do it")),
                 ToolCallingChatOptions.builder().toolContext(Map.of()).build());
@@ -145,6 +147,10 @@ class McpToolCallingManagerUnknownToolTest {
 
         ArgumentCaptor<Prompt> captor = ArgumentCaptor.forClass(Prompt.class);
         verify(delegate).executeToolCalls(captor.capture(), any());
-        assertSame(prompt, captor.getValue());
+        ToolCallingChatOptions options = (ToolCallingChatOptions) captor.getValue().getOptions();
+        ToolCallback guard = options.getToolCallbacks().stream()
+                .filter(callback -> "anything".equals(callback.getToolDefinition().name()))
+                .findFirst().orElseThrow();
+        assertTrue(guard.call("{}").contains("Unknown tool 'anything'"));
     }
 }

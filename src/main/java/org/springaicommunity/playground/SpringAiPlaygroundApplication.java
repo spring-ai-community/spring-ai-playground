@@ -37,7 +37,7 @@ import org.springaicommunity.playground.service.chat.ChatHistoryService;
 import org.springaicommunity.playground.service.chat.HybridToolIndex;
 import org.springaicommunity.playground.service.chat.LlmWindowChatMemory;
 import org.springaicommunity.playground.service.chat.PersistentToolIndex;
-import org.springaicommunity.playground.service.mcp.McpToolCallingManager;
+import org.springaicommunity.playground.service.agent.AgentLoopManager;
 import org.springaicommunity.playground.webui.GoogleAnalyticsNavigationListener;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.ChatMemoryRepository;
@@ -200,9 +200,9 @@ public class SpringAiPlaygroundApplication implements AppShellConfigurator {
     }
 
     @Bean
-    public ToolCallingAdvisor toolCallingAdvisor(McpToolCallingManager mcpToolCallingManager) {
+    public ToolCallingAdvisor toolCallingAdvisor(AgentLoopManager agentLoopManager) {
         return ToolCallingAdvisor.builder()
-                .toolCallingManager(mcpToolCallingManager)
+                .toolCallingManager(agentLoopManager)
                 .build();
     }
 
@@ -244,10 +244,10 @@ public class SpringAiPlaygroundApplication implements AppShellConfigurator {
     @Bean
     @ConditionalOnProperty(prefix = "spring.ai.playground.chat.tool-search", name = "enabled",
             matchIfMissing = true)
-    public ToolSearchToolCallingAdvisor dynamicToolCallingAdvisor(McpToolCallingManager mcpToolCallingManager,
+    public ToolSearchToolCallingAdvisor dynamicToolCallingAdvisor(AgentLoopManager agentLoopManager,
             ToolIndex toolIndex, SpringAiPlaygroundOptions playgroundOptions) {
         return ToolSearchToolCallingAdvisor.builder()
-                .toolCallingManager(mcpToolCallingManager)
+                .toolCallingManager(agentLoopManager)
                 .toolIndex(toolIndex)
                 .maxResults(playgroundOptions.chat().toolSearch().maxResults())
                 .systemMessageSuffix(DYNAMIC_TOOLS_SUFFIX)

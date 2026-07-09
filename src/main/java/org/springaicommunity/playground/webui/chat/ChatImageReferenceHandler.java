@@ -24,6 +24,7 @@ import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springaicommunity.playground.service.agent.AgentTurnMessages;
 import org.springaicommunity.playground.service.tool.ChatImageStore;
 import org.springaicommunity.playground.service.tool.ImageReferenceHandler;
 import org.springaicommunity.playground.webui.VaadinUtils;
@@ -35,29 +36,30 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 
 public final class ChatImageReferenceHandler implements ImageReferenceHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(ChatImageReferenceHandler.class);
-    private static final long TIMEOUT_MINUTES = 3;
+    private static final String DESCRIBE_IMAGE_TOOL = "describeImage";
 
     private final UI ui;
     private final ChatImageStore store;
     private final String conversationId;
-    private final AtomicBoolean interactiveUsed = new AtomicBoolean();
+    private final int timeoutSeconds;
+    private final AtomicReference<CompletableFuture<Resolved>> pending = new AtomicReference<>();
 
-    public ChatImageReferenceHandler(UI ui, ChatImageStore store, String conversationId) {
+    public ChatImageReferenceHandler(UI ui, ChatImageStore store, String conversationId, int timeoutSeconds) {
         this.ui = ui;
         this.store = store;
         this.conversationId = conversationId;
+        this.timeoutSeconds = timeoutSeconds;
     }
 
     @Override
-    public Resolved resolve(Request request) {
+    public Resolved resolve(Request request, BooleanSupplier interactionGate) {
         try {
             List<ChatImageStore.ImageRef> images = this.store.list(this.conversationId);
             if (StringUtils.hasText(request.ref())) {
@@ -65,16 +67,22 @@ public final class ChatImageReferenceHandler implements ImageReferenceHandler {
                 if (loaded.isPresent())
                     return resolvedOf(loaded.get(), describe(images, loaded.get().hash()));
                 if (images.size() == 1) return loadResolved(images.get(0));
-                if (!images.isEmpty()) return promptChoice(images);
-                return promptUpload();
+                if (!images.isEmpty()) return promptChoice(images, interactionGate);
+                return promptUpload(interactionGate);
             }
-            if (images.isEmpty()) return promptUpload();
+            if (images.isEmpty()) return promptUpload(interactionGate);
             if (images.size() == 1) return loadResolved(images.get(0));
-            return promptChoice(images);
+            return promptChoice(images, interactionGate);
         } catch (IOException e) {
             logger.warn("image-reference.list-failed error={}", e.getMessage());
             return Resolved.none("The image could not be loaded.");
         }
+    }
+
+    @Override
+    public void cancelPending() {
+        CompletableFuture<Resolved> done = this.pending.getAndSet(null);
+        if (done != null) done.complete(Resolved.cancelled("The user stopped this response."));
     }
 
     private Resolved loadResolved(ChatImageStore.ImageRef ref) {
@@ -97,35 +105,35 @@ public final class ChatImageReferenceHandler implements ImageReferenceHandler {
                 .filter(Objects::nonNull).findFirst().orElse(hash);
     }
 
-    private Resolved promptUpload() {
-        return awaitDialog(this::openUpload, "The image upload dialog could not be opened.",
+    private Resolved promptUpload(BooleanSupplier interactionGate) {
+        return awaitDialog(interactionGate, this::openUpload, "The image upload dialog could not be opened.",
                 "No image was uploaded (the request timed out or was interrupted).");
     }
 
-    private Resolved promptChoice(List<ChatImageStore.ImageRef> images) {
-        return awaitDialog(done -> openChooser(images, done), "The image chooser could not be opened.",
+    private Resolved promptChoice(List<ChatImageStore.ImageRef> images, BooleanSupplier interactionGate) {
+        return awaitDialog(interactionGate, done -> openChooser(images, done),
+                "The image chooser could not be opened.",
                 "No image was chosen (the request timed out or was interrupted).");
     }
 
-    private Resolved awaitDialog(Function<CompletableFuture<Resolved>, Dialog> opener,
-            String openError, String timeoutError) {
-        // One blocking dialog per message; a second would stack another 3-min wait and blow the stream timeout.
-        if (!this.interactiveUsed.compareAndSet(false, true))
-            return Resolved.none("Only one image can be selected per message. Ask about the other images "
-                    + "one at a time.");
+    private Resolved awaitDialog(BooleanSupplier interactionGate,
+            Function<CompletableFuture<Resolved>, Dialog> opener, String openError, String timeoutError) {
+        if (!interactionGate.getAsBoolean())
+            return Resolved.none(AgentTurnMessages.interactionBudget(DESCRIBE_IMAGE_TOOL));
         CompletableFuture<Resolved> done = new CompletableFuture<>();
         AtomicReference<Dialog> dialogRef = new AtomicReference<>();
+        this.pending.set(done);
         try {
             this.ui.access(() -> dialogRef.set(opener.apply(done)));
         } catch (RuntimeException e) {
             logger.warn("image-reference.dialog-failed error={}", e.getMessage());
+            this.pending.set(null);
             return Resolved.none(openError);
         }
         try {
-            return done.get(TIMEOUT_MINUTES, TimeUnit.MINUTES);
-        } catch (Exception e) {
-            return Resolved.none(timeoutError);
+            return DialogInteractions.await(done, this.timeoutSeconds, () -> Resolved.cancelled(timeoutError));
         } finally {
+            this.pending.set(null);
             closeQuietly(dialogRef.get());
         }
     }
@@ -138,7 +146,7 @@ public final class ChatImageReferenceHandler implements ImageReferenceHandler {
                 message -> VaadinUtils.showErrorNotification("Attach failed: " + message));
         Button choose = new Button("Choose image", e -> attach.openPicker());
         Button cancel = new Button("Cancel", e -> {
-            done.complete(Resolved.none("The user cancelled the image upload."));
+            done.complete(Resolved.cancelled("The user cancelled the image upload."));
             dialog.close();
         });
         VerticalLayout body = new VerticalLayout(prompt, attach, choose);
@@ -166,7 +174,7 @@ public final class ChatImageReferenceHandler implements ImageReferenceHandler {
             body.add(pick);
         }
         Button cancel = new Button("Cancel", e -> {
-            done.complete(Resolved.none("The user cancelled the image selection."));
+            done.complete(Resolved.cancelled("The user cancelled the image selection."));
             dialog.close();
         });
         dialog.add(body);
@@ -225,7 +233,7 @@ public final class ChatImageReferenceHandler implements ImageReferenceHandler {
 
     private static void closeGuard(Dialog dialog, CompletableFuture<Resolved> done, String note) {
         dialog.addOpenedChangeListener(e -> {
-            if (!e.isOpened() && !done.isDone()) done.complete(Resolved.none(note));
+            if (!e.isOpened() && !done.isDone()) done.complete(Resolved.cancelled(note));
         });
     }
 

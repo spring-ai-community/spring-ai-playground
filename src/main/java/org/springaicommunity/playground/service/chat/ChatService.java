@@ -21,10 +21,12 @@ import com.openai.models.chat.completions.ChatCompletionChunk;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
 import org.springaicommunity.playground.config.MdcIdentityFilter;
 import org.springaicommunity.playground.service.SharedDataReader;
+import org.springaicommunity.playground.service.agent.AgentTurn;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.tool.FileUploadHandler;
 import org.springaicommunity.playground.service.tool.HumanQuestionHandler;
 import org.springaicommunity.playground.service.tool.ImageReferenceHandler;
+import org.springaicommunity.playground.service.tool.PendingInteraction;
 import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -70,11 +72,11 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.springaicommunity.playground.service.SpringAiPlaygroundRagAdvisor.RAG_PROCESS_MESSAGE_CONSUMER;
-import static org.springaicommunity.playground.service.mcp.McpToolCallingManager.DYNAMIC_TOOL_POOL;
-import static org.springaicommunity.playground.service.mcp.McpToolCallingManager.MCP_PROCESS_MESSAGE_CONSUMER;
-import static org.springaicommunity.playground.service.mcp.McpToolCallingManager.TOOL_CONTEXT_CONVERSATION_ID;
-import static org.springaicommunity.playground.service.mcp.McpToolCallingManager.TOOL_CONTEXT_SESSION_ID;
-import static org.springaicommunity.playground.service.mcp.McpToolCallingManager.TOOL_CONTEXT_USER_ID;
+import static org.springaicommunity.playground.service.agent.AgentLoopHarness.MCP_PROCESS_MESSAGE_CONSUMER;
+import static org.springaicommunity.playground.service.agent.AgentLoopHarness.TOOL_CONTEXT_CONVERSATION_ID;
+import static org.springaicommunity.playground.service.agent.AgentLoopHarness.TOOL_CONTEXT_SESSION_ID;
+import static org.springaicommunity.playground.service.agent.AgentLoopHarness.TOOL_CONTEXT_USER_ID;
+import static org.springaicommunity.playground.service.agent.AgentLoopManager.DYNAMIC_TOOL_POOL;
 import static org.springaicommunity.playground.service.vectorstore.VectorStoreService.DOC_INFO_ID;
 import static org.springframework.ai.chat.memory.ChatMemory.CONVERSATION_ID;
 import static org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor.DOCUMENT_CONTEXT;
@@ -102,6 +104,7 @@ public class ChatService {
 
     private final String systemPrompt;
     private final int defaultMemoryWindow;
+    private final SpringAiPlaygroundOptions.AgentLoop agentLoopPolicy;
     private final List<String> models;
     private final ChatModel chatModel;
     private final ChatOptions chatOptions;
@@ -121,6 +124,7 @@ public class ChatService {
             ObjectProvider<ToolSearchToolCallingAdvisor> dynamicToolCallingAdvisorProvider) {
         this.systemPrompt = playgroundOptions.chat().systemPrompt();
         this.defaultMemoryWindow = playgroundOptions.chat().memoryMaxMessages();
+        this.agentLoopPolicy = playgroundOptions.chat().agentLoop();
         this.models = playgroundOptions.chat().models();
         this.chatModel = chatModel;
         this.chatOptions = Optional.ofNullable(playgroundOptions.chat().chatOptions())
@@ -186,9 +190,10 @@ public class ChatService {
         AtomicBoolean roundHadToolCalls = new AtomicBoolean();
         AtomicBoolean roundHadThinking = new AtomicBoolean();
         AtomicBoolean imageRefsApplied = new AtomicBoolean();
+        AgentTurn agentTurn = new AgentTurn(this.agentLoopPolicy);
         return getChatClientRequestSpec(chatHistory, prompt, filterExpression, toolCallbacks,
                 mcpToolProcessMessageConsumer, ragProcessMessageConsumer, humanQuestionHandler, fileUploadHandler,
-                imageReferenceHandler, reasoning, media)
+                imageReferenceHandler, reasoning, media, agentTurn)
                 .stream().chatClientResponse()
                 .timeout(STREAM_INTER_SIGNAL_TIMEOUT)
                 .map(chatClientResponse -> {
@@ -232,6 +237,12 @@ public class ChatService {
                     try {
                         boolean interrupted = SignalType.CANCEL.equals(signalType)
                                 || SignalType.ON_ERROR.equals(signalType);
+                        if (interrupted) {
+                            agentTurn.cancel();
+                            cancelPending(humanQuestionHandler);
+                            cancelPending(fileUploadHandler);
+                            cancelPending(imageReferenceHandler);
+                        }
                         if ((SignalType.ON_COMPLETE.equals(signalType) || interrupted) &&
                                 Objects.nonNull(lastChatResponse.get()))
                             applyChatResponseMetadataToLastUserMessage(chatHistory, lastChatResponse.get());
@@ -266,11 +277,15 @@ public class ChatService {
         this.chatMemory.add(chatHistory.conversationId(), new AssistantMessage(text));
     }
 
+    private static void cancelPending(PendingInteraction interaction) {
+        if (interaction != null) interaction.cancelPending();
+    }
+
     private ChatClient.ChatClientRequestSpec getChatClientRequestSpec(ChatHistory chatHistory, String prompt,
             String filterExpression, List<ToolCallback> toolCallbacks, Consumer<Object> mcpToolProcessMessageConsumer,
             Consumer<Object> ragProcessMessageConsumer, HumanQuestionHandler humanQuestionHandler,
             FileUploadHandler fileUploadHandler, ImageReferenceHandler imageReferenceHandler,
-            ReasoningEffort reasoning, List<Media> media) {
+            ReasoningEffort reasoning, List<Media> media, AgentTurn agentTurn) {
         DefaultChatOptions chatOptions = chatHistory.chatOptions();
         ChatClient.ChatClientRequestSpec chatClientRequestSpec = this.chatClient.prompt()
                 .user(userSpec -> applyUserContent(userSpec, prompt, media)).options(
@@ -289,6 +304,7 @@ public class ChatService {
                 !toolCallbacks.isEmpty()) {
             Map<String, Object> toolContext = new HashMap<>();
             toolContext.put(MCP_PROCESS_MESSAGE_CONSUMER, mcpToolProcessMessageConsumer);
+            if (Objects.nonNull(agentTurn)) toolContext.put(AgentTurn.TOOL_CONTEXT_KEY, agentTurn);
             if (Objects.nonNull(humanQuestionHandler))
                 toolContext.put(HumanQuestionHandler.TOOL_CONTEXT_KEY, humanQuestionHandler);
             if (Objects.nonNull(fileUploadHandler))
@@ -349,7 +365,8 @@ public class ChatService {
         try {
             return applyChatResponseMetadataToLastUserMessage(chatHistory,
                     getChatClientRequestSpec(chatHistory, prompt, filterExpression, toolCallbacks,
-                            mcpToolProcessMessageConsumer, null, null, null, null, null, List.of()).call()
+                            mcpToolProcessMessageConsumer, null, null, null, null, null, List.of(),
+                            new AgentTurn(this.agentLoopPolicy)).call()
                             .chatClientResponse()).getResult();
         } finally {
             MDC.remove(MDC_CONVERSATION_ID);

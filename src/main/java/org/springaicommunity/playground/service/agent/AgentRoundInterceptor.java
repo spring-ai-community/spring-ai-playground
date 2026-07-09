@@ -13,15 +13,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.springaicommunity.playground.service.tool;
+package org.springaicommunity.playground.service.agent;
+
+import org.springframework.ai.chat.messages.AssistantMessage.ToolCall;
+import org.springframework.ai.chat.messages.UserMessage;
 
 import java.util.List;
 import java.util.Map;
 
-@FunctionalInterface
-public interface HumanQuestionHandler extends PendingInteraction {
+public interface AgentRoundInterceptor {
 
-    String TOOL_CONTEXT_KEY = "humanQuestionHandler";
+    Map<String, Interception> intercept(List<ToolCall> calls, AgentTurn turn, Map<String, Object> toolContext);
 
-    Map<String, String> ask(List<HumanQuestion> questions);
+    record Interception(String response, UserMessage followUp) {
+
+        public static Interception of(String response) {
+            return new Interception(response, null);
+        }
+    }
 }

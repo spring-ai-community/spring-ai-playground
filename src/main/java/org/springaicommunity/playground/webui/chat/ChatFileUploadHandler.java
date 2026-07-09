@@ -30,41 +30,51 @@ import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class ChatFileUploadHandler implements FileUploadHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(ChatFileUploadHandler.class);
-    private static final long TIMEOUT_MINUTES = 3;
 
     private final UI ui;
     private final ConversationFileUploadStore store;
     private final String conversationId;
+    private final int timeoutSeconds;
+    private final AtomicReference<CompletableFuture<Result>> pending = new AtomicReference<>();
 
-    public ChatFileUploadHandler(UI ui, ConversationFileUploadStore store, String conversationId) {
+    public ChatFileUploadHandler(UI ui, ConversationFileUploadStore store, String conversationId,
+            int timeoutSeconds) {
         this.ui = ui;
         this.store = store;
         this.conversationId = conversationId;
+        this.timeoutSeconds = timeoutSeconds;
     }
 
     @Override
     public Result requestUpload(Request request) {
         CompletableFuture<Result> done = new CompletableFuture<>();
         AtomicReference<Dialog> dialogRef = new AtomicReference<>();
+        this.pending.set(done);
         try {
             this.ui.access(() -> dialogRef.set(open(request, done)));
         } catch (RuntimeException e) {
             logger.warn("file-upload.dialog-failed error={}", e.getMessage());
+            this.pending.set(null);
             return Result.none("The file upload dialog could not be opened.");
         }
         try {
-            return done.get(TIMEOUT_MINUTES, TimeUnit.MINUTES);
-        } catch (Exception e) {
-            return Result.none("The user did not upload a file (the request timed out or was interrupted).");
+            return DialogInteractions.await(done, this.timeoutSeconds,
+                    () -> Result.none("The user did not upload a file (the request timed out or was interrupted)."));
         } finally {
+            this.pending.set(null);
             closeQuietly(dialogRef.get());
         }
+    }
+
+    @Override
+    public void cancelPending() {
+        CompletableFuture<Result> done = this.pending.getAndSet(null);
+        if (done != null) done.complete(Result.none("The user stopped this response before uploading a file."));
     }
 
     private Dialog open(Request request, CompletableFuture<Result> done) {

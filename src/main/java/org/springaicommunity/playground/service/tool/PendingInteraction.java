@@ -15,13 +15,8 @@
  */
 package org.springaicommunity.playground.service.tool;
 
-import java.util.List;
-import java.util.Map;
+public interface PendingInteraction {
 
-@FunctionalInterface
-public interface HumanQuestionHandler extends PendingInteraction {
-
-    String TOOL_CONTEXT_KEY = "humanQuestionHandler";
-
-    Map<String, String> ask(List<HumanQuestion> questions);
+    default void cancelPending() {
+    }
 }

@@ -15,22 +15,29 @@
  */
 package org.springaicommunity.playground.service.tool;
 
-public interface ImageReferenceHandler {
+import java.util.function.BooleanSupplier;
+
+public interface ImageReferenceHandler extends PendingInteraction {
 
     String TOOL_CONTEXT_KEY = "imageReferenceHandler";
 
-    Resolved resolve(Request request);
+    Resolved resolve(Request request, BooleanSupplier interactionGate);
 
     record Request(String ref, String question) {}
 
-    record Resolved(boolean resolved, byte[] bytes, String mimeType, String description, String note) {
+    record Resolved(boolean resolved, byte[] bytes, String mimeType, String description, String note,
+                    boolean userCancelled) {
 
         public static Resolved none(String note) {
-            return new Resolved(false, null, null, null, note);
+            return new Resolved(false, null, null, null, note, false);
+        }
+
+        public static Resolved cancelled(String note) {
+            return new Resolved(false, null, null, null, note, true);
         }
 
         public static Resolved of(byte[] bytes, String mimeType, String description) {
-            return new Resolved(true, bytes, mimeType, description, null);
+            return new Resolved(true, bytes, mimeType, description, null, false);
         }
     }
 }

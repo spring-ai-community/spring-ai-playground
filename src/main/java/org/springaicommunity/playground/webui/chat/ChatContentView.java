@@ -61,7 +61,7 @@ import org.springaicommunity.playground.service.chat.ReasoningEffort;
 import org.springaicommunity.playground.service.chat.VisionCapabilityService;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
-import org.springaicommunity.playground.service.mcp.McpToolCallingManager;
+import org.springaicommunity.playground.service.agent.AgentLoopHarness;
 import org.springaicommunity.playground.service.mcp.risk.McpCompositionToolCallbackProvider;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.service.mcp.client.McpTransportType;
@@ -169,6 +169,7 @@ public class ChatContentView extends VerticalLayout {
     private final McpCompositionToolCallbackProvider compositionProvider;
     private final ChatClientActionRegistry clientActionRegistry;
     private final SpringAiPlaygroundOptions.ToolSearch toolSearch;
+    private final SpringAiPlaygroundOptions.AgentLoop agentLoop;
     private Disposable currentStream;
 
     public ChatContentView(ChatService chatService,
@@ -201,6 +202,7 @@ public class ChatContentView extends VerticalLayout {
         this.usageAnalyticsService = usageAnalyticsService;
         this.usageEventTracker = usageEventTracker;
         this.toolSearch = playgroundOptions.chat().toolSearch();
+        this.agentLoop = playgroundOptions.chat().agentLoop();
         this.customToolsComboBox = ExposedToolsSelector.newCustomSelector(
                 toolSpecService::riskLevelOf, toolSpecService::categoryOf);
         this.builtinToolsComboBox = ExposedToolsSelector.newBuiltinSelector(
@@ -780,9 +782,11 @@ public class ChatContentView extends VerticalLayout {
                             if (reactor.core.publisher.SignalType.CANCEL.equals(signalType))
                                 chatContentManager.markStopped();
                             doFinally(chatContentManager);
-                        }), new ChatHumanQuestionHandler(ui),
-                        new ChatFileUploadHandler(ui, this.fileUploadStore, this.chatHistory.conversationId()),
-                        new ChatImageReferenceHandler(ui, this.imageStore, this.chatHistory.conversationId()),
+                        }), new ChatHumanQuestionHandler(ui, this.agentLoop.approvalTimeoutSeconds()),
+                        new ChatFileUploadHandler(ui, this.fileUploadStore, this.chatHistory.conversationId(),
+                                this.agentLoop.dialogTimeoutSeconds()),
+                        new ChatImageReferenceHandler(ui, this.imageStore, this.chatHistory.conversationId(),
+                                this.agentLoop.dialogTimeoutSeconds()),
                         this.reasoningSelect.getValue(), sentImages.stream()
                                 .map(image -> Media.builder().id(image.hash()).name(image.fileName())
                                         .mimeType(MimeType.valueOf(image.mimeType())).data(image.bytes()).build())
@@ -812,7 +816,7 @@ public class ChatContentView extends VerticalLayout {
     }
 
     private void trackToolCalled(UI ui, Object processMessage) {
-        if (processMessage instanceof McpToolCallingManager.McpToolResult toolResult)
+        if (processMessage instanceof AgentLoopHarness.McpToolResult toolResult)
             this.usageEventTracker.track(ui, "tool_called",
                     this.usageAnalyticsService.toolCalledParams(toolResult.name()));
     }
@@ -1073,6 +1077,22 @@ public class ChatContentView extends VerticalLayout {
         return blocks;
     }
 
+    static List<String> actionBlocksToAppend(String existing, Collection<String> blocks) {
+        if (Objects.isNull(blocks) || blocks.isEmpty()) return List.of();
+        List<String> missing = new ArrayList<>();
+        for (String block : blocks)
+            if (Objects.isNull(existing) || !existing.contains(block)) missing.add(block);
+        return missing;
+    }
+
+    static String textWithActionBlocks(String text, Object blocks) {
+        if (!(blocks instanceof List<?> list) || list.isEmpty()) return text;
+        StringBuilder merged = new StringBuilder(Objects.isNull(text) ? "" : text);
+        for (String block : actionBlocksToAppend(merged.toString(), list.stream().map(String::valueOf).toList()))
+            merged.append("\n\n").append(block).append("\n");
+        return merged.toString();
+    }
+
     private static String unwrapActionContent(String text) {
         String trimmed = text.trim();
         if (!trimmed.startsWith("[") && !trimmed.startsWith("{") && !trimmed.startsWith("\"")) return text;
@@ -1113,6 +1133,7 @@ public class ChatContentView extends VerticalLayout {
         private static final String MCP_TOOL_PROCESS_TOOL_NAMES = "mcpToolProcessToolNames";
         private static final String MCP_TOOL_PROCESS_PROMPT_TOKENS = "mcpToolProcessPromptTokens";
         private static final String MCP_TOOL_PROCESS_COMPLETION_TOKENS = "mcpToolProcessCompletionTokens";
+        private static final String ACTION_BLOCKS = "actionBlocks";
         private static final String STREAM_STATUS = "streamStatus";
         private static final String STREAM_STATUS_STAGE = "streamStatusStage";
         private static final String STREAM_STATUS_MESSAGE = "streamStatusMessage";
@@ -1270,16 +1291,16 @@ public class ChatContentView extends VerticalLayout {
             if (Objects.isNull(this.mcpToolProcessMessagesBuilder))
                 this.mcpToolProcessMessagesBuilder = new StringBuilder();
             this.mcpToolProcessMessagesBuilder.append(markdownSnippet);
-            if (content instanceof McpToolCallingManager.McpAssistantToolCall toolCall) {
+            if (content instanceof AgentLoopHarness.McpAssistantToolCall toolCall) {
                 toolCall.toolCalls().forEach(tc -> {
                     this.mcpToolCallCount++;
                     this.mcpToolNames.add(tc.name());
                 });
             }
-            if (content instanceof McpToolCallingManager.McpToolResult toolResult) {
+            if (content instanceof AgentLoopHarness.McpToolResult toolResult) {
                 this.pendingActionBlocks.addAll(extractActionBlocks(toolResult.responseData()));
             }
-            if (McpToolCallingManager.MCP_TOOL_EXECUTION_COMPLETED_MESSAGE.equals(contentStr)) {
+            if (AgentLoopHarness.MCP_TOOL_EXECUTION_COMPLETED_MESSAGE.equals(contentStr)) {
                 this.mcpToolProcessEndTimestamp = timestamp;
                 updateDetailsSummary(this.mcpToolProcessDetails, MCP_TOOL_PROCESS, this.mcpToolProcessTimestamp,
                         this.mcpToolProcessEndTimestamp,
@@ -1298,15 +1319,13 @@ public class ChatContentView extends VerticalLayout {
             return this.mcpToolProcessMessage;
         }
 
-        private void appendPendingActionBlocks() {
-            if (this.pendingActionBlocks.isEmpty() || Objects.isNull(this.botResponse)) return;
-            String existing = this.botResponse.getRawMarkdown();
-            for (String block : this.pendingActionBlocks) {
-                if (existing == null || !existing.contains(block)) {
-                    this.botResponse.appendMarkdown("\n\n" + block + "\n");
-                }
-            }
+        private List<String> appendPendingActionBlocks() {
+            if (this.pendingActionBlocks.isEmpty() || Objects.isNull(this.botResponse)) return List.of();
+            List<String> appended =
+                    actionBlocksToAppend(this.botResponse.getRawMarkdown(), this.pendingActionBlocks);
+            appended.forEach(block -> this.botResponse.appendMarkdown("\n\n" + block + "\n"));
             this.pendingActionBlocks.clear();
+            return appended;
         }
 
         public void appendBotThinkProcessMessage(Object content) {
@@ -1463,7 +1482,8 @@ public class ChatContentView extends VerticalLayout {
             String text = message.getText();
             if (MessageType.TOOL.equals(messageType)) return;
             if (message instanceof AssistantMessage assistantMessage && !assistantMessage.getToolCalls().isEmpty()
-                    && (Objects.isNull(text) || text.isBlank())) return;
+                    && (Objects.isNull(text) || text.isBlank())
+                    && !message.getMetadata().containsKey(ACTION_BLOCKS)) return;
             Map<String, Object> metadata = message.getMetadata();
 
             List<Pair<Long, Component>> components = new ArrayList<>();
@@ -1526,7 +1546,13 @@ public class ChatContentView extends VerticalLayout {
             components.stream().sorted(Comparator.comparing(Pair::getFirst)).map(Pair::getSecond)
                     .forEach(messageListLayout::add);
             if (!MessageType.USER.equals(messageType)) {
-                ChatMessage assistant = buildMessage(text, messageType, messageTimestamp);
+                ChatMessage assistant = buildMessage(textWithActionBlocks(text, metadata.get(ACTION_BLOCKS)),
+                        messageType, messageTimestamp);
+                messageListLayout.add(assistant);
+                fillResponseMetrics(assistant, metadata);
+            } else if (metadata.containsKey(ACTION_BLOCKS)) {
+                ChatMessage assistant = buildMessage(textWithActionBlocks(null, metadata.get(ACTION_BLOCKS)),
+                        MessageType.ASSISTANT, messageTimestamp);
                 messageListLayout.add(assistant);
                 fillResponseMetrics(assistant, metadata);
             }
@@ -1762,13 +1788,17 @@ public class ChatContentView extends VerticalLayout {
                 boolean noProcessActivity = Objects.isNull(this.ragProcessMessageBuilder)
                         && Objects.isNull(this.thinkProcessMessageBuilder)
                         && Objects.isNull(this.mcpToolProcessMessagesBuilder);
-                if (Objects.nonNull(this.botResponse) && Objects.nonNull(this.messageListLayout))
-                    this.messageListLayout.remove(this.botResponse);
-                if (noProcessActivity) {
-                    if (Objects.nonNull(this.processListLayout) && Objects.nonNull(this.messageListLayout))
-                        this.messageListLayout.remove(this.processListLayout);
-                    saveAndRenderStreamStatus(messageList.map(List::getLast).map(Message::getMetadata));
-                    return;
+                if (!this.pendingActionBlocks.isEmpty()) {
+                    initBotResponse(System.currentTimeMillis());
+                } else {
+                    if (Objects.nonNull(this.botResponse) && Objects.nonNull(this.messageListLayout))
+                        this.messageListLayout.remove(this.botResponse);
+                    if (noProcessActivity) {
+                        if (Objects.nonNull(this.processListLayout) && Objects.nonNull(this.messageListLayout))
+                            this.messageListLayout.remove(this.processListLayout);
+                        saveAndRenderStreamStatus(messageList.map(List::getLast).map(Message::getMetadata));
+                        return;
+                    }
                 }
             }
 
@@ -1828,7 +1858,9 @@ public class ChatContentView extends VerticalLayout {
             long completedTimestamp = this.responseTimestamp > 0 ? this.responseTimestamp : System.currentTimeMillis();
             metadataAsOpt.ifPresent(metadata -> updateMetadata(metadata, completedTimestamp));
             this.botResponse.removeClassName("blink");
-            appendPendingActionBlocks();
+            List<String> appendedBlocks = appendPendingActionBlocks();
+            if (!appendedBlocks.isEmpty()) metadataAsOpt
+                    .ifPresent(metadata -> metadata.put(ACTION_BLOCKS, new ArrayList<>(appendedBlocks)));
             this.botResponse.enhanceNow();
             if (!this.isFirstAssistantResponse) {
                 ChatService.ChatMeta chatMeta = lastUserMetadata.map(map -> map.get(ChatService.CHAT_META))
