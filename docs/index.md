@@ -30,7 +30,7 @@ Unlike many playgrounds that stop at prompt testing, this project connects AI co
 - build JavaScript tools directly in the app
 - earn a **Local Pass** by test-running each tool against sample arguments you define
 - **add tools live to the built-in MCP server** the moment each passes - no restart, no redeploy
-- start immediately with **108 pre-loaded default tools** spanning web fetch / datetime / math / security / encoding / crypto / filesystem / GitHub / Wikipedia / weather / finance / geo / Korean services - [see the spotlight section below](#what-used-to-take-an-afternoon-already-wired-in) for the categorised browse
+- start immediately with **115 pre-loaded default tools** spanning web fetch / datetime / math / security / encoding / crypto / filesystem / GitHub / Wikipedia / weather / finance / geo / Korean services - [see the spotlight section below](#what-used-to-take-an-afternoon-already-wired-in) for the categorised browse
 - connect external surfaces in one click with **57 preset MCP server connections** (Gmail · Outlook · Notion · Slack · GitHub · Linear · Atlassian · Stripe · Figma · BigQuery · Cloudflare · Tavily · MCP Everything · ...) - same spotlight section below covers the full per-category browse
 - validate retrieval pipelines against your own documents
 - run agentic chat that combines tool use and grounded context (e.g. *"Get today's weather and send it to Slack"*)
@@ -40,15 +40,17 @@ Unlike many playgrounds that stop at prompt testing, this project connects AI co
 > **Security scope.** The in-process sandbox is defense-in-depth for the local build-and-vet loop. It is not adversarial-grade isolation and not a gateway. To run tool code you do not trust, nest it in container or microVM isolation. See [Isolation tiers](safety-architecture.md#isolation-tiers).
 
 <div style="text-align: center;">
-  <b>Spring AI Playground - Demo</b><br/>
-  Connect an MCP server · compose a safe proxy · human-in-the-loop approval · full observability
+  <b>Local Model, Real Agent - Spring AI Playground in 30 Seconds</b><br/>
+  The trailer, followed by the full video series
 </div>
 
 <div style="text-align: center;">
-  <video src="assets/images/spring-ai-playground-demo.mp4" width="820" autoplay loop muted playsinline controls
-         poster="assets/images/spring-ai-playground-demo-poster.png">
-    <a href="assets/images/spring-ai-playground-demo.mp4">Watch the demo</a>
-  </video>
+  <iframe width="820" height="461" style="max-width: 100%; border: 0;"
+          src="https://www.youtube-nocookie.com/embed/dR6XRs2-nEY?list=PLfizCrbCZK9k"
+          title="Local Model, Real Agent - Spring AI Playground in 30 Seconds"
+          allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+  <p><a href="https://www.youtube.com/playlist?list=PLfizCrbCZK9k" target="_blank" rel="noopener">Watch the full series on YouTube (7 videos)</a></p>
 </div>
 
 ## :material-rocket-launch: Quick Start

@@ -37,7 +37,7 @@ Spring AI Playground treats the local test-run as a gate, not a polish step. Thi
 
 In practice this means the act of publishing is the act of testing. You never produce a tool whose first execution happens in front of an agent.
 
-Every one of the 107 bundled [Default Tools](../default-tools/index.md) crossed this same gate before being shipped - they live as ready-to-fork reference for the workflow above.
+Every one of the 115 bundled [Default Tools](../default-tools/index.md) crossed this same gate before being shipped - they live as ready-to-fork reference for the workflow above.
 
 ## Built-in MCP Server
 

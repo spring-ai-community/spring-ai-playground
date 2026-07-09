@@ -238,11 +238,17 @@ If you have a contribution that fits the current scope (bug report, doc fix, usa
 
 ## Anonymous Usage Telemetry
 
-The official build sends anonymous usage data (page views, feature interaction events,
-device/browser info) to the maintainer's Google Tag Manager / Google Analytics account so
-the most-used features can be prioritized. IPs are anonymized by Google. The same opt-out switch applies
-to both the web app and every desktop launcher window (splash, server-splash, config
-editor, Ollama manager):
+The official build sends anonymous usage data (page views, feature-usage events such as
+which model, preset, or tool kind is used, device/browser info) to the maintainer's
+Google Tag Manager / Google Analytics account so the most-used features can be
+prioritized. It is content-free: no prompts, documents, file names, URLs, or API keys,
+and names of things you create yourself (tools, presets, custom MCP servers) are masked.
+The complete event table is in the
+[Configuration reference](https://spring-ai-community.github.io/spring-ai-playground/getting-started/configuration/#telemetry-events),
+and every sender is auditable in code (search for `UsageEventTracker`). IPs are
+anonymized by Google. Development-mode runs never send telemetry. The same opt-out
+switch applies to both the web app and every desktop launcher window (splash,
+server-splash, config editor, Ollama manager):
 
 - **Server / Docker / `mvn`**: `SPRING_AI_PLAYGROUND_TELEMETRY_ENABLED=false`
 - **Desktop launcher**: set `SPRING_AI_PLAYGROUND_TELEMETRY_ENABLED=false` before launching

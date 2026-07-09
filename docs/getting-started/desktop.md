@@ -271,7 +271,7 @@ Each task shows a live progress bar, the downloaded / total size, and a status b
 
 The next card down the screen is **Default MCP Tools**. It chooses which preset of built-in tools the MCP server exposes the moment it boots.
 
-![Default MCP Tools card - collapsed, showing the active preset (Starter 5, 5 of 107 tools) and its tools as chips, with a preset dropdown and a folded Advanced curation section](../assets/images/launcher/launcher-default-tools-card.png)
+![Default MCP Tools card - collapsed, showing the active preset (Starter 5, 5 of the bundled tools) and its tools as chips, with a preset dropdown and a folded Advanced curation section](../assets/images/launcher/launcher-default-tools-card.png)
 
 Pick a preset - the default `Starter 5` needs no API keys. The full per-preset tool lists, the include / exclude **Advanced curation** rules, and the CLI / YAML equivalents are all covered in [Default MCP Tools Curation](#default-mcp-tools-curation) above; the tools themselves live in [Tool Studio](../features/tool-studio/index.md).
 

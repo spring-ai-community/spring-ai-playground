@@ -88,7 +88,35 @@ Tool / MCP-server API keys (GitHub PAT, `BRAVE_API_KEY`, `MS_TENANT_ID`, Google 
 
 | Knob | How to set | Default | Notes |
 |---|---|---|---|
-| Google Tag Manager in the UI | `SPRING_AI_PLAYGROUND_TELEMETRY_ENABLED=false` (env) or `-Dspring.ai.playground.telemetry.enabled=false` | enabled | When `false`, the app omits the GTM tag and disables its own GA. Set this for QA / offline / privacy. |
+| Google Tag Manager in the UI | `SPRING_AI_PLAYGROUND_TELEMETRY_ENABLED=false` (env) or `-Dspring.ai.playground.telemetry.enabled=false` | enabled (production builds only) | When `false`, the app omits the GTM tag and disables its own GA. Development mode (`mvnw spring-boot:run`, IDE runs) never sends telemetry regardless of this switch. Set this for QA / offline / privacy. |
+
+### What is collected { #telemetry-events }
+
+Telemetry is anonymous and content-free: no prompts, no responses, no file names, no
+URLs, no API keys, no server addresses. Names of things you create yourself (tools,
+presets, custom MCP servers) are masked to `authored` / `custom` / `external` - only
+names that ship in the built-in catalogs are ever sent as-is. Every sender goes through
+one class, so the complete list is auditable in code: search the repository for
+`UsageEventTracker`.
+
+| Event | Parameters | Fired when |
+|---|---|---|
+| `page_view` | route path | Navigating between views |
+| `chat_message_sent` | provider, model, reasoning, dynamic_tools, tool_count, image_count, rag_enabled | Sending a chat message |
+| `model_selected` | provider, model | Applying chat settings |
+| `model_downloaded` | model, via | An Ollama model download completes |
+| `tool_called` | tool_name (catalog names only), source, risk_level, hitl | A tool call finishes in chat |
+| `preset_applied` / `preset_blocked` | preset_id (catalog ids only), dynamic_tools, tool_count | Applying a preset / the key gate blocks Apply |
+| `mcp_server_added` | transport, catalog_id (catalog ids only), oauth | Saving and connecting an MCP server |
+| `mcp_tools_exposed` | mode, builtin_count, composed_count, max_risk | Applying the Expose Tools drawer |
+| `rag_document_indexed` | doc_type, chunk_count | Embedding a document into the vector store |
+| `tool_authored` | action, sandbox_overrides, hitl | Saving a tool in Tool Studio |
+| `action_card_rendered` | card_type | A visualization action card renders in chat |
+| `voice_input_used` | mode | Starting voice input |
+| `usage_snapshot` (at most once per day) | aggregate counters only: recent call/token/error/latency totals, conversation count, installed model count, VRAM, top quantization, HITL and risk-signal totals | First page load of the day |
+
+Session-level user properties: `app_version`, `app_surface` (web/desktop), `platform`,
+`chat_provider`, `embedding_provider`, `embedding_model`, `tool_search_index`.
 
 ## MCP built-in server & exposure { #mcp }
 
