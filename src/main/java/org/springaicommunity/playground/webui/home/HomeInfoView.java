@@ -64,6 +64,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class HomeInfoView extends Div {
 
@@ -80,12 +82,19 @@ public class HomeInfoView extends Div {
     private static final String CONFIGURE_URL =
             "https://spring-ai-community.github.io/spring-ai-playground/getting-started/";
 
+    private static final Pattern PRE_RELEASE_SUFFIX = Pattern.compile("(?i)(M|RC)(\\d+)");
+    private static final int STAGE_UNKNOWN = 0;
+    private static final int STAGE_MILESTONE = 1;
+    private static final int STAGE_RC = 2;
+    private static final int STAGE_GA = 3;
+
     private static volatile LatestRelease cachedRelease;
     private static volatile Instant cachedAt;
 
     private final Div updateBannerSlot;
     private final Div alertBannerSlot;
     private final HomeChecklist checklist;
+    private final boolean desktopManagedUpdates;
 
     public HomeInfoView(ToolSpecService toolSpecService,
             McpServerInfoService mcpServerInfoService,
@@ -103,6 +112,8 @@ public class HomeInfoView extends Div {
             McpRiskEventRingBuffer mcpRiskEventRingBuffer,
             Environment environment) {
         setSizeFull();
+        this.desktopManagedUpdates = environment.getProperty(
+                "spring.ai.playground.desktop.managed-updates", Boolean.class, false);
 
         VerticalLayout content = new VerticalLayout();
         content.setWidthFull();
@@ -167,7 +178,7 @@ public class HomeInfoView extends Div {
                         + "$0.$server.onClientEnvironment(checklistCollapsed);",
                 getElement());
 
-        if (!DEV_VERSION.equals(CURRENT_VERSION)) {
+        if (!desktopManagedUpdates && !DEV_VERSION.equals(CURRENT_VERSION)) {
             CompletableFuture.supplyAsync(HomeInfoView::fetchLatestRelease)
                     .thenAccept(release -> {
                         if (release == null) {
@@ -469,7 +480,6 @@ public class HomeInfoView extends Div {
         return false;
     }
 
-    // milestone = MAX for a GA so a release outranks any -M milestone of the same x.y.z
     static int[] parseVersion(String version) {
         String v = normalizeVersion(version);
         if (v.isEmpty()) return null;
@@ -477,20 +487,20 @@ public class HomeInfoView extends Div {
         String core = dash < 0 ? v : v.substring(0, dash);
         String suffix = dash < 0 ? "" : v.substring(dash + 1);
         String[] parts = core.split("\\.");
-        int[] out = { 0, 0, 0, Integer.MAX_VALUE };
+        int[] out = { 0, 0, 0, STAGE_GA, 0 };
         try {
             for (int i = 0; i < 3 && i < parts.length; i++) out[i] = Integer.parseInt(parts[i].trim());
+            if (!suffix.isEmpty()) {
+                Matcher preRelease = PRE_RELEASE_SUFFIX.matcher(suffix);
+                if (preRelease.matches()) {
+                    out[3] = "M".equalsIgnoreCase(preRelease.group(1)) ? STAGE_MILESTONE : STAGE_RC;
+                    out[4] = Integer.parseInt(preRelease.group(2));
+                } else {
+                    out[3] = STAGE_UNKNOWN;
+                }
+            }
         } catch (NumberFormatException e) {
             return null;
-        }
-        if (!suffix.isEmpty()) {
-            if (suffix.charAt(0) == 'M' || suffix.charAt(0) == 'm') {
-                int i = 1;
-                while (i < suffix.length() && Character.isDigit(suffix.charAt(i))) i++;
-                out[3] = i > 1 ? Integer.parseInt(suffix.substring(1, i)) : 0;
-            } else {
-                out[3] = 0;
-            }
         }
         return out;
     }
