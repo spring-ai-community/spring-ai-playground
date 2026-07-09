@@ -734,14 +734,14 @@ Use only enabled tools and never fake their output.</pre>
 </div>
 
 <div class="tcg-card tcg-card--clickable" id="image-analyst" data-tool-id="image-analyst" data-tool-title="Image analyst" markdown>
-<div class="tcg-name"><span class="tcg-name__text">Image analyst</span> <span class="cost">4 tools</span></div>
+<div class="tcg-name"><span class="tcg-name__text">Image analyst</span> <span class="cost">7 tools</span></div>
 <div class="tcg-art" markdown>:material-image-search-outline:</div>
 <div class="tcg-type">agent · vision</div>
 <div class="tcg-body" markdown>
-Analyzes [attached images](image-attachments.md) with a vision model, tabulates what it finds, and exports the table as a CSV that opens in Excel.
+Analyzes [attached images](image-attachments.md) with a vision model, tabulates findings and EXIF metadata, maps geotagged photos, and exports tables as CSV.
 </div>
 <div class="tcg-stats" markdown>
-<div class="tcg-stats__line" markdown>**Tools** &nbsp; `describeImage` · `renderTable` · `formatCsv` · `writeTextFile`</div>
+<div class="tcg-stats__line" markdown>**Tools** &nbsp; `describeImage` · `listDir` · `readTextFile` · `renderTable` · `plotPointsOnMap` · `formatCsv` · `writeTextFile`</div>
 <div class="tcg-stats__line" markdown>**Model** &nbsp; `qwen3.5:4b` (a vision GGUF build - the `-mlx` variants cannot see)</div>
 </div>
 <div class="tcg-cta">Click for a real run - input and result</div>
@@ -753,18 +753,20 @@ Analyzes [attached images](image-attachments.md) with a vision model, tabulates 
 
 Workflow:
 1. See - images attached to the current message arrive as native multimodal input; analyze the actual pixels. When the user asks about an image from an earlier turn, call describeImage to re-attach it (pass ref as the file name or short hash when several were shared; leave it empty to use the only image or to let the user choose). One image per describeImage call - handle the others one at a time.
-2. Extract - pull out the concrete facts the question asks for: objects and their counts, visible text, colors, layout, people, logos, defects. The stored metadata sidecar keeps EXIF (capture time, GPS, camera model) when the user asks where or when a photo was taken.
-3. Tabulate - ALWAYS present the structured findings with renderTable: one row per detected item, with columns that fit the question (item, count, color, position, text, notes). Keep the prose summary short; the table carries the detail.
-4. Export - when the user wants the result as a file (Excel or CSV), serialize the same rows with formatCsv and save them with writeTextFile to a .csv file in the working directory (CSV opens directly in Excel), then tell the user the saved path.
+2. Extract - pull out the concrete facts the question asks for: objects and their counts, visible text, colors, layout, people, logos, defects.
+3. Metadata - every attached image is stored in the working directory as images/&lt;hash&gt;.&lt;ext&gt; with a matching images/&lt;hash&gt;.json sidecar holding the original file name and EXIF (DateTimeOriginal, camera Make and Model, GPS latitude and longitude). When the user asks where or when photos were taken or wants EXIF details, call listDir with dir 'images' and readTextFile each .json sidecar - metadata comes from the sidecars, never guessed from pixels.
+4. Tabulate - ALWAYS present the structured findings with renderTable: one row per image or detected item, with columns that fit the question (file, captured, camera, latitude, longitude, notes). Keep the prose summary short; the table carries the detail.
+5. Map - when the sidecars carry GPS coordinates, also call plotPointsOnMap with one {lat, lng, label} point per photo (label with the original file name) so the user sees where the shots were taken.
+6. Export - when the user wants the result as a file (Excel or CSV), serialize the same rows with formatCsv and save them with writeTextFile to a .csv file in the working directory (CSV opens directly in Excel), then tell the user the saved path.
 
-Only report what is actually visible; say plainly when something cannot be determined from the image. Use only enabled tools and never fake their output.</pre>
+Only report what is actually visible or stored in the sidecars; say plainly when something cannot be determined. Use only enabled tools and never fake their output.</pre>
 </details>
 
 **You ask** (with an [image attached](image-attachments.md) to the message)
 
 > What is the background color and the exact text in this image? Show the findings with renderTable, then save the same rows to banner-report.csv.
 
-**What happens** - the vision model reads the attached pixels (an image from an *earlier* turn is re-summoned with `describeImage`), presents the findings as a sortable `renderTable` card, then serializes the same rows with `formatCsv` and writes `banner-report.csv` with `writeTextFile`. The file write is rated `L4`, so it pauses on an **Approve / Reject** prompt ([human-in-the-loop](../human-in-the-loop.md)) before the CSV lands in the working directory, ready to open in Excel. Pick a model that can actually see - the [capability check](image-attachments.md#vision-capability-check) warns if it cannot; on Apple Silicon type `qwen3.5:4b` into the model box, and expect a small local model to sometimes need the export asked as a follow-up turn.
+**What happens** - the vision model reads the attached pixels (an image from an *earlier* turn is re-summoned with `describeImage`), presents the findings as a sortable `renderTable` card, then serializes the same rows with `formatCsv` and writes `banner-report.csv` with `writeTextFile`. The file write is rated `L4`, so it pauses on an **Approve / Reject** prompt ([human-in-the-loop](../human-in-the-loop.md)) before the CSV lands in the working directory, ready to open in Excel. The preset also works past the pixels: ask *where and when* a batch of geotagged photos was taken and it reads each image's EXIF sidecar with `listDir` + `readTextFile`, tabulates capture time, camera, and GPS, and drops one `plotPointsOnMap` marker per photo - the full walkthrough is [Tutorial 14](../../tutorials/14-analyze-an-image.md). Pick a model that can actually see - the [capability check](image-attachments.md#vision-capability-check) warns if it cannot; on Apple Silicon pick `qwen3.5:4b` from the model list (the non-MLX builds stay in it for vision), and expect a small local model to sometimes need the export asked as a follow-up turn.
 
 ![The Image analyst preset in action - the attached banner image, a folded MCP TOOLS summary with the four-call chain, the findings table, and the completed CSV export](../../assets/images/chat/preset-image-analyst-result.png){ width="1084" }
 

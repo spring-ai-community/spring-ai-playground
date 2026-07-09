@@ -4,7 +4,7 @@ description: End-to-end Spring AI Playground tutorials - Tool Studio authoring, 
 
 These fifteen tutorials walk you from creating a single tool to composing chains over the bundled default catalog, with optional deep-dives off the main path - the MCP protocol surface, re-publishing tools through the MCP Server Proxy, gating tool calls behind human approval, turning a Prompt Library template into a reusable preset, uploading a file into chat for an agent to analyze, attaching an image for a vision model to see, and investigating documents with a filesystem pipeline. They follow the natural product workflow: build → validate → ground → compose.
 
-The shipped chat default is **`qwen3.5:2b`** - fast, fine for the early tutorials. Switch to **`qwen3.5:9b`** or **`gemma4:e4b`** when you reach tutorials 4-7, where tool-calling reliability matters. Embeddings use **`qwen3-embedding:0.6b`** throughout. See [Picking a model](#picking-a-model) for the tradeoffs.
+The shipped chat default is **`qwen3.5:4b`** - fast, vision-capable, fine for the early tutorials. Switch to **`qwen3.5:9b`** or **`gemma4:e4b`** when you reach tutorials 4-7, where tool-calling reliability matters. Embeddings use **`qwen3-embedding:0.6b`** throughout. See [Picking a model](#picking-a-model) for the tradeoffs.
 
 ## How these tutorials connect
 
@@ -178,11 +178,11 @@ Tutorials 1-3 produce reusable assets (a tool, an MCP connection, an indexed doc
 
 Tool calling and tool chaining quality depend heavily on the model. The selectable list in **Agentic Chat → Settings → Model** is driven by `application.yaml`'s `playground.chat.models`. The shipped default is the small one - start there, and only upgrade if a tool turn comes back empty.
 
-=== "qwen3.5:2b (default)"
-    The shipped default. **2.7 GB**. Fast on Apple Silicon. Use this for the chat sanity check **before** wiring up tools or RAG. Tool calling is best-effort - if a tool turn comes back empty, that is the signal to upgrade, not to rewrite the prompt.
+=== "qwen3.5:4b (default)"
+    The shipped default. **3.4 GB**. Fast on Apple Silicon, and the smallest build that ships vision tensors, so image attachments work out of the box. Use this for the chat sanity check **before** wiring up tools or RAG. Tool calling is best-effort - if a tool turn comes back empty, that is the signal to upgrade, not to rewrite the prompt.
 
 === "qwen3.5:9b"
-    **6.6 GB**. Stronger tool calling and multi-turn reasoning. The first upgrade target when `qwen3.5:2b` skips a tool call.
+    **6.6 GB**. Stronger tool calling and multi-turn reasoning. The first upgrade target when `qwen3.5:4b` skips a tool call.
 
 === "gemma4:e4b"
     **9.6 GB**. Strongest natural-language quality. Pick this for tutorial 7 (multi-step tool chains) where the model has to *reason about* a tool result rather than just call it.

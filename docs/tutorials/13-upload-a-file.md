@@ -14,25 +14,20 @@ description: Tutorial 13 - upload a CSV or Excel file into Agentic Chat with the
 ![The Data wrangler preset selected in the Prompt Library, its tools listed including requestFileUpload and readTextFile](../assets/images/tutorials/tutorial-13-preset.png)
 *① Pick **Data wrangler** from the **Presets** group. ② Its **Required tools** row now leads with `requestFileUpload` and `readTextFile`. ③ Apply it to a new chat.*
 
-2. Ask a question about a file you have **not** pasted - for example `I have my sales figures in an Excel file. Ask me to upload it, then tell me total revenue by region.` The model recognizes it needs the data and calls `requestFileUpload`.
+2. Ask a question about a file you have **not** pasted - for example `I have my sales figures in a file. Ask me to upload it, then show total revenue by region as a table.` The model recognizes it needs the data (watch the THINK panel: it checks its working directory instead of guessing), calls `requestFileUpload`, and the chat opens an **Upload a file** dialog - the same human-in-the-loop pause used for tool approvals. Drop your `.csv` or `.xlsx` file onto it, or click to choose one.
 
-![The chat with the user message asking to analyze an Excel file, and the model beginning to call requestFileUpload](../assets/images/tutorials/tutorial-13-prompt.png)
-*The agent does not guess at data it cannot see - it reaches for the upload tool first.*
-
-3. The chat opens an **Upload a file** dialog (the same human-in-the-loop pause used for tool approvals). Drop your `.csv` or `.xlsx` file onto it, or click to choose one.
-
-![The Upload a file dialog with a drop zone, opened mid-conversation by the requestFileUpload tool](../assets/images/tutorials/tutorial-13-dialog.png)
+![The Upload a file dialog opened mid-conversation by the requestFileUpload tool, over the agent's THINK panel and tool calls](../assets/images/tutorials/tutorial-13-dialog.png)
 *The model can pass a short prompt (here "upload your sales figures") and an `accept` filter; the dialog accepts CSV, Excel, images, or any document.*
 
-4. Pick an Excel file and the browser converts it to CSV with **SheetJS** before anything leaves your machine, then saves it under the conversation workspace at `uploads/<name>.csv`. The tool returns that path to the model.
+3. Pick an Excel file and the browser converts it to CSV with **SheetJS** before anything leaves your machine, then saves it under the conversation workspace at `uploads/<name>.csv`. The tool returns that path to the model.
 
 ![The chat after the upload completes, showing the requestFileUpload and readTextFile tool chips and the agent reading the saved file](../assets/images/tutorials/tutorial-13-uploaded.png)
 *Excel (`.xlsx` / `.xls`) is converted to CSV in the browser - the server only ever stores text. The model then calls `readTextFile("uploads/...")` to read it back.*
 
-5. The agent reads the file, parses it, and answers - here summarizing revenue by region from the rows it actually loaded.
+4. The agent reads the file back, parses the rows, sums revenue per region, and **finishes with the totals as a table on your screen** - the analysis ends in a result you can read at a glance, not buried in prose.
 
-![The chat result - the agent's analysis of the uploaded data with the parsed figures](../assets/images/tutorials/tutorial-13-result.png)
-*The agent grounds its answer in the file you uploaded, not in anything it invented. Pair the preset's render tools (`renderTable`, `renderChart`, `renderStatCards`) to turn the result into cards.*
+![The chat result - the totals rendered as a table on screen, with the per-region breakdown underneath](../assets/images/tutorials/tutorial-13-result.png)
+*Every number comes from the rows it actually loaded - North is `1,200 + 400 = 1,600`, straight from the uploaded file. The preset's Emit step prefers the `renderTable` action card (sortable, searchable, CSV export); a small local model sometimes answers with a plain text table instead - ask for "a renderTable card" explicitly to nudge it.*
 
 ## What to observe
 
@@ -40,6 +35,7 @@ description: Tutorial 13 - upload a CSV or Excel file into Agentic Chat with the
 - Excel files are converted to CSV **in the browser** (SheetJS); the server stores only text, so `parseCsv` works unchanged and no extra Java dependency is involved.
 - The uploaded file lands in the conversation workspace `uploads/` directory, exactly where the filesystem tools (`readTextFile`, `findFiles`) can read it.
 - The tool is file-type agnostic - it also accepts images, PDFs, and plain text, returning the saved path for whatever tool comes next.
+- The turn is bounded by the [agent loop](../agent-loop-architecture.md): cancelling the upload dialog ends the request cleanly (the model is told not to re-ask this turn), and the whole pipeline runs within the per-turn round budget.
 
 !!! tip "Why this matters"
     Data tools are only half useful if you have to paste everything in by hand. `requestFileUpload` lets an agent pull a real file into the conversation on demand, so the same **Data wrangler** or **Data analysis** preset works on the spreadsheet sitting in your Downloads folder - not just on rows you retype. The tool reference is in [Default Tool Examples](../features/default-tools/examples.md#requestFileUpload).

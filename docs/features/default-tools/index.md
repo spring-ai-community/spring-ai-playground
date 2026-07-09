@@ -1,4 +1,4 @@
-description: Default Tools - 108 ready-to-call JavaScript tools across 6 source bundles, exposed through the built-in MCP server, OS-agnostic by design.
+description: Default Tools - 115 ready-to-call JavaScript tools across 6 source bundles, exposed through the built-in MCP server, OS-agnostic by design.
 
 # Default Tools
 
@@ -40,7 +40,7 @@ Levels are derived from each tool's declared `sandboxOverrides` (by `SandboxPost
 !!! question "Why no L1 or L2 here?"
     The **sandbox** rubric only ever produces **L0 / L3 / L4 / L5** - the calculator jumps from the `L0` baseline straight to `L3` the moment a tool declares *any* widening (network, file, or class change), so a tool is never L1 or L2. `L1` (*Safe*) and `L2` (*Low*) exist only in the [MCP server rubric](../../mcp-server-safety.md#risk-chip), which scores a different thing (connecting to an external server) on the same `L0`-`L5` enum.
 
-## Browse all 108 tools { #browse-all-tools }
+## Browse all 115 tools { #browse-all-tools }
 
 Click a card to jump to its full reference (with the JS source pre-expanded) on the right sub-page - same UX as the **Built-in MCP Server Native Tools** drawer in Tool Studio. Six reference pages organise the catalog by source bundle and concern: [Examples](examples.md) · [Utilities](utilities.md) · [Filesystem](filesystem.md) · [Global](global.md) · [Korea](korea.md) · [Visualization](visualization.md).
 
@@ -59,7 +59,7 @@ Click a card to jump to its full reference (with the JS source pre-expanded) on 
 <span class="tool-directory__chip-label">Category</span> <button class="tool-directory__chip" data-group="category" data-value="ai" aria-pressed="false">AI</button> <button class="tool-directory__chip" data-group="category" data-value="crypto" aria-pressed="false">CRYPTO</button> <button class="tool-directory__chip" data-group="category" data-value="data" aria-pressed="false">DATA</button> <button class="tool-directory__chip" data-group="category" data-value="datetime" aria-pressed="false">DATETIME</button> <button class="tool-directory__chip" data-group="category" data-value="encoding" aria-pressed="false">ENCODING</button> <button class="tool-directory__chip" data-group="category" data-value="file" aria-pressed="false">FILE</button> <button class="tool-directory__chip" data-group="category" data-value="math" aria-pressed="false">MATH</button> <button class="tool-directory__chip" data-group="category" data-value="messaging" aria-pressed="false">MESSAGING</button> <button class="tool-directory__chip" data-group="category" data-value="productivity" aria-pressed="false">PRODUCTIVITY</button> <button class="tool-directory__chip" data-group="category" data-value="security" aria-pressed="false">SECURITY</button> <button class="tool-directory__chip" data-group="category" data-value="text" aria-pressed="false">TEXT</button> <button class="tool-directory__chip" data-group="category" data-value="web" aria-pressed="false">WEB</button>
 </div>
 </div>
-<div class="tool-directory__count">Showing 108 of 108 tools</div>
+<div class="tool-directory__count">Showing 115 of 115 tools</div>
 <div class="tool-directory__list" markdown>
 
 <div class="tcg-grid tcg-grid--directory" markdown>

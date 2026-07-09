@@ -7,13 +7,14 @@ Spring AI Playground is a Spring Boot application that executes user-authored Ja
 
 This page is the system-level reference for how the sandbox is shaped. For the user-facing surface (the override fields, the Sandbox & Capabilities pane, the Risk Level badge), see [Tool Studio → Safety](features/tool-studio/index.md#safety) and [Tool Studio → Sandbox & Capabilities](features/tool-studio/index.md#sandbox-capabilities).
 
-This is one of six architecture documents that complement each other:
+This is one of the architecture documents that complement each other:
 
 - [Application](architecture.md) - runtime layers, feature modules, data flows, extension points
 - [Safe Tool Specification](safe-tool-specification.md) - normative JSON spec for tool authoring (the document the sandbox enforces)
 - **AI Agent Tool Safety** (this page) - defense-in-depth sandbox model, policy resolution, threat-to-layer mapping, known limitations
 - [MCP Server Safety](mcp-server-safety.md) - client-side risk model for external MCP servers and re-exposed tools
 - [Human-in-the-Loop Approval](hitl-architecture.md) - the runtime per-call approval gate
+- [Agent Loop](agent-loop-architecture.md) - per-turn round governance around the tool-calling loop
 - [AI Agent Observability](observability-architecture.md) - the visibility layer that makes the sandbox's prevention auditable
 
 ## Overview { #overview }

@@ -216,13 +216,13 @@ Active only when egress is `strict`. From `SafeHttpFetch.enforce` and `enforceSs
 2. **Egress switch** - based on the resolved mode. Only `strict` continues to the next layers.
 3. **Literal IP vs DNS branch** - if the host parses as a literal IPv4/IPv6 address, check that address directly. Otherwise resolve via DNS (`InetAddress.getAllByName`) and check **every** returned address. DNS failure or empty resolution both block - fail-closed.
 4. **Private/reserved address check** - rejects:
-   - loopback (`127.0.0.0/8`, `::1`)
-   - link-local (`169.254.0.0/16`, `fe80::/10`)
-   - site-local (RFC 1918: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`)
-   - any-local (`0.0.0.0`, `::`)
-   - multicast (`224.0.0.0/4`, `ff00::/8`)
-   - IPv6 ULA (`fc00::/7`)
-   - **CGNAT** (`100.64.0.0/10`) - explicitly handled because Java's `isSiteLocalAddress()` does not cover this range
+    - loopback (`127.0.0.0/8`, `::1`)
+    - link-local (`169.254.0.0/16`, `fe80::/10`)
+    - site-local (RFC 1918: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`)
+    - any-local (`0.0.0.0`, `::`)
+    - multicast (`224.0.0.0/4`, `ff00::/8`)
+    - IPv6 ULA (`fc00::/7`)
+    - **CGNAT** (`100.64.0.0/10`) - explicitly handled because Java's `isSiteLocalAddress()` does not cover this range
 
 ### Risk Level Reference
 

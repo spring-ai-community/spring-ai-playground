@@ -1,12 +1,12 @@
 ---
-description: Attach images to Agentic Chat - native multimodal input with client-side resizing, EXIF capture, vision-capability checks, and the describeImage tool for re-referencing earlier images.
+description: Multimodal vision input for Agentic Chat - hand images to a vision model as native multimodal input, with client-side resizing, EXIF capture, vision-capability checks, and the describeImage tool for re-referencing earlier images.
 ---
 
-# Image Attachments
+# Multimodal Vision Input
 
 Agentic Chat accepts images as first-class, native multimodal input: attach a photo, ask a question, and a vision-capable model sees the actual pixels - not a text description of them. The pipeline handles resizing, EXIF metadata, storage, and model-capability checks so the conversation stays fast and private.
 
-![The chat input with image chips above the prompt field - each chip shows a thumbnail and a remove button](../../assets/images/chat/image-attach-chips.png){ width="1200" }
+![The chat input with an attached image chip above the prompt field - the chip shows a thumbnail with a remove button and the 1 / 5 counter](../../assets/images/chat/image-attach-chips.png){ width="1200" }
 
 ## Three ways to attach
 
@@ -45,7 +45,7 @@ Attaching the same image twice in a conversation stores it once, and images neve
 
 Attached images ride along with your next message as Spring AI `Media` on the user message - the provider-native multimodal path (Ollama `images`, OpenAI `image_url`). The sent images render as thumbnails inside your message bubble, and the image references persist with the conversation: reopening a chat restores the thumbnails from the image store. Only the references are saved in the conversation file - the bytes stay deduplicated in the conversation's `images/` directory.
 
-![A user message with the attached image thumbnail and the vision model's answer describing it](../../assets/images/chat/image-attach-response.png){ width="1200" }
+![A user message with the attached image thumbnail and the vision model's answer reading the title text and describing the earthquake map](../../assets/images/chat/image-attach-response.png){ width="1200" }
 
 ## Vision capability check
 
@@ -76,10 +76,10 @@ Attached images do not need to be re-sent to be discussed again. The **`describe
 - *"What was in the background of that photo I sent earlier?"* - the model calls `describeImage`, the chat loads the stored image by its hash, and attaches it to the next model call. This works even when the original turn has fallen out of the [context window](../../context-engineering-architecture.md#conversation-memory).
 - If several images match, the chat opens a **chooser dialog**; if none exist, it opens an **upload dialog** - the same human-in-the-loop seam as [tool approval](../../tutorials/11-human-approval.md) and [`requestFileUpload`](../default-tools/examples.md#requestFileUpload).
 
-The tool reference is in [Default Tool Examples](../default-tools/examples.md#describeImage). The **[Image analyst](prompt-presets.md#image-analyst)** preset packages the whole loop - analyze an attached image, tabulate the findings with `renderTable`, and export them as a CSV that opens in Excel.
+The tool reference is in [Default Tool Examples](../default-tools/examples.md#describeImage). The **[Image analyst](prompt-presets.md#image-analyst)** preset packages the whole loop - analyze an attached image, tabulate findings with `renderTable`, read the EXIF sidecars to map geotagged photos with `plotPointsOnMap`, and export tables as CSV ([Tutorial 14](../../tutorials/14-analyze-an-image.md) walks the map scenario end to end).
 
 ## Privacy notes
 
 - Images are optimized and stored **locally** under the playground home; with a local provider they are never transmitted anywhere else.
 - EXIF metadata - **including GPS location** if the photo has it - is preserved in the local metadata store so the model can answer "where was this taken?". Nothing strips it, so treat conversations with remote providers accordingly.
-- Conversation files store only image *references* (hash, file name, MIME type); deleting a conversation does not delete stored images.
+- Conversation files store only image *references* (hash, file name, MIME type). Deleting a conversation offers an "Also delete workspace file(s)" checkbox - checked by default, it removes the stored images with the chat; uncheck it to keep them on disk.

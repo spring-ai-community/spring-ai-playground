@@ -68,9 +68,9 @@ By default a chat sends the model the full schema of every tool you expose - fin
 
 It is also how the built-in **[Self-equipping agent](prompt-presets.md)** preset works. For the full picture - why it matters for agents, the 34-64% token-savings experiment behind it, how it lets a small local model drive a large toolbox, and the configuration - see **[Dynamic tool discovery](dynamic-tool-discovery.md)**.
 
-### Image attachments
+### Multimodal vision input
 
-The picture icon by the prompt box attaches images (up to five per message) - or drop a file onto the prompt, or paste a screenshot. Attached images show as removable chips above the prompt, are resized and EXIF-tagged in the browser, stored content-addressed under the playground home, and sent to the model as native multimodal input. A capability check warns when the selected model cannot actually see (including the mlx false-positive case on Apple Silicon). The full pipeline - storage, vision checks, error handling, and the `describeImage` re-reference tool - is on the [Image Attachments](image-attachments.md) page.
+The picture icon by the prompt box attaches images (up to five per message) - or drop a file onto the prompt, or paste a screenshot. Attached images show as removable chips above the prompt, are resized and EXIF-tagged in the browser, stored content-addressed under the playground home, and sent to the model as native multimodal input. A capability check warns when the selected model cannot actually see (including the mlx false-positive case on Apple Silicon). The full pipeline - storage, vision checks, error handling, and the `describeImage` re-reference tool - is on the [Multimodal Vision Input](image-attachments.md) page.
 
 ### Voice input
 
@@ -221,6 +221,8 @@ When MCP connections are enabled, Agentic Chat can behave like an agent:
 
 When a tool requires approval, Agentic Chat **pauses and asks you to approve or decline** the call before it runs - the on-device half of [Human-in-the-Loop Approval](../human-in-the-loop.md). Declining tells the model the call was not run, so it won't silently retry.
 
+The loop itself is governed by the [agent loop](../../agent-loop-architecture.md): one message may run only a bounded number of tool rounds before the model is told to wrap up, repeated identical calls are short-circuited, and a cancelled upload or image request is not re-asked within the same turn - so a small local model cannot spin on the same dialog. The bounds are [configurable](../../getting-started/configuration.md#agent-loop).
+
 ## Workflow Integration
 
 The intended end-to-end flow is:
@@ -242,7 +244,7 @@ For Ollama-based flows:
 - use reasoning-capable models from [Ollama's Thinking Category](https://ollama.com/search?c=thinking)
 - validate tools in MCP Inspector before relying on them in Agentic Chat
 
-The default `playground.chat.models` list features `qwen3.5:2b` (default) plus `qwen3.5:9b` / `qwen3.6:35b` for stronger tool-oriented reasoning, with `gemma4:e4b`, `gpt-oss:20b`, and `deepseek-r1:8b` as alternatives. See [Picking a Model](../../tutorials/index.md#picking-a-model) in the Tutorials for the tradeoffs.
+The default `playground.chat.models` list features `qwen3.5:4b` (default, the smallest vision-capable build) plus `qwen3.5:2b` / `qwen3.5:9b`, `qwen3.6:27b` / `qwen3.6:35b` for stronger tool-oriented reasoning, the `gemma4` family (`e2b` / `e4b` / `12b` / `31b`), and `gpt-oss:20b` / `deepseek-r1:8b` as alternatives. See [Picking a Model](../../tutorials/index.md#picking-a-model) in the Tutorials for the tradeoffs.
 
 ## Agentic Chat Architecture Overview
 

@@ -39,7 +39,7 @@ The default active profile is **`ollama`** (`spring.profiles.default: ollama`). 
 
 Activate with `SPRING_PROFILES_ACTIVE=openai`, layer with `SPRING_PROFILES_INCLUDE=mcp-stdio`, or use `--spring.profiles.active=` / `-Dspring.profiles.active=`.
 
-On an **Apple Silicon Mac** the `mlx` profile is layered onto `ollama` automatically (default chat model `qwen3.5:4b-mlx` plus a `-mlx` model menu). An `EnvironmentPostProcessor` gates it on `spring.ai.playground.ollama.mlx-auto-select` (default `true`) and the OS/arch check, so it never activates on Intel, Windows, Linux, or Docker. Pass `--spring.ai.playground.ollama.mlx-auto-select=false` to opt out. The desktop launcher disables this and resolves MLX builds itself - see [Alternative Runtimes → Apple Silicon and MLX models](alternative-runtimes.md#apple-silicon-mlx).
+On an **Apple Silicon Mac** the `mlx` profile is layered onto `ollama` automatically (default chat model `qwen3.5:4b-mlx` plus a model menu of `-mlx` builds alongside the standard GGUF builds, which stay in the menu for image chat - MLX builds ship without vision tensors). An `EnvironmentPostProcessor` gates it on `spring.ai.playground.ollama.mlx-auto-select` (default `true`) and the OS/arch check, so it never activates on Intel, Windows, Linux, or Docker. Pass `--spring.ai.playground.ollama.mlx-auto-select=false` to opt out. The desktop launcher disables this and resolves MLX builds itself - see [Alternative Runtimes → Apple Silicon and MLX models](alternative-runtimes.md#apple-silicon-mlx).
 
 ## Server & web { #server }
 
@@ -68,9 +68,9 @@ Provider selection (which Spring AI model backs each capability):
 |---|---|---|
 | `spring.ai.ollama.base-url` | `http://localhost:11434` | Point at a remote/host Ollama via `SPRING_AI_OLLAMA_BASE_URL` (common in Docker). |
 | `spring.ai.ollama.init.pull-model-strategy` | `when_missing` | Auto-pull models on startup. |
-| `spring.ai.ollama.chat.options.model` | `qwen3.5:2b` | Default chat model. |
+| `spring.ai.ollama.chat.options.model` | `qwen3.5:4b` | Default chat model. |
 | `spring.ai.ollama.embedding.options.model` | `qwen3-embedding:0.6b` | Default embedding model. |
-| `spring.ai.playground.chat.models` | `qwen3.5:2b, qwen3.5:9b, qwen3.6:35b, gemma4:e4b, gpt-oss:20b, deepseek-r1:8b` | The model menu shown in the chat UI. |
+| `spring.ai.playground.chat.models` | `qwen3.5:2b/4b/9b, qwen3.6:27b/35b, gemma4:e2b/e4b/12b/31b, gpt-oss:20b, deepseek-r1:8b` | The model menu shown in the chat UI. |
 | `spring.ai.playground.ollama.mlx-auto-select` | `true` | On Apple Silicon, auto-activate the [`mlx` profile](#profiles) (MLX model defaults). Set `false` to keep the generic model names. |
 
 **OpenAI profile** (`openai`):
@@ -141,6 +141,19 @@ The playground publishes its own MCP server at `/mcp` (Streamable HTTP). These c
 | `spring.ai.playground.chat.tool-search.index-type` | relaxed-binding env | `HYBRID` | `HYBRID` (exact tool-name match, then vector search) or `VECTOR` (vector only). |
 | `spring.ai.playground.chat.tool-search.vector-store` | relaxed-binding env | `DEDICATED` | `DEDICATED` (a private, persisted tool index) or `SHARED` (reuse the RAG vector store). See [Context Engineering → Tools](../context-engineering-architecture.md#tools). |
 | `spring.ai.mcp.server.request-timeout` | relaxed-binding env | `150` | Seconds. |
+
+## Agent loop { #agent-loop }
+
+`spring.ai.playground.chat.agent-loop.*` bounds the [Agentic Chat](../features/agentic-chat/index.md) tool-calling loop and its interactive dialogs. See [Agent Loop](../agent-loop-architecture.md) for how these are enforced. Defaults suit a broad agent; raise the round caps only if a legitimate multi-step task needs more tool rounds.
+
+| Property | Env | Default | Notes |
+|---|---|---|---|
+| `spring.ai.playground.chat.agent-loop.soft-max-rounds` | relaxed-binding env | `16` | Once a turn exceeds this many tool rounds, further tool calls are answered with a "wrap up now" message instead of running, nudging the model to reply with what it has. |
+| `spring.ai.playground.chat.agent-loop.hard-max-rounds` | relaxed-binding env | `18` | Hard stop: the loop is ended with a final message if the model keeps calling tools past this. Raised to `soft-max-rounds` if set lower. |
+| `spring.ai.playground.chat.agent-loop.max-identical-calls` | relaxed-binding env | `3` | How many times a tool may be called with identical arguments in one turn before repeats are short-circuited (a legitimate re-read is fine; a stuck loop is not). |
+| `spring.ai.playground.chat.agent-loop.interactions-per-round` | relaxed-binding env | `1` | How many interactive dialogs (approval, file upload, image pick) may open per round. Keep at `1` so a round's blocking waits cannot stack past the stream timeout. |
+| `spring.ai.playground.chat.agent-loop.approval-timeout-seconds` | relaxed-binding env | `120` | How long a human-in-the-loop approval dialog waits before failing safe to **decline**. Clamped below the 300s stream timeout. |
+| `spring.ai.playground.chat.agent-loop.dialog-timeout-seconds` | relaxed-binding env | `180` | How long a file-upload or image dialog waits before returning "not provided". Clamped below the 300s stream timeout. |
 
 ## Observability { #observability }
 

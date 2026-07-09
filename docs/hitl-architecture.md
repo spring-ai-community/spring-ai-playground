@@ -12,6 +12,7 @@ This is one of the architecture documents that complement each other:
 - [Application](architecture.md) - runtime layers, feature modules, data flows
 - [AI Agent Tool Safety](safety-architecture.md) - the **sandbox** that contains locally-authored JS tools
 - [MCP Server Safety](mcp-server-safety.md) - the **risk model** for external servers and re-exposed tools
+- [Agent Loop](agent-loop-architecture.md) - the **round governance** this gate is one interceptor of
 - **Human-in-the-Loop Approval** (this page) - the **runtime per-call approval gate**
 
 ## Overview { #overview }
@@ -77,7 +78,7 @@ This is *why* proxying exists for the safety story: re-exposing an external tool
 
 There is **one per-tool policy**, enforced wherever a call enters - and the split is by **caller (entry point), not by tool type**. Built-in tools and re-exposed external tools carry the same flag and are gated the same way; what differs is *who* is calling:
 
-- **Agentic Chat (in-process agent loop)** - every tool call the chat makes, built-in or re-exposed external, runs through a **single** [`McpToolCallingManager`](https://github.com/spring-ai-community/spring-ai-playground/blob/main/src/main/java/org/springaicommunity/playground/service/mcp/McpToolCallingManager.java) tool-calling loop. The `ChatClient` installs a Spring AI [`ToolCallAdvisor`](https://github.com/spring-ai-community/spring-ai-playground/blob/main/src/main/java/org/springaicommunity/playground/service/mcp/LoggingToolCallAdvisor.java) (`LoggingToolCallAdvisor`) that uses this manager; the manager asks for approval **before** any gated tool runs. The check is `requiresApproval(toolName)`, which finds the flag on the authored `ToolSpec` *or* on the wrapped external one.
+- **Agentic Chat (in-process agent loop)** - every tool call the chat makes, built-in or re-exposed external, runs through a **single** [`AgentLoopManager`](https://github.com/spring-ai-community/spring-ai-playground/blob/main/src/main/java/org/springaicommunity/playground/service/agent/AgentLoopManager.java) round. The `ChatClient` installs Spring AI's `ToolCallingAdvisor` (or `ToolSearchToolCallingAdvisor` for dynamic discovery) with this manager as its `ToolCallingManager`; the manager runs a chain of round interceptors, the first business one being [`HitlApprovalInterceptor`](https://github.com/spring-ai-community/spring-ai-playground/blob/main/src/main/java/org/springaicommunity/playground/service/agent/HitlApprovalInterceptor.java), which asks for approval **before** any gated tool runs. The check is `requiresApproval(toolName)`, which finds the flag on the authored `ToolSpec` *or* on the wrapped external one. The wider loop this sits in is covered in [Agent Loop](agent-loop-architecture.md).
 - **External MCP client over `/mcp`** (Claude Desktop, another app) - this caller never touches the `ChatClient`, its advisor chain, or the `ToolCallingManager`. The MCP server SDK invokes the tool's `callHandler` directly, so the only place to gate it is by **wrapping that handler at registration** ([`McpServerHitlToolGate`](https://github.com/spring-ai-community/spring-ai-playground/blob/main/src/main/java/org/springaicommunity/playground/service/mcp/McpServerHitlToolGate.java)), which asks via MCP elicitation.
 
 The two never fire for the same call: when Chat reaches a built-in or proxied tool through the self-loopback MCP client, the server-side gate sees the loopback caller and **skips** - the chat loop already asked (see [loopback de-duplication](#loopback)).
@@ -92,7 +93,7 @@ flowchart TB
 
     subgraph CHAT["On-device chat gate"]
         direction TB
-        A1["Chat tool loop<br/>(McpToolCallingManager)"]
+        A1["Chat agent loop<br/>(AgentLoopManager)"]
         A2["Approval check<br/>before each tool call"]
         A3["Vaadin dialog<br/>Approve / Decline"]
         A1 --> A2 --> A3
@@ -114,13 +115,13 @@ flowchart TB
 
 ### On-device chat - approval dialog { #chat-gate }
 
-When the on-device agent loop is about to execute tool calls, [`McpToolCallingManager`](https://github.com/spring-ai-community/spring-ai-playground/blob/main/src/main/java/org/springaicommunity/playground/service/mcp/McpToolCallingManager.java) intercepts each call. For every call whose tool `requiresApproval`, it raises a `HumanQuestion` and asks the [`HumanQuestionHandler`](https://github.com/spring-ai-community/spring-ai-playground/blob/main/src/main/java/org/springaicommunity/playground/service/tool/HumanQuestionHandler.java) carried in the tool context. In Agentic Chat that handler is [`ChatHumanQuestionHandler`](https://github.com/spring-ai-community/spring-ai-playground/blob/main/src/main/java/org/springaicommunity/playground/webui/chat/ChatHumanQuestionHandler.java), which opens a Vaadin **ConfirmDialog** (*Approve* / *Decline*) on the chat UI. This path uses a dialog, **not** MCP elicitation - chat is in-process, so there is no protocol round-trip to make.
+When the on-device agent loop is about to execute tool calls, the [`HitlApprovalInterceptor`](https://github.com/spring-ai-community/spring-ai-playground/blob/main/src/main/java/org/springaicommunity/playground/service/agent/HitlApprovalInterceptor.java) inspects the round. For every call whose tool `requiresApproval`, it raises a `HumanQuestion` **keyed by the tool call id** and asks the [`HumanQuestionHandler`](https://github.com/spring-ai-community/spring-ai-playground/blob/main/src/main/java/org/springaicommunity/playground/service/tool/HumanQuestionHandler.java) carried in the tool context. In Agentic Chat that handler is [`ChatHumanQuestionHandler`](https://github.com/spring-ai-community/spring-ai-playground/blob/main/src/main/java/org/springaicommunity/playground/webui/chat/ChatHumanQuestionHandler.java), which renders **all of the round's approval questions in a single Vaadin dialog** - a `ConfirmDialog` (*Approve* / *Decline*) when there is one, or one row per call when there are several - on the chat UI. This path uses a dialog, **not** MCP elicitation; chat is in-process, so there is no protocol round-trip to make.
 
 - **Approve** → the call executes normally.
-- **Decline** → the call is removed from the batch and a `ToolResponse` is synthesized telling the model the user declined, it was **not** executed, and not to call it again for this request. The model continues with the remaining (approved) calls, if any.
-- **Timeout** (2 minutes), dialog closed, or UI error → **decline** (fail-safe).
+- **Decline** → the call is removed from the batch and a `ToolResponse` is synthesized telling the model the user declined, it was **not** executed, and not to call it again for this request. The tool is also remembered as declined for the rest of the turn, so a re-request is auto-declined without a second dialog. The model continues with the remaining (approved) calls, if any.
+- **Timeout** (the `approval-timeout-seconds` setting, default 2 minutes), dialog closed, or UI error → **decline** (fail-safe).
 
-Approved and declined calls in the same turn are handled together: approved ones run, declined ones get the decline response, and the original ordering is preserved so the conversation history stays consistent.
+Keying by tool call id matters: if the model emits the *same* gated tool with the *same* arguments twice in one round, each call gets its own verdict, so declining both cannot let the first slip through. All the round's questions share one dialog, so the wait never stacks past the stream's inter-signal timeout. Approved and declined calls in the same round are handled together, and the original ordering is preserved so the conversation history stays consistent.
 
 ### External MCP client - elicitation { #server-gate }
 
@@ -173,7 +174,7 @@ The key properties this path guarantees:
 
 - **HITL happens first, the network call second.** The upstream external server is **not** contacted until after approval - a declined call never leaves the machine.
 - **Approved once, not twice.** The chat dialog (step 3) is the only prompt; the server-side gate is on the path (step 7) but skips because the caller is the self-loopback client.
-- **The result is processed identically.** After the upstream `CallToolResult` returns, it flows back through the same `McpToolCallingManager` as any built-in tool - same tool-result event, same conversation history, same observability spans.
+- **The result is processed identically.** After the upstream `CallToolResult` returns, it flows back through the same `AgentLoopManager` round as any built-in tool - same tool-result event, same conversation history, same observability spans.
 
 The same proxied tool called by an **external** MCP client instead of on-device chat takes the other gate: step 3's dialog is replaced by the server-side **elicitation** in `McpServerHitlToolGate` (step 6 is no longer loopback, so it does **not** skip), and steps 8-13 are identical. Either way the upstream call is reached only after an explicit approval.
 

@@ -505,7 +505,7 @@ Installing an external MCP server normally means cloning a repo, installing the 
 - [:material-connection: MCP Server](features/mcp-server/index.md): inspect external MCP servers, read a live **risk score** (L0-L5) before connecting, and **proxy** their tools onto the built-in server - compose multiple servers into one surface - each gated by per-tool human-in-the-loop.
 - [:material-server-network: Default MCP Servers](features/default-mcp-catalog/index.md): 57 preset external MCP server connections (Gmail, Notion, Slack, GitHub, Tavily, ...) gated on `${ENV_VAR}` placeholders.
 - [:material-database-search: RAG](features/vector-database.md): upload content, chunk it, embed it, index it, and validate retrieval quality.
-- [:material-chat-processing: Agentic Chat](features/agentic-chat/index.md): combine grounded context, built-in tools, and explicitly trusted MCP connections in one interaction flow - with a Prompt Library of ready-to-use [presets](features/agentic-chat/prompt-presets.md) and [`{{variable}}` templates](features/agentic-chat/prompt-templates.md), per-turn reasoning effort, review-then-act [action cards](features/agentic-chat/index.md#action-cards) (email, calendar, map) and clickable file paths, and rich code/math/diagram rendering.
+- [:material-chat-processing: Agentic Chat](features/agentic-chat/index.md): combine grounded context, built-in tools, and explicitly trusted MCP connections in one interaction flow - with a Prompt Library of ready-to-use [presets](features/agentic-chat/prompt-presets.md) and [`{{variable}}` templates](features/agentic-chat/prompt-templates.md), [dynamic tool discovery](features/agentic-chat/dynamic-tool-discovery.md), per-turn reasoning effort, [image attachments as multimodal vision input](features/agentic-chat/image-attachments.md), review-then-act [action cards](features/agentic-chat/index.md#action-cards) (email, calendar, map) and clickable file paths, on-device voice input, and rich code/math/diagram rendering.
 - [:material-chart-line: Observability](features/observability/index.md): fourteen in-app dashboards covering token economics, tool and MCP behaviour, RAG quality, host runtime, and a live trace tail.
 
 ## :material-lightbulb-on-outline: Why This Project Exists
@@ -537,6 +537,7 @@ It is intentionally opinionated and scope-limited in its current stage. The goal
 - [AI Agent Tool Safety Architecture](safety-architecture.md): defense-in-depth sandbox model, policy resolution, threat model, and Risk Level reference
 - [AI Agent Observability Architecture](observability-architecture.md): trace pipeline, storage tiers, configuration, and external export paths behind the fourteen dashboards
 - [Context Engineering Architecture](context-engineering-architecture.md): how each chat turn's context window is assembled from system prompt, retrieved documents, tools, memory, and per-request options
+- [Agent Loop](agent-loop-architecture.md): per-turn state, round bounds, and the interceptor chain that governs the Agentic Chat tool-calling loop
 - [Features](features/index.md): the main product areas and what they do
 - [Tutorials](tutorials/index.md): follow end-to-end workflows for tools, MCP, vector search, and agentic chat
 
