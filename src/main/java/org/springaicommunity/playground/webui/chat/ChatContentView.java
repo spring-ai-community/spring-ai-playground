@@ -52,6 +52,7 @@ import org.springaicommunity.playground.service.chat.ChatExportService;
 import org.springaicommunity.playground.service.chat.ChatExtraOptions;
 import org.springaicommunity.playground.service.chat.ChatHistory;
 import org.springaicommunity.playground.service.chat.ChatHistoryPersistenceService;
+import org.springaicommunity.playground.service.analytics.UsageAnalyticsService;
 import org.springaicommunity.playground.service.chat.ChatHistoryService;
 import org.springaicommunity.playground.service.chat.ChatProvider;
 import org.springaicommunity.playground.service.chat.ChatService;
@@ -72,6 +73,7 @@ import org.springaicommunity.playground.service.tool.ToolSpecPersistenceService;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
 import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentInfo;
 import org.springaicommunity.playground.webui.SttMicButton;
+import org.springaicommunity.playground.webui.UsageEventTracker;
 import org.springaicommunity.playground.webui.VaadinUtils;
 import org.springaicommunity.playground.webui.tool.ExposedToolsSelector;
 import org.slf4j.Logger;
@@ -99,6 +101,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -136,6 +139,8 @@ public class ChatContentView extends VerticalLayout {
     private final MultiSelectComboBox<McpServerInfo> mcpToolProviderComboBox;
     private final ChatService chatService;
     private final ChatHistoryService chatHistoryService;
+    private final UsageAnalyticsService usageAnalyticsService;
+    private final UsageEventTracker usageEventTracker;
     private final Consumer<ChatHistory> completeChatHistoryConsumer;
     private ChatHistory chatHistory;
     private final McpClientService mcpClientService;
@@ -176,7 +181,8 @@ public class ChatContentView extends VerticalLayout {
             McpCompositionToolCallbackProvider compositionProvider, SpringAiPlaygroundOptions playgroundOptions,
             ChatClientActionRegistry clientActionRegistry, ConversationFileUploadStore fileUploadStore,
             ChatImageStore imageStore,
-            VisionCapabilityService visionCapabilityService) {
+            VisionCapabilityService visionCapabilityService, UsageAnalyticsService usageAnalyticsService,
+            UsageEventTracker usageEventTracker) {
         this.chatHistory = chatHistory;
         this.chatService = chatService;
         this.chatHistoryService = chatHistoryService;
@@ -192,6 +198,8 @@ public class ChatContentView extends VerticalLayout {
         this.fileUploadStore = fileUploadStore;
         this.imageStore = imageStore;
         this.visionCapabilityService = visionCapabilityService;
+        this.usageAnalyticsService = usageAnalyticsService;
+        this.usageEventTracker = usageEventTracker;
         this.toolSearch = playgroundOptions.chat().toolSearch();
         this.customToolsComboBox = ExposedToolsSelector.newCustomSelector(
                 toolSpecService::riskLevelOf, toolSpecService::categoryOf);
@@ -747,6 +755,7 @@ public class ChatContentView extends VerticalLayout {
             }
         }
 
+        trackChatMessageSent(ui, toolCallbacks.size(), sentImages.size(), !selectedDocInfoIds.isEmpty());
         AtomicBoolean liveSaved = new AtomicBoolean();
         Runnable saveOnFirstActivity = () -> {
             if (liveSaved.compareAndSet(false, true))
@@ -756,7 +765,10 @@ public class ChatContentView extends VerticalLayout {
                         this.chatService.buildFilterExpression(selectedDocInfoIds), this.completeChatHistoryConsumer,
                         toolCallbacks, o -> {
                             saveOnFirstActivity.run();
-                            ui.access(() -> chatContentManager.appendMcpToolProcessMessage(o));
+                            ui.access(() -> {
+                                chatContentManager.appendMcpToolProcessMessage(o);
+                                trackToolCalled(ui, o);
+                            });
                         },
                         o -> ui.access(() -> chatContentManager.appendRagProcessMessage(o)),
                         o -> {
@@ -784,6 +796,25 @@ public class ChatContentView extends VerticalLayout {
                     saveOnFirstActivity.run();
                     ui.access(() -> chatContentManager.append(content));
                 });
+    }
+
+    private void trackChatMessageSent(UI ui, int toolCount, int imageCount, boolean ragEnabled) {
+        Map<String, Object> params = new LinkedHashMap<>();
+        params.put("provider", this.chatService.getChatProvider().name().toLowerCase(Locale.ROOT));
+        params.put("model", this.chatHistory.chatOptions().getModel());
+        params.put("reasoning", Objects.requireNonNullElse(this.reasoningSelect.getValue(),
+                ReasoningEffort.DEFAULT).name());
+        params.put("dynamic_tools", this.dynamicToolsCheckbox.getValue());
+        params.put("tool_count", toolCount);
+        params.put("image_count", imageCount);
+        params.put("rag_enabled", ragEnabled);
+        this.usageEventTracker.track(ui, "chat_message_sent", params);
+    }
+
+    private void trackToolCalled(UI ui, Object processMessage) {
+        if (processMessage instanceof McpToolCallingManager.McpToolResult toolResult)
+            this.usageEventTracker.track(ui, "tool_called",
+                    this.usageAnalyticsService.toolCalledParams(toolResult.name()));
     }
 
     private void onImageProcessingStarted() {

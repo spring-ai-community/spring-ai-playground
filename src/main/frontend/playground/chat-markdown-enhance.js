@@ -1298,6 +1298,7 @@ function enhanceActionCards(root) {
         }
         const card = buildActionCard(data);
         if (!card) return;
+        if (window.gtag) window.gtag('event', 'action_card_rendered', { card_type: data.type });
         pre.dataset.saipAction = 'done';
         pre.replaceWith(card);
     });

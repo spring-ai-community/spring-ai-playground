@@ -22,6 +22,7 @@ import com.vaadin.flow.component.page.Push;
 import com.vaadin.flow.component.page.TargetElement;
 import com.vaadin.flow.server.AppShellSettings;
 import com.vaadin.flow.server.PWA;
+import com.vaadin.flow.server.VaadinService;
 import com.vaadin.flow.theme.lumo.Lumo;
 import io.micrometer.observation.ObservationRegistry;
 import org.springframework.ai.chat.client.ChatClient;
@@ -81,7 +82,7 @@ public class SpringAiPlaygroundApplication implements AppShellConfigurator {
 
     @Override
     public void configurePage(AppShellSettings settings) {
-        if (!isTelemetryEnabled()) {
+        if (!isTelemetryActive()) {
             settings.addInlineWithContents(Inline.Position.PREPEND,
                     "window['ga-disable-" + GoogleAnalyticsNavigationListener.MEASUREMENT_ID + "'] = true;",
                     Inline.Wrapping.JAVASCRIPT);
@@ -123,10 +124,16 @@ public class SpringAiPlaygroundApplication implements AppShellConfigurator {
         settings.addInlineWithContents(Inline.Position.PREPEND, ga4Snippet, Inline.Wrapping.JAVASCRIPT);
     }
 
-    private static boolean isTelemetryEnabled() {
-        String value = System.getenv("SPRING_AI_PLAYGROUND_TELEMETRY_ENABLED");
-        if (value == null) value = System.getProperty("spring.ai.playground.telemetry.enabled");
-        return value == null || !"false".equalsIgnoreCase(value.trim());
+    private static boolean isTelemetryActive() {
+        return isProductionMode() && !GoogleAnalyticsNavigationListener.isTelemetryOptedOut();
+    }
+
+    private static boolean isProductionMode() {
+        try {
+            return VaadinService.getCurrent().getDeploymentConfiguration().isProductionMode();
+        } catch (RuntimeException e) {
+            return false;
+        }
     }
 
     @Bean
