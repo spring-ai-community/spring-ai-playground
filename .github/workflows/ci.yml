@@ -18,3 +18,22 @@ jobs:
       java-version: "21"
       maven-goals: clean verify -B
       skip-tests: true
+
+  # The full suite stays skipped above (it needs Ollama, Docker, and a local
+  # MCP venv), but the shipped default-tool integrity manifest is environment
+  # independent and must hold on every push - the tamper-reject gate behind
+  # docs/mcp-owasp-top-10.md MCP04.
+  integrity-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: temurin
+          cache: maven
+
+      - name: Verify default-tool integrity manifest
+        run: ./mvnw -B test -Dtest=DefaultIntegrityManifestTest
