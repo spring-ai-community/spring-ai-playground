@@ -13,11 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.springaicommunity.playground.service.mcp;
+package org.springaicommunity.playground.service.agent;
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springaicommunity.playground.SpringAiPlaygroundOptions;
+import org.springaicommunity.playground.service.tool.FileUploadHandler;
 import org.springaicommunity.playground.service.tool.HumanQuestion;
 import org.springaicommunity.playground.service.tool.HumanQuestionHandler;
 import org.springaicommunity.playground.service.tool.ToolManifest;
@@ -37,6 +39,7 @@ import org.springframework.beans.factory.ObjectProvider;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -48,25 +51,29 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-class McpToolCallingManagerHitlTest {
+class AgentLoopManagerHitlTest {
 
     private final ToolCallingManager delegate = mock(ToolCallingManager.class);
     private final ToolSpecService toolSpecService = mock(ToolSpecService.class);
 
-    private McpToolCallingManager manager() {
+    private AgentLoopManager manager() {
         return manager(12_000);
     }
 
     @SuppressWarnings("unchecked")
-    private McpToolCallingManager manager(int toolResultMaxChars) {
+    private AgentLoopManager manager(int toolResultMaxChars) {
         ObjectProvider<ToolSpecService> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(toolSpecService);
-        return new McpToolCallingManager(delegate, provider, new SimpleMeterRegistry(), toolResultMaxChars);
+        return new AgentLoopManager(delegate, provider, new SimpleMeterRegistry(), toolResultMaxChars);
     }
 
     private Prompt promptWith(HumanQuestionHandler handler) {
         Map<String, Object> toolContext = handler == null ? Map.of()
                 : Map.of(HumanQuestionHandler.TOOL_CONTEXT_KEY, handler);
+        return promptWithContext(toolContext);
+    }
+
+    private Prompt promptWithContext(Map<String, Object> toolContext) {
         return new Prompt(List.of(new UserMessage("do it")),
                 ToolCallingChatOptions.builder().toolContext(toolContext).build());
     }
@@ -94,12 +101,12 @@ class McpToolCallingManagerHitlTest {
         ChatResponse response = responseWith(toolCall("1", "writeFile"));
         Prompt prompt = promptWith(null);
         ToolExecutionResult expected = delegateResultFor(toolCall("1", "writeFile"));
-        when(delegate.executeToolCalls(prompt, response)).thenReturn(expected);
+        when(delegate.executeToolCalls(any(), any())).thenReturn(expected);
 
         ToolExecutionResult result = manager().executeToolCalls(prompt, response);
 
         assertEquals(expected, result);
-        verify(delegate).executeToolCalls(prompt, response);
+        verify(delegate).executeToolCalls(any(), any());
     }
 
     @Test
@@ -108,7 +115,7 @@ class McpToolCallingManagerHitlTest {
         Prompt prompt = promptWith(questions -> Map.of());
         when(toolSpecService.requiresApproval("getTime")).thenReturn(false);
         ToolExecutionResult expected = delegateResultFor(toolCall("1", "getTime"));
-        when(delegate.executeToolCalls(prompt, response)).thenReturn(expected);
+        when(delegate.executeToolCalls(any(), any())).thenReturn(expected);
 
         ToolExecutionResult result = manager().executeToolCalls(prompt, response);
 
@@ -121,12 +128,12 @@ class McpToolCallingManagerHitlTest {
         Prompt prompt = promptWith(questions -> answerAll(questions, "Approve"));
         when(toolSpecService.requiresApproval("writeFile")).thenReturn(true);
         ToolExecutionResult expected = delegateResultFor(toolCall("1", "writeFile"));
-        when(delegate.executeToolCalls(prompt, response)).thenReturn(expected);
+        when(delegate.executeToolCalls(any(), any())).thenReturn(expected);
 
         ToolExecutionResult result = manager().executeToolCalls(prompt, response);
 
         assertEquals(expected, result);
-        verify(delegate).executeToolCalls(prompt, response);
+        verify(delegate).executeToolCalls(any(), any());
     }
 
     @Test
@@ -169,6 +176,73 @@ class McpToolCallingManagerHitlTest {
         assertEquals("OK:getTime", trm.getResponses().get(1).responseData());
     }
 
+    // Regression for the approval bypass: two identical gated calls used to collide on the question
+    // text key, letting the first call execute even when the user declined both.
+    @Test
+    void duplicateGatedCallsAreEachDeclinedIndependently() {
+        ChatResponse response = responseWith(toolCall("1", "writeFile"), toolCall("2", "writeFile"));
+        Prompt prompt = promptWith(questions -> answerAll(questions, "Decline"));
+        when(toolSpecService.requiresApproval("writeFile")).thenReturn(true);
+
+        ToolExecutionResult result = manager().executeToolCalls(prompt, response);
+
+        verify(delegate, never()).executeToolCalls(any(), any());
+        ToolResponseMessage trm = (ToolResponseMessage) result.conversationHistory().getLast();
+        assertEquals(2, trm.getResponses().size());
+        assertTrue(trm.getResponses().get(0).responseData().toLowerCase().contains("declined"));
+        assertTrue(trm.getResponses().get(1).responseData().toLowerCase().contains("declined"));
+    }
+
+    @Test
+    void duplicateGatedCallsCanBeAnsweredIndividuallyById() {
+        ChatResponse response = responseWith(toolCall("1", "writeFile"), toolCall("2", "writeFile"));
+        Prompt prompt = promptWith(questions -> questions.stream().collect(
+                Collectors.toMap(HumanQuestion::id, q -> "1".equals(q.id()) ? "Approve" : "Decline")));
+        when(toolSpecService.requiresApproval("writeFile")).thenReturn(true);
+        when(delegate.executeToolCalls(any(), any())).thenReturn(delegateResultFor(toolCall("1", "writeFile")));
+
+        ToolExecutionResult result = manager().executeToolCalls(prompt, response);
+
+        ArgumentCaptor<ChatResponse> captor = ArgumentCaptor.forClass(ChatResponse.class);
+        verify(delegate).executeToolCalls(any(), captor.capture());
+        List<ToolCall> delegated = captor.getValue().getResult().getOutput().getToolCalls();
+        assertEquals(1, delegated.size());
+        assertEquals("1", delegated.get(0).id());
+
+        ToolResponseMessage trm = (ToolResponseMessage) result.conversationHistory().getLast();
+        assertEquals(2, trm.getResponses().size());
+        assertEquals("OK:writeFile", trm.getResponses().get(0).responseData());
+        assertTrue(trm.getResponses().get(1).responseData().toLowerCase().contains("declined"));
+    }
+
+    @Test
+    void askFailureFailsClosed() {
+        ChatResponse response = responseWith(toolCall("1", "writeFile"));
+        Prompt prompt = promptWith(questions -> {
+            throw new IllegalStateException("dialog broke");
+        });
+        when(toolSpecService.requiresApproval("writeFile")).thenReturn(true);
+
+        ToolExecutionResult result = manager().executeToolCalls(prompt, response);
+
+        verify(delegate, never()).executeToolCalls(any(), any());
+        ToolResponseMessage trm = (ToolResponseMessage) result.conversationHistory().getLast();
+        assertTrue(trm.getResponses().get(0).responseData().toLowerCase().contains("declined"));
+    }
+
+    @Test
+    void interceptorExceptionFailsClosed() {
+        ChatResponse response = responseWith(toolCall("1", "writeFile"));
+        Prompt prompt = promptWith(questions -> answerAll(questions, "Approve"));
+        when(toolSpecService.requiresApproval("writeFile")).thenThrow(new IllegalStateException("boom"));
+
+        ToolExecutionResult result = manager().executeToolCalls(prompt, response);
+
+        verify(delegate, never()).executeToolCalls(any(), any());
+        ToolResponseMessage trm = (ToolResponseMessage) result.conversationHistory().getLast();
+        assertTrue(trm.getResponses().get(0).responseData().toLowerCase().contains("declined"));
+    }
+
     @Test
     void approvalQuestionUsesToolPromptTemplate() {
         ChatResponse response = responseWith(toolCall("1", "writeFile"));
@@ -192,7 +266,7 @@ class McpToolCallingManagerHitlTest {
         Prompt prompt = promptWith(questions -> Map.of());
         when(toolSpecService.requiresApproval("fetchPage")).thenReturn(false);
         String big = "x".repeat(50);
-        when(delegate.executeToolCalls(prompt, response)).thenReturn(delegateResultWith("1", "fetchPage", big));
+        when(delegate.executeToolCalls(any(), any())).thenReturn(delegateResultWith("1", "fetchPage", big));
 
         ToolExecutionResult result = manager(20).executeToolCalls(prompt, response);
 
@@ -206,12 +280,86 @@ class McpToolCallingManagerHitlTest {
         ChatResponse response = responseWith(toolCall("1", "getTime"));
         Prompt prompt = promptWith(questions -> Map.of());
         when(toolSpecService.requiresApproval("getTime")).thenReturn(false);
-        when(delegate.executeToolCalls(prompt, response)).thenReturn(delegateResultWith("1", "getTime", "12:00"));
+        when(delegate.executeToolCalls(any(), any())).thenReturn(delegateResultWith("1", "getTime", "12:00"));
 
         ToolExecutionResult result = manager(20).executeToolCalls(prompt, response);
 
         assertEquals("12:00", ((ToolResponseMessage) result.conversationHistory().getLast())
                 .getResponses().get(0).responseData());
+    }
+
+    @Test
+    void requestFileUploadIsInterceptedAndReturnsSavedPath() {
+        ChatResponse response = responseWith(toolCall("1", "requestFileUpload"));
+        Prompt prompt = promptWithUpload(request -> FileUploadHandler.Result.of("uploads/data.csv", "data.csv",
+                "text/csv", 42));
+
+        ToolExecutionResult result = manager().executeToolCalls(prompt, response);
+
+        verify(delegate, never()).executeToolCalls(any(), any());
+        ToolResponseMessage trm = (ToolResponseMessage) result.conversationHistory().getLast();
+        assertEquals(1, trm.getResponses().size());
+        assertEquals("requestFileUpload", trm.getResponses().get(0).name());
+        assertTrue(trm.getResponses().get(0).responseData().contains("uploads/data.csv"));
+    }
+
+    @Test
+    void requestFileUploadCancelledTellsTheModelNotToRetry() {
+        ChatResponse response = responseWith(toolCall("1", "requestFileUpload"));
+        Prompt prompt = promptWithUpload(request -> FileUploadHandler.Result.none("The user cancelled the upload."));
+
+        ToolExecutionResult result = manager().executeToolCalls(prompt, response);
+
+        verify(delegate, never()).executeToolCalls(any(), any());
+        String data = ((ToolResponseMessage) result.conversationHistory().getLast())
+                .getResponses().get(0).responseData();
+        assertTrue(data.toLowerCase().contains("cancel"));
+        assertTrue(data.contains("Do NOT call 'requestFileUpload' again"));
+    }
+
+    @Test
+    void cancelledUploadIsAutoDeclinedOnRepeatCallInSameTurn() {
+        AgentTurn turn = new AgentTurn(new SpringAiPlaygroundOptions.AgentLoop(16, 18, 3, 1, null, null));
+        AtomicInteger uploads = new AtomicInteger();
+        FileUploadHandler handler = request -> {
+            uploads.incrementAndGet();
+            return FileUploadHandler.Result.none("The user cancelled the upload.");
+        };
+        Prompt prompt = promptWithContext(Map.of(FileUploadHandler.TOOL_CONTEXT_KEY, handler,
+                AgentTurn.TOOL_CONTEXT_KEY, turn));
+
+        manager().executeToolCalls(prompt, responseWith(toolCall("1", "requestFileUpload")));
+        ToolExecutionResult second = manager().executeToolCalls(prompt,
+                responseWith(toolCall("2", "requestFileUpload")));
+
+        assertEquals(1, uploads.get());
+        String data = ((ToolResponseMessage) second.conversationHistory().getLast())
+                .getResponses().get(0).responseData();
+        assertTrue(data.toLowerCase().contains("declined"));
+    }
+
+    @Test
+    void secondInteractiveCallInOneRoundIsDeferredByBudget() {
+        AgentTurn turn = new AgentTurn(new SpringAiPlaygroundOptions.AgentLoop(16, 18, 3, 1, null, null));
+        AtomicInteger uploads = new AtomicInteger();
+        FileUploadHandler uploadHandler = request -> {
+            uploads.incrementAndGet();
+            return FileUploadHandler.Result.of("uploads/one.csv", "one.csv", "text/csv", 1);
+        };
+        Prompt prompt = promptWithContext(Map.of(FileUploadHandler.TOOL_CONTEXT_KEY, uploadHandler,
+                AgentTurn.TOOL_CONTEXT_KEY, turn));
+
+        ToolExecutionResult result = manager().executeToolCalls(prompt,
+                responseWith(toolCall("1", "requestFileUpload"), toolCall("2", "requestFileUpload")));
+
+        assertEquals(1, uploads.get());
+        ToolResponseMessage trm = (ToolResponseMessage) result.conversationHistory().getLast();
+        assertTrue(trm.getResponses().get(0).responseData().contains("uploads/one.csv"));
+        assertTrue(trm.getResponses().get(1).responseData().contains("next step"));
+    }
+
+    private Prompt promptWithUpload(FileUploadHandler handler) {
+        return promptWithContext(Map.of(FileUploadHandler.TOOL_CONTEXT_KEY, handler));
     }
 
     private ToolExecutionResult delegateResultWith(String id, String name, String data) {
@@ -223,6 +371,6 @@ class McpToolCallingManagerHitlTest {
     }
 
     private static Map<String, String> answerAll(List<HumanQuestion> questions, String label) {
-        return questions.stream().collect(Collectors.toMap(HumanQuestion::question, q -> label));
+        return questions.stream().collect(Collectors.toMap(HumanQuestion::id, q -> label));
     }
 }

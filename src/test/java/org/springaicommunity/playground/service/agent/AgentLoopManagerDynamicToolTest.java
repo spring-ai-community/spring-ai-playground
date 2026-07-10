@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.springaicommunity.playground.service.mcp;
+package org.springaicommunity.playground.service.agent;
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
@@ -44,15 +44,15 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-class McpToolCallingManagerDynamicToolTest {
+class AgentLoopManagerDynamicToolTest {
 
     private final ToolCallingManager delegate = mock(ToolCallingManager.class);
 
     @SuppressWarnings("unchecked")
-    private McpToolCallingManager manager() {
+    private AgentLoopManager manager() {
         ObjectProvider<ToolSpecService> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(null);
-        return new McpToolCallingManager(delegate, provider, new SimpleMeterRegistry(), 12_000);
+        return new AgentLoopManager(delegate, provider, new SimpleMeterRegistry(), 12_000);
     }
 
     private Prompt promptWith(Map<String, Object> toolContext, ToolCallback... offered) {
@@ -93,7 +93,7 @@ class McpToolCallingManagerDynamicToolTest {
     void directlyCalledPoolToolIsRegisteredForTheRound() {
         stubDelegate();
         ToolCallback weather = tool("getWeather");
-        Map<String, Object> toolContext = Map.of(McpToolCallingManager.DYNAMIC_TOOL_POOL,
+        Map<String, Object> toolContext = Map.of(AgentLoopManager.DYNAMIC_TOOL_POOL,
                 Map.of("getWeather", weather));
 
         manager().executeToolCalls(promptWith(toolContext), responseCalling("getWeather"));
@@ -104,7 +104,7 @@ class McpToolCallingManagerDynamicToolTest {
     @Test
     void unknownToolGetsPlaceholderInsteadOfCrashing() {
         stubDelegate();
-        Map<String, Object> toolContext = Map.of(McpToolCallingManager.DYNAMIC_TOOL_POOL, Map.of());
+        Map<String, Object> toolContext = Map.of(AgentLoopManager.DYNAMIC_TOOL_POOL, Map.of());
 
         manager().executeToolCalls(promptWith(toolContext), responseCalling("frobnicate"));
 
@@ -119,7 +119,7 @@ class McpToolCallingManagerDynamicToolTest {
     void alreadyOfferedToolIsNotDuplicated() {
         stubDelegate();
         ToolCallback weather = tool("getWeather");
-        Map<String, Object> toolContext = Map.of(McpToolCallingManager.DYNAMIC_TOOL_POOL,
+        Map<String, Object> toolContext = Map.of(AgentLoopManager.DYNAMIC_TOOL_POOL,
                 Map.of("getWeather", weather));
 
         manager().executeToolCalls(promptWith(toolContext, weather), responseCalling("getWeather"));
@@ -128,14 +128,18 @@ class McpToolCallingManagerDynamicToolTest {
     }
 
     @Test
-    void withoutDynamicPoolPromptIsLeftUntouched() {
+    void withoutDynamicPoolUnknownCallGetsTheGuardCallback() {
         stubDelegate();
         Prompt prompt = promptWith(Map.of(), tool("getTime"));
         ChatResponse response = responseCalling("getWeather");
 
         manager().executeToolCalls(prompt, response);
 
-        verify(delegate).executeToolCalls(prompt, response);
+        Prompt delegated = captureDelegatedPrompt();
+        assertThat(offeredToolNames(delegated)).containsExactly("getTime", "getWeather");
+        ToolCallback guard = ((ToolCallingChatOptions) delegated.getOptions()).getToolCallbacks().stream()
+                .filter(callback -> callback.getToolDefinition().name().equals("getWeather")).findFirst().orElseThrow();
+        assertThat(guard.call("{}")).contains("not exposed to this chat");
     }
 
     private void stubDelegateOutput(String toolName, String data) {
