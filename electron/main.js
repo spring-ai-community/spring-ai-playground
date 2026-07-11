@@ -30,6 +30,7 @@ const ollamaManager = require('./ollama-manager');
 const whisperManager = require('./whisper-manager');
 const whisperStt = require('./whisper-stt');
 const updater = require('./updater');
+const { createRecentActivityStore, toActivityPath, labelForEntry } = require('./recent-activity');
 
 function warmWhisperSttInBackground() {
   if (!whisperManager.isSttEnabled()) {
@@ -96,6 +97,7 @@ let trayUpdateState = { available: false, version: null, url: null };
 let whisperManagerWindow = null;
 let allowWhisperManagerWindowClose = false;
 let whisperManagerCloseInProgress = false;
+let recentActivityStore = null;
 
 function openMicrophonePrivacySettings() {
   if (process.platform === 'darwin') {
@@ -580,7 +582,7 @@ function getDefaultRuntimeSettings() {
 }
 
 function getDefaultPreferences() {
-  return { autoCopyLogs: true, skipOllamaCheck: false, autoStartOllama: true };
+  return { autoCopyLogs: true, skipOllamaCheck: false, autoStartOllama: true, trayBackgroundNoticeShown: false };
 }
 
 function isFirstLaunch(index) {
@@ -947,6 +949,7 @@ function ensurePreferences(index) {
   if (typeof index.preferences.autoCopyLogs !== 'boolean') index.preferences.autoCopyLogs = true;
   if (typeof index.preferences.skipOllamaCheck !== 'boolean') index.preferences.skipOllamaCheck = false;
   if (typeof index.preferences.autoStartOllama !== 'boolean') index.preferences.autoStartOllama = true;
+  if (typeof index.preferences.trayBackgroundNoticeShown !== 'boolean') index.preferences.trayBackgroundNoticeShown = false;
 }
 
 function getRuntimeSettingsPayload(index, secretSuggestions = collectSecretSuggestions()) {
@@ -1979,10 +1982,120 @@ function trayFactoryReset() {
   if (choice === 1) factoryReset();
 }
 
+function getRecentActivityStore() {
+  if (!recentActivityStore) {
+    recentActivityStore = createRecentActivityStore({
+      filePath: path.join(getConfigDirectory(), 'recent-activity.json'),
+    });
+  }
+  return recentActivityStore;
+}
+
+function canKeepInTray() {
+  return Boolean(serverProcess && dynamicServerUrl && !isQuitting && !restartToConfigAfterStop);
+}
+
+function recordMainWindowActivity(url, title) {
+  const activityPath = toActivityPath(url, dynamicServerUrl);
+  if (!activityPath) return;
+  if (getRecentActivityStore().record(activityPath, title)) refreshTrayMenu();
+}
+
+function notifyRunningInTray() {
+  if (!Notification.isSupported()) return;
+  try {
+    const index = readConfigIndex();
+    ensurePreferences(index);
+    if (index.preferences.trayBackgroundNoticeShown) return;
+    index.preferences.trayBackgroundNoticeShown = true;
+    saveConfigIndex(index);
+  } catch {
+    return;
+  }
+  try {
+    const notice = new Notification({
+      title: 'Still running in the tray',
+      body: 'Spring AI Playground keeps running in the background. Reopen or quit it from the tray icon.',
+      silent: true,
+    });
+    notice.on('click', () => openAppFromTray());
+    notice.show();
+  } catch {
+  }
+}
+
+function openAppFromTray() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+    return;
+  }
+  if (serverSplashWindow && !serverSplashWindow.isDestroyed()) {
+    serverSplashWindow.show();
+    serverSplashWindow.focus();
+    return;
+  }
+  if (configWindow && !configWindow.isDestroyed()) {
+    configWindow.show();
+    configWindow.focus();
+    return;
+  }
+  if (serverProcess && dynamicServerUrl) {
+    const lastEntry = getRecentActivityStore().list()[0];
+    createMainWindow();
+    mainWindow.loadURL(dynamicServerUrl + (lastEntry ? lastEntry.path : '/'));
+    return;
+  }
+  if (!serverProcess) createConfigWindow();
+}
+
+function openRecentActivityEntry(entry) {
+  if (!serverProcess || !dynamicServerUrl) {
+    openAppFromTray();
+    return;
+  }
+  const targetUrl = dynamicServerUrl + entry.path;
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.webContents.getURL() !== targetUrl) mainWindow.loadURL(targetUrl);
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+    return;
+  }
+  if (serverSplashWindow && !serverSplashWindow.isDestroyed()) {
+    serverSplashWindow.show();
+    serverSplashWindow.focus();
+    return;
+  }
+  createMainWindow();
+  mainWindow.loadURL(targetUrl);
+}
+
+const RECENT_ACTIVITY_MENU_LIMIT = 7;
+
+function buildRecentActivitySubmenu() {
+  const entries = getRecentActivityStore().list().slice(0, RECENT_ACTIVITY_MENU_LIMIT);
+  if (!entries.length) return [{ label: 'No recent activity', enabled: false }];
+  const serverReady = Boolean(serverProcess && dynamicServerUrl);
+  return [
+    ...entries.map((entry) => ({
+      label: labelForEntry(entry),
+      enabled: serverReady,
+      click: () => openRecentActivityEntry(entry),
+    })),
+    { type: 'separator' },
+    { label: 'Clear Recent Activity', click: () => { getRecentActivityStore().clear(); refreshTrayMenu(); } },
+  ];
+}
+
 function buildTrayTemplate() {
   const version = app.getVersion();
   return [
     { label: `Spring AI Playground  v${version}`, enabled: false },
+    { type: 'separator' },
+    { label: 'Open Spring AI Playground', click: () => openAppFromTray() },
+    { label: 'Recent Activity', submenu: buildRecentActivitySubmenu() },
     { type: 'separator' },
     { label: 'Settings', submenu: [
       { label: 'Config Type & Saved Settings…', click: () => openConfigSection('config-card') },
@@ -2431,7 +2544,24 @@ function createMainWindow() {
   mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
     appendLog(`UI failed to load (${errorCode}): ${errorDescription} - ${validatedURL}`, true);
   });
+  mainWindow.on('close', (event) => {
+    if (!canKeepInTray()) return;
+    event.preventDefault();
+    if (mainWindow.isFullScreen()) {
+      mainWindow.once('leave-full-screen', () => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.hide(); });
+      mainWindow.setFullScreen(false);
+    } else {
+      mainWindow.hide();
+    }
+    notifyRunningInTray();
+  });
   mainWindow.on('closed', () => { mainWindow = null; });
+  const contents = mainWindow.webContents;
+  contents.on('did-navigate', (event, url) => recordMainWindowActivity(url));
+  contents.on('did-navigate-in-page', (event, url, isMainFrame) => {
+    if (isMainFrame) recordMainWindowActivity(url);
+  });
+  contents.on('page-title-updated', (event, title) => recordMainWindowActivity(contents.getURL(), title));
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
       shell.openExternal(url);
       return { action: 'deny' };
@@ -2483,6 +2613,7 @@ function detectDynamicServerUrl(output) {
   dynamicServerUrl = `http://localhost:${dynamicServerPort}`;
   appendLog(`Detected Spring Boot running on dynamic port: ${dynamicServerPort}`);
   sendServerSplashState();
+  refreshTrayMenu();
 }
 
 function sendServerSplashState() {
@@ -2816,10 +2947,18 @@ function startSpringServer() {
 
     if (shouldReturnToConfig && !isQuitting) {
       restartToConfigAfterStop = false;
-      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.destroy();
       if (serverSplashWindow && !serverSplashWindow.isDestroyed()) serverSplashWindow.close();
       createConfigWindow();
     }
+
+    if (!isQuitting && !shouldReturnToConfig && mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+      appendLog('Server stopped while the main window was hidden in the tray; returning to config.');
+      mainWindow.destroy();
+      createConfigWindow();
+    }
+
+    refreshTrayMenu();
   });
 
   checkServerReady(launchToken);
@@ -3239,7 +3378,7 @@ ipcMain.handle('config:launch', async (event, payload) => {
   index.meta.hasCompletedInitialSetup = true;
   index.meta.initialSetupCompletedVersion = app.getVersion();
   saveConfigIndex(index);
-  if (mainWindow && !mainWindow.isDestroyed()) { mainWindow.close(); mainWindow = null; }
+  if (mainWindow && !mainWindow.isDestroyed()) { mainWindow.destroy(); mainWindow = null; }
   if (serverSplashWindow && !serverSplashWindow.isDestroyed()) { serverSplashWindow.close(); serverSplashWindow = null; }
   if (serverProcess) {
     appendLog('Stopping current server to apply the updated configuration...');
@@ -3604,7 +3743,7 @@ ipcMain.handle('app:start-without-secrets', async () => {
 ipcMain.handle('app:restart-to-config', async () => {
   if (credGateTimer) { clearTimeout(credGateTimer); credGateTimer = null; }
   restartToConfigAfterStop = true;
-  if (mainWindow && !mainWindow.isDestroyed()) { mainWindow.close(); mainWindow = null; }
+  if (mainWindow && !mainWindow.isDestroyed()) { mainWindow.destroy(); mainWindow = null; }
   if (serverProcess) {
     appendLog('Stopping current server to return to config selection...');
     await stopSpringServer();
@@ -3620,6 +3759,15 @@ ipcMain.handle('app:restart-to-config', async () => {
   }
   return { ok: true };
 });
+
+if (!app.requestSingleInstanceLock()) {
+  app.exit(0);
+} else {
+  app.on('second-instance', () => {
+    if (isQuitting) return;
+    if (mainWindow || serverSplashWindow || configWindow || serverProcess) openAppFromTray();
+  });
+}
 
 app.whenReady().then(async () => {
 
@@ -3686,6 +3834,11 @@ app.on('before-quit', async (event) => {
   if (allowAppExit) return;
   event.preventDefault();
   await shutdownApplication();
+});
+
+app.on('activate', () => {
+  if (isQuitting) return;
+  if ((mainWindow && !mainWindow.isDestroyed()) || (serverProcess && dynamicServerUrl)) openAppFromTray();
 });
 
 app.on('window-all-closed', () => app.quit());
