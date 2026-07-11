@@ -215,6 +215,11 @@ public class ChatContentView extends VerticalLayout {
         this.customToolsComboBox.setSelectedItemsOnTop(true);
         this.builtinToolsComboBox.setSelectedItemsOnTop(true);
         this.composedToolsComboBox.setSelectedItemsOnTop(true);
+        this.customToolsComboBox.setItems(List.of());
+        this.builtinToolsComboBox.setItems(List.of());
+        this.composedToolsComboBox.setItems(List.of());
+        this.builtinToolsComboBox.setHelperText(
+                "Built-in tools the MCP server currently exposes — tick which this chat may use.");
 
         this.exposedToolsDisplayBox = new MultiSelectComboBox<>();
         this.exposedToolsDisplayBox.setPlaceholder("Built-in MCP off — click to enable");
@@ -437,6 +442,12 @@ public class ChatContentView extends VerticalLayout {
         exposedToolsPopover.setPosition(PopoverPosition.TOP);
         exposedToolsPopover.setOpenOnClick(true);
         exposedToolsPopover.add(exposedToolsPopoverBody);
+        exposedToolsPopover.addOpenedChangeListener(event -> {
+            if (event.isOpened()) {
+                populateExposedToolsCombos(false);
+                applyDynamicToolsUi();
+            }
+        });
 
         toolStudioIcon.addSingleClickListener(event -> exposedToolsPopover.setOpened(true));
 
@@ -543,6 +554,10 @@ public class ChatContentView extends VerticalLayout {
     }
 
     private void populateExposedToolsCombos() {
+        populateExposedToolsCombos(true);
+    }
+
+    private void populateExposedToolsCombos(boolean selectAllWhenNothingSelected) {
         Set<String> defaultIds = this.toolSpecPersistenceService.getDefaultToolIds();
         List<ToolSpec> all = this.toolSpecService.getToolSpecList();
         Set<String> exposedIds = this.toolSpecService.getToolMcpServerSetting().exposedToolIds();
@@ -569,8 +584,10 @@ public class ChatContentView extends VerticalLayout {
                 "No external tools re-exposed", "Composed external tools for this chat");
 
         if (previouslySelected.isEmpty()) {
-            exposedCustoms.forEach(this.customToolsComboBox::select);
-            exposedBuiltins.forEach(this.builtinToolsComboBox::select);
+            if (selectAllWhenNothingSelected) {
+                exposedCustoms.forEach(this.customToolsComboBox::select);
+                exposedBuiltins.forEach(this.builtinToolsComboBox::select);
+            }
         } else {
             selectByToolIds(this.customToolsComboBox, previouslySelected);
             selectByToolIds(this.builtinToolsComboBox, previouslySelected);
@@ -702,10 +719,14 @@ public class ChatContentView extends VerticalLayout {
                 gateOk ? "var(--lumo-secondary-text-color)" : "var(--lumo-error-text-color)");
         boolean dynamic = this.dynamicToolsCheckbox.getValue();
         boolean manual = this.useBuiltinMcpCheckbox.getValue();
-        this.customToolsComboBox.setEnabled(manual);
-        this.builtinToolsComboBox.setEnabled(manual);
-        this.composedToolsComboBox.setEnabled(manual);
+        this.customToolsComboBox.setEnabled(manual && hasItems(this.customToolsComboBox));
+        this.builtinToolsComboBox.setEnabled(manual && hasItems(this.builtinToolsComboBox));
+        this.composedToolsComboBox.setEnabled(manual && hasItems(this.composedToolsComboBox));
         this.mcpToolProviderComboBox.setEnabled(!dynamic);
+    }
+
+    private static boolean hasItems(MultiSelectComboBox<ToolSpec> combo) {
+        return combo.getListDataView().getItems().findAny().isPresent();
     }
 
     private long searchablePoolSize() {
