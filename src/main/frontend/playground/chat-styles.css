@@ -14,6 +14,23 @@
     animation: blink 1.5s infinite;
 }
 
+.chat-message-scroller {
+    scrollbar-gutter: stable;
+}
+
+.chat-message-scroller vaadin-message {
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+vaadin-message::part(content) {
+    min-width: 0;
+}
+
+vaadin-markdown {
+    overflow-wrap: break-word;
+}
+
 .chat-message-actions {
     opacity: 0;
     transition: opacity 0.15s ease-in-out;
@@ -26,6 +43,7 @@ vaadin-message:focus-within .chat-message-actions {
 
 vaadin-markdown pre {
     position: relative;
+    overflow: hidden;
     background: var(--lumo-contrast-5pct);
     border: 1px solid var(--lumo-contrast-10pct);
     border-radius: var(--lumo-border-radius-m);
@@ -34,7 +52,19 @@ vaadin-markdown pre {
 
 vaadin-markdown pre code,
 vaadin-markdown pre code.hljs {
+    display: block;
+    overflow-x: auto;
     background: transparent;
+}
+
+.saip-table-scroll {
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+.katex-display {
+    overflow-x: auto;
+    overflow-y: hidden;
 }
 
 .saip-code-copy {

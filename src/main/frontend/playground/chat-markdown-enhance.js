@@ -102,6 +102,16 @@ function enhanceCodeBlocks(root) {
     });
 }
 
+function wrapTables(root) {
+    root.querySelectorAll('table').forEach((table) => {
+        if (table.closest('.saip-table-scroll, .saip-table-wrap, .saip-diff-wrap, .saip-action-card')) return;
+        const wrap = document.createElement('div');
+        wrap.className = 'saip-table-scroll';
+        table.replaceWith(wrap);
+        wrap.appendChild(table);
+    });
+}
+
 function highlightCode(root) {
     root.querySelectorAll('pre code').forEach((code) => {
         if (code.classList.contains('language-mermaid')) return;
@@ -1311,6 +1321,7 @@ registerEnhancer(enhanceActionCards);
 registerEnhancer(highlightCode);
 registerEnhancer(renderMath);
 registerEnhancer(enhanceCodeBlocks);
+registerEnhancer(wrapTables);
 
 function enhance(markdownEl) {
     if (!markdownEl) return;

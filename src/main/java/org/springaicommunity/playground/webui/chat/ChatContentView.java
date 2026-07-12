@@ -259,6 +259,8 @@ public class ChatContentView extends VerticalLayout {
 
         this.messageScroller = new Scroller(this.messageListLayout);
         this.messageScroller.setSizeFull();
+        this.messageScroller.setScrollDirection(Scroller.ScrollDirection.VERTICAL);
+        this.messageScroller.addClassName("chat-message-scroller");
         this.messageScroller.getStyle().set("overflow-anchor", "none");
 
         this.mcpToolProviderComboBox = new MultiSelectComboBox<>();
@@ -267,22 +269,22 @@ public class ChatContentView extends VerticalLayout {
         this.mcpToolProviderComboBox.setSelectedItemsOnTop(true);
         this.mcpToolProviderComboBox.setItemLabelGenerator(
                 mcpServerInfo -> mcpServerInfo.serverName() + "(" + mcpServerInfo.mcpTransportType() + ")");
-        List<McpServerInfo> externalServers = externalMcpServerInfos();
-        this.mcpToolProviderComboBox.setItems(externalServers);
-        this.mcpToolProviderComboBox.setPlaceholder(
-                externalServers.isEmpty() ? "No MCP servers connected" : "Select MCP servers for tools");
+        this.mcpToolProviderComboBox.setItems(externalMcpServerInfos());
         this.mcpToolProviderComboBox.addClassName("active-on-select");
         this.mcpToolProviderComboBox.addValueChangeListener(e -> {
             if (e.isFromClient()) persistToolPreferences();
         });
 
         this.documentsComboBox = new MultiSelectComboBox<>();
-        this.documentsComboBox.setPlaceholder("No documents for RAG");
         this.documentsComboBox.setWidth("300px");
         this.documentsComboBox.setTooltipText("RAG with documents stored in VectorDB.");
         this.documentsComboBox.setSelectedItemsOnTop(true);
         this.documentsComboBox.setItemLabelGenerator(VectorStoreDocumentInfo::title);
-        this.documentsComboBox.setItems(this.chatService.getExistDocumentInfoList());
+        List<VectorStoreDocumentInfo> ragDocuments = this.chatService.getExistDocumentInfoList();
+        this.documentsComboBox.setItems(ragDocuments);
+        this.documentsComboBox.setEnabled(!ragDocuments.isEmpty());
+        this.documentsComboBox.setPlaceholder(
+                ragDocuments.isEmpty() ? "No documents for RAG" : "Select documents for RAG");
         this.documentsComboBox.addClassName("active-on-select");
         this.documentsComboBox.addValueChangeListener(e -> {
             if (e.isFromClient()) persistToolPreferences();
@@ -362,12 +364,16 @@ public class ChatContentView extends VerticalLayout {
 
         Icon ragIcon = VaadinUtils.styledIcon(VaadinIcon.SEARCH_PLUS.create());
         ragIcon.setTooltipText("Select documents in VectorDB");
-        ragIcon.addSingleClickListener(event -> this.documentsComboBox.setOpened(true));
+        ragIcon.addSingleClickListener(event -> {
+            if (this.documentsComboBox.isEnabled()) this.documentsComboBox.setOpened(true);
+        });
         ragIcon.getStyle().set("margin-right", "0px");
         Icon toolIcon = VaadinUtils.styledIcon(VaadinIcon.TOOLBOX.create());
         toolIcon.setTooltipText("Access Tools via external MCP connections");
         toolIcon.getStyle().set("margin-right", "0px");
-        toolIcon.addSingleClickListener(event -> this.mcpToolProviderComboBox.setOpened(true));
+        toolIcon.addSingleClickListener(event -> {
+            if (this.mcpToolProviderComboBox.isEnabled()) this.mcpToolProviderComboBox.setOpened(true);
+        });
 
         HorizontalLayout toolLayout = new HorizontalLayout(toolIcon, this.mcpToolProviderComboBox);
         toolLayout.setAlignItems(FlexComponent.Alignment.CENTER);
@@ -722,7 +728,10 @@ public class ChatContentView extends VerticalLayout {
         this.customToolsComboBox.setEnabled(manual && hasItems(this.customToolsComboBox));
         this.builtinToolsComboBox.setEnabled(manual && hasItems(this.builtinToolsComboBox));
         this.composedToolsComboBox.setEnabled(manual && hasItems(this.composedToolsComboBox));
-        this.mcpToolProviderComboBox.setEnabled(!dynamic);
+        boolean hasServers = this.mcpToolProviderComboBox.getListDataView().getItems().findAny().isPresent();
+        this.mcpToolProviderComboBox.setEnabled(!dynamic && hasServers);
+        this.mcpToolProviderComboBox.setPlaceholder(!hasServers ? "No MCP servers connected"
+                : dynamic ? "Disabled in Dynamic mode" : "Select MCP servers for tools");
     }
 
     private static boolean hasItems(MultiSelectComboBox<ToolSpec> combo) {
