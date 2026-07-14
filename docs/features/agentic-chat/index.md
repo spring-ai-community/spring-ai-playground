@@ -60,7 +60,7 @@ The **tools** icon on the selector row opens the tool popover. It is the per-cha
     - **Built-in tools** - the Local-Passed built-in tools; tick which ones this chat may call.
     - **Composed external tools** - tools re-exposed from connected external MCP servers, each risk-scored and human-in-the-loop governed.
 
-Ticking one mode unticks the other. Beside the popover, the **MCP servers** selector picks which connected external servers feed the chat, and the **document** selector enables [Vector Database](../vector-database.md) collections for RAG grounding. All of these selections are remembered per conversation.
+Ticking one mode unticks the other. Beside the popover, the **MCP servers** selector picks which connected external servers feed the chat - it reads **No MCP servers connected** until you connect one, and **Disabled in Dynamic mode** while discovery handles tools - and the **document** selector enables [Vector Database](../vector-database.md) collections for RAG grounding. All of these selections are remembered per conversation.
 
 ### Dynamic tool discovery { #dynamic-tool-discovery }
 
