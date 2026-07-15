@@ -138,6 +138,17 @@ vaadin-details-summary::part(content) {
     overflow: hidden;
 }
 
+.chat-message-scroller vaadin-details {
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+/* Process-panel messages skip the markdown enhancer, so tables never get the
+   .saip-table-scroll wrapper; contain any over-wide block inside the panel. */
+.chat-message-scroller vaadin-details vaadin-message::part(message) {
+    overflow-x: auto;
+}
+
 .saip-path {
     cursor: pointer;
 }
