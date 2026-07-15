@@ -54,6 +54,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -212,6 +214,25 @@ class ChatServiceTest {
         assertTrue(chatMemory.get("cancel-chat").stream()
                 .anyMatch(message -> MessageType.ASSISTANT.equals(message.getMessageType())
                         && "partial".equals(message.getText())));
+    }
+
+    @Test
+    void testStreamCommitsHistoryWhenBeforeHistoryCommitThrows() throws InterruptedException {
+        long timestamp = System.currentTimeMillis();
+        ChatHistory chatHistory = new ChatHistory("detached-chat", "Detached Chat", timestamp, timestamp,
+                "System prompt", (DefaultChatOptions) ChatOptions.builder().build(),
+                () -> List.of(new UserMessage("Detached Chat")));
+        when(chatModel.stream(any(Prompt.class))).thenReturn(
+                Flux.just(new ChatResponse(List.of(new Generation(new AssistantMessage("answer"))))));
+        CountDownLatch committed = new CountDownLatch(1);
+
+        Flux<String> stream = chatService.stream(chatHistory, "Detached Chat", null, history -> committed.countDown(),
+                null, null, null, null, null, signalType -> {
+                    throw new IllegalStateException("UI detached");
+                }, null, null, null, null, List.of());
+
+        assertEquals("answer", stream.collect(Collectors.joining()).block(Duration.ofSeconds(10)));
+        assertTrue(committed.await(5, TimeUnit.SECONDS));
     }
 
     @Test

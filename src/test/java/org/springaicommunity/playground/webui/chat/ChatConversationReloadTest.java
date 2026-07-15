@@ -16,14 +16,23 @@
 package org.springaicommunity.playground.webui.chat;
 
 import com.vaadin.browserless.SpringBrowserlessTest;
+import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.UI;
+import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.details.Details;
 import com.vaadin.flow.component.listbox.ListBox;
 import com.vaadin.flow.component.markdown.Markdown;
+import com.vaadin.flow.component.orderedlayout.Scroller;
+import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.textfield.TextArea;
 import com.vaadin.flow.router.QueryParameters;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springaicommunity.playground.service.chat.ChatExtraOptions;
 import org.springaicommunity.playground.service.chat.ChatHistory;
 import org.springaicommunity.playground.service.chat.ChatHistoryService;
+import org.springaicommunity.playground.service.chat.ChatToolPreferences;
+import org.springaicommunity.playground.webui.SttMicButton;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
@@ -33,7 +42,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -79,6 +91,93 @@ class ChatConversationReloadTest extends SpringBrowserlessTest {
         historyList.setValue(target);
         roundTrip();
         assertThat(markdownContents(view)).anyMatch(text -> text.contains("beta answer"));
+    }
+
+    @Test
+    void reloadedThinkAndMcpPanelsRenderInsideBoundedScrollerChain() {
+        long now = System.currentTimeMillis();
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("timestamp", now + 40_000L);
+        metadata.put("thinkProcessMessages", "planning the answer");
+        metadata.put("thinkProcessTimestamp", now + 1_000L);
+        metadata.put("thinkProcessEndTimestamp", now + 3_500L);
+        metadata.put("mcpToolProcessMessages", "tool call log line");
+        metadata.put("mcpToolProcessTimestamp", now + 4_000L);
+        metadata.put("mcpToolProcessEndTimestamp", now + 6_000L);
+        metadata.put("mcpToolProcessCallCount", 1);
+        metadata.put("mcpToolProcessToolNames", List.of("toolSearchTool"));
+        AssistantMessage assistant = AssistantMessage.builder().content("final answer").properties(metadata).build();
+        this.chatHistoryService.putIfAbsentChatHistory(new ChatHistory("reload-conv-panels", "Reload panels",
+                now, now, "sys", (DefaultChatOptions) ChatOptions.builder().build(),
+                () -> List.of(new UserMessage("with panels"), assistant)));
+
+        UI.getCurrent().navigate(ChatView.class, QueryParameters.of("conv", "reload-conv-panels"));
+        roundTrip();
+        ChatView view = (ChatView) getCurrentView();
+
+        Details think = panelWithSummary(view, "THINK");
+        Details mcp = panelWithSummary(view, "MCP TOOLS");
+        assertThat(summaryText(think)).contains("2.5s");
+        assertThat(summaryText(mcp)).contains("1 call").contains("toolSearchTool");
+        for (Details panel : List.of(think, mcp)) {
+            assertThat(panel.getWidth()).isEqualTo("100%");
+            assertThat(panel.getContent().anyMatch(ChatMessage.class::isInstance)).isTrue();
+            assertScrollerChainBounded(panel);
+        }
+    }
+
+    @Test
+    void providerMismatchLocksPromptControlsIncludingAttach() {
+        long now = System.currentTimeMillis();
+        this.chatHistoryService.putIfAbsentChatHistory(new ChatHistory("reload-conv-mismatch", "Mismatch",
+                now, now, "sys", (DefaultChatOptions) ChatOptions.builder().build(), ChatExtraOptions.defaults(),
+                "ollama", ChatToolPreferences.defaults(),
+                () -> List.of(new UserMessage("q"), new AssistantMessage("a"))));
+
+        UI.getCurrent().navigate(ChatView.class, QueryParameters.of("conv", "reload-conv-mismatch"));
+        roundTrip();
+        ChatView view = (ChatView) getCurrentView();
+
+        TextArea prompt = $(TextArea.class, view)
+                .withCondition(area -> "Ask Spring AI Playground".equals(area.getPlaceholder()))
+                .first();
+        assertThat(prompt.isReadOnly()).isTrue();
+        assertThat(prompt.isEnabled()).isFalse();
+        assertThat($(Button.class, view)
+                .withCondition(button -> "Submit".equals(button.getTooltip().getText()))
+                .first().isEnabled()).isFalse();
+        assertThat($(SttMicButton.class, view).first().isEnabled()).isFalse();
+        assertThat($(Button.class, view)
+                .withCondition(button -> "Attach image".equals(button.getTooltip().getText()))
+                .first().isEnabled()).isFalse();
+    }
+
+    private Details panelWithSummary(ChatView view, String title) {
+        return $(Details.class, view).all().stream()
+                .filter(details -> details.getSummary() != null
+                        && details.getSummary().getElement().getText().startsWith(title))
+                .findFirst().orElseThrow();
+    }
+
+    private String summaryText(Details details) {
+        return details.getSummary().getElement().getText();
+    }
+
+    private void assertScrollerChainBounded(Details panel) {
+        List<String> ancestorWidths = new ArrayList<>();
+        Component node = panel;
+        while (true) {
+            Component parent = node.getParent().orElseThrow();
+            if (parent instanceof Scroller scroller) {
+                assertThat(scroller.getClassNames()).contains("chat-message-scroller");
+                assertThat(scroller.getScrollDirection()).isEqualTo(Scroller.ScrollDirection.VERTICAL);
+                break;
+            }
+            assertThat(parent).isInstanceOf(VerticalLayout.class);
+            ancestorWidths.add(((VerticalLayout) parent).getWidth());
+            node = parent;
+        }
+        assertThat(ancestorWidths).isNotEmpty().allMatch("100%"::equals);
     }
 
     private List<String> markdownContents(ChatView view) {

@@ -39,6 +39,7 @@ import org.springaicommunity.playground.service.chat.ChatExtraOptions;
 import org.springaicommunity.playground.service.chat.ChatHistory;
 import org.springaicommunity.playground.service.chat.ChatHistoryService;
 import org.springaicommunity.playground.service.chat.ChatService;
+import org.springaicommunity.playground.service.chat.ChatStreamRegistry;
 import org.springaicommunity.playground.service.chat.ChatSystemPromptPresetCatalog.Preset;
 import org.springaicommunity.playground.service.chat.ChatSystemPromptPresetService;
 import org.springaicommunity.playground.service.chat.ChatSystemPromptTemplateRenderer;
@@ -115,6 +116,7 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
     private final OllamaModelDownloadService ollamaModelDownloadService;
     private final UsageAnalyticsService usageAnalyticsService;
     private final UsageEventTracker usageEventTracker;
+    private final ChatStreamRegistry chatStreamRegistry;
     private final ChatHistoryView chatHistoryView;
     private final WorkspaceSettingsDrawer settingsDrawer;
     private ChatModelSettingView chatModelSettingView;
@@ -133,7 +135,7 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
             ChatClientActionRegistry clientActionRegistry, ConversationFileUploadStore fileUploadStore,
             ChatImageStore imageStore,
             VisionCapabilityService visionCapabilityService, UsageAnalyticsService usageAnalyticsService,
-            UsageEventTracker usageEventTracker) {
+            UsageEventTracker usageEventTracker, ChatStreamRegistry chatStreamRegistry) {
         this.persistentUiDataStorage = persistentUiDataStorage;
         this.chatService = chatService;
         this.chatHistoryService = chatHistoryService;
@@ -154,6 +156,7 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
         this.visionCapabilityService = visionCapabilityService;
         this.usageAnalyticsService = usageAnalyticsService;
         this.usageEventTracker = usageEventTracker;
+        this.chatStreamRegistry = chatStreamRegistry;
 
         PropertyChangeSupport chatHistoryChangeSupport = new PropertyChangeSupport(this);
         chatHistoryChangeSupport.addPropertyChangeListener(CHAT_HISTORY_SELECT_EVENT,
@@ -445,7 +448,8 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
                 this.toolSpecService, this.toolSpecPersistenceService, this.toolActivationCalculator,
                 this.mcpServerInfoService, this.chatExportService,
                 this.compositionProvider, this.playgroundOptions, this.clientActionRegistry, this.fileUploadStore,
-                this.imageStore, this.visionCapabilityService, this.usageAnalyticsService, this.usageEventTracker);
+                this.imageStore, this.visionCapabilityService, this.usageAnalyticsService, this.usageEventTracker,
+                this.chatStreamRegistry);
         ChatOptions chatOptions = chatHistory.chatOptions();
         String label = String.format("%s: %s", this.chatService.getChatModelProvider(), chatOptions.getModel());
         this.pageTitle = pageTitleOf(chatHistory);

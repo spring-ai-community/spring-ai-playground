@@ -56,6 +56,7 @@ import org.springaicommunity.playground.service.analytics.UsageAnalyticsService;
 import org.springaicommunity.playground.service.chat.ChatHistoryService;
 import org.springaicommunity.playground.service.chat.ChatProvider;
 import org.springaicommunity.playground.service.chat.ChatService;
+import org.springaicommunity.playground.service.chat.ChatStreamRegistry;
 import org.springaicommunity.playground.service.chat.ChatToolPreferences;
 import org.springaicommunity.playground.service.chat.ReasoningEffort;
 import org.springaicommunity.playground.service.chat.VisionCapabilityService;
@@ -89,6 +90,7 @@ import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.util.MimeType;
 import reactor.core.Disposable;
+import reactor.core.publisher.SignalType;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -170,7 +172,8 @@ public class ChatContentView extends VerticalLayout {
     private final ChatClientActionRegistry clientActionRegistry;
     private final SpringAiPlaygroundOptions.ToolSearch toolSearch;
     private final SpringAiPlaygroundOptions.AgentLoop agentLoop;
-    private Disposable currentStream;
+    private final ChatStreamRegistry streamRegistry;
+    private final CompletableFuture<ZoneId> zoneIdFuture;
 
     public ChatContentView(ChatService chatService,
             ChatHistoryService chatHistoryService, ChatHistory chatHistory,
@@ -183,7 +186,7 @@ public class ChatContentView extends VerticalLayout {
             ChatClientActionRegistry clientActionRegistry, ConversationFileUploadStore fileUploadStore,
             ChatImageStore imageStore,
             VisionCapabilityService visionCapabilityService, UsageAnalyticsService usageAnalyticsService,
-            UsageEventTracker usageEventTracker) {
+            UsageEventTracker usageEventTracker, ChatStreamRegistry streamRegistry) {
         this.chatHistory = chatHistory;
         this.chatService = chatService;
         this.chatHistoryService = chatHistoryService;
@@ -201,6 +204,7 @@ public class ChatContentView extends VerticalLayout {
         this.visionCapabilityService = visionCapabilityService;
         this.usageAnalyticsService = usageAnalyticsService;
         this.usageEventTracker = usageEventTracker;
+        this.streamRegistry = streamRegistry;
         this.toolSearch = playgroundOptions.chat().toolSearch();
         this.agentLoop = playgroundOptions.chat().agentLoop();
         this.customToolsComboBox = ExposedToolsSelector.newCustomSelector(
@@ -299,7 +303,7 @@ public class ChatContentView extends VerticalLayout {
         this.userPromptTextArea.setMaxRows(5);
         this.userPromptTextArea.setValueChangeMode(ValueChangeMode.EAGER);
         this.userPromptTextArea.setClearButtonVisible(true);
-        CompletableFuture<ZoneId> zoneIdFuture = VaadinUtils.buildClientZoneIdFuture(new CompletableFuture<>());
+        this.zoneIdFuture = VaadinUtils.buildClientZoneIdFuture(new CompletableFuture<>());
         this.userPromptTextArea.setId("sttTextArea");
 
         String savedProvider = this.chatHistory.provider();
@@ -315,12 +319,9 @@ public class ChatContentView extends VerticalLayout {
 
         submitButton.addClickListener(e -> {
             if (providerMismatch) return;
-            if (this.currentStream != null && !this.currentStream.isDisposed()) {
-                this.currentStream.dispose();
-                this.currentStream = null;
-                submitButton.setIcon(submitIcon);
-                this.userPromptTextArea.setReadOnly(false);
-                micButton.setEnabled(true);
+            if (this.streamRegistry.isStreaming(this.chatHistory.conversationId())) {
+                this.streamRegistry.stop(this.chatHistory.conversationId());
+                applyStreamingState(false);
                 return;
             }
             this.userPromptTextArea.getElement().executeJs("return this.value;").then(String.class, userPrompt -> {
@@ -328,12 +329,9 @@ public class ChatContentView extends VerticalLayout {
                     return;
                 this.userPromptTextArea.getElement().executeJs("this.value='';");
                 this.userPromptTextArea.clear();
-                this.userPromptTextArea.setReadOnly(true);
-                micButton.setEnabled(false);
-                Icon stopIcon = VaadinUtils.styledIcon(VaadinIcon.STOP.create());
-                submitButton.setIcon(stopIcon);
-                submitButton.setTooltipText("Stop");
-                this.currentStream = inputEvent(zoneIdFuture, userPrompt);
+                this.streamRegistry.begin(this.chatHistory.conversationId());
+                applyStreamingState(true);
+                this.streamRegistry.attach(this.chatHistory.conversationId(), inputEvent(userPrompt));
             });
         });
 
@@ -503,6 +501,7 @@ public class ChatContentView extends VerticalLayout {
             this.userPromptTextArea.setEnabled(false);
             submitButton.setEnabled(false);
             micButton.setEnabled(false);
+            this.attachButton.setEnabled(false);
             Span providerLockBanner = new Span("This conversation was created with " + savedProvider
                     + " but the app is now running " + currentProvider
                     + ". It is read-only - start a new chat to continue.");
@@ -515,24 +514,22 @@ public class ChatContentView extends VerticalLayout {
                     .set("font-size", "var(--lumo-font-size-s)");
             userInputLayout.addComponentAsFirst(providerLockBanner);
         }
+        if (this.streamRegistry.isStreaming(this.chatHistory.conversationId())) {
+            applyStreamingState(true);
+            UI streamUi = VaadinUtils.getUi(this);
+            this.streamRegistry.onFinish(this.chatHistory.conversationId(),
+                    () -> streamUi.access(this::refreshAfterBackgroundStream));
+            if (!this.streamRegistry.isStreaming(this.chatHistory.conversationId())) refreshAfterBackgroundStream();
+        }
         setSizeFull();
         setMargin(false);
         setSpacing(false);
         getStyle().set("overflow", "hidden").set("display", "flex")
                 .set("flex-direction", "column").set("align-items", "stretch");
 
-        List<Message> messages = this.chatHistory.messagesSupplier().get();
-        if (messages.isEmpty())
+        if (this.chatHistory.messagesSupplier().get().isEmpty())
             return;
-        ChatContentManager chatContentManager = new ChatContentManager(null, null, zoneIdFuture,
-                this.chatHistory);
-        this.messageListLayout.remove(this.scrollSpacer);
-        messages.forEach(message -> chatContentManager.initMarkdownMessage(this.messageListLayout, message,
-                message.getMessageType()));
-        this.messageListLayout.add(this.scrollSpacer);
-
-        this.messageListLayout.getChildren().filter(c -> c != this.scrollSpacer).reduce((a, b) -> b)
-                .ifPresent(last -> last.scrollIntoView(DefaultScrollOptions));
+        renderPersistedMessages();
         ChatToolPreferences preferences = this.chatHistory.toolPreferences();
         List<String> ragDocInfoIds = preferences.ragDocInfoIds();
         if (!ragDocInfoIds.isEmpty()) {
@@ -751,7 +748,36 @@ public class ChatContentView extends VerticalLayout {
         return callbacks;
     }
 
-    private Disposable inputEvent(CompletableFuture<ZoneId> zoneIdFuture, String userPrompt) {
+    private void applyStreamingState(boolean streaming) {
+        this.userPromptTextArea.setReadOnly(streaming);
+        this.micButton.setEnabled(!streaming);
+        this.submitButton.setIcon(VaadinUtils.styledIcon(
+                (streaming ? VaadinIcon.STOP : VaadinIcon.ARROW_CIRCLE_UP).create()));
+        this.submitButton.setTooltipText(streaming ? "Stop" : "Submit");
+        refreshPendingImagesBar();
+    }
+
+    private void renderPersistedMessages() {
+        this.messageListLayout.removeAll();
+        ChatContentManager renderer = new ChatContentManager(null, null, this.zoneIdFuture, this.chatHistory);
+        this.chatHistory.messagesSupplier().get().forEach(message ->
+                renderer.initMarkdownMessage(this.messageListLayout, message, message.getMessageType()));
+        this.messageListLayout.add(this.scrollSpacer);
+        this.messageListLayout.getChildren().filter(c -> c != this.scrollSpacer).reduce((a, b) -> b)
+                .ifPresent(last -> last.scrollIntoView(DefaultScrollOptions));
+    }
+
+    private void refreshAfterBackgroundStream() {
+        if (!isAttached()) return;
+        ChatHistory latest = this.chatHistoryService.getChatHistory(this.chatHistory.conversationId());
+        if (latest != null) {
+            this.chatHistory = latest;
+            renderPersistedMessages();
+        }
+        applyStreamingState(false);
+    }
+
+    private Disposable inputEvent(String userPrompt) {
         this.chatHistory = this.chatHistory.withToolPreferences(currentToolPreferences());
         this.chatHistoryService.updateChatHistory(this.chatHistory);
         ChatContentManager chatContentManager = new ChatContentManager(this.messageListLayout, userPrompt, zoneIdFuture,
@@ -808,11 +834,16 @@ public class ChatContentView extends VerticalLayout {
                             ui.access(() -> chatContentManager.appendBotThinkProcessMessage(o));
                         },
                         round -> ui.access(() -> chatContentManager.applyRoundUsage(round)),
-                        signalType -> ui.access(() -> {
-                            if (reactor.core.publisher.SignalType.CANCEL.equals(signalType))
-                                chatContentManager.markStopped();
-                            doFinally(chatContentManager);
-                        }), new ChatHumanQuestionHandler(ui, this.agentLoop.approvalTimeoutSeconds()),
+                        signalType -> {
+                            try {
+                                ui.access(() -> {
+                                    if (SignalType.CANCEL.equals(signalType)) chatContentManager.markStopped();
+                                    doFinally(chatContentManager);
+                                });
+                            } finally {
+                                releaseStream();
+                            }
+                        }, new ChatHumanQuestionHandler(ui, this.agentLoop.approvalTimeoutSeconds()),
                         new ChatFileUploadHandler(ui, this.fileUploadStore, this.chatHistory.conversationId(),
                                 this.agentLoop.dialogTimeoutSeconds()),
                         new ChatImageReferenceHandler(ui, this.imageStore, this.chatHistory.conversationId(),
@@ -821,11 +852,17 @@ public class ChatContentView extends VerticalLayout {
                                 .map(image -> Media.builder().id(image.hash()).name(image.fileName())
                                         .mimeType(MimeType.valueOf(image.mimeType())).data(image.bytes()).build())
                                 .toList())
-                .doOnError(throwable -> ui.access(() -> {
-                    chatContentManager.markError(throwable);
-                    VaadinUtils.showErrorNotification(ChatErrorMessages.friendly(throwable));
-                    doFinally(chatContentManager);
-                }))
+                .doOnError(throwable -> {
+                    try {
+                        ui.access(() -> {
+                            chatContentManager.markError(throwable);
+                            VaadinUtils.showErrorNotification(ChatErrorMessages.friendly(throwable));
+                            doFinally(chatContentManager);
+                        });
+                    } finally {
+                        releaseStream();
+                    }
+                })
                 .subscribe(content -> {
                     saveOnFirstActivity.run();
                     ui.access(() -> chatContentManager.append(content));
@@ -902,7 +939,8 @@ public class ChatContentView extends VerticalLayout {
             this.pendingImagesBar.add(count);
         }
         this.pendingImagesBar.setVisible(used > 0);
-        if (this.attachButton != null) this.attachButton.setEnabled(used < MAX_IMAGES);
+        if (this.attachButton != null) this.attachButton.setEnabled(used < MAX_IMAGES
+                && !this.streamRegistry.isStreaming(this.chatHistory.conversationId()));
     }
 
     private Div pendingImageChip(PendingImage image) {
@@ -988,17 +1026,15 @@ public class ChatContentView extends VerticalLayout {
                 });
     }
 
+    private void releaseStream() {
+        this.streamRegistry.finish(this.chatHistory.conversationId());
+    }
+
     private void doFinally(ChatContentManager chatContentManager) {
         chatContentManager.doFinally();
-        this.userPromptTextArea.setReadOnly(false);
+        releaseStream();
+        applyStreamingState(false);
         this.userPromptTextArea.setEnabled(true);
-        this.submitButton.setIcon(VaadinUtils.styledIcon(VaadinIcon.ARROW_CIRCLE_UP.create()));
-        this.submitButton.setTooltipText("Submit");
-        this.micButton.setEnabled(true);
-        if (this.currentStream != null) {
-            this.currentStream.dispose();
-            this.currentStream = null;
-        }
         pinAfterStream(chatContentManager.userMessage);
         this.userPromptTextArea.focus();
     }
