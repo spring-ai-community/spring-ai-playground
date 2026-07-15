@@ -96,8 +96,10 @@ Telemetry is anonymous and content-free: no prompts, no responses, no file names
 URLs, no API keys, no server addresses. Names of things you create yourself (tools,
 presets, custom MCP servers) are masked to `authored` / `custom` / `external` - only
 names that ship in the built-in catalogs are ever sent as-is. Every sender goes through
-one class, so the complete list is auditable in code: search the repository for
-`UsageEventTracker`.
+one of two classes, so the complete list is auditable in code: `UsageEventTracker` for
+the events below, and `GoogleAnalyticsNavigationListener` for `page_view`, which
+overrides the browser's default page location and title with the bare route path so that
+neither the conversation id in the URL nor the conversation title can reach the wire.
 
 | Event | Parameters | Fired when |
 |---|---|---|
@@ -105,7 +107,7 @@ one class, so the complete list is auditable in code: search the repository for
 | `chat_message_sent` | provider, model, reasoning, dynamic_tools, tool_count, image_count, rag_enabled | Sending a chat message |
 | `model_selected` | provider, model | Applying chat settings |
 | `model_downloaded` | model, via | An Ollama model download completes |
-| `tool_called` | tool_name (catalog names only), source, risk_level, hitl | A tool call finishes in chat |
+| `tool_called` | tool_name (catalog names only), source, risk_level, hitl, catalog_id (catalog ids only) | A tool call finishes in chat |
 | `preset_applied` / `preset_blocked` | preset_id (catalog ids only), dynamic_tools, tool_count | Applying a preset / the key gate blocks Apply |
 | `mcp_server_added` | transport, catalog_id (catalog ids only), oauth | Saving and connecting an MCP server |
 | `mcp_tools_exposed` | mode, builtin_count, composed_count, max_risk | Applying the Expose Tools drawer |
@@ -113,7 +115,10 @@ one class, so the complete list is auditable in code: search the repository for
 | `tool_authored` | action, sandbox_overrides, hitl | Saving a tool in Tool Studio |
 | `action_card_rendered` | card_type | A visualization action card renders in chat |
 | `voice_input_used` | mode | Starting voice input |
-| `usage_snapshot` (at most once per day) | aggregate counters only: recent call/token/error/latency totals, conversation count, installed model count, VRAM, top quantization, HITL and risk-signal totals | First page load of the day |
+| `usage_snapshot` (at most once per day, per app run) | aggregate counters only: recent call/token/error/latency totals, conversation count, installed model count, VRAM, RAM, top quantization, HITL and risk-signal totals | First page load of the day |
+| `mcp_server_active` (at most once per day and app run, per configured server) | transport, catalog_id (catalog ids only), oauth, connected | First page load of the day |
+| `model_usage` (at most once per day and app run, per model used in the last 24h) | model, provider, calls, tokens, errors, p95_ms | First page load of the day |
+| `js_error` (via Google Tag Manager) | error_message, error_url, error_line | An uncaught JavaScript error occurs in the UI |
 
 Session-level user properties: `app_version`, `app_surface` (web/desktop), `platform`,
 `chat_provider`, `embedding_provider`, `embedding_model`, `tool_search_index`.
