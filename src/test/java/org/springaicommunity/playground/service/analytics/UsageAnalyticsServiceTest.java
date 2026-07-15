@@ -15,11 +15,14 @@
  */
 package org.springaicommunity.playground.service.analytics;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
+import org.springaicommunity.playground.observability.system.SystemMetricsSnapshot;
 import org.springaicommunity.playground.service.chat.ChatSystemPromptPresetCatalog;
 import org.springaicommunity.playground.service.chat.ChatSystemPromptPresetCatalog.Preset;
+import org.springaicommunity.playground.service.chat.OllamaMonitorService;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.mcp.catalog.McpCatalogEntry;
 import org.springaicommunity.playground.service.mcp.catalog.McpCatalogService;
@@ -29,6 +32,7 @@ import org.springaicommunity.playground.service.tool.ToolSpec;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
 import org.springframework.beans.factory.ObjectProvider;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -168,6 +172,27 @@ class UsageAnalyticsServiceTest {
     void dailySnapshotFiresOncePerDay() {
         assertTrue(this.service.dailyUsageSnapshot().isPresent());
         assertTrue(this.service.dailyUsageSnapshot().isEmpty());
+    }
+
+    @Test
+    void dailySnapshotIncludesOllamaAndSafetyDerivedFields() {
+        OllamaMonitorService ollama = mock(OllamaMonitorService.class);
+        when(ollama.cachedSnapshot()).thenReturn(new OllamaMonitorService.OllamaStatus(true, true, "0.9.0",
+                List.of(new OllamaMonitorService.InstalledModel("qwen3.5:9b", 5_000_000_000L, "qwen", "9B",
+                        "Q4_K_M", 32768, List.of())),
+                List.of()));
+        UsageAnalyticsService snapshotService = new UsageAnalyticsService(providerOf(this.toolSpecService),
+                this.integrityVerifier, this.presetCatalog, this.mcpCatalogService, providerOf(ollama),
+                emptyProvider(), emptyProvider(), emptyProvider(), emptyProvider(),
+                providerOf(new SystemMetricsSnapshot(new SimpleMeterRegistry())), emptyProvider(),
+                new SpringAiPlaygroundOptions(null, false, null, null, null, null));
+
+        Map<String, Object> params = snapshotService.dailyUsageSnapshot().orElseThrow();
+
+        assertEquals(1, params.get("installed_models"));
+        assertEquals("Q4_K_M", params.get("top_quantization"));
+        assertEquals(0L, params.get("hitl_approved"));
+        assertEquals(0L, params.get("risk_signals"));
     }
 
     @Test
