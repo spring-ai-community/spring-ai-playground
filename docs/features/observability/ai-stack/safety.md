@@ -45,7 +45,7 @@ Shares the [Observability global settings](../index.md#global-settings), but the
 |---|---|---|
 | Risk signals by type | Horizontal bar | `saip.risk.signal` grouped by type - server-risk-computed, tool-publish-risk-computed, floor-override-triggered, hash-ledger-mismatch, composition-lifecycle, poisoning-hit |
 | Risk level distribution | Horizontal bar, L0→L5 in order | Final composed risk level of each executed MCP tool call (`saip.tool.risk`). L0 verified · L1 safe · L2 low · L3 moderate · L4 high · L5 critical |
-| HITL decisions | Horizontal bar | `mcp.hitl.decision` outcomes (chat-side + MCP-server-side): approved / declined / denied / elicit-failed |
+| HITL decisions | Horizontal bar | `mcp.hitl.decision` outcomes from both gates: approved / declined from either, plus ask-failed (`side=chat`) and denied / elicit-failed (`side=server`) |
 | Sandbox guard blocks | Horizontal bar | `sandbox.guard.blocked` by reason: host-not-in-allowlist, private-ip, too-many-redirects, body-too-large, … |
 
 ## Tables
