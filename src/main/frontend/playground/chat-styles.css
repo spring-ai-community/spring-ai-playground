@@ -470,6 +470,7 @@ vaadin-details-summary::part(content) {
     border: 1px solid var(--lumo-contrast-10pct);
     border-radius: var(--lumo-border-radius-m);
     overflow: hidden;
+    background: var(--lumo-base-color);
 }
 
 .saip-action-pointmap {
