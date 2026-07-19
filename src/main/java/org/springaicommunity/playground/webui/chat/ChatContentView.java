@@ -1658,7 +1658,12 @@ public class ChatContentView extends VerticalLayout {
         private ChatMessage buildMessage(String message, MessageType messageType, long epochMillis) {
             ChatMessage chatMessage = buildMessage(message, messageType.getValue().toUpperCase(),
                     messageType.ordinal(), epochMillis);
-            if (MessageType.USER.equals(messageType)) chatMessage.usePlainText();
+            if (MessageType.USER.equals(messageType)) {
+                chatMessage.usePlainText();
+                chatMessage.addClassName("user-message");
+            } else {
+                chatMessage.addClassName("assistant-message");
+            }
             chatMessage.addActionBar(buildMessageActionBar(chatMessage, messageType));
             return chatMessage;
         }

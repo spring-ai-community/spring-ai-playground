@@ -41,6 +41,32 @@ vaadin-message:focus-within .chat-message-actions {
     opacity: 1;
 }
 
+.chat-message-scroller vaadin-message.user-message vaadin-avatar[slot="avatar"],
+.chat-message-scroller vaadin-message.assistant-message vaadin-avatar[slot="avatar"] {
+    display: none;
+}
+
+.chat-message-scroller vaadin-message.user-message::part(name),
+.chat-message-scroller vaadin-message.assistant-message::part(name) {
+    display: none;
+}
+
+.chat-message-scroller vaadin-message.user-message {
+    align-self: flex-end;
+    max-width: 82%;
+}
+
+.chat-message-scroller vaadin-message.user-message::part(content) {
+    flex: 0 1 auto;
+    align-items: flex-end;
+}
+
+.chat-message-scroller vaadin-message.user-message::part(message) {
+    background: var(--lumo-primary-color-10pct);
+    border-radius: 14px;
+    padding: 7px 14px;
+}
+
 vaadin-markdown pre {
     position: relative;
     overflow: hidden;
