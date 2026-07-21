@@ -5,10 +5,14 @@ on:
     branches: [ "**" ]
   pull_request:
 
+permissions:
+  contents: read
+
 # A push and the matching pull_request event would otherwise both trigger
-# the same build twice; cancel the older run when a newer one starts.
+# the same build twice; cancel the older run when a newer one starts. Keying on
+# the branch name rather than github.ref makes the two events share one group.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -17,14 +21,14 @@ jobs:
     with:
       java-version: "21"
       maven-goals: clean verify -B
-      skip-tests: true
 
-  # The full suite stays skipped above (it needs Ollama, Docker, and a local
-  # MCP venv), but the shipped default-tool integrity manifest is environment
-  # independent and must hold on every push - the tamper-reject gate behind
-  # docs/mcp-owasp-top-10.md MCP04.
+  # The manifest test also runs inside the suite above; the duplicate is
+  # deliberate. It keeps the tamper-reject gate behind docs/mcp-owasp-top-10.md
+  # MCP04 as an independently named check that stays green-or-red on its own,
+  # so a required-check rule can point at it without depending on the whole build.
   integrity-guard:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
