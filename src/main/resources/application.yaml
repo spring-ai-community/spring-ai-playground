@@ -7,7 +7,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: ${SPRING_AI_PLAYGROUND_ACTUATOR_INCLUDE:health,info,metrics,prometheus,beans}
+        include: ${SPRING_AI_PLAYGROUND_ACTUATOR_INCLUDE:health,info,metrics,prometheus}
   endpoint:
     health:
       show-details: when_authorized

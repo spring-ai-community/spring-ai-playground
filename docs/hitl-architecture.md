@@ -7,13 +7,14 @@ A risk level tells you *how dangerous* a tool is. A sandbox limits *what* it can
 
 This is the runtime checkpoint that the [AI Agent Tool Safety](safety-architecture.md) and [MCP Server Safety](mcp-server-safety.md) pages refer to. It is the last gate before a call fires, and it sits *between* the sandbox (which judges what a tool **can** do) and the agent (which judges **when** to call it).
 
-This is one of the architecture documents that complement each other:
+Pages this gate connects to:
 
-- [Application](architecture.md) - runtime layers, feature modules, data flows
-- [AI Agent Tool Safety](safety-architecture.md) - the **sandbox** that contains locally-authored JS tools
-- [MCP Server Safety](mcp-server-safety.md) - the **risk model** for external servers and re-exposed tools
-- [Agent Loop](agent-loop-architecture.md) - the **round governance** this gate is one interceptor of
-- **Human-in-the-Loop Approval** (this page) - the **runtime per-call approval gate**
+- [Agent Loop](agent-loop-architecture.md) - the round governance this gate runs as one interceptor of
+- [MCP Server Safety](mcp-server-safety.md) - how a tool from an external server is wrapped so it can carry the flag
+- [AI Agent Tool Safety](safety-architecture.md) - the sandbox that bounds what an approved call may touch
+- [Safe Tool Specification](safe-tool-specification.md) - the `humanInTheLoop` block that declares the flag
+- [AI Agent Observability](observability-architecture.md) - where approvals, declines, and timeouts are recorded
+- [Application](architecture.md) - where the gate sits in the runtime
 
 ## Overview { #overview }
 

@@ -9,15 +9,14 @@ Two questions dominate when you debug a live agent: *which tool just ran with wh
 
 The sandbox documented in [AI Agent Tool Safety](safety-architecture.md) *prevents* unsafe tool execution at runtime. This collector *captures* every tool and MCP call that did happen - span by span, attribute by attribute - so prevention is auditable end-to-end. The two are two arms of the same safety model: sandbox is the prevention arm and the gate; observability is the visibility arm and the ledger. Prevention without visibility is unverifiable; visibility without prevention is unactionable. Visibility is itself a defensive guarantee - a system whose actions you cannot see is a system you cannot trust.
 
-This is one of the architecture documents that complement each other:
+Pages this one is most closely tied to:
 
-- [Application](architecture.md) - runtime layers, feature modules, data flows, extension points
-- [Safe Tool Specification](safe-tool-specification.md) - normative JSON spec for tool authoring (the document the sandbox enforces)
-- [AI Agent Tool Safety](safety-architecture.md) - defense-in-depth sandbox model, policy resolution, threat-to-layer mapping
-- [MCP Server Safety](mcp-server-safety.md) - client-side risk model for external MCP servers and re-exposed tools
-- [Human-in-the-Loop Approval](hitl-architecture.md) - the runtime per-call approval gate
-- [Agent Loop](agent-loop-architecture.md) - per-turn round governance around the tool-calling loop
-- **AI Agent Observability Architecture** (this page) - signal sources, trace pipeline, storage tiers, log correlation, cost attribution
+- [AI Agent Tool Safety](safety-architecture.md) - the prevention arm this layer makes auditable
+- [Agent Loop](agent-loop-architecture.md) - the per-turn rounds that spans are grouped into
+- [MCP Server Safety](mcp-server-safety.md) - the wrapped-call spans and risk events collected here
+- [Human-in-the-Loop Approval](hitl-architecture.md) - the approvals and declines recorded as part of a turn
+- [Context Engineering](context-engineering-architecture.md) - the context whose token counts and cost are attributed here
+- [Application](architecture.md) - where the collector sits in the runtime
 
 ## Overview { #overview }
 
@@ -292,7 +291,7 @@ Adjacent Spring Boot and Spring AI properties that shape what reaches the collec
 |---|---|---|---|
 | `management.tracing.sampling.probability` | `SPRING_AI_PLAYGROUND_TRACE_SAMPLE` | `1.0` | Fraction of traces sampled by the Micrometer Tracer. `1.0` captures everything; lower for production-style load. |
 | `management.observations.annotations.enabled` | - | `true` | Enables `@Observed` on application-level methods. |
-| `management.endpoints.web.exposure.include` | `SPRING_AI_PLAYGROUND_ACTUATOR_INCLUDE` | `health,info,metrics,prometheus,beans` | Which Actuator endpoints are HTTP-reachable. The Prometheus scrape endpoint is included by default so external systems can pull alongside the in-app dashboards. |
+| `management.endpoints.web.exposure.include` | `SPRING_AI_PLAYGROUND_ACTUATOR_INCLUDE` | `health,info,metrics,prometheus` | Which Actuator endpoints are HTTP-reachable. The Prometheus scrape endpoint is included by default so external systems can pull alongside the in-app dashboards. |
 | `spring.ai.chat.observations.log-prompt` | `SPRING_AI_OBSERVE_LOG_PROMPT` | `false` | Whether prompt text is included in chat observation logs. Off by default - secret-masking only covers `console.log`. |
 | `spring.ai.chat.observations.log-completion` | `SPRING_AI_OBSERVE_LOG_COMPLETION` | `false` | Whether completion text is included. Same caveat. |
 | `spring.ai.tools.observations.include-content` | `SPRING_AI_TOOLS_OBSERVE_INCLUDE_CONTENT` | `false` | Whether tool argument and result content is included. |

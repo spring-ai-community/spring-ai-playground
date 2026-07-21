@@ -272,7 +272,7 @@ By leveraging these elements, Agentic Chat goes beyond basic Q&A and becomes a p
 Agentic Chat is a **consumer** of three inventories curated elsewhere in the Playground. Use these references to know what's available before composing a chat session:
 
 - **[Default Tools](../default-tools/index.md)** - 108 pre-loaded built-in tools (Examples · Utilities · Filesystem · Global · Korea · Visualization) callable directly from chat without any external setup. Each carries a Risk Level (L0-L5) and `${ENV_VAR}` requirements per page.
-- **[Default MCP Servers](../default-mcp-catalog/index.md)** - 57 preset external MCP server connections (Gmail, Notion, GitHub, Linear, BigQuery, Stripe, ...). One-click activation from the MCP Server sidebar adds them as tool sources for chat.
+- **[Default MCP Servers](../default-mcp-catalog/index.md)** - 58 preset external MCP server connections (Gmail, Notion, GitHub, Linear, BigQuery, Stripe, ...). One-click activation from the MCP Server sidebar adds them as tool sources for chat.
 - **[Vector Database](../vector-database.md)** - indexed document collections that the **RAG advisor chain** retrieves from at chat time (`SpringAiPlaygroundRagAdvisor` short-circuits when no documents are selected, so retrieval is opt-in per conversation).
 
 → Try it: [Tutorials](../../tutorials/index.md) - end-to-end flows that combine Tool Studio, MCP Inspector, Vector Database, and Agentic Chat.

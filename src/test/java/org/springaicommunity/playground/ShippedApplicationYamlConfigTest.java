@@ -24,6 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -71,6 +72,33 @@ class ShippedApplicationYamlConfigTest {
         assertThat(nested(openai, "spring", "ai", "model", "embedding")).isEqualTo("openai");
         assertThat(nested(openai, "spring", "ai", "openai")).as("spring.ai.openai block").isNotNull();
         assertThat(nested(openai, "spring", "ai", "openai-sdk")).as("removed spring.ai.openai-sdk block").isNull();
+    }
+
+    // SecurityConfig permitAll()s /actuator/** and no server.address is set, so every exposed endpoint is
+    // an unauthenticated surface on 0.0.0.0; beans served the whole bean graph and nothing in the app or
+    // the launcher ever read it.
+    @Test
+    void actuatorExposureShipsOnlyReadOnlyOperationalEndpoints() {
+        Object include = null;
+        for (Map<String, Object> doc : documents) {
+            Object value = nested(doc, "management", "endpoints", "web", "exposure", "include");
+            if (value != null) {
+                include = value;
+            }
+        }
+        assertThat(include).as("management.endpoints.web.exposure.include").isNotNull();
+        assertThat(String.valueOf(include))
+                .as("override documented in docs/getting-started/configuration.md")
+                .contains("SPRING_AI_PLAYGROUND_ACTUATOR_INCLUDE");
+        assertThat(exposedEndpoints(String.valueOf(include)))
+                .containsExactlyInAnyOrder("health", "info", "metrics", "prometheus");
+    }
+
+    private static List<String> exposedEndpoints(String include) {
+        String value = include.startsWith("${")
+                ? include.substring(include.indexOf(':') + 1, include.length() - 1)
+                : include;
+        return Arrays.stream(value.split(",")).map(String::trim).filter(entry -> !entry.isEmpty()).toList();
     }
 
     private Map<String, Object> maximumExpectedValues() {

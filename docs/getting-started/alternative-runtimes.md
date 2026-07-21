@@ -156,7 +156,7 @@ For Claude Desktop, point `claude_desktop_config.json` at the absolute JAR path:
       "command": "java",
       "args": [
         "-jar",
-        "/absolute/path/to/spring-ai-playground-0.2.0-M7.jar",
+        "/absolute/path/to/spring-ai-playground-0.2.0-M12.jar",
         "--spring.profiles.include=mcp-stdio"
       ]
     }

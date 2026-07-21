@@ -50,7 +50,7 @@ On an **Apple Silicon Mac** the `mlx` profile is layered onto `ollama` automatic
 | `spring.lifecycle.timeout-per-shutdown-phase` | relaxed-binding env | `30s` | Drain time per phase. |
 | `vaadin.pushmode` | relaxed-binding env | `automatic` | Vaadin server push. |
 | `spring.servlet.multipart.max-file-size` / `max-request-size` | relaxed-binding env | `20MB` / `20MB` | Upload limits (Vector Database ingest). |
-| `management.endpoints.web.exposure.include` | `SPRING_AI_PLAYGROUND_ACTUATOR_INCLUDE` | `health,info,metrics,prometheus,beans` | Actuator endpoints exposed at `/actuator/*`. |
+| `management.endpoints.web.exposure.include` | `SPRING_AI_PLAYGROUND_ACTUATOR_INCLUDE` | `health,info,metrics,prometheus` | Actuator endpoints exposed at `/actuator/*`. |
 
 ## AI providers & models { #ai }
 
