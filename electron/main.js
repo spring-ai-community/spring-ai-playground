@@ -66,6 +66,7 @@ let fullLogBuffer = "";
 let activeConfigPath = null;
 let currentConfigId = null;
 let restartToConfigAfterStop = false;
+let stopRequested = false;
 let currentLaunchToken = 0;
 let lastLaunchCommand = '';
 let autoCopyLaunchLogsPending = false;
@@ -970,9 +971,24 @@ function getRuntimeSettingsPayload(index, secretSuggestions = collectSecretSugge
   };
 }
 
+// Spring merges repeated --key=value command-line args into one comma-joined value, so a user App Arg
+// naming a key the launcher already owns turns `false` into `false,true` and the JVM fails to boot.
+const LAUNCHER_OWNED_APP_ARGS = [
+  'spring.ai.playground.ollama.mlx-auto-select',
+  'spring.ai.playground.desktop.managed-updates',
+  'management.endpoint.shutdown.enabled',
+  'management.endpoint.shutdown.access',
+  'management.endpoints.web.exposure.include',
+];
+
+function dropLauncherOwnedArgs(appArgs) {
+  return appArgs.filter(arg => !LAUNCHER_OWNED_APP_ARGS.some(key =>
+    arg === `--${key}` || arg.startsWith(`--${key}=`)));
+}
+
 function buildSpawnArguments(jrePath, jarPath, configPath, runtimeSettings, configId) {
   const jvmOptions = Array.isArray(runtimeSettings?.jvmOptions) ? runtimeSettings.jvmOptions : [];
-  const appArgs = Array.isArray(runtimeSettings?.appArgs) ? runtimeSettings.appArgs : [];
+  const appArgs = dropLauncherOwnedArgs(Array.isArray(runtimeSettings?.appArgs) ? runtimeSettings.appArgs : []);
   const userHome = app.getPath('userData');
   const configArg = `--spring.config.additional-location=${pathToFileURL(configPath).href}`;
   const envVariables = getSecretsForConfig(configId);
@@ -2672,11 +2688,16 @@ async function tryActuatorShutdown() {
     appendLog('Trying actuator shutdown...');
     await new Promise((resolve, reject) => {
       const req = http.request(`${dynamicServerUrl}/actuator/shutdown`, { method: 'POST' }, (res) => {
+        const contentType = String(res.headers['content-type'] || '');
         res.resume();
-        resolve();
+        if (res.statusCode === 200 && !contentType.startsWith('text/html')) {
+          resolve();
+          return;
+        }
+        reject(new Error(`Actuator shutdown rejected: HTTP ${res.statusCode} ${contentType || 'unknown'}`));
       });
       req.on('error', reject);
-      req.setTimeout(4000, () => reject(new Error('Actuator timeout')));
+      req.setTimeout(4000, () => req.destroy(new Error('Actuator timeout')));
       req.end();
     });
     appendLog('Actuator shutdown request sent.');
@@ -2691,6 +2712,7 @@ async function stopSpringServer() {
   if (!serverProcess) return;
   const targetProcess = serverProcess;
   const pid = targetProcess.pid;
+  stopRequested = true;
   const start = Date.now();
   const MAX_WAIT_MS = getShutdownWaitMs(activeConfigPath || getConfigFilePath(currentConfigId || readConfigIndex().activeConfigId));
   const ACTUATOR_WAIT_MS = 5000;
@@ -2879,7 +2901,7 @@ function startSpringServer() {
 
   const spawnConfig = buildSpawnArguments(jrePath, jarPath, configPath, index.runtime, selectedConfigId);
 
-  spawnConfig.args.push('--management.endpoint.shutdown.enabled=true');
+  spawnConfig.args.push('--management.endpoint.shutdown.access=unrestricted');
   spawnConfig.args.push('--management.endpoints.web.exposure.include=health,shutdown');
 
   lastLaunchCommand = `${jrePath} ${spawnConfig.args.join(' ')}`;
@@ -2898,8 +2920,10 @@ function startSpringServer() {
 
   dynamicServerPort = null;
   dynamicServerUrl = null;
+  stopRequested = false;
 
-  serverProcess = spawn(jrePath, spawnConfig.args, { detached: false, env: spawnConfig.env });
+  serverProcess = spawn(jrePath, spawnConfig.args, { detached: false, windowsHide: true, env: spawnConfig.env });
+  const spawned = serverProcess;
 
   serverProcess.on('error', (error) => {
     serverProcess = null;
@@ -2928,20 +2952,24 @@ function startSpringServer() {
   });
 
   serverProcess.on('close', (code) => {
+    if (serverProcess !== null && serverProcess !== spawned) return;
     const shouldReturnToConfig = restartToConfigAfterStop;
+    const wasStopRequested = stopRequested;
+    stopRequested = false;
+    const stoppedCleanly = code === 0 || code === null || wasStopRequested;
     serverProcess = null;
     autoCopyLaunchLogsPending = false;
     dynamicServerPort = null;
     dynamicServerUrl = null;
     launchReadinessState = {
-      phase: code === 0 || code === null ? 'stopped' : 'failed',
+      phase: stoppedCleanly ? 'stopped' : 'failed',
       timedOut: false,
       timeoutMs: null,
-      message: code === 0 || code === null ? 'Server stopped.' : 'Server exited unexpectedly.',
+      message: stoppedCleanly ? 'Server stopped.' : 'Server exited unexpectedly.',
     };
     sendServerSplashState();
 
-    if (code !== 0 && code !== null && !isQuitting && !shouldReturnToConfig) {
+    if (code !== 0 && code !== null && !isQuitting && !shouldReturnToConfig && !wasStopRequested) {
       handleFatalError(`Server process exited unexpectedly with code ${code}`);
     }
 
