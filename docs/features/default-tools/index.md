@@ -1884,7 +1884,7 @@ Some default tools depend on environment-backed secrets and stay inert until tho
 | `OPENAI_API_KEY` | `openaiResponseGenerator` | OpenAI Responses API |
 | `GOOGLE_API_KEY` + `GOOGLE_PSE_ID` | `googlePseSearch` | Google Programmable Search Engine |
 | `SLACK_WEBHOOK_URL` | `sendSlackMessage` | Incoming Webhook |
-| `TOOL_STUDIO_FS_BASE` | All [Filesystem](filesystem.md) tools | Per-app `safety.fs` root (defaults to `${user.home}/spring-ai-playground/workspace`) |
+| `SPRING_AI_PLAYGROUND_TOOL_STUDIO_FS_BASE_PATH` | All [Filesystem](filesystem.md) tools | Per-app `safety.fs` root (defaults to `${user.home}/spring-ai-playground/workspace`) |
 | Various Korean provider keys | KR network tools - Naver, Kakao, KMA, data.go.kr | Provider-specific (per-page) |
 
 Secrets are masked from `console.log` output by substring replacement when the full resolved value appears, and they are not committed to the tool spec - they resolve at runtime from the JVM environment.

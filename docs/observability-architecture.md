@@ -242,7 +242,7 @@ The persistence service is **opt-out via property**, not bean removal:
         havingValue = "true", matchIfMissing = true)
 ```
 
-Setting `OBS_PERSIST=false` disables the bean entirely, in which case the collector's `persistenceProvider.getIfAvailable()` returns `null` and the disk write is silently skipped.
+Setting `spring.ai.playground.observability.persist=false` disables the bean entirely, in which case the collector's `persistenceProvider.getIfAvailable()` returns `null` and the disk write is silently skipped.
 
 ## Parallel pipeline for system metrics
 
@@ -276,10 +276,10 @@ All observability properties live under `spring.ai.playground.observability` and
 
 | Property | Env | Default | What it controls |
 |---|---|---|---|
-| `ring-buffer-capacity` | `OBS_RING_CAPACITY` | `2000` | Max in-memory traces before FIFO eviction. Lower bound is 10 (set by the constructor) - values below are silently raised. |
-| `retain-days` | `OBS_RETAIN_DAYS` | `30` | Disk persistence TTL. Directories older than this are deleted by the 04:00 cron. Has no effect when `persist=false`. |
-| `persist` | `OBS_PERSIST` | `true` | Master switch for disk persistence. Setting `false` removes the `ObservabilityPersistenceService` bean entirely (`@ConditionalOnProperty matchIfMissing=true`). |
-| `max-spans-per-trace` | `OBS_MAX_SPANS` | `200` | Hard cap on spans appended to a single `TraceRecord`. Excess spans are dropped silently - runaway tool loops cannot blow up a single trace. |
+| `ring-buffer-capacity` | `SPRING_AI_PLAYGROUND_OBSERVABILITY_RING_BUFFER_CAPACITY` | `2000` | Max in-memory traces before FIFO eviction. Lower bound is 10 (set by the constructor) - values below are silently raised. |
+| `retain-days` | `SPRING_AI_PLAYGROUND_OBSERVABILITY_RETAIN_DAYS` | `30` | Disk persistence TTL. Directories older than this are deleted by the 04:00 cron. Has no effect when `persist=false`. |
+| `persist` | `SPRING_AI_PLAYGROUND_OBSERVABILITY_PERSIST` | `true` | Master switch for disk persistence. Setting `false` removes the `ObservabilityPersistenceService` bean entirely (`@ConditionalOnProperty matchIfMissing=true`). |
+| `max-spans-per-trace` | `SPRING_AI_PLAYGROUND_OBSERVABILITY_MAX_SPANS_PER_TRACE` | `200` | Hard cap on spans appended to a single `TraceRecord`. Excess spans are dropped silently - runaway tool loops cannot blow up a single trace. |
 | `capture-prompt-content` | *(relaxed binding)* | `true` | Whether to copy prompt and completion text from `gen_ai.prompt.*.content` / `gen_ai.completion.*.content` span attributes into the persisted `TraceRecord`. Off → the Conversation Thread dialog can only reconstruct message counts and roles, not bodies. |
 | `max-prompt-content-bytes` | *(relaxed binding)* | `4096` | Byte cap per captured prompt or completion. Long prompts are truncated silently - limits trace record size. |
 | `max-captured-messages-per-span` | *(relaxed binding)* | `16` | Cap on conversation messages preserved per span. Excess messages are dropped silently. |
@@ -289,13 +289,13 @@ Adjacent Spring Boot and Spring AI properties that shape what reaches the collec
 
 | Property | Env | Default | Effect |
 |---|---|---|---|
-| `management.tracing.sampling.probability` | `SPRING_AI_PLAYGROUND_TRACE_SAMPLE` | `1.0` | Fraction of traces sampled by the Micrometer Tracer. `1.0` captures everything; lower for production-style load. |
+| `management.tracing.sampling.probability` | `MANAGEMENT_TRACING_SAMPLING_PROBABILITY` | `1.0` | Fraction of traces sampled by the Micrometer Tracer. `1.0` captures everything; lower for production-style load. |
 | `management.observations.annotations.enabled` | - | `true` | Enables `@Observed` on application-level methods. |
-| `management.endpoints.web.exposure.include` | `SPRING_AI_PLAYGROUND_ACTUATOR_INCLUDE` | `health,info,metrics,prometheus` | Which Actuator endpoints are HTTP-reachable. The Prometheus scrape endpoint is included by default so external systems can pull alongside the in-app dashboards. |
-| `spring.ai.chat.observations.log-prompt` | `SPRING_AI_OBSERVE_LOG_PROMPT` | `false` | Whether prompt text is included in chat observation logs. Off by default - secret-masking only covers `console.log`. |
-| `spring.ai.chat.observations.log-completion` | `SPRING_AI_OBSERVE_LOG_COMPLETION` | `false` | Whether completion text is included. Same caveat. |
-| `spring.ai.tools.observations.include-content` | `SPRING_AI_TOOLS_OBSERVE_INCLUDE_CONTENT` | `false` | Whether tool argument and result content is included. |
-| `spring.ai.vectorstore.observations.log-query-response` | `SPRING_AI_VECTORSTORE_OBSERVE_LOG` | `false` | Whether retrieved documents are included in vector store observations. |
+| `management.endpoints.web.exposure.include` | `MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE` | `health,info,metrics,prometheus` | Which Actuator endpoints are HTTP-reachable. The Prometheus scrape endpoint is included by default so external systems can pull alongside the in-app dashboards. |
+| `spring.ai.chat.observations.log-prompt` | `SPRING_AI_CHAT_OBSERVATIONS_LOG_PROMPT` | `false` | Whether prompt text is included in chat observation logs. Off by default - secret-masking only covers `console.log`. |
+| `spring.ai.chat.observations.log-completion` | `SPRING_AI_CHAT_OBSERVATIONS_LOG_COMPLETION` | `false` | Whether completion text is included. Same caveat. |
+| `spring.ai.tools.observations.include-content` | `SPRING_AI_TOOLS_OBSERVATIONS_INCLUDE_CONTENT` | `false` | Whether tool argument and result content is included. |
+| `spring.ai.vectorstore.observations.log-query-response` | `SPRING_AI_VECTORSTORE_OBSERVATIONS_LOG_QUERY_RESPONSE` | `false` | Whether retrieved documents are included in vector store observations. |
 | `management.otlp.tracing.endpoint` | `MANAGEMENT_OTLP_TRACING_ENDPOINT` | *(unset)* | Opt-in OTLP exporter. Leave unset for desktop; set to a collector URL to forward traces to an external system. The empty-endpoint case is intentionally absent from `application.yaml` because Spring Boot rejects a blank endpoint at startup. |
 
 ## Log correlation

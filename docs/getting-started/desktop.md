@@ -111,7 +111,7 @@ The five presets:
 - `Starter 5` (default, no API keys) - `getCurrentTime`, `getWeather`, `searchWikipedia`, `extractPageContent`, `evalExpression`.
 - `Dev Essentials` - local dev utilities (`uuid`, `hash`, `base64`, `jwtDecode`, `regexExtract`) plus `getCurrentTime` and `evalExpression`.
 - `Korea Toolkit (free)` - free Korean services (Upbit, Bithumb, iTunes K-pop, K-beauty search) plus `getCurrentTime` and `evalExpression`.
-- `File Toolkit` - filesystem pipeline (`readTextFile`, `listDir`, `grepFile`, `findFiles`, `sliceFile`, `sortFile`, `cutFileFields`) plus `getCurrentTime` and `evalExpression`. Set `TOOL_STUDIO_FS_BASE` to pin a custom workspace root.
+- `File Toolkit` - filesystem pipeline (`readTextFile`, `listDir`, `grepFile`, `findFiles`, `sliceFile`, `sortFile`, `cutFileFields`) plus `getCurrentTime` and `evalExpression`. Set `SPRING_AI_PLAYGROUND_TOOL_STUDIO_FS_BASE_PATH` to pin a custom workspace root.
 - `Everything` - exposes every default tool. Heavy MCP catalog.
 
 The non-Starter presets each carry only `getCurrentTime` and `evalExpression` from Starter 5 by design - they do not stack on top of it.

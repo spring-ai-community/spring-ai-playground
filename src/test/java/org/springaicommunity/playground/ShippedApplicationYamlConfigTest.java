@@ -27,6 +27,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -87,18 +89,21 @@ class ShippedApplicationYamlConfigTest {
             }
         }
         assertThat(include).as("management.endpoints.web.exposure.include").isNotNull();
-        assertThat(String.valueOf(include))
-                .as("override documented in docs/getting-started/configuration.md")
-                .contains("SPRING_AI_PLAYGROUND_ACTUATOR_INCLUDE");
-        assertThat(exposedEndpoints(String.valueOf(include)))
+        assertThat(Arrays.stream(String.valueOf(include).split(",")).map(String::trim).toList())
                 .containsExactlyInAnyOrder("health", "info", "metrics", "prometheus");
     }
 
-    private static List<String> exposedEndpoints(String include) {
-        String value = include.startsWith("${")
-                ? include.substring(include.indexOf(':') + 1, include.length() - 1)
-                : include;
-        return Arrays.stream(value.split(",")).map(String::trim).filter(entry -> !entry.isEmpty()).toList();
+    @Test
+    void shippedYamlBindsEnvVarsOnlyThroughRelaxedBinding() throws Exception {
+        List<String> allowed = List.of("user.home", "spring.application.name",
+                "spring.ai.playground.built-in-mcp-server.name", "OPENAI_API_KEY");
+        for (String yaml : List.of("src/main/resources/application.yaml",
+                "src/main/resources/application-mcp-stdio.yaml")) {
+            Matcher placeholders = Pattern.compile("\\$\\{([^}:]+)").matcher(Files.readString(Path.of(yaml)));
+            while (placeholders.find()) {
+                assertThat(placeholders.group(1)).as("%s placeholder", yaml).isIn(allowed);
+            }
+        }
     }
 
     private Map<String, Object> maximumExpectedValues() {

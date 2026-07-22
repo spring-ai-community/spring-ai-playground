@@ -16,7 +16,7 @@ This page is the single reference for those knobs. The task pages - [Desktop App
 4. JVM **system properties** (`-Dkey=value`).
 5. Command-line arguments (`--key=value`).
 
-**Property ↔ environment-variable mapping.** Any property binds from an env var via Spring's relaxed binding - uppercase, dots and dashes to underscores. So `spring.ai.playground.tool-studio.timeout-seconds` is set by `SPRING_AI_PLAYGROUND_TOOL_STUDIO_TIMEOUT_SECONDS`. A handful of knobs also carry a **short env-var alias** (e.g. `SERVER_PORT`, `OBS_PERSIST`); those are noted in the tables.
+**Property ↔ environment-variable mapping.** Any property binds from an env var via Spring's relaxed binding - uppercase, dots and dashes to underscores. So `spring.ai.playground.tool-studio.timeout-seconds` is set by `SPRING_AI_PLAYGROUND_TOOL_STUDIO_TIMEOUT_SECONDS`.
 
 **Per launch mode:**
 
@@ -50,7 +50,7 @@ On an **Apple Silicon Mac** the `mlx` profile is layered onto `ollama` automatic
 | `spring.lifecycle.timeout-per-shutdown-phase` | relaxed-binding env | `30s` | Drain time per phase. |
 | `vaadin.pushmode` | relaxed-binding env | `automatic` | Vaadin server push. |
 | `spring.servlet.multipart.max-file-size` / `max-request-size` | relaxed-binding env | `20MB` / `20MB` | Upload limits (Vector Database ingest). |
-| `management.endpoints.web.exposure.include` | `SPRING_AI_PLAYGROUND_ACTUATOR_INCLUDE` | `health,info,metrics,prometheus` | Actuator endpoints exposed at `/actuator/*`. |
+| `management.endpoints.web.exposure.include` | relaxed-binding env | `health,info,metrics,prometheus` | Actuator endpoints exposed at `/actuator/*`. |
 
 ## AI providers & models { #ai }
 
@@ -130,9 +130,9 @@ The playground publishes its own MCP server at `/mcp` (Streamable HTTP). These c
 
 | Property | Env | Default | Notes |
 |---|---|---|---|
-| `spring.ai.playground.built-in-mcp-server.name` | `SPRING_AI_PLAYGROUND_MCP_NAME` | `spring-ai-playground-built-in-mcp` | Advertised server name. |
-| `spring.ai.playground.built-in-mcp-server.description` | `SPRING_AI_PLAYGROUND_MCP_DESCRIPTION` | *(see yaml)* | Advertised description. |
-| `spring.ai.playground.built-in-mcp-server.exposure-mode` | `SPRING_AI_PLAYGROUND_MCP_EXPOSURE_MODE` | `both` | `builtin-only` · `composed-only` · `both` - whether `/mcp` serves your Tool Studio tools, the composed external tools, or both. |
+| `spring.ai.playground.built-in-mcp-server.name` | relaxed-binding env | `spring-ai-playground-built-in-mcp` | Advertised server name. |
+| `spring.ai.playground.built-in-mcp-server.description` | relaxed-binding env | *(see yaml)* | Advertised description. |
+| `spring.ai.playground.built-in-mcp-server.exposure-mode` | relaxed-binding env | `both` | `builtin-only` · `composed-only` · `both` - whether `/mcp` serves your Tool Studio tools, the composed external tools, or both. |
 | `spring.ai.playground.mcp-server.composed-tools-max-risk` | relaxed-binding env | `L5` | Caps which composed tools are published (`L1`-`L5`). |
 | `spring.ai.playground.mcp-server.composed-tools` | relaxed-binding env | `[]` | Declarative list of composed (proxied) external tools - see [Configure exposure via YAML](../features/mcp-server/proxy.md#yaml-exposure). |
 | `spring.ai.mcp.server.protocol` | relaxed-binding env | `STREAMABLE` | `SSE` · `STREAMABLE` · `STATELESS`. |
@@ -165,20 +165,20 @@ The playground publishes its own MCP server at `/mcp` (Streamable HTTP). These c
 
 `spring.ai.playground.observability.*` ([architecture](../observability-architecture.md)):
 
-| Property | Short env | Default | Notes |
+| Property | Env | Default | Notes |
 |---|---|---|---|
-| `...observability.ring-buffer-capacity` | `OBS_RING_CAPACITY` | `2000` | Trace events held in memory. |
-| `...observability.persist` | `OBS_PERSIST` | `true` | Write traces to disk (one JSON file per trace). |
-| `...observability.retain-days` | `OBS_RETAIN_DAYS` | `30` | Days of persisted traces to keep. |
-| `...observability.max-spans-per-trace` | `OBS_MAX_SPANS` | `200` | Span cap per trace. |
+| `...observability.ring-buffer-capacity` | relaxed-binding env | `2000` | Trace events held in memory. |
+| `...observability.persist` | relaxed-binding env | `true` | Write traces to disk (one JSON file per trace). |
+| `...observability.retain-days` | relaxed-binding env | `30` | Days of persisted traces to keep. |
+| `...observability.max-spans-per-trace` | relaxed-binding env | `200` | Span cap per trace. |
 | `...observability.capture-prompt-content` | relaxed-binding env | `true` | Capture prompt/response text in spans. |
 | `...observability.max-prompt-content-bytes` | relaxed-binding env | `4096` | Truncation limit per captured message. |
 | `...observability.max-captured-messages-per-span` | relaxed-binding env | `16` | Message cap per span. |
 | `...observability.active-trace-ttl-seconds` | relaxed-binding env | `300` | Idle-trace finalize timeout. |
-| `management.tracing.sampling.probability` | `SPRING_AI_PLAYGROUND_TRACE_SAMPLE` | `1.0` | Trace sampling (0.0-1.0). |
+| `management.tracing.sampling.probability` | relaxed-binding env | `1.0` | Trace sampling (0.0-1.0). |
 | OTLP export endpoint | `MANAGEMENT_OTLP_TRACING_ENDPOINT` | *(unset)* | Opt-in: set to a collector URL to export spans. |
 
-Spring AI's own prompt/completion logging is **off** by default and toggled with `SPRING_AI_OBSERVE_LOG_PROMPT` / `SPRING_AI_OBSERVE_LOG_COMPLETION`, `SPRING_AI_CLIENT_OBSERVE_LOG_PROMPT` / `_COMPLETION`, `SPRING_AI_TOOLS_OBSERVE_INCLUDE_CONTENT`, `SPRING_AI_VECTORSTORE_OBSERVE_LOG` (all `false`).
+Spring AI's own prompt/completion logging is **off** by default and toggled with `spring.ai.chat.observations.log-prompt` / `log-completion`, `spring.ai.chat.client.observations.log-prompt` / `log-completion`, `spring.ai.tools.observations.include-content`, `spring.ai.vectorstore.observations.log-query-response` (all `false`).
 
 ## Tool Studio & JS sandbox { #tool-studio }
 
@@ -187,7 +187,7 @@ Spring AI's own prompt/completion logging is **off** by default and toggled with
 | Property | Env | Default | Notes |
 |---|---|---|---|
 | `...tool-studio.timeout-seconds` | relaxed-binding env | `30` | Per-tool JS execution timeout. |
-| `...tool-studio.fs.base-path` | `TOOL_STUDIO_FS_BASE` | `${user.home}/spring-ai-playground/workspace` | Root the filesystem tools are confined to. |
+| `...tool-studio.fs.base-path` | relaxed-binding env | `${user.home}/spring-ai-playground/workspace` | Root the filesystem tools are confined to. |
 | `...tool-studio.js-sandbox.allow-network-io` | relaxed-binding env | `false` | Raw Java network access in tool JS (the built-in `fetch` is preferred). |
 | `...tool-studio.js-sandbox.allow-file-io` | relaxed-binding env | `false` | Raw Java file access (use `safety.fs`). |
 | `...tool-studio.js-sandbox.allow-native-access` / `allow-create-thread` | relaxed-binding env | `false` | Native / thread capabilities. |
@@ -205,7 +205,7 @@ Spring AI's own prompt/completion logging is **off** by default and toggled with
 | Logs | (derived) | `<app-home>/logs` (rolling file; the `mcp-stdio` profile detaches the console appender) |
 | Tool specs | (derived) | `<app-home>/tool/save` |
 | Vector store | (derived) | `<app-home>/vectorstore/save` |
-| Filesystem-tool workspace | `TOOL_STUDIO_FS_BASE` | `<app-home>/workspace` |
+| Filesystem-tool workspace | `SPRING_AI_PLAYGROUND_TOOL_STUDIO_FS_BASE_PATH` | `<app-home>/workspace` |
 
 The desktop app stores this tree under the OS app-data location (macOS `~/Library/Application Support/spring-ai-playground`, Windows `%APPDATA%/spring-ai-playground`, Linux `~/.config/spring-ai-playground`).
 
