@@ -70,6 +70,7 @@ Provider selection (which Spring AI model backs each capability):
 | `spring.ai.ollama.init.pull-model-strategy` | `when_missing` | Auto-pull models on startup. |
 | `spring.ai.ollama.chat.options.model` | `qwen3.5:4b` | Default chat model. |
 | `spring.ai.ollama.embedding.options.model` | `qwen3-embedding:0.6b` | Default embedding model. |
+| `spring.ai.ollama.chat.keep-alive` / `spring.ai.ollama.embedding.keep-alive` | `30m` | How long Ollama keeps each model loaded in memory after a call, as a [Go duration](https://pkg.go.dev/time#ParseDuration) (`0` unloads it at once, `-1` keeps it forever). The default trades VRAM for no reload stall when you come back to a chat. Sent per request, so it wins over the Ollama server's own `OLLAMA_KEEP_ALIVE` default; that server env var is still the right knob when you want one duration for every client of a self-managed Ollama. Override a single conversation from the chat settings drawer's provider-options JSON with `{"keep_alive": "5m"}`. |
 | `spring.ai.playground.chat.models` | `qwen3.5:2b/4b/9b, qwen3.6:27b/35b, gemma4:e2b/e4b/12b/31b, gpt-oss:20b, deepseek-r1:8b` | The model menu shown in the chat UI. |
 | `spring.ai.playground.ollama.mlx-auto-select` | `true` | On Apple Silicon, auto-activate the [`mlx` profile](#profiles) (MLX model defaults). Set `false` to keep the generic model names. |
 

@@ -158,9 +158,11 @@ spring:
       init:
         pull-model-strategy: when_missing
       chat:
+        keep-alive: 30m
         options:
           model: qwen3.5:4b
       embedding:
+        keep-alive: 30m
         options:
           model: qwen3-embedding:0.6b
     playground:
