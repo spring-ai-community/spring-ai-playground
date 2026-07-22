@@ -16,6 +16,7 @@
 package org.springaicommunity.playground.webui;
 
 import com.vaadin.browserless.SpringBrowserlessTest;
+import com.vaadin.flow.component.Component;
 import org.junit.jupiter.api.Test;
 import org.springaicommunity.playground.webui.chat.ChatView;
 import org.springaicommunity.playground.webui.home.HomeView;
@@ -32,13 +33,20 @@ class RouteRenderSmokeTest extends SpringBrowserlessTest {
 
     @Test
     void everyRoutedViewRendersInsideAppLayout() {
-        assertThat(navigate(HomeView.class)).isNotNull();
-        assertThat(navigate(ChatView.class)).isNotNull();
-        assertThat(navigate(McpServerView.class)).isNotNull();
-        assertThat(navigate(ObservabilityView.class)).isNotNull();
-        assertThat(navigate(ToolStudioView.class)).isNotNull();
-        assertThat(navigate(VectorStoreView.class)).isNotNull();
-        assertThat(navigate(HomeView.class)).isNotNull();
+        assertRenders(HomeView.class);
+        assertRenders(ChatView.class);
+        assertRenders(McpServerView.class);
+        assertRenders(ObservabilityView.class);
+        assertRenders(ToolStudioView.class);
+        assertRenders(VectorStoreView.class);
+        assertRenders(HomeView.class);
+    }
+
+    private void assertRenders(Class<? extends Component> route) {
+        Component view = navigate(route);
+        assertThat(view).as("%s routed", route.getSimpleName()).isNotNull();
+        assertThat(view.getElement().getTextRecursively().trim())
+                .as("%s painted content", route.getSimpleName()).isNotEmpty();
     }
 
 }

@@ -34,17 +34,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 class GoogleAnalyticsPageViewJsTest extends SpringBrowserlessTest {
 
+    private static final String CONVERSATION_ID = "11111111-2222-3333-4444-555555555555";
+
     @Test
     void pageViewPathParameterCarriesNoQueryString() {
         navigate(HomeView.class);
         drainPageViewInvocations();
 
-        UI.getCurrent().navigate(ChatView.class,
-                QueryParameters.of("conv", "11111111-2222-3333-4444-555555555555"));
+        UI.getCurrent().navigate(ChatView.class, QueryParameters.of("conv", CONVERSATION_ID));
 
         List<Object> parameters = pageViewParameters();
         assertThat(String.valueOf(parameters.get(0))).isEqualTo("/agentic-chat");
         assertThat(String.valueOf(parameters.get(1))).isEqualTo("Agentic Chat");
+        assertThat(parameters).noneMatch(parameter -> String.valueOf(parameter).contains(CONVERSATION_ID));
     }
 
     @Test
@@ -58,15 +60,31 @@ class GoogleAnalyticsPageViewJsTest extends SpringBrowserlessTest {
     }
 
     @Test
-    void pageViewPayloadNeverReadsTheBrowserTitleOrFullLocation() {
+    void pageLocationIsTheOriginPlusTheStrippedPathAndNothingElse() {
+        navigate(HomeView.class);
+        drainPageViewInvocations();
+
+        UI.getCurrent().navigate(ChatView.class, QueryParameters.of("conv", CONVERSATION_ID));
+
+        assertThat(pageViewExpression())
+                .contains("page_path:$0")
+                .contains("page_location:document.location.origin+$0")
+                .contains("page_title:$1")
+                .doesNotContain("document.title")
+                .doesNotContain("document.location.href")
+                .doesNotContain("document.location.search")
+                .doesNotContain("document.location.pathname");
+    }
+
+    @Test
+    void pageViewIsEmittedOnlyAfterTheRouteDerivedFieldsAreSet() {
         navigate(HomeView.class);
         drainPageViewInvocations();
 
         navigate(ChatView.class);
 
-        assertThat(pageViewExpression())
-                .contains("page_path:").contains("page_location:").contains("page_title:")
-                .doesNotContain("document.title").doesNotContain("document.location.href");
+        String expression = pageViewExpression();
+        assertThat(expression.indexOf("gtag('set'")).isLessThan(expression.indexOf("'page_view'"));
     }
 
     private void drainPageViewInvocations() {

@@ -25,12 +25,38 @@ import static org.assertj.core.api.Assertions.assertThat;
 class HomeViewRenderTest extends SpringBrowserlessTest {
 
     @Test
-    void homeRendersSystemPanelWithReadinessContent() {
-        HomeView view = navigate(HomeView.class);
+    void homeReportsToolMcpAndExposureReadinessWithRealCounts() {
+        String panel = systemPanelText();
 
+        assertThat(panel).contains("Built-in tools").contains("External MCP").contains("Exposed on MCP");
+        assertThat(panel)
+                .containsPattern("\\d+ Local-Passed · \\d+ need keys")
+                .containsPattern("\\d+ connected")
+                .containsPattern("\\d+ of \\d+");
+    }
+
+    @Test
+    void homeReportsTheEnvironmentVariableTallyForKeyGatedTools() {
+        assertThat(systemPanelText())
+                .contains("Environment")
+                .containsPattern("none required|all \\d+ set|\\d+ of \\d+ not set");
+    }
+
+    @Test
+    void homeSurfacesTheUsageKpis() {
+        assertThat(systemPanelText())
+                .contains("Calls").contains("Tokens").contains("Tool calls").contains("p95 latency");
+    }
+
+    @Test
+    void homeLinksOutToEveryObservabilityDashboard() {
+        assertThat(systemPanelText()).containsPattern("Open all \\d+ dashboards");
+    }
+
+    private String systemPanelText() {
+        HomeView view = navigate(HomeView.class);
         HomeSystemPanel systemPanel = $(HomeSystemPanel.class, view).first();
-        assertThat(systemPanel).isNotNull();
-        assertThat(systemPanel.getChildren().count()).isPositive();
+        return systemPanel.getElement().getTextRecursively();
     }
 
 }

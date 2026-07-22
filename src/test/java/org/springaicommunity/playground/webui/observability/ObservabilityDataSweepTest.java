@@ -62,11 +62,7 @@ class ObservabilityDataSweepTest extends SpringBrowserlessTest {
 
     @Test
     void dashboardsRenderSeededTrafficAndTraceDetailOpens() {
-        long now = System.currentTimeMillis();
-        this.buffer.add(chatTrace("seed-trace-ok", now - 60_000L, "OK", "stop"));
-        this.buffer.add(chatTrace("seed-trace-error", now - 30_000L, "ERROR", "error"));
-        this.riskEventBuffer.record(new McpRiskEventRingBuffer.RiskEvent(now - 10_000L,
-                "tool-poisoning", "HIGH", "seeded risk event"));
+        seedTraffic();
 
         ObservabilityView view = navigate(ObservabilityView.class);
         ObservabilityDashboardSidebar sidebar = $(ObservabilityDashboardSidebar.class, view).first();
@@ -85,6 +81,34 @@ class ObservabilityDataSweepTest extends SpringBrowserlessTest {
         roundTrip();
 
         assertThat($(TraceDetailDialog.class).all()).isNotEmpty();
+        assertThat($(TraceDetailDialog.class).first().getElement().getTextRecursively())
+                .contains("qwen-seed:1b").contains("getWeather").contains("weather-server");
+    }
+
+    @Test
+    void seededTracesAndRiskEventsSurfaceOnTheirOwnDashboards() {
+        seedTraffic();
+
+        ObservabilityView view = navigate(ObservabilityView.class);
+        ObservabilityDashboardSidebar sidebar = $(ObservabilityDashboardSidebar.class, view).first();
+
+        sidebar.select(new DashboardEntry("traces", "Traces", VaadinIcon.SITEMAP));
+        roundTrip();
+        assertThat($(TracesTab.class, view).first().getElement().getTextRecursively())
+                .contains("qwen-seed:1b").contains("conv-seed");
+
+        sidebar.select(new DashboardEntry("safety", "Safety", VaadinIcon.SHIELD));
+        roundTrip();
+        assertThat($(SafetyTab.class, view).first().getElement().getTextRecursively())
+                .contains("tool-poisoning").contains("seeded risk event");
+    }
+
+    private void seedTraffic() {
+        long now = System.currentTimeMillis();
+        this.buffer.add(chatTrace("seed-trace-ok", now - 60_000L, "OK", "stop"));
+        this.buffer.add(chatTrace("seed-trace-error", now - 30_000L, "ERROR", "error"));
+        this.riskEventBuffer.record(new McpRiskEventRingBuffer.RiskEvent(now - 10_000L,
+                "tool-poisoning", "HIGH", "seeded risk event"));
     }
 
     private static TraceRecord chatTrace(String traceId, long startEpochMs, String status, String finishReason) {
