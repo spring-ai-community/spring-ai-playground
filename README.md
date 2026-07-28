@@ -1,5 +1,7 @@
 # Spring AI Playground
 
+[![MCP Toplist](https://mcptoplist.com/badge/glama%2Fspring-ai-community%2Fspring-ai-playground.svg)](https://mcptoplist.com/server/glama%2Fspring-ai-community%2Fspring-ai-playground)
+
 **Safe Local Execution Layer for AI Agent Tools**
 
 Spring AI Playground is a cross-platform desktop app for building, testing, validating, and executing MCP tools in a controlled local environment. It helps you create reusable MCP tools once and use them across macOS, Windows, and Linux through a self-contained runtime. Unlike platforms that focus primarily on generating agents or authoring tools, Spring AI Playground focuses on making the tools it manages inside the app safer and easier to inspect before reuse.
