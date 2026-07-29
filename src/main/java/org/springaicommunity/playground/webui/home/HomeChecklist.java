@@ -197,7 +197,7 @@ class HomeChecklist extends Div {
                         "Ollama reachable or OpenAI key set.",
                         providerReady, null),
                 new ChecklistItem("Start a chat",
-                        "Built-in tools are ready — try a conversation right away.",
+                        "Built-in tools are ready - try a conversation right away.",
                         hasChat, ChatView.class),
                 new ChecklistItem("Upload a document for RAG",
                         "Drop a file into Vector Database to ground your chats.",

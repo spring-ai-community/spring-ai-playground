@@ -135,7 +135,7 @@ public class McpServerView extends ContentWorkspaceView {
 
         WorkspaceSettingsDrawer exposeToolsDrawer = installSettingsDrawer(VaadinIcon.COG_O,
                 "Built-in MCP Server Composed Tools",
-                "Choose what the built-in MCP server exposes — built-in tools, composed external tools, or both");
+                "Choose what the built-in MCP server exposes - built-in tools, composed external tools, or both");
         McpExposedToolsPanel exposeToolsPanel = new McpExposedToolsPanel(this.mcpExposedToolService,
                 this.mcpCompositionService, this.mcpServerInfoService, this.mcpClientService,
                 this.mcpToolRiskEvaluator, this.toolSpecService, this.usageEventTracker);

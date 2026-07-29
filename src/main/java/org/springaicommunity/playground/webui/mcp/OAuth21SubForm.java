@@ -78,7 +78,7 @@ public class OAuth21SubForm extends VerticalLayout {
         clientIdField.setWidthFull();
         issuerUriField.setPlaceholder("https://accounts.example.com");
         issuerUriField.setHelperText(
-                "OIDC discovery (.well-known) — auto-resolves the authorization/token endpoints.");
+                "OIDC discovery (.well-known) - auto-resolves the authorization/token endpoints.");
         issuerUriField.setWidthFull();
         scopesField.setPlaceholder("read, write");
         scopesField.setHelperText("Comma-separated. Leave blank to inherit the issuer's defaults.");
@@ -89,11 +89,11 @@ public class OAuth21SubForm extends VerticalLayout {
                 "Required only if the issuer above doesn't expose .well-known discovery.");
         authorizationUriField.setWidthFull();
         tokenUriField.setPlaceholder("https://example.com/oauth/token");
-        tokenUriField.setHelperText("Same — paired with the authorization endpoint above.");
+        tokenUriField.setHelperText("Same - paired with the authorization endpoint above.");
         tokenUriField.setWidthFull();
         clientSecretField.setPlaceholder("blank for PKCE, or ${ENV_VAR}");
         clientSecretField.setHelperText(
-                "Optional — leave blank for PKCE. Plain values land on disk in cleartext, prefer ${ENV_VAR}.");
+                "Optional - leave blank for PKCE. Plain values land on disk in cleartext, prefer ${ENV_VAR}.");
         clientSecretField.setRevealButtonVisible(true);
         clientSecretField.setWidthFull();
 

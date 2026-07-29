@@ -104,7 +104,7 @@ class ChatHumanQuestionDialogTest extends SpringBrowserlessTest {
         ConfirmDialog dialog = awaitAttached(() -> $(ConfirmDialog.class).all().stream()
                 .findFirst().orElse(null));
 
-        assertThat($(McpRiskChip.class, dialog).first().getText()).isEqualTo("L5 — Critical");
+        assertThat($(McpRiskChip.class, dialog).first().getText()).isEqualTo("L5 - Critical");
         assertThat($(Span.class, dialog).all().stream()
                 .anyMatch(span -> span.getText().startsWith("Critical risk"))).isTrue();
         Button approve = $(Button.class, dialog)
@@ -133,7 +133,7 @@ class ChatHumanQuestionDialogTest extends SpringBrowserlessTest {
         ConfirmDialog dialog = awaitAttached(() -> $(ConfirmDialog.class).all().stream()
                 .findFirst().orElse(null));
 
-        assertThat($(McpRiskChip.class, dialog).first().getText()).isEqualTo("L4 — High");
+        assertThat($(McpRiskChip.class, dialog).first().getText()).isEqualTo("L4 - High");
         assertThat(dialog.getElement().getProperty("confirmTheme")).isEqualTo("error primary");
         assertThat($(Span.class, dialog).all().stream()
                 .anyMatch(span -> span.getText().startsWith("High risk"))).isTrue();
@@ -154,7 +154,7 @@ class ChatHumanQuestionDialogTest extends SpringBrowserlessTest {
         ConfirmDialog dialog = awaitAttached(() -> $(ConfirmDialog.class).all().stream()
                 .findFirst().orElse(null));
 
-        assertThat($(McpRiskChip.class, dialog).first().getText()).isEqualTo("L3 — Moderate");
+        assertThat($(McpRiskChip.class, dialog).first().getText()).isEqualTo("L3 - Moderate");
         assertThat(dialog.getElement().getProperty("confirmTheme")).isNull();
         assertThat($(Span.class, dialog).all().stream()
                 .anyMatch(span -> span.getText().startsWith("High risk")
@@ -195,7 +195,7 @@ class ChatHumanQuestionDialogTest extends SpringBrowserlessTest {
 
         List<String> chipTexts = $(McpRiskChip.class, dialog).all().stream()
                 .map(McpRiskChip::getText).toList();
-        assertThat(chipTexts).containsExactly("L5 — Critical", "L3 — Moderate");
+        assertThat(chipTexts).containsExactly("L5 - Critical", "L3 - Moderate");
         test($(Button.class, dialog)
                 .withCondition(button -> "Confirm".equals(button.getText()))
                 .first()).click();

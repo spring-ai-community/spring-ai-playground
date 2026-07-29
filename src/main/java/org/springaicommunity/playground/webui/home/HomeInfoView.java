@@ -261,7 +261,7 @@ public class HomeInfoView extends Div {
                 .set("letter-spacing", "0.02em")
                 .set("vertical-align", "baseline");
         Span hintAfter = new Span(
-                " — a local test-run with your sample arguments. "
+                " - a local test-run with your sample arguments. "
                         + "Only passing tools go live on the built-in MCP server "
                         + "and become callable from chat.");
         mottoHint.add(hintBefore, localPassBadge, hintAfter);

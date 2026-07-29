@@ -582,7 +582,7 @@ class HomeSystemPanel extends Div {
         section.add(headerRow);
 
         if (totalRisk == 0) {
-            Span empty = new Span("No tool risk recorded yet — run a tool from chat to populate.");
+            Span empty = new Span("No tool risk recorded yet - run a tool from chat to populate.");
             empty.getStyle().set("font-size", "var(--lumo-font-size-xs)")
                     .set("color", "var(--lumo-tertiary-text-color)");
             section.add(empty);

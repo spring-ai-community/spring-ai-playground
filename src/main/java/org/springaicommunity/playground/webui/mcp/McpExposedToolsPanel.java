@@ -142,7 +142,7 @@ public class McpExposedToolsPanel {
         this.exposedToolService.apply(new ArrayList<>(this.selected.values()), this.capField.getValue());
         String composed = mode.includesComposed()
                 ? this.selected.size() + " composed tool(s) exposed" : "composed tools off";
-        Notification.show("Built-in server exposure: " + modeLabel(mode) + " — " + composed, 3000,
+        Notification.show("Built-in server exposure: " + modeLabel(mode) + " - " + composed, 3000,
                 Notification.Position.BOTTOM_END);
         this.usageEventTracker.track(UI.getCurrent(), "mcp_tools_exposed", Map.of(
                 "mode", mode.name(),

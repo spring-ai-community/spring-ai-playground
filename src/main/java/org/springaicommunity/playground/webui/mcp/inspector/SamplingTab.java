@@ -59,7 +59,7 @@ public class SamplingTab extends VerticalLayout {
         var pending = clientService.snapshotPendingSamplings(serverInfo);
         if (pending.isEmpty()) {
             add(InspectorHelpers.emptyState(
-                    "No pending sampling requests. The server can ask the client to sample an LLM — incoming requests appear here for manual response."));
+                    "No pending sampling requests. The server can ask the client to sample an LLM - incoming requests appear here for manual response."));
             return;
         }
         for (var p : pending) add(new SamplingRequestPrimitive(p, serverInfo, clientService));

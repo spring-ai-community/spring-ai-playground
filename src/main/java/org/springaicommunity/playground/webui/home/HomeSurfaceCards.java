@@ -142,7 +142,7 @@ class HomeSurfaceCards extends Div {
         long needsConfig = userTools.stream().filter(HomeSurfaceCards::hasUnsetStaticVariable).count();
 
         if (allTools.isEmpty()) {
-            setStatus(toolStatus, "No tools yet — create your first", StatusTone.MUTED);
+            setStatus(toolStatus, "No tools yet - create your first", StatusTone.MUTED);
         } else if (userCount == 0) {
             setStatus(toolStatus,
                     allTools.size() + " built-in · add your own",

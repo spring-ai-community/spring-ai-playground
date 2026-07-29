@@ -40,7 +40,7 @@ public class SttMicButton extends Button {
         addThemeVariants(ButtonVariant.LUMO_TERTIARY);
         setId(BUTTON_ID);
         getElement().setAttribute("data-stt-mode", mode == Mode.WEB_SPEECH ? "webspeech" : "local");
-        setTooltipText("Voice input — click to start recording");
+        setTooltipText("Voice input - click to start recording");
         addClickListener(e -> getElement().executeJs("window.STTModule.toggle($0, $1)",
                 targetComponentId, getId().orElse(BUTTON_ID)));
         registerJsErrorBridge();

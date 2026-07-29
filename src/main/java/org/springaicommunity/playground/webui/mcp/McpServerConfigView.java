@@ -283,7 +283,7 @@ public class McpServerConfigView extends VerticalLayout {
 
         testConnectionButton = new Button("Test Connection", VaadinIcon.PLUG.create(), e -> testConnection());
         testConnectionButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-        testConnectionButton.setTooltipText("Try to initialize without saving — verifies URL, headers, and env vars");
+        testConnectionButton.setTooltipText("Try to initialize without saving - verifies URL, headers, and env vars");
 
         serverNameField.addValueChangeListener(e -> {
             nameChanged = !Objects.equals(e.getValue(), originalName);
@@ -354,7 +354,7 @@ public class McpServerConfigView extends VerticalLayout {
         if (this.mcpClientService.isSelfLoopback(serverNameField.getValue())) {
             lastPreviewedLevel = RiskLevel.L0;
             McpRiskChip chip = new McpRiskChip(RiskLevel.L0, null, "Server")
-                    .withTooltip("Built-in MCP server — risk model bypassed (spec § 5.4)");
+                    .withTooltip("Built-in MCP server - risk model bypassed (spec § 5.4)");
             riskPreviewPanel.add(chip);
             return;
         }
@@ -1195,7 +1195,7 @@ public class McpServerConfigView extends VerticalLayout {
             TestConnectionResult result = mcpClientService.testConnection(transientInfo);
             if (result.ok()) {
                 VaadinUtils.showInfoNotification(
-                        "Connection OK — discovered " + result.toolCount() + " tool(s).");
+                        "Connection OK - discovered " + result.toolCount() + " tool(s).");
             } else {
                 VaadinUtils.showErrorNotification("Test failed: " + result.error());
             }

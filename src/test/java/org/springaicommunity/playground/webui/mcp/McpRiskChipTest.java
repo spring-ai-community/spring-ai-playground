@@ -25,26 +25,26 @@ class McpRiskChipTest {
     @Test
     void rendersNumberLabelAndColor() {
         McpRiskChip chip = new McpRiskChip(RiskLevel.L3);
-        assertThat(chip.getText()).isEqualTo("L3 — Moderate");
+        assertThat(chip.getText()).isEqualTo("L3 - Moderate");
         assertThat(chip.getStyle().get("background-color")).isEqualTo("#fdd835");
     }
 
     @Test
     void appendsShortenedFloorTrigger() {
         McpRiskChip chip = new McpRiskChip(RiskLevel.L5, "non_loopback_no_auth_write_capability");
-        assertThat(chip.getText()).isEqualTo("L5 — Critical (floor: no-auth-write)");
+        assertThat(chip.getText()).isEqualTo("L5 - Critical (floor: no-auth-write)");
     }
 
     @Test
     void prefixIsPrepended() {
         McpRiskChip chip = new McpRiskChip(RiskLevel.L1, null, "Server");
-        assertThat(chip.getText()).isEqualTo("Server: L1 — Safe");
+        assertThat(chip.getText()).isEqualTo("Server: L1 - Safe");
     }
 
     @Test
     void nullLevelDefaultsToL1() {
         McpRiskChip chip = new McpRiskChip(null);
-        assertThat(chip.getText()).isEqualTo("L1 — Safe");
+        assertThat(chip.getText()).isEqualTo("L1 - Safe");
     }
 
     @Test
@@ -56,18 +56,18 @@ class McpRiskChipTest {
     @Test
     void mitigatedRendersInherentToEffectiveArrow() {
         McpRiskChip chip = McpRiskChip.mitigated(RiskLevel.L4, RiskLevel.L5, null);
-        assertThat(chip.getText()).isEqualTo("L5 → L4 — High");
+        assertThat(chip.getText()).isEqualTo("L5 → L4 - High");
     }
 
     @Test
     void mitigatedAppendsFloorTrigger() {
         McpRiskChip chip = McpRiskChip.mitigated(RiskLevel.L4, RiskLevel.L5, "non_loopback_no_auth_write_capability");
-        assertThat(chip.getText()).isEqualTo("L5 → L4 — High (floor: no-auth-write)");
+        assertThat(chip.getText()).isEqualTo("L5 → L4 - High (floor: no-auth-write)");
     }
 
     @Test
     void mitigatedWithEqualLevelsRendersPlainChip() {
         McpRiskChip chip = McpRiskChip.mitigated(RiskLevel.L3, RiskLevel.L3, null);
-        assertThat(chip.getText()).isEqualTo("L3 — Moderate");
+        assertThat(chip.getText()).isEqualTo("L3 - Moderate");
     }
 }

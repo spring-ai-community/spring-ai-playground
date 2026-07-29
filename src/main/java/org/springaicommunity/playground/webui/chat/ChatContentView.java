@@ -223,18 +223,18 @@ public class ChatContentView extends VerticalLayout {
         this.builtinToolsComboBox.setItems(List.of());
         this.composedToolsComboBox.setItems(List.of());
         this.builtinToolsComboBox.setHelperText(
-                "Built-in tools the MCP server currently exposes — tick which this chat may use.");
+                "Built-in tools the MCP server currently exposes - tick which this chat may use.");
         keepSelectionOnEscape(this.customToolsComboBox);
         keepSelectionOnEscape(this.builtinToolsComboBox);
         keepSelectionOnEscape(this.composedToolsComboBox);
 
         this.exposedToolsDisplayBox = new MultiSelectComboBox<>();
-        this.exposedToolsDisplayBox.setPlaceholder("Built-in MCP off — click to enable");
+        this.exposedToolsDisplayBox.setPlaceholder("Built-in MCP off - click to enable");
         this.exposedToolsDisplayBox.setWidth("300px");
         this.exposedToolsDisplayBox.setReadOnly(true);
         this.exposedToolsDisplayBox.setAutoOpen(false);
         this.exposedToolsDisplayBox.setItemLabelGenerator(ToolSpec::name);
-        this.exposedToolsDisplayBox.setTooltipText("Built-in tools used in this chat — click to edit");
+        this.exposedToolsDisplayBox.setTooltipText("Built-in tools used in this chat - click to edit");
         this.exposedToolsDisplayBox.setSelectedItemsOnTop(true);
         this.exposedToolsDisplayBox.addClassName("exposed-tools-display");
         this.exposedToolsDisplayBox.addClassName("active-on-select");
@@ -280,15 +280,7 @@ public class ChatContentView extends VerticalLayout {
         this.mcpToolProviderComboBox.addClassName("active-on-select");
         keepSelectionOnEscape(this.mcpToolProviderComboBox);
         this.mcpToolProviderComboBox.addValueChangeListener(e -> {
-            if (!e.isFromClient()) return;
-            if (!e.getValue().isEmpty() && this.dynamicToolsCheckbox.getValue()) {
-                this.dynamicToolsCheckbox.setValue(false);
-                applyDynamicToolsUi();
-                refreshExposedToolsDisplay();
-                VaadinUtils.showInfoNotification(
-                        "Dynamic tool discovery turned off — selected MCP servers bind their tools directly.");
-            }
-            persistToolPreferences();
+            if (e.isFromClient()) persistToolPreferences();
         });
 
         this.documentsComboBox = new MultiSelectComboBox<>();
@@ -435,10 +427,7 @@ public class ChatContentView extends VerticalLayout {
         this.dynamicToolsNote.getStyle().set("font-size", "var(--lumo-font-size-xs)");
         this.dynamicToolsCheckbox.addValueChangeListener(e -> {
             if (e.isFromClient()) {
-                if (e.getValue()) {
-                    this.useBuiltinMcpCheckbox.setValue(false);
-                    this.mcpToolProviderComboBox.deselectAll();
-                }
+                if (e.getValue()) this.useBuiltinMcpCheckbox.setValue(false);
                 applyDynamicToolsUi();
                 persistToolPreferences();
                 refreshExposedToolsDisplay();
@@ -694,7 +683,7 @@ public class ChatContentView extends VerticalLayout {
             this.exposedToolsDisplayBox.addClassName("dynamic-active");
             this.exposedToolsDisplayBox.setReadOnly(false);
             this.exposedToolsDisplayBox.deselectAll();
-            this.exposedToolsDisplayBox.setPlaceholder("Dynamic — searching all tools");
+            this.exposedToolsDisplayBox.setPlaceholder("Dynamic - searching all tools");
             this.exposedToolsDisplayBox.setReadOnly(true);
             return;
         }
@@ -758,20 +747,19 @@ public class ChatContentView extends VerticalLayout {
         this.dynamicToolsCheckbox.setEnabled(gateOk);
         if (!gateOk && this.dynamicToolsCheckbox.getValue()) this.dynamicToolsCheckbox.setValue(false);
         this.dynamicToolsNote.setText(gateOk
-                ? "Let the model find tools on demand by searching instead of picking them below — it reaches all "
+                ? "Let the model find tools on demand by searching instead of picking them below - it reaches all "
                         + "Local-Passed built-in tools plus any exposed external tools while keeping context small."
-                : "Needs at least " + minTools + " searchable tools to enable — add tools in Tool Studio.");
+                : "Needs at least " + minTools + " searchable tools to enable - add tools in Tool Studio.");
         this.dynamicToolsNote.getStyle().set("color",
                 gateOk ? "var(--lumo-secondary-text-color)" : "var(--lumo-error-text-color)");
-        boolean dynamic = this.dynamicToolsCheckbox.getValue();
         boolean manual = this.useBuiltinMcpCheckbox.getValue();
         this.customToolsComboBox.setEnabled(manual && hasItems(this.customToolsComboBox));
         this.builtinToolsComboBox.setEnabled(manual && hasItems(this.builtinToolsComboBox));
         this.composedToolsComboBox.setEnabled(manual && hasItems(this.composedToolsComboBox));
         boolean hasServers = this.mcpToolProviderComboBox.getListDataView().getItems().findAny().isPresent();
         this.mcpToolProviderComboBox.setEnabled(hasServers);
-        this.mcpToolProviderComboBox.setPlaceholder(!hasServers ? "No MCP servers connected"
-                : dynamic ? "Select servers (turns Dynamic off)" : "Select MCP servers for tools");
+        this.mcpToolProviderComboBox.setPlaceholder(hasServers ? "Select MCP servers for tools"
+                : "No MCP servers connected");
     }
 
     private static boolean hasItems(MultiSelectComboBox<ToolSpec> combo) {
@@ -844,7 +832,10 @@ public class ChatContentView extends VerticalLayout {
         UI ui = VaadinUtils.getUi(this);
         List<ToolCallback> toolCallbacks;
         if (this.dynamicToolsCheckbox.getValue()) {
-            toolCallbacks = dynamicToolCallbacks();
+            toolCallbacks = new ArrayList<>(dynamicToolCallbacks());
+            toolCallbacks.addAll(selectedItems.stream()
+                    .map(this.mcpClientService::buildToolCallbackProviders).flatMap(List::stream)
+                    .map(ToolCallbackProvider::getToolCallbacks).flatMap(Arrays::stream).toList());
         } else {
             toolCallbacks = new ArrayList<>(selectedItems.stream()
                     .map(this.mcpClientService::buildToolCallbackProviders).flatMap(List::stream)

@@ -105,7 +105,7 @@ class ChatConversationReloadTest extends SpringBrowserlessTest {
     }
 
     @Test
-    void selectingAnMcpServerWhileDynamicTurnsDynamicOffAndPersistsTheSelection() {
+    void selectingAnMcpServerWhileDynamicKeepsBothAndPersistsBoth() {
         long now = System.currentTimeMillis();
         this.mcpServerInfoService.updateMcpServerInfo(McpTransportType.SSE, "dynamic-exit-sse",
                 new McpServerInfo(McpTransportType.SSE, "dynamic-exit-sse", "connected before the chat",
@@ -120,17 +120,17 @@ class ChatConversationReloadTest extends SpringBrowserlessTest {
             MultiSelectComboBox<McpServerInfo> combo = mcpServerCombo(view);
             assertThat(dynamicCheckbox(view).getValue()).isTrue();
             assertThat(combo.isEnabled()).isTrue();
-            assertThat(combo.getPlaceholder()).isEqualTo("Select servers (turns Dynamic off)");
+            assertThat(combo.getPlaceholder()).isEqualTo("Select MCP servers for tools");
 
             test(combo).selectItem("dynamic-exit-sse(SSE)");
             ComponentUtil.fireEvent(combo,
                     new AbstractField.ComponentValueChangeEvent<>(combo, combo, Set.of(), true));
             roundTrip();
 
-            assertThat(dynamicCheckbox(view).getValue()).isFalse();
+            assertThat(dynamicCheckbox(view).getValue()).isTrue();
             assertThat(combo.getPlaceholder()).isEqualTo("Select MCP servers for tools");
             ChatToolPreferences persisted = this.chatHistoryService.getChatHistory("dyn-conv").toolPreferences();
-            assertThat(persisted.dynamicTools()).isFalse();
+            assertThat(persisted.dynamicTools()).isTrue();
             assertThat(persisted.mcpServerNames().get(McpTransportType.SSE)).containsExactly("dynamic-exit-sse");
         } finally {
             this.mcpServerInfoService.deleteMcpServerInfo(McpTransportType.SSE, "dynamic-exit-sse");

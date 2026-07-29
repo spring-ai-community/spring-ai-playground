@@ -227,7 +227,7 @@ public class ToolBuilderView extends VerticalLayout {
                 this.updateButton.setEnabled(!nameChanged);
                 this.updateButton.getElement().setProperty("title",
                         nameChanged
-                                ? "Name changed — use Save Draft to revert to draft."
+                                ? "Name changed - use Save Draft to revert to draft."
                                 : "Runs the test first, updates the published tool only if it passes (Local Pass).");
             });
         } else {

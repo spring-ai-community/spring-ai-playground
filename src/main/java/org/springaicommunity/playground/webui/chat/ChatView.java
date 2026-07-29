@@ -476,7 +476,7 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
             changeChatContent(existing);
         } else {
             Notification n = Notification.show(
-                    "Conversation " + shortenId(convId) + " is not in active chat history — starting a fresh chat.",
+                    "Conversation " + shortenId(convId) + " is not in active chat history - starting a fresh chat.",
                     6000, Notification.Position.TOP_CENTER);
             n.addThemeVariants(NotificationVariant.LUMO_CONTRAST);
         }

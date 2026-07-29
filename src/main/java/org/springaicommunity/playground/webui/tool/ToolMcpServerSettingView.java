@@ -150,7 +150,7 @@ public class ToolMcpServerSettingView extends VerticalLayout {
                 "Newly published custom tools are exposed to the MCP server automatically. "
                         + "Built-in exposure follows the active tool preset.");
 
-        dirtyHint.setText("● Unsaved changes — click \"Confirm\" to commit");
+        dirtyHint.setText("● Unsaved changes - click \"Confirm\" to commit");
         dirtyHint.getStyle()
                 .set("font-size", "var(--lumo-font-size-xs)")
                 .set("color", "var(--lumo-error-color)")
@@ -336,9 +336,9 @@ public class ToolMcpServerSettingView extends VerticalLayout {
             customSelector.setItems(customs);
             builtinSelector.setItems(exposableBuiltins);
             ExposedToolsSelector.applyEmptyState(customSelector, customs.isEmpty(),
-                    "No custom tools yet — create one in Tool Studio", "Select tools to expose");
+                    "No custom tools yet - create one in Tool Studio", "Select tools to expose");
             ExposedToolsSelector.applyEmptyState(builtinSelector, exposableBuiltins.isEmpty(),
-                    "No Local-Passed built-in tools — publish one or adjust the setup preset",
+                    "No Local-Passed built-in tools - publish one or adjust the setup preset",
                     "Select tools to expose");
 
             customs.stream().filter(spec -> toolMcpServerSetting.exposedToolIds().contains(spec.toolId()))
