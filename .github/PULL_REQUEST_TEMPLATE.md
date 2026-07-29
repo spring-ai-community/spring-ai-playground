@@ -11,4 +11,5 @@
 
 - [ ] My change fits the project [scope](https://github.com/spring-ai-community/spring-ai-playground#contributing--scope)
 - [ ] **Docs PRs**: targeting `docs/` (not README); all commands, paths, and version numbers verified against the current codebase
+- [ ] **Badges / links**: this PR does not add a third-party ranking, leaderboard, or referral badge to the README (out of scope)
 - [ ] **Non-trivial / code changes**: this project is currently maintainer-driven and not accepting external code PRs. If you believe your change is an exception, link the Discussion where it was pre-approved.
