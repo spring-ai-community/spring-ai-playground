@@ -52,6 +52,9 @@ class McpToolRiskEvaluatorTest {
         public void onHashLedgerMismatch(McpRiskEvents.HashLedgerMismatch event) {}
 
         @Override
+        public void onHashLedgerRecanonicalized(McpRiskEvents.HashLedgerRecanonicalized event) {}
+
+        @Override
         public void onCompositionLifecycle(McpRiskEvents.CompositionLifecycle event) {}
 
         @Override

@@ -163,9 +163,9 @@ public class McpCompositionToolCallbackProvider implements ToolCallbackProvider 
     private boolean integrityVerified(String serverId, String toolName, ToolCallback upstream) {
         ToolDefinition def = upstream.getToolDefinition();
         JsonNode schema = parseSchema(def == null ? null : def.inputSchema());
-        String hash = this.hashLedger.computeContentHash(def == null ? null : def.name(),
+        CanonicalHasher.ContentDigest digest = this.hashLedger.computeDigest(def == null ? null : def.name(),
                 def == null ? null : def.description(), schema, null);
-        this.hashLedger.checkAndRecord(serverId, toolName, hash);
+        this.hashLedger.checkAndRecord(serverId, toolName, digest);
         McpToolHashLedger.Fingerprint.LifecycleStatus status = this.hashLedger.get(serverId, toolName)
                 .map(McpToolHashLedger.Fingerprint::status)
                 .orElse(McpToolHashLedger.Fingerprint.LifecycleStatus.ACTIVE);

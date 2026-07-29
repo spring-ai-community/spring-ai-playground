@@ -79,7 +79,7 @@ public class SafetyTab extends BaseDashboardTab {
                         "lifetime — counter saip.risk.signal",
                         "Counter saip.risk.signal grouped by type: server-risk-computed, " +
                                 "tool-publish-risk-computed, floor-override-triggered, hash-ledger-mismatch, " +
-                                "composition-lifecycle, poisoning-hit.",
+                                "hash-ledger-recanonicalized, composition-lifecycle, poisoning-hit.",
                         riskByTypeBar),
                 DashboardLayout.chartCard("Risk level distribution",
                         "lifetime — counter saip.tool.risk",

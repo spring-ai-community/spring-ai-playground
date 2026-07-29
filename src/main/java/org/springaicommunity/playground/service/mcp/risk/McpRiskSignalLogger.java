@@ -83,6 +83,14 @@ public class McpRiskSignalLogger implements McpRiskSignalSink {
     }
 
     @Override
+    public void onHashLedgerRecanonicalized(McpRiskEvents.HashLedgerRecanonicalized event) {
+        info(Types.HASH_LEDGER_RECANONICALIZED, event,
+                event == null ? null : event.at(),
+                event == null ? null : event.serverId() + "/" + event.toolName() + " re-baselined under "
+                        + event.currentScheme() + " (was " + event.previousScheme() + "), not a definition change");
+    }
+
+    @Override
     public void onCompositionLifecycle(McpRiskEvents.CompositionLifecycle event) {
         info(Types.COMPOSITION_LIFECYCLE, event,
                 event == null ? null : event.at(),

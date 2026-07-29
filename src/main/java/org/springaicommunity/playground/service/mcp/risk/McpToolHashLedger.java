@@ -66,9 +66,9 @@ public class McpToolHashLedger {
         logger.info("Loaded {} tool fingerprints from {}", this.fingerprintsByKey.size(), this.ledgerPath);
     }
 
-    public String computeContentHash(String name, String description, JsonNode inputSchema,
+    public CanonicalHasher.ContentDigest computeDigest(String name, String description, JsonNode inputSchema,
             McpToolDescriptor.Annotations annotations) {
-        return this.canonicalHasher.hashMcpTool(name, description, inputSchema, annotations);
+        return this.canonicalHasher.digestMcpTool(name, description, inputSchema, annotations);
     }
 
     public Optional<Fingerprint> get(String serverId, String toolName) {
@@ -80,6 +80,7 @@ public class McpToolHashLedger {
             String serverId,
             String toolName,
             String contentHash,
+            String canonicalization,
             long firstSeenAtEpochMs,
             Long curatedAtEpochMs,
             Long publishedAtEpochMs,
@@ -89,6 +90,15 @@ public class McpToolHashLedger {
 
         public Fingerprint {
             if (status == null) status = LifecycleStatus.ACTIVE;
+        }
+
+        public boolean declaresSchemeOtherThan(String scheme) {
+            return canonicalization != null && !canonicalization.equals(scheme);
+        }
+
+        public Fingerprint withDigest(CanonicalHasher.ContentDigest digest, LifecycleStatus newStatus) {
+            return new Fingerprint(serverId, toolName, digest.value(), digest.scheme(),
+                    firstSeenAtEpochMs, curatedAtEpochMs, publishedAtEpochMs, newStatus);
         }
 
         public String key() {
@@ -102,62 +112,81 @@ public class McpToolHashLedger {
 
     public record CheckResult(Fingerprint stored, Fingerprint current, Status status) {
 
-        public enum Status { NEW, UNCHANGED, MISMATCH }
+        public enum Status { NEW, UNCHANGED, MISMATCH, RECANONICALIZED }
 
         public boolean isBlocking() {
             return status == Status.MISMATCH;
         }
     }
 
-    public synchronized CheckResult checkAndRecord(String serverId, String toolName, String contentHash) {
+    public synchronized CheckResult checkAndRecord(String serverId, String toolName,
+            CanonicalHasher.ContentDigest digest) {
         String key = Fingerprint.keyOf(serverId, toolName);
         Fingerprint existing = this.fingerprintsByKey.get(key);
-        long now = Instant.now().toEpochMilli();
         if (existing == null) {
-            Fingerprint fresh = new Fingerprint(serverId, toolName, contentHash,
-                    now, null, null, Fingerprint.LifecycleStatus.ACTIVE);
-            this.fingerprintsByKey.put(key, fresh);
-            persist();
-            return new CheckResult(null, fresh, CheckResult.Status.NEW);
+            Fingerprint fresh = new Fingerprint(serverId, toolName, digest.value(), digest.scheme(),
+                    Instant.now().toEpochMilli(), null, null, Fingerprint.LifecycleStatus.ACTIVE);
+            return commit(key, fresh, new CheckResult(null, fresh, CheckResult.Status.NEW));
         }
-        if (existing.contentHash().equals(contentHash)) {
-            return new CheckResult(existing, existing, CheckResult.Status.UNCHANGED);
+        if (existing.declaresSchemeOtherThan(digest.scheme())) {
+            Fingerprint rebaselined = existing.withDigest(digest, existing.status());
+            CheckResult result = commit(key, rebaselined, new CheckResult(existing, rebaselined,
+                    CheckResult.Status.RECANONICALIZED));
+            this.sink.onHashLedgerRecanonicalized(new McpRiskEvents.HashLedgerRecanonicalized(Instant.now(),
+                    serverId, toolName, existing.canonicalization(), digest.scheme(), existing.contentHash(),
+                    digest.value()));
+            return result;
         }
-        Fingerprint mismatched = new Fingerprint(serverId, toolName, contentHash,
-                existing.firstSeenAtEpochMs(), existing.curatedAtEpochMs(), existing.publishedAtEpochMs(),
-                Fingerprint.LifecycleStatus.AWAITING_REREVIEW);
-        this.fingerprintsByKey.put(key, mismatched);
-        persist();
+        if (existing.contentHash().equals(digest.value())) {
+            if (existing.canonicalization() != null) {
+                return new CheckResult(existing, existing, CheckResult.Status.UNCHANGED);
+            }
+            Fingerprint declared = existing.withDigest(digest, existing.status());
+            return commit(key, declared, new CheckResult(existing, declared, CheckResult.Status.UNCHANGED));
+        }
+        Fingerprint mismatched = existing.withDigest(digest, Fingerprint.LifecycleStatus.AWAITING_REREVIEW);
+        CheckResult result = commit(key, mismatched,
+                new CheckResult(existing, mismatched, CheckResult.Status.MISMATCH));
         this.sink.onHashLedgerMismatch(new McpRiskEvents.HashLedgerMismatch(
-                Instant.now(), serverId, toolName, existing.contentHash(), contentHash, List.of()));
-        return new CheckResult(existing, mismatched, CheckResult.Status.MISMATCH);
+                Instant.now(), serverId, toolName, existing.contentHash(), digest.value(), List.of()));
+        return result;
     }
 
-    public synchronized void approveRereview(String serverId, String toolName, String approvedHash) {
-        String key = Fingerprint.keyOf(serverId, toolName);
-        Fingerprint existing = this.fingerprintsByKey.get(key);
-        if (existing == null) return;
-        long now = Instant.now().toEpochMilli();
-        Fingerprint approved = new Fingerprint(serverId, toolName, approvedHash,
-                existing.firstSeenAtEpochMs(), now, existing.publishedAtEpochMs(),
-                Fingerprint.LifecycleStatus.ACTIVE);
-        this.fingerprintsByKey.put(key, approved);
+    private CheckResult commit(String key, Fingerprint fingerprint, CheckResult result) {
+        this.fingerprintsByKey.put(key, fingerprint);
         persist();
+        return result;
+    }
+
+    public synchronized void approveRereview(String serverId, String toolName,
+            CanonicalHasher.ContentDigest approved) {
+        applyApproval(serverId, toolName, approved.value(), approved.scheme());
     }
 
     public synchronized void approveRereview(String serverId, String toolName) {
         Fingerprint existing = this.fingerprintsByKey.get(Fingerprint.keyOf(serverId, toolName));
         if (existing == null) return;
-        approveRereview(serverId, toolName, existing.contentHash());
+        applyApproval(serverId, toolName, existing.contentHash(), existing.canonicalization());
+    }
+
+    private void applyApproval(String serverId, String toolName, String contentHash, String canonicalization) {
+        String key = Fingerprint.keyOf(serverId, toolName);
+        Fingerprint existing = this.fingerprintsByKey.get(key);
+        if (existing == null) return;
+        Fingerprint approved = new Fingerprint(serverId, toolName, contentHash, canonicalization,
+                existing.firstSeenAtEpochMs(), Instant.now().toEpochMilli(), existing.publishedAtEpochMs(),
+                Fingerprint.LifecycleStatus.ACTIVE);
+        this.fingerprintsByKey.put(key, approved);
+        persist();
     }
 
     public synchronized void markPublished(String serverId, String toolName) {
         String key = Fingerprint.keyOf(serverId, toolName);
         Fingerprint existing = this.fingerprintsByKey.get(key);
         if (existing == null) return;
-        long now = Instant.now().toEpochMilli();
         Fingerprint updated = new Fingerprint(serverId, toolName, existing.contentHash(),
-                existing.firstSeenAtEpochMs(), existing.curatedAtEpochMs(), now, existing.status());
+                existing.canonicalization(), existing.firstSeenAtEpochMs(), existing.curatedAtEpochMs(),
+                Instant.now().toEpochMilli(), existing.status());
         this.fingerprintsByKey.put(key, updated);
         persist();
     }
