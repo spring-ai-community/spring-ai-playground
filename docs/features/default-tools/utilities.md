@@ -912,7 +912,7 @@ Scans text for well-known secret patterns (AWS keys, GitHub tokens, Slack tokens
  *   OpenAI API key             (sk-...)
  *   Stripe key                 (sk_/pk_/rk_test|live_...)
  *   PEM private key block      (-----BEGIN ... PRIVATE KEY-----)
- *   JWT compact form           (eyJ...eyJ...sig)
+ *   JWT compact form           (eyJ...eyJ.......)
  *
  * Each finding is masked to `XXXX****XXXX` form so the secret never leaks
  * into the result. Pure ES2024.
@@ -943,7 +943,6 @@ for (const { type, re } of patterns) {
 }
 out.sort((x, y) => x.index - y.index);
 return out;
-
 ```
 
 </details>

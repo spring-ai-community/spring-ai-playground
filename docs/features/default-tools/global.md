@@ -491,11 +491,19 @@ Returns: [{ tag, name, draft, prerelease, publishedAt, htmlUrl, body }].
 /**
  * Lists releases on a public GitHub repository.
  * Endpoint: GET https://api.github.com/repos/{owner}/{repo}/releases
+ *
+ * Release bodies are full changelogs (often 10k+ chars each); clipping them keeps a page of
+ * releases at a few hundred tokens instead of flooding the chat context.
  */
 
 if (owner == null || owner === '') throw new Error('owner required');
 if (repo  == null || repo  === '') throw new Error('repo required');
 const n = (Number.isInteger(perPage) && perPage > 0 && perPage <= 30) ? perPage : 5;
+
+const clip = (text, max) => {
+  const s = String(text == null ? '' : text);
+  return s.length <= max ? s : s.slice(0, max) + '\n...[truncated ' + (s.length - max) + ' of ' + s.length + ' chars]';
+};
 
 const url = 'https://api.github.com/repos/' + encodeURIComponent(owner) + '/' + encodeURIComponent(repo)
   + '/releases?per_page=' + n;
@@ -511,9 +519,8 @@ return (resp.json() || []).map(r => ({
   prerelease:  r.prerelease,
   publishedAt: r.published_at,
   htmlUrl:     r.html_url,
-  body:        r.body,
+  body:        clip(r.body, 2000),
 }));
-
 ```
 
 </details>
@@ -569,17 +576,21 @@ const resp = await fetch(url, {
 if (resp.status === 404) return { found: false, owner, repo };
 if (!resp.ok) return { success: false, status: resp.status, message: resp.text() };
 const r = resp.json();
+// Release bodies can be book-length changelogs; clip so one lookup stays around a thousand tokens.
+const clip = (text, max) => {
+  const s = String(text == null ? '' : text);
+  return s.length <= max ? s : s.slice(0, max) + '\n...[truncated ' + (s.length - max) + ' of ' + s.length + ' chars]';
+};
 return {
   tag:         r.tag_name,
   name:        r.name,
   publishedAt: r.published_at,
   htmlUrl:     r.html_url,
-  body:        r.body,
+  body:        clip(r.body, 4000),
   assets:      (r.assets || []).map(a => ({
     name: a.name, downloadUrl: a.browser_download_url, size: a.size,
   })),
 };
-
 ```
 
 </details>
@@ -657,9 +668,15 @@ const bin = atob(b64);
 const bytes = new Uint8Array(bin.length);
 for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
 const text = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+// Whole manifests/READMEs can be tens of thousands of chars; clip so one read stays a few
+// thousand tokens. The marker and flag tell the model the tail is missing rather than empty.
+const MAX_CHARS = 10000;
+const truncated = text.length > MAX_CHARS;
+const content = truncated
+  ? text.slice(0, MAX_CHARS) + '\n...[truncated ' + (text.length - MAX_CHARS) + ' of ' + text.length + ' chars]'
+  : text;
 return { name: data.name, path: data.path, size: data.size, sha: data.sha,
-         encoding: 'utf-8', content: text };
-
+         encoding: 'utf-8', truncated, content };
 ```
 
 </details>
@@ -1145,6 +1162,12 @@ function pickAllChildren(node, tag) {
   return out;
 }
 
+// Abstracts run 1-2k chars each; clip so a page of papers stays compact in the chat context.
+const clip = (text, max) => {
+  const s = String(text == null ? '' : text);
+  return s.length <= max ? s : s.slice(0, max) + '\n...[truncated ' + (s.length - max) + ' of ' + s.length + ' chars]';
+};
+
 const entries = pickAllChildren(root, 'entry');
 return entries.map(e => {
   const idNode      = pickChild(e, 'id');
@@ -1166,7 +1189,7 @@ return entries.map(e => {
   return {
     id:              idNode && idNode.text,
     title:           titleNode && titleNode.text.replace(/\s+/g, ' ').trim(),
-    summary:         summaryNode && summaryNode.text.replace(/\s+/g, ' ').trim(),
+    summary:         summaryNode && clip(summaryNode.text.replace(/\s+/g, ' ').trim(), 1500),
     authors,
     published:       pubNode && pubNode.text,
     updated:         updNode && updNode.text,
@@ -1175,7 +1198,6 @@ return entries.map(e => {
     abstractUrl:     abs,
   };
 });
-
 ```
 
 </details>

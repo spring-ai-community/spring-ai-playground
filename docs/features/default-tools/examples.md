@@ -235,7 +235,7 @@ const toValue = to == null ? '' : String(to).trim();
 const ccValue = cc == null ? '' : String(cc).trim();
 if (toValue !== '') action.to = toValue;
 if (ccValue !== '') action.cc = ccValue;
-return 'Email ready below — review it and click the Send email button to send it from your own mail app.\n\n```saip-action-return-direct\n' + JSON.stringify(action) + '\n```';
+return 'Email ready below - review it and click the Send email button to send it from your own mail app.\n\n```saip-action-return-direct\n' + JSON.stringify(action) + '\n```';
 ````
 
 </details>
@@ -290,7 +290,7 @@ const loc = location == null ? '' : String(location).trim();
 const desc = description == null ? '' : String(description).trim();
 if (loc !== '') action.location = loc;
 if (desc !== '') action.description = desc;
-return 'Event ready below — review it and click the Add to calendar button to add it to your own calendar.\n\n```saip-action-return-direct\n' + JSON.stringify(action) + '\n```';
+return 'Event ready below - review it and click the Add to calendar button to add it to your own calendar.\n\n```saip-action-return-direct\n' + JSON.stringify(action) + '\n```';
 ````
 
 </details>

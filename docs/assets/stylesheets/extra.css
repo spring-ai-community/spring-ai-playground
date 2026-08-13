@@ -936,6 +936,7 @@ details.tcg-sysprompt > .highlight code {
 .tcg-card.t-mois     { --tint: #c62828; }
 .tcg-card.t-kma      { --tint: #0277bd; }
 .tcg-card.t-datagokr { --tint: #37474f; }
+.tcg-card.t-koroad   { --tint: #ef6c00; }
 [data-md-color-scheme="slate"] .tcg-card.t-github { --tint: #58a6ff; }
 [data-md-color-scheme="slate"] .tcg-card.t-wiki   { --tint: #c9c9c9; }
 [data-md-color-scheme="slate"] .tcg-card.t-molit  { --tint: #90a4ae; }
