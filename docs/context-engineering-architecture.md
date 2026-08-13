@@ -86,7 +86,7 @@ The overlay mapper ignores connection fields through a mixin (`baseUrl`, `apiKey
 
 ## Retrieved documents (RAG)
 
-When documents are selected, the `SpringAiPlaygroundRagAdvisor` retrieves from the vector store and augments the prompt; it short-circuits when nothing is selected, so retrieval is opt-in per conversation. Indexing, embedding models, and retrieval parameters are covered in [Vector Database](features/vector-database.md).
+When a RAG source is selected, `SpringAiPlaygroundRagAdvisor` runs the pipeline behind it through `RagPipelineExecutor` and replaces the user message with the augmented prompt; it short-circuits when nothing is selected, so retrieval is opt-in per conversation. What enters the context is therefore not raw search output but the result of a configured Modular RAG flow: query transformation, retrieval, post-processing, and augmentation. Prior turns are passed along so the compression stage can fold a follow-up into a standalone query. See [Runtime: RAG in Chat](features/rag/runtime.md), and [Pipeline Studio](features/rag/pipeline-studio.md) for the stages themselves.
 
 ## Tools
 

@@ -5,6 +5,8 @@ description: How Spring AI Playground's enforced controls map to the OWASP MCP T
 
 The [OWASP MCP Top 10](https://owasp.org/www-project-mcp-top-10/) (categories `MCP01:2025` through `MCP10:2025`) is the first OWASP catalog of the risks most likely to compromise a Model Context Protocol deployment. This page maps each category to the **controls Spring AI Playground actually ships**, and is deliberately honest about where coverage is partial or absent. It is a defensive coverage map, not a claim of completeness.
 
+The host-side gating pattern behind this map is published upstream as an OWASP recommended control, [Client-Side Tool Risk Gating for MCP Hosts](https://owasp.org/www-project-mcp-top-10/2025/recommended-controls/Client-Side-Tool-Risk-Gating). That document was contributed from this project and is written vendor-neutrally, describing the pattern rather than the implementation; this page is the implementation-specific counterpart.
+
 This complements the architecture documents that describe each control in depth:
 
 - [AI Agent Tool Safety](safety-architecture.md) - the sandbox that contains locally-authored JS tools, and the isolation-tier model
@@ -142,3 +144,4 @@ Stated together so the coverage above is not read as completeness:
 - [Human-in-the-Loop Approval](hitl-architecture.md) - the per-call gate referenced across MCP02, MCP06, MCP10
 - [AI Agent Observability](observability-architecture.md) - the audit layer behind MCP08
 - [OWASP MCP Top 10](https://owasp.org/www-project-mcp-top-10/) - the upstream catalog
+- [Client-Side Tool Risk Gating for MCP Hosts](https://owasp.org/www-project-mcp-top-10/2025/recommended-controls/Client-Side-Tool-Risk-Gating) - the upstream recommended control contributed from this project, stated as a vendor-neutral pattern

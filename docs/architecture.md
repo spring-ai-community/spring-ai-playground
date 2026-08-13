@@ -237,23 +237,26 @@ flowchart LR
     RULES -->|violation| SVC
 ```
 
-### Flow 3 - Document ingestion and RAG
+### Flow 3 - Document ingestion (offline ETL)
+
+Ingestion follows Spring AI's ETL pipeline: `DocumentReader` extract, `DocumentTransformer` transform, `DocumentWriter` load.
 
 ```mermaid
 flowchart LR
-    UP["Upload<br/>PDF · DOCX · HTML"]
-    TIKA["Tika reader"]
-    SPLIT["Text splitter<br/>chunk 800 · min 350"]
+    UP["Upload<br/>PDF · DOCX · MD · HTML · JSON · TXT"]
+    READ["DocumentReader<br/>7 readers · picked by extension"]
+    SPLIT["TokenTextSplitter<br/>chunk 800 · min 350"]
+    ENRICH["Metadata enrichers<br/>Keyword · Summary · optional LLM"]
     TAG["Tag with docInfoId"]
     EMBED["Embedding model"]
     STORE["Vector store<br/>add"]
     DI["Document info<br/>metadata · lazy"]
 
-    UP --> TIKA --> SPLIT --> TAG --> EMBED --> STORE
+    UP --> READ --> SPLIT --> ENRICH --> TAG --> EMBED --> STORE
     STORE --> DI
 ```
 
-Searches go through `VectorStoreService.search(query, filterExpression)` which builds a `SearchRequest` with similarity threshold `0.6` and top-K `10` by default. The `docInfoId` metadata makes it possible to scope retrieval to specific documents in Chat.
+Chunking is a separate user step from embedding, so chunks are reviewable before anything is written. Manual searches from the Vector Database bar go through `VectorStoreService.search(query, filterExpression)` with similarity threshold `0.35` and top-K `4` by default; retrieval inside a RAG pipeline uses that pipeline's own values instead. The `docInfoId` metadata is what scopes retrieval to specific documents. See [Offline: Indexing](features/rag/offline-etl.md).
 
 ### Flow 4 - Chat advisor chain (memory + RAG)
 
@@ -267,30 +270,32 @@ sequenceDiagram
     participant MEM as Memory advisor
     participant CMEM as ChatMemory<br/>(MessageWindow, last 10)
     participant RAG as RAG advisor (ours)
-    participant RAA as Spring AI RAG
-    participant VSS as VectorStoreService
+    participant EX as RagPipelineExecutor
+    participant VS as VectorStore
     participant LOG as SimpleLoggerAdvisor
     participant MODEL as ChatModel
 
-    CS->>CCL: prompt().user(..).advisors(conversationId, ragFilter)
+    CS->>CCL: prompt().user(..).advisors(conversationId, ragSourceId)
     CCL->>MEM: before(request)
     MEM->>CMEM: read prior messages
     CMEM-->>MEM: last-N window
     MEM-->>CCL: request + attached history
-    alt ragFilterExpression present
+    alt RAG source selected
         CCL->>RAG: before(request)
-        RAG->>RAA: build with filter-bound retriever
-        RAA->>VSS: search(query, filter)
-        VSS-->>RAA: documents (threshold 0.6, top-K 10)
-        RAA-->>RAG: DOCUMENT_CONTEXT populated
-        RAG-->>CCL: request + grounded context
+        RAG->>EX: executeForChat(pipeline, query, history)
+        EX->>EX: pre-retrieval transformers (LLM, if enabled)
+        EX->>VS: similarity search (pipeline top-K / threshold)
+        VS-->>EX: candidate documents
+        EX->>EX: join · post-process · augment
+        EX-->>RAG: final prompt + DOCUMENT_CONTEXT
+        RAG-->>CCL: request with augmented user message
     end
     CCL->>LOG: before(request)
     LOG-->>CCL: (logged)
     CCL->>MODEL: send prompt
 ```
 
-RAG only runs when the user selected at least one document - otherwise `SpringAiPlaygroundRagAdvisor` short-circuits and the chain moves on. Retrieved documents are carried in the request's `DOCUMENT_CONTEXT` so the UI can render them alongside the final answer.
+RAG only runs when a RAG source is selected for the conversation - otherwise `SpringAiPlaygroundRagAdvisor` short-circuits and the chain moves on. A source is either a saved pipeline or a single document, and a document is handled by synthesizing a retrieval-only pipeline, so both take the same executor path that [Pipeline Studio](features/rag/pipeline-studio.md) tests against. The executor stops after the augmenter rather than calling a model itself, so the answer still streams from the chat model. Retrieved documents are carried in the request's `DOCUMENT_CONTEXT` so the UI can render them alongside the final answer, and stage events surface in the chat RAG panel.
 
 ### Flow 5 - Chat with MCP tools
 

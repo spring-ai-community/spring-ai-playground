@@ -111,7 +111,11 @@ nav:
               - "Examples": features/default-mcp-catalog/examples.md
           - "MCP Inspector": features/mcp-server/inspector.md
           - "MCP Server Proxy": features/mcp-server/proxy.md
-      - "Vector Database": features/vector-database.md
+      - "RAG":
+          - "Overview": features/vector-database.md
+          - "Offline: Indexing": features/rag/offline-etl.md
+          - "Pipeline Studio": features/rag/pipeline-studio.md
+          - "Runtime: RAG in Chat": features/rag/runtime.md
       - "Agentic Chat":
           - features/agentic-chat/index.md
           - "Self-equipping Agents": features/agentic-chat/dynamic-tool-discovery.md
@@ -180,6 +184,7 @@ extra_javascript:
   - assets/javascripts/default-tools-search.js
   - assets/javascripts/nav-default-expand.js
   - assets/javascripts/verify-version-resolve.js
+  - assets/javascripts/download-stats.js
 
 markdown_extensions:
   - meta

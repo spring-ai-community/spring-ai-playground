@@ -53,6 +53,20 @@ Unlike many playgrounds that stop at prompt testing, this project connects AI co
   <p><a href="https://www.youtube.com/playlist?list=PLfizCrbCZK9k" target="_blank" rel="noopener">Watch the full series on YouTube (7 videos)</a></p>
 </div>
 
+## :material-format-quote-close: Mentions and Coverage
+
+**[Introducing the Spring AI Community GitHub Organization](https://spring.io/blog/2025/10/07/spring-ai-community-announcement/)** - spring.io, October 7, 2025. Listed under Incubating Projects:
+
+> Spring AI Playground - Self-hosted web UI for AI experimentation and testing, enabling developers to explore Spring AI capabilities interactively. Led by Jemin Huh.
+
+**[This Week in Spring - June 2nd, 2026](https://spring.io/blog/2026/06/02/this-week-in-spring-june-2-2026/)** - spring.io, June 2, 2026. Josh Long in the weekly Spring ecosystem roundup:
+
+> the Spring AI Playground seems like a *very* interesting project indeed
+
+**[Client-Side Tool Risk Gating for MCP Hosts](https://owasp.org/www-project-mcp-top-10/2025/recommended-controls/Client-Side-Tool-Risk-Gating)** - OWASP MCP Top 10, merged July 29, 2026. Contributed from this project and accepted as a recommended control, written vendor-neutrally as a host-side pattern, with Spring AI Playground cited as its open-source reference implementation.
+
+Also carried on the [Spring AI Community project page](https://springaicommunity.mintlify.app/projects/incubating/spring-ai-playground) with the Incubating badge, and listed under UI Clients in [awesome-spring-ai](https://github.com/spring-ai-community/awesome-spring-ai).
+
 ## :material-rocket-launch: Quick Start
 
 The recommended default is the desktop app distributed from GitHub Releases.
@@ -63,13 +77,22 @@ Spring AI Playground is a standalone desktop app, so you can install it and star
 
 Pick the installer for your platform. Each link resolves to the latest published release automatically.
 
-<p class="download-badges">
-  <a id="win-x64" class="download-badge" href="https://github.com/spring-ai-community/spring-ai-playground/releases/latest" data-pattern="win-x64.exe" data-label="Windows (NSIS, x64)" rel="noopener"><img src="https://img.shields.io/badge/Windows-NSIS%20Installer-0078D6?logo=windows&logoColor=white" alt="Windows NSIS Installer"/></a>
-  <a id="mac-arm64" class="download-badge" href="https://github.com/spring-ai-community/spring-ai-playground/releases/latest" data-pattern="mac-arm64.dmg" data-label="macOS (Apple Silicon)" rel="noopener"><img src="https://img.shields.io/badge/macOS-Apple%20Silicon%20arm64-000000?logo=apple&logoColor=white" alt="macOS Apple Silicon arm64"/></a>
-  <a id="mac-x64" class="download-badge" href="https://github.com/spring-ai-community/spring-ai-playground/releases/latest" data-pattern="mac-x64.dmg" data-label="macOS (Intel)" rel="noopener"><img src="https://img.shields.io/badge/macOS-Intel%20x64-555555?logo=apple&logoColor=white" alt="macOS Intel x64"/></a>
-  <a id="linux-deb" class="download-badge" href="https://github.com/spring-ai-community/spring-ai-playground/releases/latest" data-pattern="linux-amd64.deb" data-label="Linux (DEB, amd64)" rel="noopener"><img src="https://img.shields.io/badge/Linux-DEB-A81D33?logo=debian&logoColor=white" alt="Linux DEB"/></a>
-  <a id="linux-rpm" class="download-badge" href="https://github.com/spring-ai-community/spring-ai-playground/releases/latest" data-pattern="linux-x86_64.rpm" data-label="Linux (RPM, x86_64)" rel="noopener"><img src="https://img.shields.io/badge/Linux-RPM-EE0000?logo=redhat&logoColor=white" alt="Linux RPM"/></a>
-</p>
+<div class="dl-social">
+  <details id="dl-stats" class="dl-stats" hidden>
+    <summary class="dl-stats__summary"><span id="dl-stats-total"></span></summary>
+    <ul id="dl-stats-list" class="dl-stats__list"></ul>
+  </details>
+  <span class="dl-social__note">"a very interesting project indeed" - <a href="https://spring.io/blog/2026/06/02/this-week-in-spring-june-2-2026/">Josh Long, This Week in Spring</a></span>
+</div>
+
+<div class="dl-picker" id="dl-picker">
+  <span class="dl-picker__sep" id="dl-picker-sep">Choose your platform</span>
+  <a id="win-x64" class="dl-opt" href="https://github.com/spring-ai-community/spring-ai-playground/releases/latest" data-pattern="win-x64.exe" data-label="Windows (NSIS, x64)" data-os="Windows" rel="noopener"><svg class="dl-opt__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m6 11 6 6 6-6"/><path d="M5 21h14"/></svg><span class="dl-opt__label">Windows x64 (.exe)</span></a>
+  <a id="mac-arm64" class="dl-opt" href="https://github.com/spring-ai-community/spring-ai-playground/releases/latest" data-pattern="mac-arm64.dmg" data-label="macOS (Apple Silicon)" data-os="macOS (Apple Silicon)" rel="noopener"><svg class="dl-opt__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m6 11 6 6 6-6"/><path d="M5 21h14"/></svg><span class="dl-opt__label">macOS Apple Silicon (.dmg)</span></a>
+  <a id="mac-x64" class="dl-opt" href="https://github.com/spring-ai-community/spring-ai-playground/releases/latest" data-pattern="mac-x64.dmg" data-label="macOS (Intel)" data-os="macOS (Intel)" rel="noopener"><svg class="dl-opt__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m6 11 6 6 6-6"/><path d="M5 21h14"/></svg><span class="dl-opt__label">macOS Intel (.dmg)</span></a>
+  <a id="linux-deb" class="dl-opt" href="https://github.com/spring-ai-community/spring-ai-playground/releases/latest" data-pattern="linux-amd64.deb" data-label="Linux (DEB, amd64)" data-os="Linux (.deb)" rel="noopener"><svg class="dl-opt__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m6 11 6 6 6-6"/><path d="M5 21h14"/></svg><span class="dl-opt__label">Linux .deb (amd64)</span></a>
+  <a id="linux-rpm" class="dl-opt" href="https://github.com/spring-ai-community/spring-ai-playground/releases/latest" data-pattern="linux-x86_64.rpm" data-label="Linux (RPM, x86_64)" data-os="Linux (.rpm)" rel="noopener"><svg class="dl-opt__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m6 11 6 6 6-6"/><path d="M5 21h14"/></svg><span class="dl-opt__label">Linux .rpm (x86_64)</span></a>
+</div>
 
 <p id="dl-resolved" class="dl-resolved-version" hidden></p>
 
@@ -129,6 +152,31 @@ Pick the asset that matches your platform.
   const FALLBACK = `https://github.com/${REPO}/releases/latest`;
   const buttons = Array.from(document.querySelectorAll('a[data-pattern]'));
   if (buttons.length === 0) return;
+
+  // Promote the visitor's platform to a single filled button and leave the rest
+  // as quiet alternates. macOS cannot report its architecture, so Apple Silicon
+  // is promoted and the Intel build is ordered first among the alternates.
+  (function promotePlatform() {
+    const picker = document.getElementById('dl-picker');
+    const separator = document.getElementById('dl-picker-sep');
+    if (!picker) return;
+    const ua = navigator.userAgent || '';
+    let primaryId = null;
+    if (/Windows/i.test(ua)) primaryId = 'win-x64';
+    else if (/Mac/i.test(ua)) primaryId = 'mac-arm64';
+    else if (/Linux/i.test(ua) && !/Android/i.test(ua)) primaryId = 'linux-deb';
+    const primary = primaryId ? document.getElementById(primaryId) : null;
+    if (!primary) return;
+    primary.classList.add('dl-opt--primary');
+    const label = primary.querySelector('.dl-opt__label');
+    if (label) label.textContent = 'Download for ' + primary.dataset.os;
+    if (primaryId === 'mac-arm64') picker.classList.add('dl-picker--mac');
+    if (separator) {
+      separator.textContent = primaryId === 'mac-arm64'
+        ? 'Using an Intel Mac, or another platform?'
+        : 'Other platforms';
+    }
+  })();
 
   const confirmEl = document.getElementById('dl-confirm');
   const confirmLabel = document.getElementById('dl-confirm-label');
@@ -294,8 +342,15 @@ Pick the asset that matches your platform.
   function autoOpenFromHash() {
     const hash = (window.location.hash || '').replace(/^#/, '');
     if (!hash) return;
-    const target = buttons.find((b) => b.id === hash);
-    if (!target) return;
+    const picker = document.getElementById('dl-picker');
+    const wantsPicker = hash === 'dl-picker' || hash === 'download';
+    const target = wantsPicker
+      ? document.querySelector('.dl-opt--primary')
+      : buttons.find((b) => b.id === hash);
+    if (!target) {
+      if (wantsPicker && picker) picker.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
     target.scrollIntoView({ behavior: 'smooth', block: 'center' });
     showConfirm(target);
   }
@@ -504,7 +559,7 @@ Installing an external MCP server normally means cloning a repo, installing the 
 - [:material-tools: Tool Studio](features/tool-studio/index.md): build low-code tools in JavaScript and expose them instantly through MCP.
 - [:material-connection: MCP Server](features/mcp-server/index.md): inspect external MCP servers, read a live **risk score** (L0-L5) before connecting, and **proxy** their tools onto the built-in server - compose multiple servers into one surface - each gated by per-tool human-in-the-loop.
 - [:material-server-network: Default MCP Servers](features/default-mcp-catalog/index.md): 58 preset external MCP server connections (Gmail, Notion, Slack, GitHub, Tavily, ...) gated on `${ENV_VAR}` placeholders.
-- [:material-database-search: RAG](features/vector-database.md): upload content, chunk it, embed it, index it, and validate retrieval quality.
+- [:material-database-search: RAG](features/vector-database.md): upload content, chunk it, enrich it, embed it, then compose a **Modular RAG pipeline** over it - query rewriting, multi-query expansion, re-ranking, prompt augmentation - and test it against the same executor chat uses.
 - [:material-chat-processing: Agentic Chat](features/agentic-chat/index.md): combine grounded context, built-in tools, and explicitly trusted MCP connections in one interaction flow - with a Prompt Library of ready-to-use [presets](features/agentic-chat/prompt-presets.md) and [`{{variable}}` templates](features/agentic-chat/prompt-templates.md), [dynamic tool discovery](features/agentic-chat/dynamic-tool-discovery.md), per-turn reasoning effort, [image attachments as multimodal vision input](features/agentic-chat/image-attachments.md), review-then-act [action cards](features/agentic-chat/index.md#action-cards) (email, calendar, map) and clickable file paths, on-device voice input, and rich code/math/diagram rendering.
 - [:material-chart-line: Observability](features/observability/index.md): fourteen in-app dashboards covering token economics, tool and MCP behaviour, RAG quality, host runtime, and a live trace tail.
 
@@ -538,6 +593,7 @@ It is intentionally opinionated and scope-limited in its current stage. The goal
 - [AI Agent Observability Architecture](observability-architecture.md): trace pipeline, storage tiers, configuration, and external export paths behind the fourteen dashboards
 - [Context Engineering Architecture](context-engineering-architecture.md): how each chat turn's context window is assembled from system prompt, retrieved documents, tools, memory, and per-request options
 - [Agent Loop](agent-loop-architecture.md): per-turn state, round bounds, and the interceptor chain that governs the Agentic Chat tool-calling loop
+- [OWASP MCP Top 10 Coverage](mcp-owasp-top-10.md): how the shipped controls map to MCP01-MCP10 and where coverage is partial, alongside [Client-Side Tool Risk Gating for MCP Hosts](https://owasp.org/www-project-mcp-top-10/2025/recommended-controls/Client-Side-Tool-Risk-Gating), the upstream OWASP recommended control contributed from this project
 - [Features](features/index.md): the main product areas and what they do
 - [Tutorials](tutorials/index.md): follow end-to-end workflows for tools, MCP, vector search, and agentic chat
 

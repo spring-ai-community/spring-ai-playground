@@ -50,6 +50,7 @@ On an **Apple Silicon Mac** the `mlx` profile is layered onto `ollama` automatic
 | `spring.lifecycle.timeout-per-shutdown-phase` | relaxed-binding env | `30s` | Drain time per phase. |
 | `vaadin.pushmode` | relaxed-binding env | `automatic` | Vaadin server push. |
 | `spring.servlet.multipart.max-file-size` / `max-request-size` | relaxed-binding env | `20MB` / `20MB` | Upload limits (Vector Database ingest). |
+| `spring.http.clients.read-timeout` | relaxed-binding env | `10m` | Per-request ceiling for every HTTP client Spring builds, which means **each individual model call**: an Ollama chat or embedding request, and each [RAG pre-retrieval stage](../features/rag/pipeline-studio.md). Local models legitimately take minutes per call, and without this the JDK client default is unlimited, so a dead provider hangs forever. The chat stream's first-signal watchdog is derived from this value multiplied by the pipeline's stage count. MCP transports use their own client and are unaffected; see `spring.ai.mcp.server.request-timeout` below. |
 | `management.endpoints.web.exposure.include` | relaxed-binding env | `health,info,metrics,prometheus` | Actuator endpoints exposed at `/actuator/*`. |
 
 ## AI providers & models { #ai }
@@ -147,6 +148,16 @@ The playground publishes its own MCP server at `/mcp` (Streamable HTTP). These c
 | `spring.ai.playground.chat.tool-search.index-type` | relaxed-binding env | `HYBRID` | `HYBRID` (exact tool-name match, then vector search) or `VECTOR` (vector only). |
 | `spring.ai.playground.chat.tool-search.vector-store` | relaxed-binding env | `DEDICATED` | `DEDICATED` (a private, persisted tool index) or `SHARED` (reuse the RAG vector store). See [Context Engineering → Tools](../context-engineering-architecture.md#tools). |
 | `spring.ai.mcp.server.request-timeout` | relaxed-binding env | `150` | Seconds. |
+
+## RAG & vector store { #rag }
+
+Defaults for the [Vector Database](../features/vector-database.md) search bar, and the values a new [RAG pipeline](../features/rag/pipeline-studio.md) starts from. A pipeline keeps its own copy once created, so changing these later does not move existing pipelines.
+
+| Property | Env | Default | Notes |
+|---|---|---|---|
+| `spring.ai.playground.vectorstore.similarity-threshold` | relaxed-binding env | `0.35` | Minimum cosine score for a chunk to be returned. **Scores are embedding-model specific.** With the default `qwen3-embedding:0.6b` a chunk that answers the question scores roughly 0.48 to 0.65, while a question the corpus cannot answer tops out near 0.25; set the cut above your own corpus and every search comes back empty. Re-check after switching embedding models, using [the measured ranges](../features/rag/pipeline-studio.md#retrieval) as a starting point. |
+| `spring.ai.playground.vectorstore.top-k` | relaxed-binding env | `4` | Documents returned per query. This is the effective limit on what reaches the prompt, since ranking already puts the best chunk first. |
+| `spring.ai.playground.vectorstore.simple-dump-debounce-ms` | relaxed-binding env | `5000` | Debounce before the default `SimpleVectorStore` flushes to disk. |
 
 ## Agent loop { #agent-loop }
 

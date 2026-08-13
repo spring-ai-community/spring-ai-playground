@@ -59,15 +59,11 @@ Spring AI Playground is a standalone desktop app, so you can install it and star
 
 ### 1. Download the Desktop App
 
-Choose the installer for your platform from the latest release:
+[![Download Spring AI Playground](https://img.shields.io/badge/Download-for%20your%20platform-4051B5?style=for-the-badge&logo=download&logoColor=white)](https://spring-ai-community.github.io/spring-ai-playground/#dl-picker)
 
-[![Windows](https://img.shields.io/badge/Windows-NSIS%20Installer-0078D6?logo=windows&logoColor=white)](https://spring-ai-community.github.io/spring-ai-playground/#win-x64)
-[![macOS Apple Silicon](https://img.shields.io/badge/macOS-Apple%20Silicon%20arm64-000000?logo=apple&logoColor=white)](https://spring-ai-community.github.io/spring-ai-playground/#mac-arm64)
-[![macOS Intel](https://img.shields.io/badge/macOS-Intel%20x64-555555?logo=apple&logoColor=white)](https://spring-ai-community.github.io/spring-ai-playground/#mac-x64)
-[![Linux DEB](https://img.shields.io/badge/Linux-DEB-A81D33?logo=debian&logoColor=white)](https://spring-ai-community.github.io/spring-ai-playground/#linux-deb)
-[![Linux RPM](https://img.shields.io/badge/Linux-RPM-EE0000?logo=redhat&logoColor=white)](https://spring-ai-community.github.io/spring-ai-playground/#linux-rpm)
+> "a very interesting project indeed" - [Josh Long, This Week in Spring](https://spring.io/blog/2026/06/02/this-week-in-spring-june-2-2026/)
 
-Each badge resolves to the latest published release automatically and opens a confirm dialog with the filename, size, and OS-specific default save path. The downloaded file keeps the version in its name (e.g. `spring-ai-playground-<version>-mac-arm64.dmg`). Or browse all available assets on the [Releases page](https://github.com/spring-ai-community/spring-ai-playground/releases).
+The download page detects your platform and offers the matching installer, then confirms the filename, size, and default save path before the download starts. Direct links: [Windows](https://spring-ai-community.github.io/spring-ai-playground/#win-x64) - [macOS Apple Silicon](https://spring-ai-community.github.io/spring-ai-playground/#mac-arm64) - [macOS Intel](https://spring-ai-community.github.io/spring-ai-playground/#mac-x64) - [Linux DEB](https://spring-ai-community.github.io/spring-ai-playground/#linux-deb) - [Linux RPM](https://spring-ai-community.github.io/spring-ai-playground/#linux-rpm). Or browse every asset on the [Releases page](https://github.com/spring-ai-community/spring-ai-playground/releases).
 
 ### 2. Install and Launch
 
@@ -187,6 +183,14 @@ It also doubles as a working reference implementation of the Spring AI framework
 
 The version tracks the latest Spring AI release; use it as a reference when integrating these same features into your own Spring Boot app.
 
+## Featured In
+
+- **[Introducing the Spring AI Community GitHub Organization](https://spring.io/blog/2025/10/07/spring-ai-community-announcement/)** (spring.io) listed Spring AI Playground as an Incubating Project of the Spring AI Community.
+- **[This Week in Spring, June 2nd 2026](https://spring.io/blog/2026/06/02/this-week-in-spring-june-2-2026/)** (spring.io) called it "a *very* interesting project indeed".
+- **[Client-Side Tool Risk Gating for MCP Hosts](https://owasp.org/www-project-mcp-top-10/2025/recommended-controls/Client-Side-Tool-Risk-Gating)** (OWASP MCP Top 10) publishes a control pattern contributed from this project, citing Spring AI Playground as its open-source reference implementation.
+
+Also carried on the [Spring AI Community project page](https://springaicommunity.mintlify.app/projects/incubating/spring-ai-playground) with the Incubating badge, and listed under UI Clients in [awesome-spring-ai](https://github.com/spring-ai-community/awesome-spring-ai).
+
 ## Project Scope & Positioning
 
 Spring AI Playground is a **tool-first environment** for building, testing, validating, and operationalizing MCP tools in a practical workflow.
@@ -220,6 +224,7 @@ Please read this section before opening issues or submitting contributions.
 ### Out of Scope For Now
 
 - feature requests and code contributions — the project is currently in a maintainer-driven phase with limited bandwidth. We are not accepting code PRs or feature proposals from outside contributors at this time. Bug reports and documentation fixes are very welcome.
+- badge, directory-listing, and promotional-link PRs. The README carries build, release, and download badges only, matching the convention in `spring-projects` repositories. PRs that add third-party ranking, leaderboard, or referral badges are closed without further discussion. Being indexed by a directory does not require a badge, and we are glad to stay listed either way.
 - experimental model integrations outside the current supported provider list (currently: Ollama, OpenAI, and OpenAI-compatible APIs)
 - high-level multi-agent orchestration layers
 - platform-level marketplace or governance features

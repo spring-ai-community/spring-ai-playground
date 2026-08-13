@@ -39,9 +39,9 @@ All dashboards share the [Observability global settings](../index.md#global-sett
 
 | Chart | Type | Reading |
 |---|---|---|
-| Operations / minute | Stacked bar (query / add / delete) | Add bursts during document ingestion; query bursts during chat |
+| Operations / minute | Stacked bar (query / add / delete) | Add bursts during document ingestion; query bursts during chat. A pipeline with Multi-Query expansion issues one query per variant, so a single turn can show several |
 | Query latency p50 / p95 / p99 | Multi-line, ms | Tail latency on remote vector stores can be ten-fold higher than `SimpleVectorStore` |
-| top_k distribution | Histogram | Distribution of requested k values |
+| top_k distribution | Histogram | Distribution of requested k values. Top-K is a per-pipeline setting, so a spread here means different [RAG pipelines](../../rag/pipeline-studio.md) are in use rather than one value drifting |
 | Similarity threshold distribution | Histogram, 6 bands (`[0.0, 0.1)` ... `[0.9, 1.0]`) | Where the agent is anchoring relevance - strictness vs recall |
 | DB systems | Donut by `db.system` | One backend = single configuration; multiple = mixed stores |
 | Avg returned docs by db | Horizontal bar | Combined with similarity threshold, this is the retrieval-recall signal |

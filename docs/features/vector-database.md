@@ -1,58 +1,61 @@
-description: Vector Database - RAG ingestion and retrieval-validation. Document chunking, embedding, similarity search across Spring AI vector store providers.
+description: Vector Database and RAG - Spring AI's ETL pipeline and Modular RAG architecture, mapped one to one onto the Playground's indexing, pipeline authoring, and chat surfaces.
 
-# Vector Database
+# Vector Database and RAG
 
 **Where:** top navigation → **Vector Database**.
 
-Vector Database is the RAG preparation and retrieval-validation area.
+Retrieval Augmented Generation has two halves, and Spring AI models them as two separate APIs. The Playground keeps that split visible instead of hiding it behind a single "upload and chat" button.
 
-![Vector Database - the SimpleVectorStore surface with the embedding model, a similarity-search bar, a Spring AI metadata filter, and the results grid (Score, Id, Text, Metadata)](../assets/images/vector-database.png)
+| Half | What it does | Spring AI API | Where in the app |
+| --- | --- | --- | --- |
+| **Offline** | Turn source files into embedded, searchable chunks | [ETL Pipeline](https://docs.spring.io/spring-ai/reference/api/etl-pipeline.html) (`DocumentReader` → `DocumentTransformer` → `DocumentWriter`) | Vector Database → **New Document & ETL Pipeline** |
+| **Runtime** | Turn a user question into grounded context for a model | [Modular RAG](https://docs.spring.io/spring-ai/reference/api/retrieval-augmented-generation.html) (pre-retrieval → retrieval → post-retrieval → generation) | Vector Database → **Pipeline Studio**, consumed in Agentic Chat |
 
-It gives you an end-to-end environment for document ingestion, chunking, embedding, storage, and similarity search.
+![Vector Database - the SimpleVectorStore surface with the embedding model, a similarity-search bar, a Spring AI metadata filter, the results grid, and the Sources sidebar listing indexed documents and saved RAG pipelines](../assets/images/vector-database.png)
 
-## What It Supports
+## The Spring AI model
 
-This area acts as a vector database playground built on Spring AI vector store integrations.
+Spring AI implements **Modular RAG**, an architecture that treats retrieval as a set of interchangeable parts rather than one fixed procedure. The design follows [Modular RAG: Transforming RAG Systems into LEGO-like Reconfigurable Frameworks](https://arxiv.org/abs/2407.21059), and the framework organizes those parts into four stages:
 
-That includes:
+![Spring AI RAG architecture - the four stages of the modular RAG flow and the interfaces that belong to each](https://docs.spring.io/spring-ai/reference/_images/spring-ai-rag.jpg)
 
-- switching between vector providers without changing application code
-- using a unified Spring AI retrieval model
-- validating retrieval quality before relying on it in chat
+1. **Pre-Retrieval** reshapes the incoming question before it ever reaches the vector store.
+2. **Retrieval** performs the similarity search and joins results when there is more than one query.
+3. **Post-Retrieval** re-orders or trims the candidate documents.
+4. **Generation** assembles the retrieved documents and the question into the final prompt.
 
-## Support for Major Vector Database Providers
+The reference calls the simplest configuration **Naive RAG**: search, then answer. Adding a query transformation step in front of retrieval makes it **Advanced RAG**. Both are the same flow with different modules enabled, which is exactly what a saved pipeline in this app represents.
 
-Spring AI Playground follows the Spring AI vector store ecosystem and can be used with providers such as Apache Cassandra, Azure Cosmos DB, Azure Vector Search, Chroma, Elasticsearch, GemFire, MariaDB, Milvus, MongoDB Atlas, Neo4j, OpenSearch, Oracle, PostgreSQL/PGVector, Pinecone, Qdrant, Redis, SAP Hana, Typesense, Weaviate, and others supported by Spring AI.
+Every stage in the Playground's pipeline wizard is one of these Spring AI components. Nothing is reimplemented: a checkbox in the wizard turns on a specific framework class, and the [Pipeline Studio](rag/pipeline-studio.md) page lists that mapping in full.
 
-## Major Capabilities
+## What this area is for
 
-- Custom Chunk Input: enter raw text and test chunking directly
-- Document Uploads: ingest PDF, Word, and PowerPoint-style content
-- End-to-End Processing: extraction, chunking, embedding, and indexing
-- Search and Scoring: run vector similarity search and inspect scores
-- Spring AI Filter Expressions: narrow searches using metadata conditions
+RAG fails quietly. A wrong chunk boundary, a mismatched embedding model, or a similarity threshold set too high produces an answer that reads fine and is not grounded in anything. This screen exists so each of those failures becomes visible before chat depends on it:
 
-## Why It Matters
+- confirm ingestion completed and inspect the chunks it produced
+- run similarity search directly and read the scores
+- narrow results with a Spring AI metadata filter expression
+- test a full retrieval pipeline against the same executor that chat uses, so the test result and the chat result cannot diverge
+- catch an embedding-model change that invalidated existing vectors
 
-RAG often fails quietly when chunking, embeddings, or indexing are misaligned. This screen exists so those problems become observable:
+That last point is why the desktop launcher warns before you switch embedding models on a populated store.
 
-- you can see whether ingestion completed
-- you can inspect chunk quality
-- you can verify retrieval relevance
-- you can catch embedding-model changes that invalidate old vector data
+## Vector store providers
 
-That is why the desktop launcher warns users about changing embedding models after indexing content.
+The Playground uses the standard Spring AI `VectorStore` abstraction, so the surface works against any supported provider without application code changes. The default is `SimpleVectorStore`, an in-process store that keeps setup to zero.
 
-In practice, this is what turns the Vector Database page into a real RAG validation surface rather than a generic upload page. You can inspect ingestion quality, retrieval quality, and filter behavior before trusting the same data inside chat.
+Spring AI supports Apache Cassandra, Azure Cosmos DB, Azure Vector Search, Chroma, Elasticsearch, GemFire, MariaDB, Milvus, MongoDB Atlas, Neo4j, OpenSearch, Oracle, PostgreSQL/PGVector, Pinecone, Qdrant, Redis, SAP Hana, Typesense, Weaviate, and others. Swapping one in is a dependency plus configuration change; see [Configuration](../getting-started/configuration.md).
 
-## Where it fits
+## Where to go next
 
-Vector Database is the **preparation half** of the RAG pipeline; the **consumption half** lives in Agentic Chat (the `SpringAiPlaygroundRagAdvisor` reaches into the configured `VectorStore` whenever the user selects at least one document for the conversation - see [Application Architecture → Flow 4 - Chat advisor chain](../architecture.md#flow-4-chat-advisor-chain-memory-rag) for the per-call wiring).
+- [Offline: Indexing](rag/offline-etl.md) - readers, splitters, and metadata enrichers, and which Spring AI class each control maps to
+- [Pipeline Studio](rag/pipeline-studio.md) - authoring a Modular RAG pipeline and testing it against the real executor
+- [Runtime: RAG in Chat](rag/runtime.md) - selecting a pipeline in Agentic Chat and reading the retrieval trace
 
-Hands-on RAG paths:
+Hands-on paths:
 
-- [Tutorial 3 - Index a Document](../tutorials/3-index-document.md) - end-to-end ingestion + retrieval validation
-- [Tutorial 5 - Chat with RAG](../tutorials/5-chat-rag.md) - consume the indexed corpus from Agentic Chat
-- [Tutorial 6 - Tools and RAG](../tutorials/6-tools-and-rag.md) - combine RAG with MCP-driven tool calls in one chat turn
+- [Tutorial 3 - Index a Document](../tutorials/3-index-document.md) - ingestion and retrieval validation end to end
+- [Tutorial 5 - Chat with RAG](../tutorials/5-chat-rag.md) - consume the indexed corpus from chat, then upgrade it to a staged pipeline
+- [Tutorial 6 - Tools and RAG](../tutorials/6-tools-and-rag.md) - grounded retrieval and MCP tool calls in one turn
 
-Embedding-model setup (Ollama / OpenAI) is configured at launch time - see [Desktop App → Recommended First-Launch Flow](../getting-started/desktop.md#11-recommended-first-launch-flow). Changing the embedding model after indexing invalidates vector dimensionality, which is why the launcher surfaces a warning.
+Embedding-model setup is done at launch time; see [Desktop App → Recommended First-Launch Flow](../getting-started/desktop.md#11-recommended-first-launch-flow).

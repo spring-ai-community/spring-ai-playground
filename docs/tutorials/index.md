@@ -2,7 +2,7 @@ description: End-to-end Spring AI Playground tutorials - Tool Studio authoring, 
 
 # Tutorials
 
-These fifteen tutorials walk you from creating a single tool to composing chains over the bundled default catalog, with optional deep-dives off the main path - the MCP protocol surface, re-publishing tools through the MCP Server Proxy, gating tool calls behind human approval, turning a Prompt Library template into a reusable preset, uploading a file into chat for an agent to analyze, attaching an image for a vision model to see, and investigating documents with a filesystem pipeline. They follow the natural product workflow: build → validate → ground → compose.
+These sixteen tutorials walk you from creating a single tool to composing chains over the bundled default catalog, with optional deep-dives off the main path - the MCP protocol surface, re-publishing tools through the MCP Server Proxy, gating tool calls behind human approval, turning a Prompt Library template into a reusable preset, uploading a file into chat for an agent to analyze, attaching an image for a vision model to see, and investigating documents with a filesystem pipeline - and a capstone that ships one API all the way to a running MCP server. They follow the natural product workflow: build → validate → ground → compose.
 
 The shipped chat default is **`qwen3.5:4b`** - fast, vision-capable, fine for the early tutorials. Switch to **`qwen3.5:9b`** or **`gemma4:e4b`** when you reach tutorials 4-7, where tool-calling reliability matters. Embeddings use **`qwen3-embedding:0.6b`** throughout. See [Picking a model](#picking-a-model) for the tradeoffs.
 
@@ -25,6 +25,7 @@ flowchart LR
   T13["13. Upload & Analyze<br/>requestFileUpload"]
   T14["14. Attach an Image<br/>native vision input"]
   T15["15. Investigate Documents<br/>Unix-pipeline tools"]
+  T16["16. API to MCP Server<br/>publish + gate + ship"]
   T1 --> T2
   T2 --> T4
   T3 --> T5
@@ -39,19 +40,23 @@ flowchart LR
   T4 -. upload .-> T13
   T4 -. vision .-> T14
   T13 -. pipeline .-> T15
+  T8 ==> T16
+  T11 -. gate .-> T16
   classDef build fill:#eef2ff,stroke:#3F51B5,color:#1e1b4b
   classDef validate fill:#ecfdf5,stroke:#10b981,color:#064e3b
   classDef ground fill:#fff7ed,stroke:#f59e0b,color:#7c2d12
   classDef compose fill:#fdf2f8,stroke:#e11d48,color:#831843
   classDef bonus fill:#f5f3ff,stroke:#7c3aed,color:#4c1d95
+  classDef ship fill:#fef2f2,stroke:#b91c1c,color:#7f1d1d
   class T1 build
   class T2 validate
   class T3 ground
   class T4,T5,T6,T7,T8 compose
   class T9,T10,T11,T12,T13,T14,T15 bonus
+  class T16 ship
 ```
 
-Tutorials 1-3 produce reusable assets (a tool, an MCP connection, an indexed document). Tutorials 4-8 compose those assets in chat (4-6) and as code-level chains over the bundled default catalog (7-8). Tutorial 9 is an optional **deep dive** off Tutorial 2 - activate MCP Everything from the Default MCP Servers and exercise every Inspector primitive (Tools / Resources / Prompts / Ping / Notifications / Roots / Sampling / Elicitation) end-to-end. Tutorial 10 is a second deep dive off Tutorial 2 - re-publish a connected server's tool through the built-in [MCP Server Proxy](../features/mcp-server/proxy.md) so chat and external clients can call it. Each tutorial is independently runnable in 3-20 minutes; the full main sequence takes about 50 minutes, plus ~44 minutes for the deep dives (MCP Everything, Server Proxy, Human-in-the-Loop approval, the file and image attachments, and the document pipeline).
+Tutorials 1-3 produce reusable assets (a tool, an MCP connection, an indexed document). Tutorials 4-8 compose those assets in chat (4-6) and as code-level chains over the bundled default catalog (7-8). Tutorial 9 is an optional **deep dive** off Tutorial 2 - activate MCP Everything from the Default MCP Servers and exercise every Inspector primitive (Tools / Resources / Prompts / Ping / Notifications / Roots / Sampling / Elicitation) end-to-end. Tutorial 10 is a second deep dive off Tutorial 2 - re-publish a connected server's tool through the built-in [MCP Server Proxy](../features/mcp-server/proxy.md) so chat and external clients can call it. Tutorial 16 is the capstone: it takes a public REST API through Tool Studio, an approval gate, the built-in MCP server, and finally into a Docker container that any MCP client can connect to. Each tutorial is independently runnable in 4-25 minutes; the full main sequence takes about 65 minutes, plus ~50 minutes for the deep dives (MCP Everything, Server Proxy, Human-in-the-Loop approval, the file and image attachments, and the document pipeline) and 25 minutes for the capstone.
 
 !!! abstract "What you'll need"
     - Spring AI Playground running on `http://localhost:8282`. Follow [Getting Started](../getting-started/index.md) first if you haven't.
@@ -85,8 +90,8 @@ Tutorials 1-3 produce reusable assets (a tool, an MCP connection, an indexed doc
 
     ---
 
-    Upload → chunk → embed → similarity-search validate.  
-    **6 min** · ★☆☆ · Vector Database
+    Upload → pick a reader → chunk → embed → similarity-search validate.  
+    **7 min** · ★☆☆ · Vector Database
 
 -   :material-chat-question:{ .lg .middle } **[4. Chat With Tools](4-chat-tools.md)**
 
@@ -99,8 +104,8 @@ Tutorials 1-3 produce reusable assets (a tool, an MCP connection, an indexed doc
 
     ---
 
-    Grounded chat on the indexed document - no tools.  
-    **5 min** · ★★☆ · Agentic Chat + Vector Database
+    Grounded chat on the indexed document, then the same question through a staged pipeline.  
+    **7 min** · ★★☆ · Agentic Chat + Vector Database
 
 -   :material-merge:{ .lg .middle } **[6. Tools and RAG Together](6-tools-and-rag.md)**
 
@@ -171,6 +176,13 @@ Tutorials 1-3 produce reusable assets (a tool, an MCP connection, an indexed doc
 
     Upload a contract with the Document detective preset and pull facts out of it the Unix-pipeline way - find, grep, slice, quote with line numbers.  
     **6 min** · ★★☆ · Agentic Chat · *deep dive*
+
+-   :material-server-network:{ .lg .middle } **[16. From a Public API to Your Own MCP Server](16-public-api-to-mcp-server.md)**
+
+    ---
+
+    Wrap an API you already have credentials for, gate it behind human approval, then hand the same configuration to Docker so any MCP client can call it.  
+    **25 min** · ★★★ · Tool Studio + Agentic Chat + MCP Server + Docker · *capstone*
 
 </div>
 
