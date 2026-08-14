@@ -231,6 +231,7 @@ spring:
           stream-options:
             include-usage: true
       embedding:
+        metadata-mode: none
         options:
           model: text-embedding-3-small
     playground:
