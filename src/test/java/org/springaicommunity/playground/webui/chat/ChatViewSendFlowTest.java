@@ -322,7 +322,7 @@ class ChatViewSendFlowTest extends SpringBrowserlessTest {
 
     private Button attachButton(ChatView view) {
         return $(Button.class, view)
-                .withCondition(button -> "Attach image".equals(button.getTooltip().getText()))
+                .withCondition(button -> "Attach images or documents".equals(button.getTooltip().getText()))
                 .first();
     }
 

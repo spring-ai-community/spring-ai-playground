@@ -152,12 +152,14 @@ public class VectorStoreDocumentPersistenceService implements PersistenceService
         long updateTimestamp = ((Number) vectorStoreDocumentInfoMap.get("updateTimestamp")).longValue();
         String documentFileName = vectorStoreDocumentInfoMap.computeIfAbsent("documentFileName", key -> "").toString();
         String documentPath = vectorStoreDocumentInfoMap.computeIfAbsent("documentPath", key -> "").toString();
+        boolean chatOrigin = Boolean.parseBoolean(
+                vectorStoreDocumentInfoMap.getOrDefault("chatOrigin", Boolean.FALSE).toString());
         List<Map<String, Object>> documentMapList =
                 (List<Map<String, Object>>) vectorStoreDocumentInfoMap.get("documentList");
         List<Document> documentList =
                 documentMapList.stream().map(this::convertToDocument).collect(Collectors.toList());
         return new VectorStoreDocumentInfo(docInfoId, title, createTimestamp, updateTimestamp, documentFileName,
-                documentPath, () -> documentList);
+                documentPath, chatOrigin, () -> documentList);
     }
 
     @Override

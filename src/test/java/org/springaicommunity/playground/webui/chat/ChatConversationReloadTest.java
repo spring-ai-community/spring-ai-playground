@@ -234,7 +234,7 @@ class ChatConversationReloadTest extends SpringBrowserlessTest {
                 .first().isEnabled()).isFalse();
         assertThat($(SttMicButton.class, view).first().isEnabled()).isFalse();
         assertThat($(Button.class, view)
-                .withCondition(button -> "Attach image".equals(button.getTooltip().getText()))
+                .withCondition(button -> "Attach images or documents".equals(button.getTooltip().getText()))
                 .first().isEnabled()).isFalse();
     }
 

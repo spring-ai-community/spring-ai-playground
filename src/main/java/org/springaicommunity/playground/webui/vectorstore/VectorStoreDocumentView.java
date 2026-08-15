@@ -168,7 +168,7 @@ public class VectorStoreDocumentView extends WorkspaceSidebar implements BeforeE
     private void updateDocumentContent() {
         VaadinUtils.getUi(this).access(() -> {
             this.documentListBox.removeAll();
-            this.documentListBox.setItems(this.vectorStoreDocumentService.getDocumentList());
+            this.documentListBox.setItems(this.vectorStoreDocumentService.getVisibleDocumentList());
         });
     }
 

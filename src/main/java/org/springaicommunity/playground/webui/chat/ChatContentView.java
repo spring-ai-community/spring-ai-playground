@@ -17,6 +17,7 @@ package org.springaicommunity.playground.webui.chat;
 
 import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.ClientCallable;
+import com.vaadin.flow.component.DetachEvent;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.Key;
 import com.vaadin.flow.component.KeyModifier;
@@ -48,6 +49,7 @@ import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.internal.Pair;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
 import org.springaicommunity.playground.service.SpringAiPlaygroundRagAdvisor;
+import org.springaicommunity.playground.service.chat.ChatDocumentIntakeService;
 import org.springaicommunity.playground.service.chat.ChatExportService;
 import org.springaicommunity.playground.service.chat.ChatExtraOptions;
 import org.springaicommunity.playground.service.chat.ChatHistory;
@@ -153,11 +155,14 @@ public class ChatContentView extends VerticalLayout {
     private final ChatExportService chatExportService;
     private final ConversationFileUploadStore fileUploadStore;
     private final ChatImageStore imageStore;
+    private final ChatDocumentIntakeService documentIntakeService;
     private final VisionCapabilityService visionCapabilityService;
     private final List<PendingImage> pendingImages = new ArrayList<>();
     private int inFlightImageAttaches;
     private Button attachButton;
     private final HorizontalLayout pendingImagesBar = new HorizontalLayout();
+    private final HorizontalLayout pendingDocsBar = new HorizontalLayout();
+    private Consumer<ChatDocumentIntakeService.ChatDocumentAttachment> documentListener;
     private final MultiSelectComboBox<ToolSpec> customToolsComboBox;
     private final MultiSelectComboBox<ToolSpec> builtinToolsComboBox;
     private final MultiSelectComboBox<ToolSpec> composedToolsComboBox;
@@ -184,7 +189,7 @@ public class ChatContentView extends VerticalLayout {
             McpServerInfoService mcpServerInfoService, ChatExportService chatExportService,
             McpCompositionToolCallbackProvider compositionProvider, SpringAiPlaygroundOptions playgroundOptions,
             ChatClientActionRegistry clientActionRegistry, ConversationFileUploadStore fileUploadStore,
-            ChatImageStore imageStore,
+            ChatImageStore imageStore, ChatDocumentIntakeService documentIntakeService,
             VisionCapabilityService visionCapabilityService, UsageAnalyticsService usageAnalyticsService,
             UsageEventTracker usageEventTracker, ChatStreamRegistry streamRegistry) {
         this.chatHistory = chatHistory;
@@ -201,6 +206,7 @@ public class ChatContentView extends VerticalLayout {
         this.clientActionRegistry = clientActionRegistry;
         this.fileUploadStore = fileUploadStore;
         this.imageStore = imageStore;
+        this.documentIntakeService = documentIntakeService;
         this.visionCapabilityService = visionCapabilityService;
         this.usageAnalyticsService = usageAnalyticsService;
         this.usageEventTracker = usageEventTracker;
@@ -345,13 +351,13 @@ public class ChatContentView extends VerticalLayout {
                 submitButton.click();
         });
 
-        String attachAccept = "image/*";
-        ChatAttach attach = new ChatAttach(attachAccept, this::onImageAttached,
+        String attachAccept = "image/*,.pdf,.txt,.md,.markdown,.html,.htm,.docx,.pptx";
+        ChatAttach attach = new ChatAttach(attachAccept, this::onImageAttached, this::onDocumentAttached,
                 this::onImageProcessingStarted, this::onImageAttachError);
         attach.bindTo(this.userPromptTextArea);
-        this.attachButton = new Button(VaadinUtils.styledIcon(VaadinIcon.PICTURE.create()));
+        this.attachButton = new Button(VaadinUtils.styledIcon(VaadinIcon.PAPERCLIP.create()));
         this.attachButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
-        this.attachButton.setTooltipText("Attach image");
+        this.attachButton.setTooltipText("Attach images or documents");
         this.attachButton.addClickListener(e -> attach.openPicker());
         HorizontalLayout suffix = new HorizontalLayout(this.attachButton, micButton, submitButton, attach);
         suffix.addClassName("chat-input-suffix");
@@ -364,6 +370,13 @@ public class ChatContentView extends VerticalLayout {
         this.pendingImagesBar.getStyle().set("flex-wrap", "wrap").set("gap", "var(--lumo-space-s)")
                 .set("padding", "10px 4px 4px 4px");
         this.pendingImagesBar.setVisible(false);
+
+        this.pendingDocsBar.setSpacing(false);
+        this.pendingDocsBar.setPadding(false);
+        this.pendingDocsBar.getStyle().set("flex-wrap", "wrap").set("gap", "var(--lumo-space-s)")
+                .set("padding", "10px 4px 0 4px");
+        this.pendingDocsBar.setVisible(false);
+        refreshPendingDocsBar();
 
         Icon ragIcon = VaadinUtils.styledIcon(VaadinIcon.SEARCH_PLUS.create());
         ragIcon.setTooltipText("Select documents in VectorDB");
@@ -493,8 +506,8 @@ public class ChatContentView extends VerticalLayout {
                 reasoningLayout, exposedToolsLayout, toolLayout, ragLayout);
         userInputMenuLayout.getStyle().set("flex-wrap", "wrap");
 
-        VerticalLayout userInputLayout = new VerticalLayout(this.pendingImagesBar, userInputMenuLayout,
-                this.userPromptTextArea);
+        VerticalLayout userInputLayout = new VerticalLayout(this.pendingDocsBar, this.pendingImagesBar,
+                userInputMenuLayout, this.userPromptTextArea);
         userInputLayout.setWidthFull();
         userInputLayout.setMargin(false);
         userInputLayout.setSpacing(false);
@@ -617,6 +630,19 @@ public class ChatContentView extends VerticalLayout {
         applyStoredChatToolSelection();
         applyDynamicToolsUi();
         registerClientActionBridge();
+        UI ui = attachEvent.getUI();
+        this.documentListener = attachment -> ui.access(this::refreshPendingDocsBar);
+        this.documentIntakeService.addListener(this.chatHistory.conversationId(), this.documentListener);
+        refreshPendingDocsBar();
+    }
+
+    @Override
+    protected void onDetach(DetachEvent detachEvent) {
+        if (this.documentListener != null) {
+            this.documentIntakeService.removeListener(this.chatHistory.conversationId(), this.documentListener);
+            this.documentListener = null;
+        }
+        super.onDetach(detachEvent);
     }
 
     private void refreshMcpServerItems() {
@@ -960,6 +986,113 @@ public class ChatContentView extends VerticalLayout {
         this.pendingImages.add(new PendingImage(stored.hash(), fileName, mimeType, bytes));
         refreshPendingImagesBar();
         warnIfModelLacksVision();
+    }
+
+    private void onDocumentAttached(String fileName, byte[] bytes, String mimeType) {
+        long active = this.documentIntakeService.list(this.chatHistory.conversationId()).stream()
+                .filter(attachment -> attachment.status() != ChatDocumentIntakeService.Status.FAILED).count();
+        if (active >= ChatDocumentIntakeService.MAX_ATTACHMENTS) {
+            VaadinUtils.showErrorNotification("You can attach up to "
+                    + ChatDocumentIntakeService.MAX_ATTACHMENTS + " documents.");
+            return;
+        }
+        this.documentIntakeService.attach(this.chatHistory.conversationId(), fileName, bytes, mimeType);
+        refreshPendingDocsBar();
+    }
+
+    private void refreshPendingDocsBar() {
+        this.pendingDocsBar.removeAll();
+        List<ChatDocumentIntakeService.ChatDocumentAttachment> attachments =
+                this.documentIntakeService.list(this.chatHistory.conversationId());
+        attachments.forEach(attachment -> this.pendingDocsBar.add(pendingDocChip(attachment)));
+        this.pendingDocsBar.setVisible(!attachments.isEmpty());
+    }
+
+    private Div pendingDocChip(ChatDocumentIntakeService.ChatDocumentAttachment attachment) {
+        Div chip = new Div();
+        chip.getStyle().set("position", "relative").set("display", "flex").set("align-items", "center")
+                .set("gap", "6px").set("padding", "4px 10px").set("max-width", "260px")
+                .set("border", "1px solid var(--lumo-contrast-10pct)")
+                .set("border-radius", "var(--lumo-border-radius-m)")
+                .set("background", "var(--lumo-contrast-5pct)").set("flex", "0 0 auto");
+        Icon fileIcon = VaadinUtils.styledIcon(VaadinIcon.FILE_TEXT_O.create());
+        fileIcon.getStyle().set("width", "16px").set("height", "16px").set("flex", "0 0 auto");
+        Span name = new Span(attachment.fileName());
+        name.getStyle().set("font-size", "var(--lumo-font-size-s)").set("overflow", "hidden")
+                .set("text-overflow", "ellipsis").set("white-space", "nowrap");
+        chip.add(fileIcon, name, documentStatusBadge(attachment));
+        if (attachment.promotable()) {
+            Icon promoteIcon = VaadinUtils.styledIcon(VaadinIcon.DATABASE.create());
+            promoteIcon.getStyle().set("width", "14px").set("height", "14px").set("cursor", "pointer")
+                    .set("color", "var(--lumo-contrast-50pct)").set("flex", "0 0 auto");
+            promoteIcon.setTooltipText("Register in Vector Database");
+            promoteIcon.addClickListener(e -> {
+                this.documentIntakeService.promote(this.chatHistory.conversationId(), attachment.attachId());
+                refreshPendingDocsBar();
+                refreshRagDocumentItems();
+                VaadinUtils.showInfoNotification("Registered " + attachment.fileName()
+                        + " in the Vector Database. It now outlives this conversation.");
+            });
+            chip.add(promoteIcon);
+        } else if (attachment.promoted()) {
+            Icon promotedIcon = VaadinUtils.styledIcon(VaadinIcon.DATABASE.create());
+            promotedIcon.getStyle().set("width", "14px").set("height", "14px")
+                    .set("color", "var(--lumo-success-text-color)").set("flex", "0 0 auto");
+            promotedIcon.setTooltipText("Registered in Vector Database - removing the chip or deleting the "
+                    + "conversation keeps the document");
+            chip.add(promotedIcon);
+        }
+        Icon closeIcon = VaadinIcon.CLOSE_SMALL.create();
+        closeIcon.getStyle().set("width", "12px").set("height", "12px").set("color", "var(--lumo-base-color)");
+        Div remove = new Div(closeIcon);
+        remove.getElement().setAttribute("title", "Remove " + attachment.fileName());
+        remove.getStyle().set("position", "absolute").set("top", "-7px").set("right", "-7px")
+                .set("width", "18px").set("height", "18px").set("border-radius", "50%")
+                .set("background", "var(--lumo-contrast-70pct)").set("cursor", "pointer")
+                .set("display", "flex").set("align-items", "center").set("justify-content", "center")
+                .set("box-shadow", "0 1px 3px rgba(0, 0, 0, 0.35)");
+        remove.addClickListener(e -> {
+            this.documentIntakeService.remove(this.chatHistory.conversationId(), attachment.attachId());
+            refreshPendingDocsBar();
+        });
+        chip.add(remove);
+        return chip;
+    }
+
+    private Span documentStatusBadge(ChatDocumentIntakeService.ChatDocumentAttachment attachment) {
+        String label;
+        String color;
+        switch (attachment.status()) {
+            case EXTRACTING -> {
+                label = "Reading";
+                color = "var(--lumo-secondary-text-color)";
+            }
+            case INDEXING -> {
+                label = "Indexing";
+                color = "var(--lumo-primary-text-color)";
+            }
+            case SUMMARIZING -> {
+                label = "Summarizing " + Objects.requireNonNullElse(attachment.statusDetail(), "");
+                color = "var(--lumo-primary-text-color)";
+            }
+            case READY -> {
+                label = attachment.grade() == ChatDocumentIntakeService.Grade.SMALL ? "Full text" : "Indexed";
+                color = "var(--lumo-success-text-color)";
+            }
+            default -> {
+                label = "Failed";
+                color = "var(--lumo-error-text-color)";
+            }
+        }
+        Span badge = new Span(label);
+        badge.getStyle().set("font-size", "var(--lumo-font-size-xs)").set("color", color)
+                .set("white-space", "nowrap").set("flex", "0 0 auto");
+        if (attachment.status() == ChatDocumentIntakeService.Status.FAILED && attachment.error() != null)
+            badge.getElement().setAttribute("title", attachment.error());
+        if (attachment.status() == ChatDocumentIntakeService.Status.READY)
+            badge.getElement().setAttribute("title", attachment.tokenCount() + " tokens"
+                    + (attachment.chunkCount() > 0 ? ", " + attachment.chunkCount() + " chunks" : ""));
+        return badge;
     }
 
     private void refreshPendingImagesBar() {

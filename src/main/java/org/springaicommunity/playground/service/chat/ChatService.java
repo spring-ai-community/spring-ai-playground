@@ -71,6 +71,7 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.springaicommunity.playground.service.AttachedDocumentRagAdvisor.ATTACHED_USER_PROMPT;
 import static org.springaicommunity.playground.service.SpringAiPlaygroundRagAdvisor.RAG_PROCESS_MESSAGE_CONSUMER;
 import static org.springaicommunity.playground.service.agent.AgentLoopHarness.MCP_PROCESS_MESSAGE_CONSUMER;
 import static org.springaicommunity.playground.service.agent.AgentLoopHarness.TOOL_CONTEXT_CONVERSATION_ID;
@@ -296,11 +297,11 @@ public class ChatService {
                                 reasoning).mutate())
                 .advisors(advisor -> {
                     advisor.param(CONVERSATION_ID, chatHistory.conversationId());
-                    if (StringUtils.hasText(filterExpression)) {
+                    advisor.param(ATTACHED_USER_PROMPT, prompt == null ? "" : prompt);
+                    if (Objects.nonNull(ragProcessMessageConsumer))
+                        advisor.param(RAG_PROCESS_MESSAGE_CONSUMER, ragProcessMessageConsumer);
+                    if (StringUtils.hasText(filterExpression))
                         advisor.param(RAG_FILTER_EXPRESSION, filterExpression);
-                        if (Objects.nonNull(ragProcessMessageConsumer))
-                            advisor.param(RAG_PROCESS_MESSAGE_CONSUMER, ragProcessMessageConsumer);
-                    }
                 });
         chatClientRequestSpec = chatClientRequestSpec.advisors(toolCallingAdvisorFor(chatHistory));
         if (Objects.nonNull(mcpToolProcessMessageConsumer) && Objects.nonNull(toolCallbacks) &&
@@ -458,7 +459,8 @@ public class ChatService {
     }
 
     public List<VectorStoreDocumentInfo> getExistDocumentInfoList() {
-        return this.vectorStoreDocumentsReader.read();
+        return this.vectorStoreDocumentsReader.read().stream()
+                .filter(info -> !info.chatOrigin()).toList();
     }
 
     public List<McpServerInfo> getLiveMcpServerInfos() {

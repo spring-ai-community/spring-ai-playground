@@ -104,6 +104,11 @@ public class VectorStoreDocumentService implements SharedDataReader<List<VectorS
     }
 
     public VectorStoreDocumentInfo putNewDocument(String documentFileName, List<Document> uploadedDocumentItems) {
+        return putNewDocument(documentFileName, uploadedDocumentItems, false);
+    }
+
+    public VectorStoreDocumentInfo putNewDocument(String documentFileName, List<Document> uploadedDocumentItems,
+            boolean chatOrigin) {
         long createTimestamp = System.currentTimeMillis();
         File uploadedDocumentFile = buildUploadFilePath(documentFileName).toFile();
         String docInfoId = VectorStoreService.DOC_INFO_ID + "-" + UUID.randomUUID();
@@ -111,11 +116,19 @@ public class VectorStoreDocumentService implements SharedDataReader<List<VectorS
                 .map(i -> copyNewDocument(docInfoId, i, uploadedDocumentItems.get(i))).toList();
         VectorStoreDocumentInfo vectorStoreDocumentInfo =
                 new VectorStoreDocumentInfo(docInfoId, documentFileName, createTimestamp, createTimestamp,
-                        documentFileName, uploadedDocumentFile.getPath(), () -> documentList);
+                        documentFileName, uploadedDocumentFile.getPath(), chatOrigin, () -> documentList);
         this.documentInfos.put(docInfoId, vectorStoreDocumentInfo);
         if (!Boolean.TRUE.equals(this.skipPersist.get()))
             this.vectorStoreDocumentPersistenceServiceProvider.getObject().saveAsync(vectorStoreDocumentInfo);
         return vectorStoreDocumentInfo;
+    }
+
+    public VectorStoreDocumentInfo promoteToKnowledgeBase(VectorStoreDocumentInfo vectorStoreDocumentInfo) {
+        VectorStoreDocumentInfo promoted = vectorStoreDocumentInfo.promoted();
+        this.documentInfos.put(promoted.docInfoId(), promoted);
+        if (!Boolean.TRUE.equals(this.skipPersist.get()))
+            this.vectorStoreDocumentPersistenceServiceProvider.getObject().saveAsync(promoted);
+        return promoted;
     }
 
     public Path buildUploadFilePath(String fileName) {
@@ -215,6 +228,10 @@ public class VectorStoreDocumentService implements SharedDataReader<List<VectorS
     public List<VectorStoreDocumentInfo> getDocumentList() {
         return this.documentInfos.values().stream()
                 .sorted(Comparator.comparingLong(VectorStoreDocumentInfo::updateTimestamp).reversed()).toList();
+    }
+
+    public List<VectorStoreDocumentInfo> getVisibleDocumentList() {
+        return getDocumentList().stream().filter(info -> !info.chatOrigin()).toList();
     }
 
     public Path getUploadDir() {

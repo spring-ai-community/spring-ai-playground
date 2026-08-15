@@ -34,13 +34,20 @@ public class ChatAttach extends Component {
         void accept(String fileName, byte[] bytes, String mimeType, String exifJson);
     }
 
+    public interface DocumentSink {
+        void accept(String fileName, byte[] bytes, String mimeType);
+    }
+
     private final ImageSink imageSink;
+    private final DocumentSink documentSink;
     private final Runnable onImageStart;
     private final Consumer<String> onError;
 
-    public ChatAttach(String acceptTypes, ImageSink imageSink, Runnable onImageStart, Consumer<String> onError) {
+    public ChatAttach(String acceptTypes, ImageSink imageSink, DocumentSink documentSink, Runnable onImageStart,
+            Consumer<String> onError) {
         if (StringUtils.hasText(acceptTypes)) getElement().setAttribute("accept-types", acceptTypes);
         this.imageSink = imageSink;
+        this.documentSink = documentSink;
         this.onImageStart = onImageStart;
         this.onError = onError;
     }
@@ -54,6 +61,12 @@ public class ChatAttach extends Component {
     public void receiveImage(String fileName, String base64, String mimeType, String exifJson) {
         byte[] bytes = decode(base64);
         if (bytes != null) this.imageSink.accept(fileName, bytes, mimeType, exifJson);
+    }
+
+    @ClientCallable
+    public void receiveDocument(String fileName, String base64, String mimeType) {
+        byte[] bytes = decode(base64);
+        if (bytes != null) this.documentSink.accept(fileName, bytes, mimeType);
     }
 
     @ClientCallable

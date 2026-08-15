@@ -34,6 +34,7 @@ import com.vaadin.flow.spring.annotation.SpringComponent;
 import com.vaadin.flow.spring.annotation.UIScope;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
 import org.springaicommunity.playground.service.analytics.UsageAnalyticsService;
+import org.springaicommunity.playground.service.chat.ChatDocumentIntakeService;
 import org.springaicommunity.playground.service.chat.ChatExportService;
 import org.springaicommunity.playground.service.chat.ChatExtraOptions;
 import org.springaicommunity.playground.service.chat.ChatHistory;
@@ -110,6 +111,7 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
     private final ChatClientActionRegistry clientActionRegistry;
     private final ConversationFileUploadStore fileUploadStore;
     private final ChatImageStore imageStore;
+    private final ChatDocumentIntakeService documentIntakeService;
     private final VisionCapabilityService visionCapabilityService;
     private final ChatSystemPromptPresetService chatSystemPromptPresetService;
     private final ChatSystemPromptTemplateRenderer chatSystemPromptTemplateRenderer;
@@ -133,7 +135,7 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
             OllamaModelDownloadService ollamaModelDownloadService,
             McpCompositionToolCallbackProvider compositionProvider, SpringAiPlaygroundOptions playgroundOptions,
             ChatClientActionRegistry clientActionRegistry, ConversationFileUploadStore fileUploadStore,
-            ChatImageStore imageStore,
+            ChatImageStore imageStore, ChatDocumentIntakeService documentIntakeService,
             VisionCapabilityService visionCapabilityService, UsageAnalyticsService usageAnalyticsService,
             UsageEventTracker usageEventTracker, ChatStreamRegistry chatStreamRegistry) {
         this.persistentUiDataStorage = persistentUiDataStorage;
@@ -153,6 +155,7 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
         this.clientActionRegistry = clientActionRegistry;
         this.fileUploadStore = fileUploadStore;
         this.imageStore = imageStore;
+        this.documentIntakeService = documentIntakeService;
         this.visionCapabilityService = visionCapabilityService;
         this.usageAnalyticsService = usageAnalyticsService;
         this.usageEventTracker = usageEventTracker;
@@ -448,8 +451,8 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
                 this.toolSpecService, this.toolSpecPersistenceService, this.toolActivationCalculator,
                 this.mcpServerInfoService, this.chatExportService,
                 this.compositionProvider, this.playgroundOptions, this.clientActionRegistry, this.fileUploadStore,
-                this.imageStore, this.visionCapabilityService, this.usageAnalyticsService, this.usageEventTracker,
-                this.chatStreamRegistry);
+                this.imageStore, this.documentIntakeService, this.visionCapabilityService, this.usageAnalyticsService,
+                this.usageEventTracker, this.chatStreamRegistry);
         ChatOptions chatOptions = chatHistory.chatOptions();
         String label = String.format("%s: %s", this.chatService.getChatModelProvider(), chatOptions.getModel());
         this.pageTitle = pageTitleOf(chatHistory);

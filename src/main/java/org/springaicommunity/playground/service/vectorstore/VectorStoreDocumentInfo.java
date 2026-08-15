@@ -30,17 +30,26 @@ public class VectorStoreDocumentInfo {
     private final long updateTimestamp;
     private final String documentFileName;
     private final String documentPath;
+    private final boolean chatOrigin;
     @JsonIgnore
     private Supplier<List<Document>> documentListSupplier;
 
     public VectorStoreDocumentInfo(String docInfoId, String title, long createTimestamp, long updateTimestamp,
             String documentFileName, String documentPath, Supplier<List<Document>> documentListSupplier) {
+        this(docInfoId, title, createTimestamp, updateTimestamp, documentFileName, documentPath, false,
+                documentListSupplier);
+    }
+
+    public VectorStoreDocumentInfo(String docInfoId, String title, long createTimestamp, long updateTimestamp,
+            String documentFileName, String documentPath, boolean chatOrigin,
+            Supplier<List<Document>> documentListSupplier) {
         this.docInfoId = docInfoId;
         this.title = title;
         this.createTimestamp = createTimestamp;
         this.updateTimestamp = updateTimestamp;
         this.documentFileName = documentFileName;
         this.documentPath = documentPath;
+        this.chatOrigin = chatOrigin;
         this.documentListSupplier = documentListSupplier;
     }
 
@@ -76,8 +85,17 @@ public class VectorStoreDocumentInfo {
         this.documentListSupplier = documentListSupplier;
     }
 
+    public boolean chatOrigin() {
+        return chatOrigin;
+    }
+
     public VectorStoreDocumentInfo newTitle(String newTitle) {
         return new VectorStoreDocumentInfo(docInfoId, newTitle, createTimestamp, System.currentTimeMillis(),
-                documentFileName, documentPath, documentListSupplier);
+                documentFileName, documentPath, chatOrigin, documentListSupplier);
+    }
+
+    public VectorStoreDocumentInfo promoted() {
+        return new VectorStoreDocumentInfo(docInfoId, title, createTimestamp, System.currentTimeMillis(),
+                documentFileName, documentPath, false, documentListSupplier);
     }
 }
