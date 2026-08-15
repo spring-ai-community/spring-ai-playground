@@ -173,6 +173,7 @@ spring:
           - qwen3.5:9b
           - qwen3.6:27b
           - qwen3.6:35b
+          - qwen3.8:27b
           - gemma4:e2b
           - gemma4:e4b
           - gemma4:12b
@@ -198,6 +199,7 @@ spring:
           - qwen3.5:9b-mlx
           - qwen3.6:27b-mlx
           - qwen3.6:35b-mlx
+          - qwen3.8:27b-mlx
           - gemma4:e2b-mlx
           - gemma4:e4b-mlx
           - gemma4:12b-mlx
@@ -208,6 +210,7 @@ spring:
           - qwen3.5:9b
           - qwen3.6:27b
           - qwen3.6:35b
+          - qwen3.8:27b
           - gemma4:e2b
           - gemma4:e4b
           - gemma4:12b
