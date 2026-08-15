@@ -90,7 +90,7 @@ When a RAG source is selected, `SpringAiPlaygroundRagAdvisor` runs the pipeline 
 
 ## Tools
 
-Tool schemas are added to the context from three sources - built-in tools, tools authored in [Tool Studio](features/tool-studio/index.md), and tools proxied from external [MCP servers](features/mcp-server/index.md). The chat [tool selector](features/agentic-chat/index.md#choosing-tools-and-documents) decides which are exposed for a given conversation; every call runs through the [`AgentLoopManager`](agent-loop-architecture.md) round with the [human-in-the-loop gate](hitl-architecture.md).
+Tool schemas are added to the context from three sources - built-in tools, tools authored in [Tool Studio](features/tool-studio/index.md), and tools proxied from external [MCP servers](features/mcp-server/index.md). The chat [tool selector](features/agentic-chat/index.md#choosing-tools-and-a-rag-source) decides which are exposed for a given conversation; every call runs through the [`AgentLoopManager`](agent-loop-architecture.md) round with the [human-in-the-loop gate](hitl-architecture.md).
 
 ### Static exposure vs dynamic discovery
 

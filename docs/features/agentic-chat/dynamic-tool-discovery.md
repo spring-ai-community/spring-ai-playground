@@ -49,11 +49,11 @@ Those numbers are on large hosted models. The bigger story for a **local-first**
 
 The Playground ships **116 built-in tools** (99 of them Local-Passed and callable), and you can add many more in Tool Studio or by connecting MCP servers. Inlining 70+ tool schemas every turn is exactly what a small local model handles worst: it floods a limited context window and the model loses the thread among similar tools. Dynamic discovery takes that wall away - the model searches the catalog and pulls in only what each step needs, so the size of your toolbox stops being a ceiling on what a local model can drive.
 
-The result is a genuine local agent. Below, the default local model (`qwen3.5:4b-mlx` on Ollama) answers a three-part request - local time, live weather, and a tip calculation - by discovering and chaining the right tools out of the 72-tool catalog, using roughly **1,850 input tokens** instead of inlining every definition:
+The result is a genuine local agent. Below, the default local model (`qwen3.5:4b-mlx` on Ollama) answers a three-part request - local time, live weather, and a tip calculation - by discovering and chaining the right tools out of the full catalog, using roughly **1,850 input tokens** instead of inlining every definition:
 
 ![A Self-equipping agent turn from a local Ollama model: the question about Tokyo time, weather, and a tip; a folded THINK panel; an MCP TOOLS summary reading "4 calls - toolSearchTool, getCurrentTime, getWeather..."; and the answer giving the local time, current weather, and a 1,200 yen tip](../../assets/images/chat/dynamic-tool-discovery-demo.png){ width="1084" }
 
-The **MCP TOOLS** panel tells the whole story: the model called `toolSearchTool` to find what it needed, then `getCurrentTime` (for Tokyo), `getWeather`, and the arithmetic - three capabilities pulled in on demand. The full 72-tool catalog stayed searchable the entire time without ever inflating the prompt.
+The **MCP TOOLS** panel tells the whole story: the model called `toolSearchTool` to find what it needed, then `getCurrentTime` (for Tokyo), `getWeather`, and the arithmetic - three capabilities pulled in on demand. The full catalog stayed searchable the entire time without ever inflating the prompt.
 
 ## Try it
 

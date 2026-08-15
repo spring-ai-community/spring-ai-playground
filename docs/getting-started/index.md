@@ -123,7 +123,7 @@ Spring AI Playground is provider-agnostic with a local-first **Ollama** default 
 
 Each release ships with two integrity guarantees. Verifying is optional, but recommended for production use.
 
-Replace `<VERSION>` in the commands below with the version printed in the installer filename you downloaded (for example `0.2.0-M12`). On this page, JavaScript substitutes the latest release version automatically when GitHub is reachable.
+Replace `<VERSION>` in the commands below with the version printed in the installer filename you downloaded (for example `0.2.0`). On this page, JavaScript substitutes the latest release version automatically when GitHub is reachable.
 
 ### 1. SHA-256 checksum
 

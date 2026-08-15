@@ -68,6 +68,10 @@ By default a chat sends the model the full schema of every tool you expose - fin
 
 It is also how the built-in **[Self-equipping agent](prompt-presets.md)** preset works. For the full picture - why it matters for agents, the 34-64% token-savings experiment behind it, how it lets a small local model drive a large toolbox, and the configuration - see **[Dynamic tool discovery](dynamic-tool-discovery.md)**.
 
+### Document attachments
+
+The paperclip by the prompt box attaches documents - or drop a file onto the prompt. Attached files show as chips above the prompt and are routed by size rather than by a wizard: a small file is kept as full text, a larger one is split, embedded into a conversation-scoped slice of the built-in vector store, and summarized into an always-injected overview. The chip states the routing decision, and the chat RAG panel prints it per turn. A chip can be promoted into the Vector Database so the document outlives the conversation. The full pipeline - the size tiers, the overview transformer, scoped retrieval, and promotion - is on the [Chat Attachments](../rag/chat-attachments.md) page.
+
 ### Multimodal vision input
 
 The picture icon by the prompt box attaches images (up to five per message) - or drop a file onto the prompt, or paste a screenshot. Attached images show as removable chips above the prompt, are resized and EXIF-tagged in the browser, stored content-addressed under the playground home, and sent to the model as native multimodal input. A capability check warns when the selected model cannot actually see (including the mlx false-positive case on Apple Silicon). The full pipeline - storage, vision checks, error handling, and the `describeImage` re-reference tool - is on the [Multimodal Vision Input](image-attachments.md) page.
@@ -247,7 +251,7 @@ For Ollama-based flows:
 - use reasoning-capable models from [Ollama's Thinking Category](https://ollama.com/search?c=thinking)
 - validate tools in MCP Inspector before relying on them in Agentic Chat
 
-The default `playground.chat.models` list features `qwen3.5:4b` (default, the smallest vision-capable build) plus `qwen3.5:2b` / `qwen3.5:9b`, `qwen3.6:27b` / `qwen3.6:35b` for stronger tool-oriented reasoning, the `gemma4` family (`e2b` / `e4b` / `12b` / `31b`), and `gpt-oss:20b` / `deepseek-r1:8b` as alternatives. See [Picking a Model](../../tutorials/index.md#picking-a-model) in the Tutorials for the tradeoffs.
+The default `playground.chat.models` list features `qwen3.5:4b` (default, the smallest vision-capable build) plus `qwen3.5:2b` / `qwen3.5:9b`, `qwen3.6:27b` / `qwen3.6:35b` / `qwen3.8:27b` for stronger tool-oriented reasoning, the `gemma4` family (`e2b` / `e4b` / `12b` / `31b`), and `gpt-oss:20b` / `deepseek-r1:8b` as alternatives. See [Picking a Model](../../tutorials/index.md#picking-a-model) in the Tutorials for the tradeoffs.
 
 ## Agentic Chat Architecture Overview
 
@@ -274,7 +278,7 @@ By leveraging these elements, Agentic Chat goes beyond basic Q&A and becomes a p
 
 Agentic Chat is a **consumer** of three inventories curated elsewhere in the Playground. Use these references to know what's available before composing a chat session:
 
-- **[Default Tools](../default-tools/index.md)** - 108 pre-loaded built-in tools (Examples · Utilities · Filesystem · Global · Korea · Visualization) callable directly from chat without any external setup. Each carries a Risk Level (L0-L5) and `${ENV_VAR}` requirements per page.
+- **[Default Tools](../default-tools/index.md)** - 116 pre-loaded built-in tools (Examples · Utilities · Filesystem · Global · Korea · Visualization) callable directly from chat without any external setup. Each carries a Risk Level (L0-L5) and `${ENV_VAR}` requirements per page.
 - **[Default MCP Servers](../default-mcp-catalog/index.md)** - 58 preset external MCP server connections (Gmail, Notion, GitHub, Linear, BigQuery, Stripe, ...). One-click activation from the MCP Server sidebar adds them as tool sources for chat.
 - **[Vector Database and RAG](../vector-database.md)** - indexed documents and the retrieval pipelines built on them, which the **RAG advisor chain** runs at chat time (`SpringAiPlaygroundRagAdvisor` short-circuits when no RAG source is selected, so retrieval is opt-in per conversation).
 

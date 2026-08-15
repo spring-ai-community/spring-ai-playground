@@ -297,6 +297,31 @@ sequenceDiagram
 
 RAG only runs when a RAG source is selected for the conversation - otherwise `SpringAiPlaygroundRagAdvisor` short-circuits and the chain moves on. A source is either a saved pipeline or a single document, and a document is handled by synthesizing a retrieval-only pipeline, so both take the same executor path that [Pipeline Studio](features/rag/pipeline-studio.md) tests against. The executor stops after the augmenter rather than calling a model itself, so the answer still streams from the chat model. Retrieved documents are carried in the request's `DOCUMENT_CONTEXT` so the UI can render them alongside the final answer, and stage events surface in the chat RAG panel.
 
+### Flow 4b - Attached documents (size-tiered ingest)
+
+Files dropped on the chat prompt take a separate path from the RAG source selector. `ChatDocumentIntakeService` parses the file with `TikaDocumentReader`, counts tokens, and grades it: small files (up to 4,000 tokens) keep their raw text and skip indexing entirely; larger files run the same splitter and embedding as Flow 3, with chunks stamped `level: 1`, plus a map-reduce document overview built by `HierarchicalSummaryTransformer`. At ask time `AttachedDocumentRagAdvisor` (ordered after the Flow 4 advisors, so memory and any selected RAG source see the original user words) always injects small-file text and document overviews, and runs a `docInfoId`-scoped excerpt search with similarity threshold 0 only when the query still contains content terms after stripping directive verbs and stopwords. Routing decisions print in the chat RAG panel.
+
+```mermaid
+flowchart LR
+    subgraph Attach [On attach]
+        FILE["File on prompt"] --> TIKA["TikaDocumentReader<br/>+ token count"]
+        TIKA -->|"up to 4k tokens"| RAW["Raw text on record<br/>no vectors"]
+        TIKA -->|"larger"| ETL["Flow 3 splitter + embed<br/>level 1 chunks, hidden registry entry"]
+        ETL --> OV["HierarchicalSummaryTransformer<br/>map-reduce overview"]
+    end
+    subgraph Ask [Per turn]
+        Q["Question"] --> LOOKUP["Overviews + small text<br/>record lookup"]
+        Q -->|"content terms survive"| SEARCH["One similarity search<br/>docInfoId filter, threshold 0"]
+        LOOKUP --> CTX["Assembled context<br/>+ original question"]
+        SEARCH --> CTX
+    end
+    RAW -.-> LOOKUP
+    OV -.-> LOOKUP
+    ETL -.-> SEARCH
+```
+
+Attachments carry a `chatOrigin` flag on their registry entry, so they stay conversation-scoped: hidden from the Documents listing and the RAG source selector, and deleted together with the conversation. The chip's register action clears the flag, moving the document to an independent knowledge-base lifecycle that survives conversation deletion. Per-conversation attachment records (`chat/attachments/<conversationId>.json`) persist chip state, tier, overview, and promotion, so a restart restores both lifecycles. See [Chat Attachments](features/rag/chat-attachments.md).
+
 ### Flow 5 - Chat with MCP tools
 
 Tool callbacks come from MCP clients, not from code you compile in. When a user picks one or more MCP servers in Chat, `McpClientService` hands back a `ToolCallbackProvider` for each live connection (built-in or external). The model sees their tools as ordinary function tools; `AgentLoopManager` intercepts every call so the UI can show it.

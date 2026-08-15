@@ -1,15 +1,15 @@
 title: Default Tool Examples
-description: Default Tools - Examples reference. 10 starter tools covering web fetch, datetime, productivity, search, AI, and messaging.
+description: Default Tools - Examples reference. 11 starter tools covering web fetch, datetime, productivity, search, AI, messaging, and image description.
 
 # Default Tools - Examples
 
-The ten tools in `default-tool-specs.json` are the **starter examples**. They span the surfaces a beginner is likely to want first - fetch a web page, get the current time, draft an email, add a calendar event, show a location on a map, upload a file, look up weather, search the web, call an LLM, send a Slack message - and double as ready-to-copy templates for the helper API you will use in your own tools.
+The eleven **starter examples** in `default-tool-specs.json` span the surfaces a beginner is likely to want first - fetch a web page, get the current time, draft an email, add a calendar event, show a location on a map, upload a file, describe an image, look up weather, search the web, call an LLM, send a Slack message - and double as ready-to-copy templates for the helper API you will use in your own tools. The same bundle also carries the card renderers documented on [Visualization & cards](visualization.md).
 
-Three of the ten need an API key or webhook URL to be useful (`googlePseSearch`, `openaiResponseGenerator`, `sendSlackMessage`). The rest work out of the box on a fresh install - `getCurrentTime` and `evalExpression` are members of every shipped preset because they have no dependency at all.
+Three of the eleven need an API key or webhook URL to be useful (`googlePseSearch`, `openaiResponseGenerator`, `sendSlackMessage`). The rest work out of the box on a fresh install - `getCurrentTime` and `evalExpression` are members of every shipped preset because they have no dependency at all.
 
-All 10 inherit Tool Studio's default sandbox: deny-first class allowlist, no filesystem, network in `strict` or host-`allowlist` mode with [the SSRF four-layer guard](../tool-studio/index.md#ssrf-four-layer-guard) for the tools that fetch.
+All 11 inherit Tool Studio's default sandbox: deny-first class allowlist, no filesystem, network in `strict` or host-`allowlist` mode with [the SSRF four-layer guard](../tool-studio/index.md#ssrf-four-layer-guard) for the tools that fetch.
 
-## The 10 examples { #the-examples }
+## The 11 examples { #the-examples }
 
 <div class="tcg-grid" markdown>
 
@@ -650,7 +650,7 @@ return { status: 'ok' };
 
 ## Composition patterns (starter chains)
 
-These nine tools are picked so any pair plugs together - a perfect first agentic-workflow surface. Two patterns you can reproduce after Local Pass:
+These eleven tools are picked so any pair plugs together - a perfect first agentic-workflow surface. Two patterns you can reproduce after Local Pass:
 
 - **Search → summarise** - `googlePseSearch(query)` returns ranked snippets; pass them as a prompt fragment into `openaiResponseGenerator` so the model cites recent sources rather than parametric memory.
 - **Fetch → notify** - `getWeather(location)` (or `getOpenMeteoForecast` from [Global](global.md)) → `sendSlackMessage(text)` to post a daily threshold alert to a channel.
@@ -660,7 +660,7 @@ Deeper walk-throughs in [Tutorial 8: Default Tool Recipes](../../tutorials/8-def
 
 ## Keys & secrets
 
-Three of the nine need a credential. The launcher's **Environment Variables** card is the recommended place to set them; the static-variable substring is masked from `console.log` and from the chat tool-call trace whenever it appears as a full string in the output.
+Three of the eleven need a credential. The launcher's **Environment Variables** card is the recommended place to set them; the static-variable substring is masked from `console.log` and from the chat tool-call trace whenever it appears as a full string in the output.
 
 | Tool | Env var | Where to issue |
 |---|---|---|
