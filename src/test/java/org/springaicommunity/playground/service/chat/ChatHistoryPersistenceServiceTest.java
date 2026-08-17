@@ -123,14 +123,14 @@ class ChatHistoryPersistenceServiceTest {
     @Test
     void toolPreferencesSurviveSaveAndLoad() throws IOException {
         ChatToolPreferences prefs = new ChatToolPreferences(true, Set.of("tool-a", "tool-b"),
-                List.of("doc-1"), Map.of(McpTransportType.STREAMABLE_HTTP, List.of("server-x")),
+                "pipeline-1", Map.of(McpTransportType.STREAMABLE_HTTP, List.of("server-x")),
                 ReasoningEffort.MEDIUM, true);
         chatHistoryPersistenceService.save(buildHistory("chat-prefs").withToolPreferences(prefs));
 
         ChatToolPreferences loaded = chatHistoryPersistenceService.loads().getFirst().toolPreferences();
         assertThat(loaded.useBuiltinMcp()).isTrue();
         assertThat(loaded.exposedToolIds()).containsExactlyInAnyOrder("tool-a", "tool-b");
-        assertThat(loaded.ragDocInfoIds()).containsExactly("doc-1");
+        assertThat(loaded.ragSourceId()).isEqualTo("pipeline-1");
         assertThat(loaded.mcpServerNames()).containsEntry(McpTransportType.STREAMABLE_HTTP, List.of("server-x"));
         assertThat(loaded.reasoningEffort()).isEqualTo(ReasoningEffort.MEDIUM);
         assertThat(loaded.dynamicTools()).isTrue();

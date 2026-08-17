@@ -29,7 +29,7 @@ import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
 import org.springaicommunity.playground.service.tool.ToolSpecPersistenceService;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
-import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentService;
+import org.springaicommunity.playground.service.vectorstore.OfflineEtlPipelineService;
 import org.springaicommunity.playground.webui.chat.ChatView;
 import org.springaicommunity.playground.webui.mcp.McpServerView;
 import org.springaicommunity.playground.webui.tool.ToolStudioView;
@@ -50,18 +50,18 @@ class HomeRecentActivity extends Div {
     private final ToolSpecService toolSpecService;
     private final ToolSpecPersistenceService toolSpecPersistenceService;
     private final McpServerInfoService mcpServerInfoService;
-    private final VectorStoreDocumentService vectorStoreDocumentService;
+    private final OfflineEtlPipelineService offlineEtlPipelineService;
     private final ChatHistoryService chatHistoryService;
 
     HomeRecentActivity(ToolSpecService toolSpecService,
             ToolSpecPersistenceService toolSpecPersistenceService,
             McpServerInfoService mcpServerInfoService,
-            VectorStoreDocumentService vectorStoreDocumentService,
+            OfflineEtlPipelineService offlineEtlPipelineService,
             ChatHistoryService chatHistoryService) {
         this.toolSpecService = toolSpecService;
         this.toolSpecPersistenceService = toolSpecPersistenceService;
         this.mcpServerInfoService = mcpServerInfoService;
-        this.vectorStoreDocumentService = vectorStoreDocumentService;
+        this.offlineEtlPipelineService = offlineEtlPipelineService;
         this.chatHistoryService = chatHistoryService;
 
         setWidthFull();
@@ -132,7 +132,7 @@ class HomeRecentActivity extends Div {
                 .forEach(info -> items.add(new RecentItem(info.serverName(), VaadinIcon.TOOLBOX,
                         info.updateTimestamp(), McpServerView.class, "MCP")));
 
-        vectorStoreDocumentService.getDocumentList().forEach(doc ->
+        offlineEtlPipelineService.getVisibleDocumentList().forEach(doc ->
                 items.add(new RecentItem(doc.title(), VaadinIcon.FILE_TEXT_O, doc.updateTimestamp(),
                         VectorStoreView.class, "Document")));
 

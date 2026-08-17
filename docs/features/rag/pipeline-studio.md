@@ -56,7 +56,7 @@ Enabling a card expands it. Every one carries the Spring AI default prompt templ
 
 ![The wizard's Retrieval tab - the document search scope, Top-K and similarity threshold fields, and a pipeline-specific metadata filter expression with its DSL helper](../../assets/images/rag/wizard-retrieval.png)
 
-**Search scope** picks which indexed documents this pipeline may read. Leave it empty to search everything in the store.
+**Search scope** picks which indexed documents this pipeline may read. Leave it empty to search every knowledge-base document - [chat attachments](chat-attachments.md) share the store but stay conversation-scoped, so an empty scope never reads them.
 
 **Top-K** and **similarity threshold** are stored on the pipeline, not shared with the Vector Database search bar above. A new pipeline pre-fills them from the global search settings and then owns its copy, so tuning a pipeline never changes what the manual search returns.
 

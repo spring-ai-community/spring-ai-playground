@@ -23,29 +23,33 @@ import com.vaadin.flow.component.upload.UploadI18N.Uploading;
 import com.vaadin.flow.server.streams.TransferContext;
 import com.vaadin.flow.server.streams.TransferProgressListener;
 import com.vaadin.flow.server.streams.UploadHandler;
-import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentService;
+import org.springaicommunity.playground.service.vectorstore.OfflineEtlPipelineService;
 import org.springaicommunity.playground.webui.VaadinUtils;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 public class VectorStoreDocumentUpload extends VerticalLayout {
 
-    private final VectorStoreDocumentService vectorStoreDocumentService;
+    private final OfflineEtlPipelineService offlineEtlPipelineService;
     private final List<String> uploadedFileNames;
     private final Upload upload;
+    private Consumer<String> onFileUploaded;
+    private Consumer<String> onFileRemoved;
 
-    public VectorStoreDocumentUpload(VectorStoreDocumentService vectorStoreDocumentService) {
-        this.vectorStoreDocumentService = vectorStoreDocumentService;
+    public VectorStoreDocumentUpload(OfflineEtlPipelineService offlineEtlPipelineService) {
+        this.offlineEtlPipelineService = offlineEtlPipelineService;
         this.uploadedFileNames = new ArrayList<>();
 
         Paragraph hint = new Paragraph(
-                "Please upload a single PDF, DOC/DOCX, or PPT/PPTX file with a maximum size of " +
-                        this.vectorStoreDocumentService.getMaxUploadSize().toMegabytes() + "MB");
+                "Please upload a single PDF, DOC/DOCX, PPT/PPTX, MD, HTML, JSON, or TXT file with a maximum size of " +
+                        this.offlineEtlPipelineService.getMaxUploadSize().toMegabytes() + "MB");
         hint.getStyle().set("color", "var(--lumo-secondary-text-color)");
         add(hint);
 
@@ -80,19 +84,18 @@ public class VectorStoreDocumentUpload extends VerticalLayout {
             try {
                 File tempFile = File.createTempFile("upload-", ".tmp");
                 Files.write(tempFile.toPath(), data);
-                this.vectorStoreDocumentService.addUploadedDocumentFile(fileName, tempFile);
+                this.offlineEtlPipelineService.stageUpload(fileName, tempFile);
                 this.uploadedFileNames.add(fileName);
                 tempFile.delete();
-            } catch (IOException e) {
-                this.vectorStoreDocumentService.removeUploadedDocumentFile(fileName);
+                if (this.onFileUploaded != null) this.onFileUploaded.accept(fileName);
+            } catch (FileAlreadyExistsException e) {
                 clearFileList();
-                VaadinUtils.showErrorNotification("Upload failed: " + fileName + " - " + e.getMessage());
-                throw new java.io.UncheckedIOException("Upload failed for " + fileName, e);
+                VaadinUtils.showErrorNotification(fileName
+                        + " is already indexed. Delete the existing document first or rename the file.");
             } catch (Exception e) {
-                this.vectorStoreDocumentService.removeUploadedDocumentFile(fileName);
+                this.offlineEtlPipelineService.removeUploadedDocumentFile(fileName);
                 clearFileList();
                 VaadinUtils.showErrorNotification("Upload failed: " + fileName + " - " + e.getMessage());
-                throw new IllegalStateException("Upload failed for " + fileName, e);
             }
         }, progressListener);
 
@@ -102,9 +105,13 @@ public class VectorStoreDocumentUpload extends VerticalLayout {
                 "application/msword", ".doc",
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document", ".docx",
                 "application/vnd.ms-powerpoint", ".ppt",
-                "application/vnd.openxmlformats-officedocument.presentationml.presentation", ".pptx");
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation", ".pptx",
+                "text/markdown", ".md", ".markdown",
+                "text/html", ".html", ".htm",
+                "application/json", ".json",
+                "text/plain", ".txt");
         upload.setMaxFiles(1);
-        upload.setMaxFileSize((int) this.vectorStoreDocumentService.getMaxUploadSize().toBytes());
+        upload.setMaxFileSize((int) this.offlineEtlPipelineService.getMaxUploadSize().toBytes());
         upload.setDropAllowed(true);
 
         upload.addFileRejectedListener(event -> VaadinUtils.showErrorNotification(event.getErrorMessage()));
@@ -115,8 +122,9 @@ public class VectorStoreDocumentUpload extends VerticalLayout {
                     Optional.ofNullable(event.getEventData().get("event.detail.file.name")).map(Object::toString)
                             .ifPresent(fileName -> {
                                 try {
-                                    this.vectorStoreDocumentService.removeUploadedDocumentFile(fileName);
+                                    this.offlineEtlPipelineService.removeUploadedDocumentFile(fileName);
                                     this.uploadedFileNames.remove(fileName);
+                                    if (this.onFileRemoved != null) this.onFileRemoved.accept(fileName);
                                 } catch (IOException e) {
                                     VaadinUtils.showErrorNotification("Failed to delete file: " + e.getMessage());
                                 }
@@ -144,9 +152,9 @@ public class VectorStoreDocumentUpload extends VerticalLayout {
         UploadI18N.Error error = new UploadI18N.Error();
         error.setTooManyFiles("Too many files. Please upload only one file.");
         error.setFileIsTooBig("File is too big. Maximum size is " +
-                this.vectorStoreDocumentService.getMaxUploadSize().toMegabytes() + "MB.");
+                this.offlineEtlPipelineService.getMaxUploadSize().toMegabytes() + "MB.");
         error.setIncorrectFileType("The provided file does not have the correct format. " +
-                "Please upload PDF, DOC/DOCX, or PPT/PPTX files only.");
+                "Please upload PDF, DOC/DOCX, PPT/PPTX, MD, HTML, JSON, or TXT files only.");
         i18n.setError(error);
 
         Uploading uploading = buildUploading();
@@ -190,5 +198,13 @@ public class VectorStoreDocumentUpload extends VerticalLayout {
 
     public List<String> getUploadedFileNames() {
         return List.copyOf(this.uploadedFileNames);
+    }
+
+    public void setOnFileUploaded(Consumer<String> onFileUploaded) {
+        this.onFileUploaded = onFileUploaded;
+    }
+
+    public void setOnFileRemoved(Consumer<String> onFileRemoved) {
+        this.onFileRemoved = onFileRemoved;
     }
 }

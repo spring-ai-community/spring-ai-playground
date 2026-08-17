@@ -335,7 +335,7 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
     private ChatToolPreferences presetPreferences(List<ToolSpec> matched) {
         Set<String> toolIds = matched.stream().map(ToolSpec::toolId)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
-        return new ChatToolPreferences(true, toolIds, List.of(), Map.of(), ReasoningEffort.DEFAULT, false);
+        return new ChatToolPreferences(true, toolIds, null, Map.of(), ReasoningEffort.DEFAULT, false);
     }
 
     private record PresetToolMatch(List<ToolSpec> matched, Map<String, String> unmatched) {}

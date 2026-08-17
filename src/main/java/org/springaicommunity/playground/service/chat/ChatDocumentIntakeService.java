@@ -15,11 +15,12 @@
  */
 package org.springaicommunity.playground.service.chat;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import org.springaicommunity.playground.service.vectorstore.HierarchicalSummaryTransformer;
 import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentInfo;
-import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentService;
+import org.springaicommunity.playground.service.vectorstore.OfflineEtlPipelineService;
 import org.springaicommunity.playground.service.vectorstore.VectorStoreService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,9 +59,9 @@ public class ChatDocumentIntakeService {
     public static final int LARGE_MIN_TOKENS = 40000;
     public static final int MAX_ATTACHMENTS = 5;
 
-    public enum Grade {SMALL, MEDIUM, LARGE}
+    public enum Grade { SMALL, MEDIUM, LARGE }
 
-    public enum Status {EXTRACTING, INDEXING, SUMMARIZING, READY, FAILED}
+    public enum Status { EXTRACTING, INDEXING, SUMMARIZING, READY, FAILED }
 
     public record ChatDocumentAttachment(String attachId, String fileName, String mimeType, long bytes, Grade grade,
             Status status, String statusDetail, String docInfoId, String storedFileName, String summary,
@@ -130,7 +131,7 @@ public class ChatDocumentIntakeService {
     private static final TypeReference<List<ChatDocumentAttachment>> LIST_TYPE = new TypeReference<>() {};
 
     private final Path attachmentsDir;
-    private final VectorStoreDocumentService vectorStoreDocumentService;
+    private final OfflineEtlPipelineService offlineEtlPipelineService;
     private final VectorStoreService vectorStoreService;
     private final HierarchicalSummaryTransformer summaryTransformer;
     private final TokenCountEstimator tokenCountEstimator;
@@ -144,11 +145,11 @@ public class ChatDocumentIntakeService {
     });
 
     public ChatDocumentIntakeService(Path springAiPlaygroundHomeDir,
-            VectorStoreDocumentService vectorStoreDocumentService, VectorStoreService vectorStoreService,
+            OfflineEtlPipelineService offlineEtlPipelineService, VectorStoreService vectorStoreService,
             ChatModel chatModel) throws IOException {
         this.attachmentsDir = springAiPlaygroundHomeDir.resolve("chat").resolve("attachments");
         Files.createDirectories(this.attachmentsDir);
-        this.vectorStoreDocumentService = vectorStoreDocumentService;
+        this.offlineEtlPipelineService = offlineEtlPipelineService;
         this.vectorStoreService = vectorStoreService;
         this.summaryTransformer = new HierarchicalSummaryTransformer(chatModel);
         this.tokenCountEstimator = new JTokkitTokenCountEstimator();
@@ -159,7 +160,7 @@ public class ChatDocumentIntakeService {
     }
 
     public ChatDocumentAttachment attach(String conversationId, String fileName, byte[] bytes, String mimeType) {
-        long maxBytes = this.vectorStoreDocumentService.getMaxUploadSize().toBytes();
+        long maxBytes = this.offlineEtlPipelineService.getMaxUploadSize().toBytes();
         long now = System.currentTimeMillis();
         String attachId = UUID.randomUUID().toString().substring(0, 8);
         ChatDocumentAttachment attachment = new ChatDocumentAttachment(attachId, fileName, mimeType,
@@ -169,7 +170,7 @@ public class ChatDocumentIntakeService {
             attachment = attachment.failed("The file is empty.");
         else if (bytes.length > maxBytes)
             attachment = attachment.failed("The file exceeds the upload limit of "
-                    + this.vectorStoreDocumentService.getMaxUploadSize() + ".");
+                    + this.offlineEtlPipelineService.getMaxUploadSize() + ".");
         put(conversationId, attachment);
         if (attachment.status() == Status.EXTRACTING) {
             AtomicBoolean cancelled = new AtomicBoolean();
@@ -199,9 +200,9 @@ public class ChatDocumentIntakeService {
     public ChatDocumentAttachment promote(String conversationId, String attachId) {
         ChatDocumentAttachment attachment = find(conversationId, attachId);
         if (attachment == null || !attachment.promotable()) return attachment;
-        this.vectorStoreDocumentService.getDocumentList().stream()
+        this.offlineEtlPipelineService.getDocumentList().stream()
                 .filter(info -> info.docInfoId().equals(attachment.docInfoId())).findFirst()
-                .ifPresent(this.vectorStoreDocumentService::promoteToKnowledgeBase);
+                .ifPresent(this.offlineEtlPipelineService::promoteToKnowledgeBase);
         return update(conversationId, attachId, ChatDocumentAttachment::promotedCopy);
     }
 
@@ -240,7 +241,8 @@ public class ChatDocumentIntakeService {
         if (attachment == null || cancelled.get()) return;
         String fileName = attachment.fileName();
         String storedFileName = attachId + "-" + fileName;
-        Path uploadPath = this.vectorStoreDocumentService.buildUploadFilePath(storedFileName);
+        Path uploadPath = this.offlineEtlPipelineService.buildUploadFilePath(storedFileName);
+        String indexedDocInfoId = null;
         try {
             Files.write(uploadPath, bytes);
             update(conversationId, attachId, current -> current.stored(storedFileName));
@@ -265,14 +267,15 @@ public class ChatDocumentIntakeService {
                 Files.deleteIfExists(uploadPath);
                 return;
             }
-            List<Document> chunks = this.vectorStoreDocumentService.getDefaultTokenTextSplitter().apply(rawDocuments);
+            List<Document> chunks = this.offlineEtlPipelineService.getDefaultTokenTextSplitter().apply(rawDocuments);
             chunks.forEach(chunk -> {
                 chunk.getMetadata().put("source", fileName);
                 chunk.getMetadata().put(HierarchicalSummaryTransformer.LEVEL, 1);
             });
             VectorStoreDocumentInfo documentInfo =
-                    this.vectorStoreDocumentService.putNewDocument(storedFileName, chunks, true);
-            documentInfo = this.vectorStoreDocumentService.updateDocumentInfo(documentInfo, fileName);
+                    this.offlineEtlPipelineService.loadDocument(storedFileName, chunks, true);
+            documentInfo = this.offlineEtlPipelineService.updateDocumentInfo(documentInfo, fileName);
+            indexedDocInfoId = documentInfo.docInfoId();
             this.vectorStoreService.add(documentInfo);
             if (cancelled.get()) {
                 deleteIndexed(documentInfo.docInfoId());
@@ -292,6 +295,7 @@ public class ChatDocumentIntakeService {
             update(conversationId, attachId, current -> current.readyIndexed(docInfoId, summary, chunks.size()));
         } catch (Exception e) {
             logger.error("Document intake failed for {} [conversationId={}]", fileName, conversationId, e);
+            deleteIndexedQuietly(indexedDocInfoId);
             deleteUploadQuietly(storedFileName);
             update(conversationId, attachId, current -> current.failed(Objects.toString(e.getMessage(),
                     e.getClass().getSimpleName())));
@@ -301,19 +305,28 @@ public class ChatDocumentIntakeService {
     }
 
     private void deleteIndexed(String docInfoId) {
-        this.vectorStoreDocumentService.getDocumentList().stream()
+        this.offlineEtlPipelineService.getDocumentList().stream()
                 .filter(info -> info.docInfoId().equals(docInfoId)).findFirst()
                 .ifPresent(info -> {
                     List<String> chunkIds = info.documentListSupplier().get().stream().map(Document::getId).toList();
                     if (!chunkIds.isEmpty()) this.vectorStoreService.delete(chunkIds);
-                    this.vectorStoreDocumentService.deleteDocumentInfo(info);
+                    this.offlineEtlPipelineService.deleteDocumentInfo(info);
                 });
+    }
+
+    private void deleteIndexedQuietly(String docInfoId) {
+        if (docInfoId == null) return;
+        try {
+            deleteIndexed(docInfoId);
+        } catch (Exception e) {
+            logger.error("Failed to roll back the partial index for docInfoId={}", docInfoId, e);
+        }
     }
 
     private void deleteUploadQuietly(String storedFileName) {
         if (storedFileName == null) return;
         try {
-            Files.deleteIfExists(this.vectorStoreDocumentService.buildUploadFilePath(storedFileName));
+            Files.deleteIfExists(this.offlineEtlPipelineService.buildUploadFilePath(storedFileName));
         } catch (IOException e) {
             logger.warn("Failed to delete uploaded attachment file {}", storedFileName, e);
         }
@@ -340,7 +353,7 @@ public class ChatDocumentIntakeService {
         synchronized (this) {
             List<ChatDocumentAttachment> current = list(conversationId);
             Map<String, ChatDocumentAttachment> byId = current.stream()
-                    .collect(Collectors.toMap(ChatDocumentAttachment::attachId, item -> item, (a, b) -> a,
+                    .collect(Collectors.toMap(ChatDocumentAttachment::attachId, item -> item, (existing, duplicate) -> existing,
                             HashMap::new));
             ChatDocumentAttachment existing = byId.get(attachId);
             if (existing == null) return null;
@@ -375,9 +388,20 @@ public class ChatDocumentIntakeService {
                     .toList();
             if (!repaired.equals(loaded)) persist(conversationId, repaired);
             return repaired;
-        } catch (IOException e) {
+        } catch (JacksonException e) {
             logger.error("Failed to load attachment index [conversationId={}]", conversationId, e);
+            quarantine(file);
             return List.of();
+        }
+    }
+
+    private void quarantine(Path file) {
+        Path target = file.resolveSibling(file.getFileName() + ".corrupt-" + System.currentTimeMillis());
+        try {
+            Files.move(file, target);
+            logger.warn("Moved the unreadable attachment index to {}", target);
+        } catch (IOException e) {
+            logger.error("Failed to move the unreadable attachment index {} aside", file, e);
         }
     }
 
@@ -385,7 +409,7 @@ public class ChatDocumentIntakeService {
         try {
             if (attachments.isEmpty()) Files.deleteIfExists(indexFile(conversationId));
             else MAPPER.writerWithDefaultPrettyPrinter().writeValue(indexFile(conversationId).toFile(), attachments);
-        } catch (IOException e) {
+        } catch (IOException | JacksonException e) {
             logger.error("Failed to persist attachment index [conversationId={}]", conversationId, e);
         }
     }

@@ -26,6 +26,7 @@ import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.checkbox.Checkbox;
+import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.combobox.MultiSelectComboBox;
 import com.vaadin.flow.component.dependency.JsModule;
 import com.vaadin.flow.component.details.Details;
@@ -45,6 +46,7 @@ import com.vaadin.flow.component.popover.Popover;
 import com.vaadin.flow.component.popover.PopoverPosition;
 import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.textfield.TextArea;
+import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.internal.Pair;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
@@ -74,7 +76,6 @@ import org.springaicommunity.playground.service.tool.ToolActivationCalculator;
 import org.springaicommunity.playground.service.tool.ToolSpec;
 import org.springaicommunity.playground.service.tool.ToolSpecPersistenceService;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
-import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentInfo;
 import org.springaicommunity.playground.webui.SttMicButton;
 import org.springaicommunity.playground.webui.UsageEventTracker;
 import org.springaicommunity.playground.webui.VaadinUtils;
@@ -139,7 +140,7 @@ public class ChatContentView extends VerticalLayout {
     private final Scroller messageScroller;
     private final com.vaadin.flow.component.html.Div scrollSpacer;
     private final TextArea userPromptTextArea;
-    private final MultiSelectComboBox<VectorStoreDocumentInfo> documentsComboBox;
+    private final ComboBox<ChatService.RagSource> ragSourceComboBox;
     private final MultiSelectComboBox<McpServerInfo> mcpToolProviderComboBox;
     private final ChatService chatService;
     private final ChatHistoryService chatHistoryService;
@@ -255,7 +256,7 @@ public class ChatContentView extends VerticalLayout {
                 + "     + 'vaadin-multi-select-combo-box.exposed-tools-display::part(input-field) { background: var(--lumo-contrast-10pct) !important; }'"
                 + "     + 'vaadin-multi-select-combo-box.exposed-tools-display::part(input-field)::after { border: none !important; }'"
                 + "     + 'vaadin-multi-select-combo-box.exposed-tools-display[readonly]:not([has-value]) input { opacity: 1 !important; width: auto !important; flex: 1 1 auto !important; min-width: 8em !important; }'"
-                + "     + 'vaadin-multi-select-combo-box.active-on-select[has-value]::part(input-field), vaadin-multi-select-combo-box.exposed-tools-display.dynamic-active::part(input-field), vaadin-select.control-active::part(input-field) { background: var(--lumo-primary-color-10pct) !important; }'"
+                + "     + 'vaadin-multi-select-combo-box.active-on-select[has-value]::part(input-field), vaadin-combo-box.active-on-select[has-value]::part(input-field), vaadin-multi-select-combo-box.exposed-tools-display.dynamic-active::part(input-field), vaadin-select.control-active::part(input-field) { background: var(--lumo-primary-color-10pct) !important; }'"
                 + "     + 'vaadin-multi-select-combo-box.exposed-tools-display.dynamic-active input::placeholder { color: var(--lumo-body-text-color) !important; -webkit-text-fill-color: var(--lumo-body-text-color) !important; opacity: 1 !important; }';"
                 + "   document.head.appendChild(s);"
                 + " }");
@@ -289,19 +290,21 @@ public class ChatContentView extends VerticalLayout {
             if (e.isFromClient()) persistToolPreferences();
         });
 
-        this.documentsComboBox = new MultiSelectComboBox<>();
-        this.documentsComboBox.setWidth("300px");
-        this.documentsComboBox.setTooltipText("RAG with documents stored in VectorDB.");
-        this.documentsComboBox.setSelectedItemsOnTop(true);
-        this.documentsComboBox.setItemLabelGenerator(VectorStoreDocumentInfo::title);
-        List<VectorStoreDocumentInfo> ragDocuments = this.chatService.getExistDocumentInfoList();
-        this.documentsComboBox.setItems(ragDocuments);
-        this.documentsComboBox.setEnabled(!ragDocuments.isEmpty());
-        this.documentsComboBox.setPlaceholder(
-                ragDocuments.isEmpty() ? "No documents for RAG" : "Select documents for RAG");
-        this.documentsComboBox.addClassName("active-on-select");
-        keepSelectionOnEscape(this.documentsComboBox);
-        this.documentsComboBox.addValueChangeListener(e -> {
+        this.ragSourceComboBox = new ComboBox<>();
+        this.ragSourceComboBox.setWidth("300px");
+        this.ragSourceComboBox.setTooltipText(
+                "RAG with a pipeline authored in Vector Database, or a single document. Empty = RAG off.");
+        this.ragSourceComboBox.setItemLabelGenerator(ChatService.RagSource::name);
+        this.ragSourceComboBox.setRenderer(new ComponentRenderer<>(ChatContentView::ragSourceItem));
+        this.ragSourceComboBox.setClearButtonVisible(true);
+        List<ChatService.RagSource> ragSources = this.chatService.getRagSources();
+        this.ragSourceComboBox.setItems(ragSources);
+        this.ragSourceComboBox.setEnabled(!ragSources.isEmpty());
+        this.ragSourceComboBox.setPlaceholder(
+                ragSources.isEmpty() ? "No RAG sources" : "Select RAG pipeline or document");
+        this.ragSourceComboBox.addClassName("active-on-select");
+        keepSelectionOnEscape(this.ragSourceComboBox);
+        this.ragSourceComboBox.addValueChangeListener(e -> {
             if (e.isFromClient()) persistToolPreferences();
         });
 
@@ -379,9 +382,9 @@ public class ChatContentView extends VerticalLayout {
         refreshPendingDocsBar();
 
         Icon ragIcon = VaadinUtils.styledIcon(VaadinIcon.SEARCH_PLUS.create());
-        ragIcon.setTooltipText("Select documents in VectorDB");
+        ragIcon.setTooltipText("Select a RAG pipeline or document from Vector Database");
         ragIcon.addSingleClickListener(event -> {
-            if (this.documentsComboBox.isEnabled()) this.documentsComboBox.setOpened(true);
+            if (this.ragSourceComboBox.isEnabled()) this.ragSourceComboBox.setOpened(true);
         });
         ragIcon.getStyle().set("margin-right", "0px");
         Icon toolIcon = VaadinUtils.styledIcon(VaadinIcon.TOOLBOX.create());
@@ -396,7 +399,7 @@ public class ChatContentView extends VerticalLayout {
         toolLayout.setSpacing(false);
         toolLayout.getStyle().set("gap", "5px");
 
-        HorizontalLayout ragLayout = new HorizontalLayout(ragIcon, this.documentsComboBox);
+        HorizontalLayout ragLayout = new HorizontalLayout(ragIcon, this.ragSourceComboBox);
         ragLayout.setAlignItems(FlexComponent.Alignment.CENTER);
         ragLayout.setSpacing(false);
         ragLayout.getStyle().set("gap", "5px");
@@ -549,11 +552,11 @@ public class ChatContentView extends VerticalLayout {
             return;
         renderPersistedMessages();
         ChatToolPreferences preferences = this.chatHistory.toolPreferences();
-        List<String> ragDocInfoIds = preferences.ragDocInfoIds();
-        if (!ragDocInfoIds.isEmpty()) {
-            this.documentsComboBox.select(this.chatService.getExistDocumentInfoList().stream()
-                    .filter(vectorStoreDocumentInfo -> ragDocInfoIds.contains(
-                            vectorStoreDocumentInfo.docInfoId())).toList());
+        String ragSourceId = preferences.ragSourceId();
+        if (ragSourceId != null) {
+            this.chatService.getRagSources().stream()
+                    .filter(source -> ragSourceId.equals(source.sourceId())).findFirst()
+                    .ifPresent(this.ragSourceComboBox::setValue);
         }
         Map<McpTransportType, List<String>> mcpServerNames = preferences.mcpServerNames();
         if (!mcpServerNames.isEmpty()) {
@@ -626,7 +629,7 @@ public class ChatContentView extends VerticalLayout {
         super.onAttach(attachEvent);
         populateExposedToolsCombos();
         refreshMcpServerItems();
-        refreshRagDocumentItems();
+        refreshRagSourceItems();
         applyStoredChatToolSelection();
         applyDynamicToolsUi();
         registerClientActionBridge();
@@ -658,16 +661,31 @@ public class ChatContentView extends VerticalLayout {
         return info.mcpTransportType() + "|" + info.serverName();
     }
 
-    private void refreshRagDocumentItems() {
-        Set<String> selectedIds = this.documentsComboBox.getSelectedItems().stream()
-                .map(VectorStoreDocumentInfo::docInfoId).collect(Collectors.toSet());
-        List<VectorStoreDocumentInfo> ragDocuments = this.chatService.getExistDocumentInfoList();
-        this.documentsComboBox.setItems(ragDocuments);
-        this.documentsComboBox.select(ragDocuments.stream()
-                .filter(info -> selectedIds.contains(info.docInfoId())).toList());
-        this.documentsComboBox.setEnabled(!ragDocuments.isEmpty());
-        this.documentsComboBox.setPlaceholder(
-                ragDocuments.isEmpty() ? "No documents for RAG" : "Select documents for RAG");
+    private void refreshRagSourceItems() {
+        String selectedId = Optional.ofNullable(this.ragSourceComboBox.getValue())
+                .map(ChatService.RagSource::sourceId).orElse(null);
+        List<ChatService.RagSource> ragSources = this.chatService.getRagSources();
+        this.ragSourceComboBox.setItems(ragSources);
+        if (selectedId != null) {
+            ragSources.stream().filter(source -> selectedId.equals(source.sourceId())).findFirst()
+                    .ifPresent(this.ragSourceComboBox::setValue);
+        }
+        this.ragSourceComboBox.setEnabled(!ragSources.isEmpty());
+        this.ragSourceComboBox.setPlaceholder(
+                ragSources.isEmpty() ? "No RAG sources" : "Select RAG pipeline or document");
+    }
+
+    private static Div ragSourceItem(ChatService.RagSource source) {
+        Div wrapper = new Div();
+        wrapper.getStyle().set("display", "flex").set("flex-direction", "column").set("line-height", "1.3");
+        Span name = new Span(source.name());
+        name.getStyle().set("font-weight", "500");
+        Span meta = new Span(source.hint());
+        meta.getStyle().set("font-size", "var(--lumo-font-size-xs)")
+                .set("color", source.pipeline() ? "var(--lumo-primary-text-color)"
+                        : "var(--lumo-secondary-text-color)");
+        wrapper.add(name, meta);
+        return wrapper;
     }
 
     private void registerClientActionBridge() {
@@ -744,13 +762,13 @@ public class ChatContentView extends VerticalLayout {
         this.customToolsComboBox.getSelectedItems().forEach(spec -> exposedToolIds.add(spec.toolId()));
         this.builtinToolsComboBox.getSelectedItems().forEach(spec -> exposedToolIds.add(spec.toolId()));
         this.composedToolsComboBox.getSelectedItems().forEach(spec -> exposedToolIds.add(spec.toolId()));
-        List<String> ragDocInfoIds = this.documentsComboBox.getSelectedItems().stream()
-                .map(VectorStoreDocumentInfo::docInfoId).toList();
+        String ragSourceId = Optional.ofNullable(this.ragSourceComboBox.getValue())
+                .map(ChatService.RagSource::sourceId).orElse(null);
         Map<McpTransportType, List<String>> mcpServerNames = this.mcpToolProviderComboBox.getSelectedItems().stream()
                 .collect(Collectors.groupingBy(McpServerInfo::mcpTransportType,
                         Collectors.mapping(McpServerInfo::serverName, Collectors.toList())));
         ReasoningEffort reasoning = Objects.requireNonNullElse(this.reasoningSelect.getValue(), ReasoningEffort.DEFAULT);
-        return new ChatToolPreferences(this.useBuiltinMcpCheckbox.getValue(), exposedToolIds, ragDocInfoIds,
+        return new ChatToolPreferences(this.useBuiltinMcpCheckbox.getValue(), exposedToolIds, ragSourceId,
                 mcpServerNames, reasoning, this.dynamicToolsCheckbox.getValue());
     }
 
@@ -792,7 +810,7 @@ public class ChatContentView extends VerticalLayout {
         return combo.getListDataView().getItems().findAny().isPresent();
     }
 
-    private static void keepSelectionOnEscape(MultiSelectComboBox<?> combo) {
+    private static void keepSelectionOnEscape(Component combo) {
         combo.getElement().executeJs("this.addEventListener('keydown', e => {"
                 + " if (e.key === 'Escape' && !this.opened) { e.stopImmediatePropagation(); e.stopPropagation(); }"
                 + " }, true);");
@@ -852,8 +870,8 @@ public class ChatContentView extends VerticalLayout {
             chatContentManager.userMessage.addAttachments(attachmentRowOf(sentImages.stream()
                     .map(image -> thumbnailOf(image.mimeType(), image.bytes(), image.fileName())).toList()));
 
-        List<String> selectedDocInfoIds =
-                this.documentsComboBox.getSelectedItems().stream().map(VectorStoreDocumentInfo::docInfoId).toList();
+        String selectedRagSourceId = Optional.ofNullable(this.ragSourceComboBox.getValue())
+                .map(ChatService.RagSource::sourceId).orElse(null);
         Set<McpServerInfo> selectedItems = this.mcpToolProviderComboBox.getSelectedItems();
         UI ui = VaadinUtils.getUi(this);
         List<ToolCallback> toolCallbacks;
@@ -879,14 +897,14 @@ public class ChatContentView extends VerticalLayout {
             }
         }
 
-        trackChatMessageSent(ui, toolCallbacks.size(), sentImages.size(), !selectedDocInfoIds.isEmpty());
+        trackChatMessageSent(ui, toolCallbacks.size(), sentImages.size(), selectedRagSourceId != null);
         AtomicBoolean liveSaved = new AtomicBoolean();
         Runnable saveOnFirstActivity = () -> {
             if (liveSaved.compareAndSet(false, true))
                 this.chatHistoryService.updateChatHistory(this.chatHistory);
         };
         return this.chatService.stream(this.chatHistory, userPrompt,
-                        this.chatService.buildFilterExpression(selectedDocInfoIds), this.completeChatHistoryConsumer,
+                        selectedRagSourceId, this.completeChatHistoryConsumer,
                         toolCallbacks, o -> {
                             saveOnFirstActivity.run();
                             ui.access(() -> {
@@ -1029,7 +1047,7 @@ public class ChatContentView extends VerticalLayout {
             promoteIcon.addClickListener(e -> {
                 this.documentIntakeService.promote(this.chatHistory.conversationId(), attachment.attachId());
                 refreshPendingDocsBar();
-                refreshRagDocumentItems();
+                refreshRagSourceItems();
                 VaadinUtils.showInfoNotification("Registered " + attachment.fileName()
                         + " in the Vector Database. It now outlives this conversation.");
             });

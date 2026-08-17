@@ -320,7 +320,7 @@ flowchart LR
     ETL -.-> SEARCH
 ```
 
-Attachments carry a `chatOrigin` flag on their registry entry, so they stay conversation-scoped: hidden from the Documents listing and the RAG source selector, and deleted together with the conversation. The chip's register action clears the flag, moving the document to an independent knowledge-base lifecycle that survives conversation deletion. Per-conversation attachment records (`chat/attachments/<conversationId>.json`) persist chip state, tier, overview, and promotion, so a restart restores both lifecycles. See [Chat Attachments](features/rag/chat-attachments.md).
+Attachments carry a `chatOrigin` flag on their registry entry, so they stay conversation-scoped: hidden from the Documents listing and the RAG source selector, excluded from the retrieval of any pipeline whose search scope is left blank, and deleted together with the conversation. The chip's register action clears the flag, moving the document to an independent knowledge-base lifecycle that survives conversation deletion. Per-conversation attachment records (`chat/attachments/<conversationId>.json`) persist chip state, tier, overview, and promotion, so a restart restores both lifecycles. See [Chat Attachments](features/rag/chat-attachments.md).
 
 ### Flow 5 - Chat with MCP tools
 

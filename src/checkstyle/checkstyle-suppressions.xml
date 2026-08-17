@@ -62,7 +62,6 @@
     <suppress files="src[\\/]main[\\/]java[\\/]org[\\/]springaicommunity[\\/]playground[\\/]service[\\/]tool[\\/]policy[\\/]SandboxPostureCalculator\.java$" checks=".*"/>
     <suppress files="src[\\/]main[\\/]java[\\/]org[\\/]springaicommunity[\\/]playground[\\/]service[\\/]tool[\\/]runtime[\\/]JsHelperException\.java$" checks=".*"/>
     <suppress files="src[\\/]main[\\/]java[\\/]org[\\/]springaicommunity[\\/]playground[\\/]service[\\/]util[\\/]EnvVarResolver\.java$" checks=".*"/>
-    <suppress files="src[\\/]main[\\/]java[\\/]org[\\/]springaicommunity[\\/]playground[\\/]service[\\/]vectorstore[\\/]VectorStoreDocumentInfo\.java$" checks=".*"/>
     <suppress files="src[\\/]main[\\/]java[\\/]org[\\/]springaicommunity[\\/]playground[\\/]service[\\/]vectorstore[\\/]VectorStoreDocumentPersistenceService\.java$" checks=".*"/>
     <suppress files="src[\\/]main[\\/]java[\\/]org[\\/]springaicommunity[\\/]playground[\\/]service[\\/]vectorstore[\\/]VectorStoreDocumentService\.java$" checks=".*"/>
     <suppress files="src[\\/]main[\\/]java[\\/]org[\\/]springaicommunity[\\/]playground[\\/]service[\\/]vectorstore[\\/]VectorStoreService\.java$" checks=".*"/>

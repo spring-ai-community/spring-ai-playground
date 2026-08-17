@@ -23,7 +23,10 @@ import org.springaicommunity.playground.service.SpringAiPlaygroundRagAdvisor;
 import org.springaicommunity.playground.service.tool.FileUploadHandler;
 import org.springaicommunity.playground.service.tool.HumanQuestionHandler;
 import org.springaicommunity.playground.service.tool.ImageReferenceHandler;
-import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentService;
+import org.springaicommunity.playground.service.vectorstore.OfflineEtlPipelineService;
+import org.springaicommunity.playground.service.vectorstore.RagPipeline;
+import org.springaicommunity.playground.service.vectorstore.RagPipelineService;
+import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
@@ -40,7 +43,7 @@ import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.DefaultChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.content.Media;
-import org.springframework.ai.rag.retrieval.search.VectorStoreDocumentRetriever;
+import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -75,7 +78,10 @@ class ChatServiceTest {
     ChatService chatService;
 
     @Autowired
-    VectorStoreDocumentService vectorStoreDocumentService;
+    RagPipelineService ragPipelineService;
+
+    @Autowired
+    OfflineEtlPipelineService offlineEtlPipelineService;
 
     @Autowired
     ChatMemory chatMemory;
@@ -105,20 +111,26 @@ class ChatServiceTest {
         assertEquals(prompt, chatService.stream(chatHistory, "Test Chat", null, null, null, null, null,
                         null).toStream()
                 .collect(Collectors.joining()));
-        List<Object> ragProcessMessages = new ArrayList<>();
-        String filterExpression = VectorStoreDocumentRetriever.FILTER_EXPRESSION + " in ['a', 'b']";
-        assertEquals(prompt,
-                chatService.stream(chatHistory, "Test Chat", filterExpression, null, null, null,
-                        ragProcessMessages::add, null).toStream().collect(Collectors.joining()));
-        assertFalse(ragProcessMessages.isEmpty());
-        String firstRagMessage = ragProcessMessages.get(0).toString();
-        assertTrue(firstRagMessage.startsWith("Searching VectorDB documents..."));
-        assertTrue(firstRagMessage.contains("- Query: `Test Chat`"));
-        assertTrue(firstRagMessage.contains("- Filter: `" + filterExpression + "`"));
-        assertTrue(firstRagMessage.contains("- Top K:"));
-        assertTrue(firstRagMessage.contains("- Similarity Threshold:"));
-        assertEquals(SpringAiPlaygroundRagAdvisor.RAG_SEARCH_COMPLETED_MESSAGE,
-                ragProcessMessages.get(ragProcessMessages.size() - 1));
+        RagPipeline pipeline = this.ragPipelineService.create("test-pipeline", null, List.of("a", "b"),
+                null, null, null, null);
+        try {
+            List<Object> ragProcessMessages = new ArrayList<>();
+            assertEquals(prompt,
+                    chatService.stream(chatHistory, "Test Chat", pipeline.id(), null, null, null,
+                            ragProcessMessages::add, null).toStream().collect(Collectors.joining()));
+            assertFalse(ragProcessMessages.isEmpty());
+            String firstRagMessage = ragProcessMessages.get(0).toString();
+            assertTrue(firstRagMessage.startsWith("Running RAG pipeline `test-pipeline`..."));
+            assertTrue(firstRagMessage.contains("- Query: `Test Chat`"));
+            assertTrue(firstRagMessage.contains("- Scope: 2 selected documents"));
+            assertTrue(firstRagMessage.contains("- Stages: "));
+            assertTrue(ragProcessMessages.stream().map(Object::toString)
+                    .anyMatch(message -> message.startsWith("`retrieve`")));
+            assertEquals(SpringAiPlaygroundRagAdvisor.RAG_SEARCH_COMPLETED_MESSAGE,
+                    ragProcessMessages.get(ragProcessMessages.size() - 1));
+        } finally {
+            this.ragPipelineService.deleteById(pipeline.id());
+        }
     }
 
     @Test
@@ -282,6 +294,48 @@ class ChatServiceTest {
     }
 
     @Test
+    void firstSignalBudgetScalesWithTheSelectedPipelinesLlmStageCount() {
+        RagPipeline staged = this.ragPipelineService.create("timeout-staged", null, List.of(),
+                new RagPipeline.PreRetrievalConfig(true, null, true, null, true, "english", null,
+                        true, 3, true, null, null),
+                null, null, null);
+        try {
+            Duration oneCall = this.chatService.firstSignalTimeout(null);
+            assertEquals(oneCall, this.chatService.firstSignalTimeout("doc:some-document"));
+            assertEquals(oneCall, this.chatService.firstSignalTimeout("unknown-pipeline-id"));
+            assertEquals(ChatService.firstSignalBudget(Duration.ofMinutes(10), 4),
+                    this.chatService.firstSignalTimeout(staged.id()));
+        } finally {
+            this.ragPipelineService.deleteById(staged.id());
+        }
+    }
+
+    @Test
+    void firstSignalBudgetDerivationFloorsAndCaps() {
+        Duration tenMinutes = Duration.ofMinutes(10);
+        assertEquals(tenMinutes, ChatService.firstSignalBudget(tenMinutes, 0));
+        assertEquals(Duration.ofMinutes(50), ChatService.firstSignalBudget(tenMinutes, 4));
+        assertEquals(Duration.ofHours(1), ChatService.firstSignalBudget(tenMinutes, 100));
+        assertEquals(Duration.ofSeconds(300), ChatService.firstSignalBudget(Duration.ofSeconds(10), 0),
+                "a tiny read-timeout must not shrink the watchdog below the inter-signal budget");
+    }
+
+    @Test
+    void slowFirstSignalBeyondTheInterSignalBudgetStillStreams() {
+        long timestamp = System.currentTimeMillis();
+        ChatHistory chatHistory = new ChatHistory("slow-first", "Slow first", timestamp, timestamp, "System prompt",
+                (DefaultChatOptions) ChatOptions.builder().build(), () -> List.of(new UserMessage("slow")));
+        when(chatModel.stream(any(Prompt.class))).thenReturn(
+                Flux.just(new ChatResponse(List.of(new Generation(new AssistantMessage("late token")))))
+                        .delayElements(Duration.ofMillis(300)));
+
+        String joined = chatService.stream(chatHistory, "slow", null, null, null, null, null, null)
+                .toStream().collect(Collectors.joining());
+
+        assertEquals("late token", joined);
+    }
+
+    @Test
     void testGetDefaultOptions() {
         ChatOptions actualOptions = chatService.getDefaultOptions();
         assertEquals("gpt-4", actualOptions.getModel());
@@ -306,6 +360,20 @@ class ChatServiceTest {
     }
 
     @Test
+    void ragSourcesHideChatOriginDocuments() {
+        VectorStoreDocumentInfo curated = this.offlineEtlPipelineService.loadDocument("curated.txt",
+                List.of(new Document("curated body")), false);
+        VectorStoreDocumentInfo attached = this.offlineEtlPipelineService.loadDocument("attached.txt",
+                List.of(new Document("attached body")), true);
+
+        List<String> sourceIds = this.chatService.getRagSources().stream().map(ChatService.RagSource::sourceId)
+                .toList();
+
+        assertTrue(sourceIds.contains(ChatService.RAG_DOCUMENT_SOURCE_PREFIX + curated.docInfoId()));
+        assertFalse(sourceIds.contains(ChatService.RAG_DOCUMENT_SOURCE_PREFIX + attached.docInfoId()));
+    }
+
+    @Test
     void testGetChatModelProvider() {
         ChatModel chatModel = new MockLlmProviderChatModel();
         ChatClient chatClient = mock(ChatClient.class);
@@ -315,15 +383,9 @@ class ChatServiceTest {
                         null, null, null, null, null), null, null);
         ChatMemory chatMemory = mock(ChatMemory.class);
         ChatService service = new ChatService(chatModel, chatClient, chatMemory, playgroundOptions,
-                vectorStoreDocumentService, null, new ChatRequestOptionsFactory(new ObjectMapper(), null), null,
-                null);
+                ragPipelineService, List::of, null, new ChatRequestOptionsFactory(new ObjectMapper(), null), null,
+                null, Duration.ofMinutes(10));
         assertEquals("MockLlmProvider", service.getChatModelProvider());
-    }
-
-    @Test
-    void buildFilterExpression() {
-        assertEquals("docInfoId in ['test.pdf', 'hello.docx']",
-                this.chatService.buildFilterExpression(List.of("test.pdf", "hello.docx")));
     }
 
     private static final class MockLlmProviderChatModel implements ChatModel {

@@ -32,7 +32,7 @@ import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.service.tool.ToolSpec;
 import org.springaicommunity.playground.service.tool.ToolSpecPersistenceService;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
-import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentService;
+import org.springaicommunity.playground.service.vectorstore.OfflineEtlPipelineService;
 import org.springaicommunity.playground.webui.chat.ChatView;
 import org.springaicommunity.playground.webui.mcp.McpServerView;
 import org.springaicommunity.playground.webui.tool.ToolStudioView;
@@ -52,7 +52,7 @@ class HomeSurfaceCards extends Div {
     private final ToolSpecPersistenceService toolSpecPersistenceService;
     private final McpServerInfoService mcpServerInfoService;
     private final McpClientService mcpClientService;
-    private final VectorStoreDocumentService vectorStoreDocumentService;
+    private final OfflineEtlPipelineService offlineEtlPipelineService;
     private final McpCatalogService mcpCatalogService;
     private final ChatHistoryService chatHistoryService;
 
@@ -65,14 +65,14 @@ class HomeSurfaceCards extends Div {
             ToolSpecPersistenceService toolSpecPersistenceService,
             McpServerInfoService mcpServerInfoService,
             McpClientService mcpClientService,
-            VectorStoreDocumentService vectorStoreDocumentService,
+            OfflineEtlPipelineService offlineEtlPipelineService,
             McpCatalogService mcpCatalogService,
             ChatHistoryService chatHistoryService) {
         this.toolSpecService = toolSpecService;
         this.toolSpecPersistenceService = toolSpecPersistenceService;
         this.mcpServerInfoService = mcpServerInfoService;
         this.mcpClientService = mcpClientService;
-        this.vectorStoreDocumentService = vectorStoreDocumentService;
+        this.offlineEtlPipelineService = offlineEtlPipelineService;
         this.mcpCatalogService = mcpCatalogService;
         this.chatHistoryService = chatHistoryService;
 
@@ -187,7 +187,7 @@ class HomeSurfaceCards extends Div {
     }
 
     private void applyVectorStatus() {
-        int count = vectorStoreDocumentService.getDocumentList().size();
+        int count = offlineEtlPipelineService.getVisibleDocumentList().size();
         if (count == 0) {
             setStatus(vectorStatus, "No documents indexed yet", StatusTone.MUTED);
         } else {

@@ -27,6 +27,8 @@ import org.springaicommunity.playground.service.tool.FileUploadHandler;
 import org.springaicommunity.playground.service.tool.HumanQuestionHandler;
 import org.springaicommunity.playground.service.tool.ImageReferenceHandler;
 import org.springaicommunity.playground.service.tool.PendingInteraction;
+import org.springaicommunity.playground.service.vectorstore.RagPipeline;
+import org.springaicommunity.playground.service.vectorstore.RagPipelineService;
 import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -51,12 +53,15 @@ import org.springframework.ai.content.Media;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import reactor.core.publisher.SignalType;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -78,7 +83,6 @@ import static org.springaicommunity.playground.service.agent.AgentLoopHarness.TO
 import static org.springaicommunity.playground.service.agent.AgentLoopHarness.TOOL_CONTEXT_SESSION_ID;
 import static org.springaicommunity.playground.service.agent.AgentLoopHarness.TOOL_CONTEXT_USER_ID;
 import static org.springaicommunity.playground.service.agent.AgentLoopManager.DYNAMIC_TOOL_POOL;
-import static org.springaicommunity.playground.service.vectorstore.VectorStoreService.DOC_INFO_ID;
 import static org.springframework.ai.chat.memory.ChatMemory.CONVERSATION_ID;
 import static org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor.DOCUMENT_CONTEXT;
 
@@ -90,15 +94,19 @@ public class ChatService {
 
     public static final String CHAT_META = "chatMeta";
     static final Duration STREAM_INTER_SIGNAL_TIMEOUT = Duration.ofSeconds(300);
+    static final Duration MAX_FIRST_SIGNAL_BUDGET = Duration.ofHours(1);
     public static final String USER_IMAGES = "userImages";
     public static final String USER_IMAGE_HASH = "hash";
     public static final String USER_IMAGE_FILE_NAME = "fileName";
     public static final String USER_IMAGE_MIME_TYPE = "mimeType";
-    public static final String RAG_FILTER_EXPRESSION = "ragFilterExpression";
+    public static final String RAG_SOURCE_ID = "ragSourceId";
+    public static final String RAG_DOCUMENT_SOURCE_PREFIX = "doc:";
     public static final String MDC_CONVERSATION_ID = "conversationId";
     public static final String MDC_USER_MESSAGE_ID = "userMessageId";
 
     public record ChatMeta(String model, Usage usage, List<Document> retrievedDocuments) {}
+
+    public record RagSource(String sourceId, String name, String hint, boolean pipeline) {}
 
     public record RoundUsage(int promptTokens, int completionTokens, int totalTokens,
             boolean toolCallRound, boolean thinkRound) {}
@@ -106,11 +114,13 @@ public class ChatService {
     private final String systemPrompt;
     private final int defaultMemoryWindow;
     private final SpringAiPlaygroundOptions.AgentLoop agentLoopPolicy;
+    private final Duration llmCallTimeout;
     private final List<String> models;
     private final ChatModel chatModel;
     private final ChatOptions chatOptions;
     private final ChatClient chatClient;
     private final ChatMemory chatMemory;
+    private final RagPipelineService ragPipelineService;
     private final SharedDataReader<List<VectorStoreDocumentInfo>> vectorStoreDocumentsReader;
     private final SharedDataReader<List<McpServerInfo>> mcpServerInfosReader;
     private final ChatRequestOptionsFactory chatRequestOptionsFactory;
@@ -119,13 +129,16 @@ public class ChatService {
 
     public ChatService(ChatModel chatModel, ChatClient chatClient, ChatMemory chatMemory,
             SpringAiPlaygroundOptions playgroundOptions,
+            RagPipelineService ragPipelineService,
             SharedDataReader<List<VectorStoreDocumentInfo>> vectorStoreDocumentsReader,
             SharedDataReader<List<McpServerInfo>> mcpServerInfosReader,
             ChatRequestOptionsFactory chatRequestOptionsFactory, ToolCallingAdvisor toolCallingAdvisor,
-            ObjectProvider<ToolSearchToolCallingAdvisor> dynamicToolCallingAdvisorProvider) {
+            ObjectProvider<ToolSearchToolCallingAdvisor> dynamicToolCallingAdvisorProvider,
+            @Value("${spring.http.clients.read-timeout:10m}") Duration llmCallTimeout) {
         this.systemPrompt = playgroundOptions.chat().systemPrompt();
         this.defaultMemoryWindow = playgroundOptions.chat().memoryMaxMessages();
         this.agentLoopPolicy = playgroundOptions.chat().agentLoop();
+        this.llmCallTimeout = llmCallTimeout;
         this.models = playgroundOptions.chat().models();
         this.chatModel = chatModel;
         this.chatOptions = Optional.ofNullable(playgroundOptions.chat().chatOptions())
@@ -133,6 +146,7 @@ public class ChatService {
                 .orElseGet(chatModel::getOptions);
         this.chatClient = chatClient;
         this.chatMemory = chatMemory;
+        this.ragPipelineService = ragPipelineService;
         this.vectorStoreDocumentsReader = vectorStoreDocumentsReader;
         this.mcpServerInfosReader = mcpServerInfosReader;
         this.chatRequestOptionsFactory = chatRequestOptionsFactory;
@@ -140,23 +154,23 @@ public class ChatService {
         this.dynamicToolCallingAdvisorProvider = dynamicToolCallingAdvisorProvider;
     }
 
-    public Flux<String> stream(ChatHistory chatHistory, String prompt, String filterExpression,
+    public Flux<String> stream(ChatHistory chatHistory, String prompt, String ragSourceId,
             Consumer<ChatHistory> completeChatHistoryConsumer, List<ToolCallback> toolCallbacks,
             Consumer<Object> mcpToolProcessMessageConsumer, Consumer<Object> ragProcessMessageConsumer,
             Consumer<Object> thinkProcessMessageConsumer) {
-        return stream(chatHistory, prompt, filterExpression, completeChatHistoryConsumer, toolCallbacks,
+        return stream(chatHistory, prompt, ragSourceId, completeChatHistoryConsumer, toolCallbacks,
                 mcpToolProcessMessageConsumer, ragProcessMessageConsumer, thinkProcessMessageConsumer, null, null,
                 null, null, null, null, List.of());
     }
 
-    public Flux<String> stream(ChatHistory chatHistory, String prompt, String filterExpression,
+    public Flux<String> stream(ChatHistory chatHistory, String prompt, String ragSourceId,
             Consumer<ChatHistory> completeChatHistoryConsumer, List<ToolCallback> toolCallbacks,
             Consumer<Object> mcpToolProcessMessageConsumer, Consumer<Object> ragProcessMessageConsumer,
             Consumer<Object> thinkProcessMessageConsumer, Consumer<RoundUsage> roundUsageConsumer,
             Consumer<SignalType> beforeHistoryCommit, HumanQuestionHandler humanQuestionHandler,
             FileUploadHandler fileUploadHandler, ImageReferenceHandler imageReferenceHandler,
             ReasoningEffort reasoning, List<Media> media) {
-        return streamWithRaw(chatHistory, prompt, filterExpression, toolCallbacks, mcpToolProcessMessageConsumer,
+        return streamWithRaw(chatHistory, prompt, ragSourceId, toolCallbacks, mcpToolProcessMessageConsumer,
                 ragProcessMessageConsumer, thinkProcessMessageConsumer, roundUsageConsumer, humanQuestionHandler,
                 fileUploadHandler, imageReferenceHandler, reasoning, media).map(Generation::getOutput)
                 .map(assistantMessage -> Optional.ofNullable(assistantMessage.getText()).orElse(""))
@@ -173,14 +187,14 @@ public class ChatService {
                 });
     }
 
-    public Flux<Generation> streamWithRaw(ChatHistory chatHistory, String prompt, String filterExpression,
+    public Flux<Generation> streamWithRaw(ChatHistory chatHistory, String prompt, String ragSourceId,
             List<ToolCallback> toolCallbacks, Consumer<Object> mcpToolProcessMessageConsumer,
             Consumer<Object> ragProcessMessageConsumer, Consumer<Object> thinkProcessMessageConsumer) {
-        return streamWithRaw(chatHistory, prompt, filterExpression, toolCallbacks, mcpToolProcessMessageConsumer,
+        return streamWithRaw(chatHistory, prompt, ragSourceId, toolCallbacks, mcpToolProcessMessageConsumer,
                 ragProcessMessageConsumer, thinkProcessMessageConsumer, null, null, null, null, null, List.of());
     }
 
-    public Flux<Generation> streamWithRaw(ChatHistory chatHistory, String prompt, String filterExpression,
+    public Flux<Generation> streamWithRaw(ChatHistory chatHistory, String prompt, String ragSourceId,
             List<ToolCallback> toolCallbacks, Consumer<Object> mcpToolProcessMessageConsumer,
             Consumer<Object> ragProcessMessageConsumer, Consumer<Object> thinkProcessMessageConsumer,
             Consumer<RoundUsage> roundUsageConsumer, HumanQuestionHandler humanQuestionHandler,
@@ -195,11 +209,12 @@ public class ChatService {
         AtomicBoolean roundHadThinking = new AtomicBoolean();
         AtomicBoolean imageRefsApplied = new AtomicBoolean();
         AgentTurn agentTurn = new AgentTurn(this.agentLoopPolicy);
-        return getChatClientRequestSpec(chatHistory, prompt, filterExpression, toolCallbacks,
+        return getChatClientRequestSpec(chatHistory, prompt, ragSourceId, toolCallbacks,
                 mcpToolProcessMessageConsumer, ragProcessMessageConsumer, humanQuestionHandler, fileUploadHandler,
                 imageReferenceHandler, reasoning, media, agentTurn)
                 .stream().chatClientResponse()
-                .timeout(STREAM_INTER_SIGNAL_TIMEOUT)
+                .timeout(Mono.delay(firstSignalTimeout(ragSourceId)),
+                        ignored -> Mono.delay(STREAM_INTER_SIGNAL_TIMEOUT))
                 .map(chatClientResponse -> {
                     if (imageRefsApplied.compareAndSet(false, true))
                         applyImageRefsToLastUserMessage(chatHistory, media);
@@ -261,6 +276,22 @@ public class ChatService {
                 });
     }
 
+    Duration firstSignalTimeout(String ragSourceId) {
+        return firstSignalBudget(this.llmCallTimeout, extraLlmStages(ragSourceId));
+    }
+
+    static Duration firstSignalBudget(Duration llmCallTimeout, int extraLlmStages) {
+        Duration budget = llmCallTimeout.multipliedBy(Math.max(0, extraLlmStages) + 1L);
+        if (budget.compareTo(STREAM_INTER_SIGNAL_TIMEOUT) < 0) return STREAM_INTER_SIGNAL_TIMEOUT;
+        return budget.compareTo(MAX_FIRST_SIGNAL_BUDGET) > 0 ? MAX_FIRST_SIGNAL_BUDGET : budget;
+    }
+
+    private int extraLlmStages(String ragSourceId) {
+        if (!StringUtils.hasText(ragSourceId) || ragSourceId.startsWith(RAG_DOCUMENT_SOURCE_PREFIX))
+            return 0;
+        return this.ragPipelineService.get(ragSourceId).map(RagPipeline::extraLlmCallCount).orElse(0);
+    }
+
     private static void emitRoundUsage(ChatClientResponse chatClientResponse,
             Consumer<RoundUsage> roundUsageConsumer, AtomicBoolean roundHadToolCalls,
             AtomicBoolean roundHadThinking) {
@@ -286,7 +317,7 @@ public class ChatService {
     }
 
     private ChatClient.ChatClientRequestSpec getChatClientRequestSpec(ChatHistory chatHistory, String prompt,
-            String filterExpression, List<ToolCallback> toolCallbacks, Consumer<Object> mcpToolProcessMessageConsumer,
+            String ragSourceId, List<ToolCallback> toolCallbacks, Consumer<Object> mcpToolProcessMessageConsumer,
             Consumer<Object> ragProcessMessageConsumer, HumanQuestionHandler humanQuestionHandler,
             FileUploadHandler fileUploadHandler, ImageReferenceHandler imageReferenceHandler,
             ReasoningEffort reasoning, List<Media> media, AgentTurn agentTurn) {
@@ -300,8 +331,7 @@ public class ChatService {
                     advisor.param(ATTACHED_USER_PROMPT, prompt == null ? "" : prompt);
                     if (Objects.nonNull(ragProcessMessageConsumer))
                         advisor.param(RAG_PROCESS_MESSAGE_CONSUMER, ragProcessMessageConsumer);
-                    if (StringUtils.hasText(filterExpression))
-                        advisor.param(RAG_FILTER_EXPRESSION, filterExpression);
+                    if (StringUtils.hasText(ragSourceId)) advisor.param(RAG_SOURCE_ID, ragSourceId);
                 });
         chatClientRequestSpec = chatClientRequestSpec.advisors(toolCallingAdvisorFor(chatHistory));
         if (Objects.nonNull(mcpToolProcessMessageConsumer) && Objects.nonNull(toolCallbacks) &&
@@ -355,20 +385,20 @@ public class ChatService {
         return this.toolCallingAdvisor;
     }
 
-    public String call(ChatHistory chatHistory, String prompt, String filterExpression,
+    public String call(ChatHistory chatHistory, String prompt, String ragSourceId,
             List<ToolCallback> toolCallbacks, Consumer<Object> mcpToolProcessMessageConsumer) {
-        return callWithRaw(chatHistory, prompt, filterExpression, toolCallbacks,
+        return callWithRaw(chatHistory, prompt, ragSourceId, toolCallbacks,
                 mcpToolProcessMessageConsumer).getOutput().getText();
     }
 
-    public Generation callWithRaw(ChatHistory chatHistory, String prompt, String filterExpression,
+    public Generation callWithRaw(ChatHistory chatHistory, String prompt, String ragSourceId,
             List<ToolCallback> toolCallbacks, Consumer<Object> mcpToolProcessMessageConsumer) {
         String userMessageId = UUID.randomUUID().toString();
         MDC.put(MDC_CONVERSATION_ID, chatHistory.conversationId());
         MDC.put(MDC_USER_MESSAGE_ID, userMessageId);
         try {
             return applyChatResponseMetadataToLastUserMessage(chatHistory,
-                    getChatClientRequestSpec(chatHistory, prompt, filterExpression, toolCallbacks,
+                    getChatClientRequestSpec(chatHistory, prompt, ragSourceId, toolCallbacks,
                             mcpToolProcessMessageConsumer, null, null, null, null, null, List.of(),
                             new AgentTurn(this.agentLoopPolicy)).call()
                             .chatClientResponse()).getResult();
@@ -453,14 +483,21 @@ public class ChatService {
         return ChatProvider.from(this.chatModel);
     }
 
-    public String buildFilterExpression(List<String> docInfoIds) {
-        return docInfoIds.isEmpty() ? null : docInfoIds.stream()
-                .collect(Collectors.joining("', '", DOC_INFO_ID + " in ['", "']"));
-    }
-
-    public List<VectorStoreDocumentInfo> getExistDocumentInfoList() {
-        return this.vectorStoreDocumentsReader.read().stream()
-                .filter(info -> !info.chatOrigin()).toList();
+    public List<RagSource> getRagSources() {
+        List<RagSource> sources = new ArrayList<>();
+        for (RagPipeline pipeline : this.ragPipelineService.list()) {
+            int extraLlmCalls = pipeline.extraLlmCallCount();
+            sources.add(new RagSource(pipeline.id(), pipeline.name(),
+                    "pipeline · stages: " + pipeline.stageLabels().size()
+                            + (extraLlmCalls > 0 ? " · +" + extraLlmCalls + " LLM calls" : " · no extra LLM calls"),
+                    true));
+        }
+        for (VectorStoreDocumentInfo documentInfo : this.vectorStoreDocumentsReader.read()) {
+            if (documentInfo.chatOrigin()) continue;
+            sources.add(new RagSource(RAG_DOCUMENT_SOURCE_PREFIX + documentInfo.docInfoId(), documentInfo.title(),
+                    "document · retrieval only", false));
+        }
+        return sources;
     }
 
     public List<McpServerInfo> getLiveMcpServerInfos() {

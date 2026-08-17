@@ -65,7 +65,7 @@ Unlike many playgrounds that stop at prompt testing, this project connects AI co
 
 **[Client-Side Tool Risk Gating for MCP Hosts](https://owasp.org/www-project-mcp-top-10/2025/recommended-controls/Client-Side-Tool-Risk-Gating)** - OWASP MCP Top 10, merged July 29, 2026. Contributed from this project and accepted as a recommended control, written vendor-neutrally as a host-side pattern, with Spring AI Playground cited as its open-source reference implementation.
 
-Also carried on the [Spring AI Community project page](https://springaicommunity.mintlify.app/projects/incubating/spring-ai-playground) with the Incubating badge, and listed under UI Clients in [awesome-spring-ai](https://github.com/spring-ai-community/awesome-spring-ai).
+Also carried on the [Spring AI Community project page](https://springaicommunity.mintlify.app/projects/incubating/spring-ai-playground) with the Incubating badge, and listed under UI Clients in [awesome-spring-ai](https://github.com/spring-ai-community/awesome-spring-ai). The full record of coverage and ecosystem listings lives on the [Mentions](mentions.md) page.
 
 ## :material-rocket-launch: Quick Start
 

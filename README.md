@@ -189,7 +189,7 @@ The version tracks the latest Spring AI release; use it as a reference when inte
 - **[This Week in Spring, June 2nd 2026](https://spring.io/blog/2026/06/02/this-week-in-spring-june-2-2026/)** (spring.io) called it "a *very* interesting project indeed".
 - **[Client-Side Tool Risk Gating for MCP Hosts](https://owasp.org/www-project-mcp-top-10/2025/recommended-controls/Client-Side-Tool-Risk-Gating)** (OWASP MCP Top 10) publishes a control pattern contributed from this project, citing Spring AI Playground as its open-source reference implementation.
 
-Also carried on the [Spring AI Community project page](https://springaicommunity.mintlify.app/projects/incubating/spring-ai-playground) with the Incubating badge, and listed under UI Clients in [awesome-spring-ai](https://github.com/spring-ai-community/awesome-spring-ai).
+More coverage and ecosystem listings: [Mentions](https://spring-ai-community.github.io/spring-ai-playground/mentions/).
 
 ## Project Scope & Positioning
 

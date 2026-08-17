@@ -24,7 +24,9 @@ import org.springaicommunity.playground.service.chat.ChatDocumentIntakeService.G
 import org.springaicommunity.playground.service.chat.ChatDocumentIntakeService.Status;
 import org.springaicommunity.playground.service.vectorstore.HierarchicalSummaryTransformer;
 import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentPersistenceService;
-import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentService;
+import org.springaicommunity.playground.service.vectorstore.OfflineEtlPipelineService;
+import org.springaicommunity.playground.service.vectorstore.RagPipelineService;
+import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentInfo;
 import org.springaicommunity.playground.service.vectorstore.VectorStoreService;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.model.ChatModel;
@@ -43,13 +45,16 @@ import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.util.unit.DataSize;
 
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springaicommunity.playground.service.vectorstore.VectorStoreService.SEARCH_ALL_REQUEST_WITH_DOC_INFO_IDS_FUNCTION;
@@ -61,7 +66,7 @@ class ChatDocumentIntakeServiceTest {
     @TempDir
     Path homeDir;
 
-    private VectorStoreDocumentService documentService;
+    private OfflineEtlPipelineService documentService;
     private VectorStoreService vectorStoreService;
     private ChatDocumentIntakeService intakeService;
 
@@ -88,14 +93,16 @@ class ChatDocumentIntakeServiceTest {
         VectorStoreDocumentPersistenceService persistence = mock(VectorStoreDocumentPersistenceService.class);
         ObjectProvider<VectorStoreDocumentPersistenceService> persistenceProvider = mock(ObjectProvider.class);
         when(persistenceProvider.getObject()).thenReturn(persistence);
-        this.documentService = new VectorStoreDocumentService(homeDir, DataSize.ofMegabytes(20),
-                new DefaultResourceLoader(), persistenceProvider);
-        this.vectorStoreService = new VectorStoreService(EMBEDDING_MODEL,
-                SimpleVectorStore.builder(EMBEDDING_MODEL).build(), mock(ApplicationContext.class),
-                persistenceProvider);
         ChatModel chatModel = mock(ChatModel.class);
         when(chatModel.call(any(Prompt.class)))
                 .thenReturn(new ChatResponse(List.of(new Generation(new AssistantMessage("stub summary")))));
+        ObjectProvider<ChatModel> chatModelProvider = mock(ObjectProvider.class);
+        when(chatModelProvider.getIfAvailable()).thenReturn(chatModel);
+        this.documentService = new OfflineEtlPipelineService(homeDir, DataSize.ofMegabytes(20),
+                new DefaultResourceLoader(), persistenceProvider, chatModelProvider);
+        this.vectorStoreService = new VectorStoreService(EMBEDDING_MODEL,
+                SimpleVectorStore.builder(EMBEDDING_MODEL).build(), mock(ApplicationContext.class),
+                persistenceProvider, mock(RagPipelineService.class), 0.35, 4);
         this.intakeService = new ChatDocumentIntakeService(homeDir, documentService, vectorStoreService, chatModel);
     }
 
@@ -105,9 +112,13 @@ class ChatDocumentIntakeServiceTest {
     }
 
     private ChatDocumentAttachment await(String attachId) {
+        return await(this.intakeService, attachId);
+    }
+
+    private static ChatDocumentAttachment await(ChatDocumentIntakeService service, String attachId) {
         long deadline = System.currentTimeMillis() + 30000;
         while (System.currentTimeMillis() < deadline) {
-            ChatDocumentAttachment attachment = this.intakeService.list(CONVERSATION_ID).stream()
+            ChatDocumentAttachment attachment = service.list(CONVERSATION_ID).stream()
                     .filter(item -> item.attachId().equals(attachId)).findFirst().orElseThrow();
             if (!attachment.processing()) return attachment;
             try {
@@ -183,6 +194,66 @@ class ChatDocumentIntakeServiceTest {
 
         assertThat(attachment.status()).isEqualTo(Status.FAILED);
         assertThat(attachment.error()).contains("empty");
+    }
+
+    @Test
+    void summaryFailureRollsBackTheChunksAndTheRegistryEntry() throws Exception {
+        ChatModel failing = mock(ChatModel.class);
+        when(failing.call(any(Prompt.class))).thenThrow(new IllegalStateException("no chat model is configured"));
+        ChatDocumentIntakeService failingIntake =
+                new ChatDocumentIntakeService(homeDir, this.documentService, this.vectorStoreService, failing);
+        try {
+            ChatDocumentAttachment settled = await(failingIntake,
+                    failingIntake.attach(CONVERSATION_ID, "report.txt", wordsOf(4000), "text/plain").attachId());
+
+            assertThat(settled.status()).isEqualTo(Status.FAILED);
+            assertThat(settled.docInfoId()).as("the record still names what it had indexed").isNotNull();
+            assertThat(this.documentService.getDocumentList())
+                    .as("a failed summary leaves no registry entry behind").isEmpty();
+            assertThat(this.vectorStoreService.search(
+                    SEARCH_ALL_REQUEST_WITH_DOC_INFO_IDS_FUNCTION.apply(List.of(settled.docInfoId()))))
+                    .as("a failed summary leaves no orphan chunks in the store").isEmpty();
+        } finally {
+            failingIntake.shutdown();
+        }
+    }
+
+    @Test
+    void embeddingFailureRollsBackTheRegistryEntry() throws Exception {
+        VectorStoreService failingStore = mock(VectorStoreService.class);
+        doThrow(new IllegalStateException("embedding model is unreachable")).when(failingStore)
+                .add(any(VectorStoreDocumentInfo.class));
+        ChatDocumentIntakeService failingIntake =
+                new ChatDocumentIntakeService(homeDir, this.documentService, failingStore, mock(ChatModel.class));
+        try {
+            ChatDocumentAttachment settled = await(failingIntake,
+                    failingIntake.attach(CONVERSATION_ID, "report.txt", wordsOf(4000), "text/plain").attachId());
+
+            assertThat(settled.status()).isEqualTo(Status.FAILED);
+            assertThat(settled.error()).contains("embedding model is unreachable");
+            assertThat(settled.docInfoId()).isNull();
+            assertThat(this.documentService.getDocumentList())
+                    .as("a failed embedding leaves no registry entry behind").isEmpty();
+        } finally {
+            failingIntake.shutdown();
+        }
+    }
+
+    @Test
+    void unreadableIndexMovesAsideInsteadOfBeingOverwritten() throws Exception {
+        Path indexFile = homeDir.resolve("chat").resolve("attachments").resolve(CONVERSATION_ID + ".json");
+        Files.writeString(indexFile, "{ this is not the index json");
+
+        assertThat(this.intakeService.list(CONVERSATION_ID)).isEmpty();
+
+        this.intakeService.attach(CONVERSATION_ID, "notes.txt", wordsOf(100), "text/plain");
+        assertThat(indexFile).as("the conversation gets a fresh index").exists();
+        try (Stream<Path> files = Files.list(indexFile.getParent())) {
+            assertThat(files.map(path -> path.getFileName().toString()))
+                    .as("the unreadable content is kept for recovery")
+                    .anyMatch(name -> name.startsWith(CONVERSATION_ID + ".json.corrupt-"));
+        }
+        assertThat(Files.readString(indexFile)).doesNotContain("not the index json");
     }
 
     @Test

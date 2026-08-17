@@ -29,7 +29,7 @@ import org.springaicommunity.playground.service.chat.ChatHistory;
 import org.springaicommunity.playground.service.chat.ChatHistoryService;
 import org.springaicommunity.playground.service.tool.ToolSpecPersistenceService;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
-import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentService;
+import org.springaicommunity.playground.service.vectorstore.OfflineEtlPipelineService;
 import org.springaicommunity.playground.webui.chat.ChatView;
 import org.springaicommunity.playground.webui.tool.ToolStudioView;
 import org.springaicommunity.playground.webui.vectorstore.VectorStoreView;
@@ -52,7 +52,7 @@ class HomeChecklist extends Div {
     private final ObjectProvider<ChatModel> chatModelProvider;
     private final ToolSpecService toolSpecService;
     private final ToolSpecPersistenceService toolSpecPersistenceService;
-    private final VectorStoreDocumentService vectorStoreDocumentService;
+    private final OfflineEtlPipelineService offlineEtlPipelineService;
     private final ChatHistoryService chatHistoryService;
     private final Environment environment;
 
@@ -63,13 +63,13 @@ class HomeChecklist extends Div {
     HomeChecklist(ObjectProvider<ChatModel> chatModelProvider,
             ToolSpecService toolSpecService,
             ToolSpecPersistenceService toolSpecPersistenceService,
-            VectorStoreDocumentService vectorStoreDocumentService,
+            OfflineEtlPipelineService offlineEtlPipelineService,
             ChatHistoryService chatHistoryService,
             Environment environment) {
         this.chatModelProvider = chatModelProvider;
         this.toolSpecService = toolSpecService;
         this.toolSpecPersistenceService = toolSpecPersistenceService;
-        this.vectorStoreDocumentService = vectorStoreDocumentService;
+        this.offlineEtlPipelineService = offlineEtlPipelineService;
         this.chatHistoryService = chatHistoryService;
         this.environment = environment;
 
@@ -187,7 +187,7 @@ class HomeChecklist extends Div {
         Set<String> defaultIds = toolSpecPersistenceService.getDefaultToolIds();
         boolean hasUserTool = toolSpecService.getToolSpecList().stream()
                 .anyMatch(spec -> !defaultIds.contains(spec.toolId()));
-        boolean hasDocument = !vectorStoreDocumentService.getDocumentList().isEmpty();
+        boolean hasDocument = !offlineEtlPipelineService.getVisibleDocumentList().isEmpty();
         List<ChatHistory> histories = chatHistoryService.getChatHistoryList();
         boolean hasChat = !histories.isEmpty();
         boolean hasAgenticExperience = histories.stream().anyMatch(HomeChecklist::hasMcpToolTrace);

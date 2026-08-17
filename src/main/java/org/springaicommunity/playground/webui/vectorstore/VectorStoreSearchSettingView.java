@@ -48,7 +48,7 @@ public class VectorStoreSearchSettingView extends VerticalLayout {
                 .setRequiredErrorMessage("Please specify the quantity."));
 
         RangeInput similarityThresholdSlider = new RangeInput();
-        similarityThresholdSlider.setStep(0.1);
+        similarityThresholdSlider.setStep(0.05);
         similarityThresholdSlider.setMin(0);
         similarityThresholdSlider.setMax(1);
         similarityThresholdSlider.setValue(vectorStoreOption.similarityThreshold());

@@ -23,7 +23,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springaicommunity.playground.service.chat.ChatDocumentIntakeService;
 import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentInfo;
-import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentService;
+import org.springaicommunity.playground.service.vectorstore.OfflineEtlPipelineService;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
@@ -64,7 +64,7 @@ class ChatViewDocumentAttachTest extends SpringBrowserlessTest {
     private ChatDocumentIntakeService documentIntakeService;
 
     @Autowired
-    private VectorStoreDocumentService vectorStoreDocumentService;
+    private OfflineEtlPipelineService offlineEtlPipelineService;
 
     @BeforeEach
     void stubModels() {
@@ -156,7 +156,7 @@ class ChatViewDocumentAttachTest extends SpringBrowserlessTest {
     }
 
     private List<String> visibleTitles() {
-        return this.vectorStoreDocumentService.getVisibleDocumentList().stream()
+        return this.offlineEtlPipelineService.getVisibleDocumentList().stream()
                 .map(VectorStoreDocumentInfo::title).toList();
     }
 }

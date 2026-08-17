@@ -31,7 +31,7 @@ import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.router.BeforeEnterEvent;
 import com.vaadin.flow.router.BeforeEnterObserver;
 import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentInfo;
-import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentService;
+import org.springaicommunity.playground.service.vectorstore.OfflineEtlPipelineService;
 import org.springaicommunity.playground.webui.VaadinUtils;
 import org.springaicommunity.playground.webui.common.WorkspaceSidebar;
 import org.springframework.ai.document.Document;
@@ -55,22 +55,23 @@ import static org.springaicommunity.playground.webui.vectorstore.VectorStoreView
 
 public class VectorStoreDocumentView extends WorkspaceSidebar implements BeforeEnterObserver {
 
-    private final VectorStoreDocumentService vectorStoreDocumentService;
+    private final OfflineEtlPipelineService offlineEtlPipelineService;
     private final MultiSelectListBox<VectorStoreDocumentInfo> documentListBox;
     private final PropertyChangeSupport documentInfoChangeSupport;
+    private Runnable onSelectionStart;
 
-    public VectorStoreDocumentView(VectorStoreDocumentService vectorStoreDocumentService,
+    public VectorStoreDocumentView(OfflineEtlPipelineService offlineEtlPipelineService,
             PropertyChangeSupport documentInfoChangeSupport) {
-        super("Document");
+        super("Documents");
         this.documentInfoChangeSupport = documentInfoChangeSupport;
-        this.vectorStoreDocumentService = vectorStoreDocumentService;
+        this.offlineEtlPipelineService = offlineEtlPipelineService;
 
         addHeaderIcon(VaadinIcon.CLOSE, "Delete", e -> deleteDocument());
-        addHeaderIcon(VaadinIcon.PENCIL, "Rename", e -> renameDocument());
+        addHeaderIcon(VaadinIcon.PENCIL, "Edit", e -> editDocument());
 
         this.documentListBox = new MultiSelectListBox<>();
         this.documentListBox.addClassName("custom-list-box");
-        this.documentListBox.setSizeFull();
+        this.documentListBox.setWidthFull();
         this.documentListBox.getStyle().set("overflow-x", "hidden").set("white-space", "nowrap");
         this.documentListBox.setRenderer(new ComponentRenderer<>(documentInfo -> {
             HorizontalLayout row = new HorizontalLayout();
@@ -83,21 +84,37 @@ public class VectorStoreDocumentView extends WorkspaceSidebar implements BeforeE
             row.add(title);
             return title;
         }));
-        this.documentListBox.addValueChangeListener(event -> Optional.ofNullable(event.getValue())
-                .ifPresent(documentInfos -> this.documentInfoChangeSupport.firePropertyChange(DOCUMENT_SELECTING_EVENT,
-                        event.getOldValue(), documentInfos)));
+        this.documentListBox.addValueChangeListener(event -> {
+            Set<VectorStoreDocumentInfo> newValue = event.getValue();
+            if (Objects.isNull(newValue) || newValue.isEmpty()) return;
+            if (Objects.nonNull(this.onSelectionStart)) this.onSelectionStart.run();
+            this.documentInfoChangeSupport.firePropertyChange(DOCUMENT_SELECTING_EVENT,
+                    event.getOldValue(), newValue);
+        });
 
         setSidebarContent(this.documentListBox);
     }
 
-    private void renameDocument() {
+    public Set<VectorStoreDocumentInfo> getSelectedDocumentInfos() {
+        return this.documentListBox.getSelectedItems();
+    }
+
+    public void setOnSelectionStart(Runnable onSelectionStart) {
+        this.onSelectionStart = onSelectionStart;
+    }
+
+    public void clearSelection() {
+        VaadinUtils.getUi(this).access(this.documentListBox::clear);
+    }
+
+    private void editDocument() {
         Set<VectorStoreDocumentInfo> selectedItems = this.documentListBox.getSelectedItems();
         if (selectedItems.isEmpty())
             return;
         VectorStoreDocumentInfo documentInfo =
                 selectedItems.stream().sorted(Comparator.comparingLong(VectorStoreDocumentInfo::updateTimestamp))
                         .toList().getFirst();
-        Dialog dialog = VaadinUtils.headerDialog("Rename: " + documentInfo.title());
+        Dialog dialog = VaadinUtils.headerDialog("Edit: " + documentInfo.title());
         dialog.setModality(ModalityMode.STRICT);
         dialog.setResizable(true);
         dialog.addThemeVariants(DialogVariant.LUMO_NO_PADDING);
@@ -106,14 +123,23 @@ public class VectorStoreDocumentView extends WorkspaceSidebar implements BeforeE
         dialogLayout.setAlignItems(FlexComponent.Alignment.STRETCH);
         dialog.add(dialogLayout);
 
-        TextField titleTextField = new TextField();
+        TextField titleTextField = new TextField("Title");
         titleTextField.setWidthFull();
         titleTextField.setValue(documentInfo.title());
         titleTextField.addFocusListener(event -> titleTextField.getElement().executeJs("this.inputElement.select();"));
         dialogLayout.add(titleTextField);
 
+        TextField descriptionTextField = new TextField("Description");
+        descriptionTextField.setWidthFull();
+        descriptionTextField.setMaxLength(200);
+        descriptionTextField.setHelperText("Short note shown in pipeline document selection.");
+        descriptionTextField.setValue(documentInfo.description() == null ? "" : documentInfo.description());
+        dialogLayout.add(descriptionTextField);
+
         Button saveButton = new Button("Save", e -> {
-            this.vectorStoreDocumentService.updateDocumentInfo(documentInfo, titleTextField.getValue());
+            String descValue = descriptionTextField.getValue();
+            String description = descValue == null || descValue.isBlank() ? null : descValue.trim();
+            this.offlineEtlPipelineService.updateDocumentInfo(documentInfo, titleTextField.getValue(), description);
             this.updateDocumentContent();
             dialog.close();
         });
@@ -141,7 +167,7 @@ public class VectorStoreDocumentView extends WorkspaceSidebar implements BeforeE
 
         Button deleteButton = new Button("Delete", e -> {
             for (VectorStoreDocumentInfo documentInfo : selectedItems)
-                this.vectorStoreDocumentService.deleteDocumentInfo(documentInfo);
+                this.offlineEtlPipelineService.deleteDocumentInfo(documentInfo);
             this.updateDocumentContent();
             this.documentInfoChangeSupport.firePropertyChange(DOCUMENTS_DELETE_EVENT, null, selectedItems);
             dialog.close();
@@ -155,11 +181,16 @@ public class VectorStoreDocumentView extends WorkspaceSidebar implements BeforeE
     }
 
     public void addDocumentContent(List<String> fileNames, Map<String, List<Document>> uploadedDocumentItems) {
+        addDocumentContent(fileNames, uploadedDocumentItems, null, null);
+    }
+
+    public void addDocumentContent(List<String> fileNames, Map<String, List<Document>> uploadedDocumentItems,
+            String title, String description) {
         List<VectorStoreDocumentInfo> newDocumentInfos = fileNames.stream()
                 .map(fileName -> {
                     List<Document> documents = uploadedDocumentItems.get(fileName);
-                    return documents.isEmpty() ? null : this.vectorStoreDocumentService.putNewDocument(fileName,
-                            documents);
+                    return documents.isEmpty() ? null
+                            : this.offlineEtlPipelineService.loadDocument(fileName, title, description, documents);
                 }).filter(Objects::nonNull).toList();
         updateDocumentContent();
         this.documentInfoChangeSupport.firePropertyChange(DOCUMENT_ADDING_EVENT, null, newDocumentInfos);
@@ -168,7 +199,7 @@ public class VectorStoreDocumentView extends WorkspaceSidebar implements BeforeE
     private void updateDocumentContent() {
         VaadinUtils.getUi(this).access(() -> {
             this.documentListBox.removeAll();
-            this.documentListBox.setItems(this.vectorStoreDocumentService.getVisibleDocumentList());
+            this.documentListBox.setItems(this.offlineEtlPipelineService.getVisibleDocumentList());
         });
     }
 

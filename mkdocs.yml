@@ -168,6 +168,8 @@ nav:
   # /changelog/ when reached by URL via the docs/changelog.md include).
   # Intentionally omitted from main nav to avoid duplicating GitHub-hosted
   # release notes in the site menu.
+  # Mentions (mentions.md) is likewise kept out of the nav on purpose: it is
+  # reached from the Home page's Mentions and Coverage section and the README.
 
 docs_dir: docs
 

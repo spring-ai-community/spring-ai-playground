@@ -56,7 +56,7 @@ class VectorStoreDocumentPersistenceServiceDebouncedDumpTest {
     EmbeddingModel embeddingModel;
 
     @Mock
-    VectorStoreDocumentService vectorStoreDocumentService;
+    OfflineEtlPipelineService offlineEtlPipelineService;
 
     SimpleVectorStore simpleVectorStore;
     PersistenceExecutor persistenceExecutor;
@@ -68,7 +68,7 @@ class VectorStoreDocumentPersistenceServiceDebouncedDumpTest {
         simpleVectorStore = SimpleVectorStore.builder(embeddingModel).build();
         persistenceExecutor = new PersistenceExecutor();
         service = new VectorStoreDocumentPersistenceService(tempDir, simpleVectorStore,
-                vectorStoreDocumentService, persistenceExecutor, TEST_DEBOUNCE.toMillis());
+                offlineEtlPipelineService, persistenceExecutor, TEST_DEBOUNCE.toMillis());
     }
 
     @AfterEach
@@ -96,7 +96,7 @@ class VectorStoreDocumentPersistenceServiceDebouncedDumpTest {
 
     @Test
     void onShutdown_writesDumpWhenDocumentsExist() throws IOException {
-        when(vectorStoreDocumentService.getDocumentList()).thenReturn(List.of(sampleDocInfo()));
+        when(offlineEtlPipelineService.getDocumentList()).thenReturn(List.of(sampleDocInfo()));
         simpleVectorStore.add(List.of(new Document("id1", "hello", Map.of())));
 
         service.onShutdown();
@@ -108,7 +108,7 @@ class VectorStoreDocumentPersistenceServiceDebouncedDumpTest {
     void onShutdown_deletesDumpWhenNoDocuments() throws IOException {
         Files.createDirectories(dumpFile().getParent());
         Files.writeString(dumpFile(), "{\"stale\":true}");
-        when(vectorStoreDocumentService.getDocumentList()).thenReturn(List.of());
+        when(offlineEtlPipelineService.getDocumentList()).thenReturn(List.of());
 
         service.onShutdown();
 
@@ -117,7 +117,7 @@ class VectorStoreDocumentPersistenceServiceDebouncedDumpTest {
 
     @Test
     void scheduleSimpleVectorStoreDump_writesFileAfterDebounceElapses() throws InterruptedException {
-        when(vectorStoreDocumentService.getDocumentList()).thenReturn(List.of(sampleDocInfo()));
+        when(offlineEtlPipelineService.getDocumentList()).thenReturn(List.of(sampleDocInfo()));
         simpleVectorStore.add(List.of(new Document("id1", "hello", Map.of())));
 
         service.scheduleSimpleVectorStoreDump();
@@ -128,7 +128,7 @@ class VectorStoreDocumentPersistenceServiceDebouncedDumpTest {
     @Test
     void scheduleSimpleVectorStoreDump_coalescesBurstIntoOneWrite()
             throws IOException, InterruptedException, TimeoutException {
-        when(vectorStoreDocumentService.getDocumentList()).thenReturn(List.of(sampleDocInfo()));
+        when(offlineEtlPipelineService.getDocumentList()).thenReturn(List.of(sampleDocInfo()));
         simpleVectorStore.add(List.of(new Document("id1", "hello", Map.of())));
 
         for (int i = 0; i < 10; i++)
@@ -147,7 +147,7 @@ class VectorStoreDocumentPersistenceServiceDebouncedDumpTest {
         PersistenceExecutor localExecutor = new PersistenceExecutor();
         try {
             VectorStoreDocumentPersistenceService nonSimpleService = new VectorStoreDocumentPersistenceService(
-                    tempDir, nonSimple, vectorStoreDocumentService, localExecutor, TEST_DEBOUNCE.toMillis());
+                    tempDir, nonSimple, offlineEtlPipelineService, localExecutor, TEST_DEBOUNCE.toMillis());
 
             nonSimpleService.scheduleSimpleVectorStoreDump();
             Thread.sleep(TEST_DEBOUNCE.toMillis() * 2);
@@ -162,7 +162,7 @@ class VectorStoreDocumentPersistenceServiceDebouncedDumpTest {
 
     @Test
     void onShutdown_cancelsPendingScheduledDump() throws IOException, InterruptedException {
-        when(vectorStoreDocumentService.getDocumentList()).thenReturn(List.of());
+        when(offlineEtlPipelineService.getDocumentList()).thenReturn(List.of());
 
         service.scheduleSimpleVectorStoreDump();
         service.onShutdown();

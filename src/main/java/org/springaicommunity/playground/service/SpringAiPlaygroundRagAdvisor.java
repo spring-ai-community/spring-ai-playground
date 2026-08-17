@@ -15,6 +15,10 @@
  */
 package org.springaicommunity.playground.service;
 
+import org.springaicommunity.playground.service.vectorstore.RagPipeline;
+import org.springaicommunity.playground.service.vectorstore.RagPipelineExecutor;
+import org.springaicommunity.playground.service.vectorstore.RagPipelineService;
+import org.springaicommunity.playground.service.vectorstore.TraceEvent;
 import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentInfo;
 import org.springaicommunity.playground.service.vectorstore.VectorStoreService;
 import org.slf4j.Logger;
@@ -23,9 +27,10 @@ import org.springframework.ai.chat.client.ChatClientRequest;
 import org.springframework.ai.chat.client.ChatClientResponse;
 import org.springframework.ai.chat.client.advisor.api.AdvisorChain;
 import org.springframework.ai.chat.client.advisor.api.BaseAdvisor;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.document.Document;
-import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
 import org.springframework.core.Ordered;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -39,7 +44,8 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.springaicommunity.playground.service.chat.ChatService.RAG_FILTER_EXPRESSION;
+import static org.springaicommunity.playground.service.chat.ChatService.RAG_DOCUMENT_SOURCE_PREFIX;
+import static org.springaicommunity.playground.service.chat.ChatService.RAG_SOURCE_ID;
 import static org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor.DOCUMENT_CONTEXT;
 
 @Service
@@ -51,40 +57,54 @@ public class SpringAiPlaygroundRagAdvisor implements BaseAdvisor {
 
     private static final Logger logger = LoggerFactory.getLogger(SpringAiPlaygroundRagAdvisor.class);
 
-    private final VectorStoreService vectorStoreService;
+    private final RagPipelineService ragPipelineService;
+    private final RagPipelineExecutor ragPipelineExecutor;
     private final SharedDataReader<List<VectorStoreDocumentInfo>> vectorStoreDocumentsReader;
 
-    public SpringAiPlaygroundRagAdvisor(VectorStoreService vectorStoreService,
+    public SpringAiPlaygroundRagAdvisor(RagPipelineService ragPipelineService,
+            RagPipelineExecutor ragPipelineExecutor,
             SharedDataReader<List<VectorStoreDocumentInfo>> vectorStoreDocumentsReader) {
-        this.vectorStoreService = vectorStoreService;
+        this.ragPipelineService = ragPipelineService;
+        this.ragPipelineExecutor = ragPipelineExecutor;
         this.vectorStoreDocumentsReader = vectorStoreDocumentsReader;
     }
 
     @Override
     public ChatClientRequest before(ChatClientRequest chatClientRequest, AdvisorChain advisorChain) {
-        if (isFilterExpressionMissing(chatClientRequest))
+        Object sourceId = chatClientRequest.context().get(RAG_SOURCE_ID);
+        if (Objects.isNull(sourceId)) {
+            logger.debug("RAG pipeline execution was skipped.");
             return chatClientRequest;
+        }
         String query = extractUserQuery(chatClientRequest);
         if (!StringUtils.hasText(query))
             return chatClientRequest;
         Optional<Consumer<Object>> ragProcessMessageConsumer = getRagProcessMessageConsumer(chatClientRequest);
-        ragProcessMessageConsumer.ifPresent(consumer -> consumer.accept(formatSearchStart(chatClientRequest)));
-        String filterExpression = chatClientRequest.context().get(RAG_FILTER_EXPRESSION).toString();
-        List<Document> retrievedDocuments = vectorStoreService.search(query, filterExpression);
+        Optional<RagPipeline> pipeline = resolveSource(sourceId.toString());
+        if (pipeline.isEmpty()) {
+            logger.warn("RAG source {} not found - retrieval skipped.", sourceId);
+            ragProcessMessageConsumer.ifPresent(consumer -> {
+                consumer.accept("RAG source `" + sourceId + "` was not found - retrieval skipped.");
+                consumer.accept(RAG_SEARCH_COMPLETED_MESSAGE);
+            });
+            return chatClientRequest;
+        }
+        ragProcessMessageConsumer.ifPresent(consumer -> consumer.accept(formatPipelineStart(pipeline.get(), query)));
+        Consumer<TraceEvent> trace = event ->
+                ragProcessMessageConsumer.ifPresent(consumer -> consumer.accept(formatTraceEvent(event)));
+        RagPipelineExecutor.RunResult result = this.ragPipelineExecutor.executeForChat(pipeline.get(), query,
+                extractHistory(chatClientRequest), trace);
+        List<Document> retrievedDocuments = result.finalDocs();
         printSearchResults(retrievedDocuments);
-        Map<String, String> docInfoTitles = this.vectorStoreDocumentsReader.read().stream()
-                .collect(Collectors.toMap(VectorStoreDocumentInfo::docInfoId, VectorStoreDocumentInfo::title,
-                        (current, ignored) -> current));
-        List<String> titles = retrievedDocuments.stream()
-                .map(doc -> resolveDocumentTitle(doc, docInfoTitles)).distinct().toList();
         ragProcessMessageConsumer.ifPresent(consumer -> {
-            consumer.accept(new RagRetrievedDocumentsInfo(titles, retrievedDocuments.size()));
+            consumer.accept(new RagRetrievedDocumentsInfo(retrievedTitles(retrievedDocuments),
+                    retrievedDocuments.size()));
             consumer.accept(formatRetrievedDocuments(retrievedDocuments));
             consumer.accept(RAG_SEARCH_COMPLETED_MESSAGE);
         });
-        if (retrievedDocuments.isEmpty())
-            return chatClientRequest.mutate().context(DOCUMENT_CONTEXT, retrievedDocuments).build();
-        return buildRetrievalAugmentationAdvisor(retrievedDocuments).before(chatClientRequest, advisorChain);
+        return chatClientRequest.mutate()
+                .prompt(chatClientRequest.prompt().augmentUserMessage(result.finalPrompt()))
+                .context(DOCUMENT_CONTEXT, retrievedDocuments).build();
     }
 
     @Override
@@ -97,15 +117,16 @@ public class SpringAiPlaygroundRagAdvisor implements BaseAdvisor {
         return Ordered.LOWEST_PRECEDENCE - 1;
     }
 
-    private boolean isFilterExpressionMissing(ChatClientRequest chatClientRequest) {
-        boolean isMissing = Objects.isNull(chatClientRequest.context().get(RAG_FILTER_EXPRESSION));
-        if (isMissing)
-            logger.debug("Document retrieval was skipped.");
-        return isMissing;
-    }
-
-    private RetrievalAugmentationAdvisor buildRetrievalAugmentationAdvisor(List<Document> preSearchedDocuments) {
-        return RetrievalAugmentationAdvisor.builder().documentRetriever(query -> preSearchedDocuments).build();
+    private Optional<RagPipeline> resolveSource(String sourceId) {
+        if (sourceId.startsWith(RAG_DOCUMENT_SOURCE_PREFIX)) {
+            String docInfoId = sourceId.substring(RAG_DOCUMENT_SOURCE_PREFIX.length());
+            return this.vectorStoreDocumentsReader.read().stream()
+                    .filter(documentInfo -> docInfoId.equals(documentInfo.docInfoId())).findFirst()
+                    .map(documentInfo -> new RagPipeline(sourceId, documentInfo.title(), null,
+                            List.of(docInfoId), null, null, null,
+                            new RagPipeline.GenerationConfig(true, null, null, false), 0L, 0L));
+        }
+        return this.ragPipelineService.get(sourceId);
     }
 
     private String extractUserQuery(ChatClientRequest chatClientRequest) {
@@ -114,30 +135,60 @@ public class SpringAiPlaygroundRagAdvisor implements BaseAdvisor {
                 .map(m -> ((UserMessage) m).getText()).filter(StringUtils::hasText).orElse("");
     }
 
+    private List<Message> extractHistory(ChatClientRequest chatClientRequest) {
+        List<Message> instructions = chatClientRequest.prompt().getInstructions();
+        int lastUserIndex = -1;
+        for (int i = instructions.size() - 1; i >= 0; i--) {
+            if (instructions.get(i) instanceof UserMessage) {
+                lastUserIndex = i;
+                break;
+            }
+        }
+        if (lastUserIndex < 0) return List.of();
+        return instructions.subList(0, lastUserIndex).stream()
+                .filter(message -> MessageType.USER.equals(message.getMessageType())
+                        || MessageType.ASSISTANT.equals(message.getMessageType()))
+                .toList();
+    }
+
     private Optional<Consumer<Object>> getRagProcessMessageConsumer(ChatClientRequest chatClientRequest) {
         return Optional.ofNullable(chatClientRequest.context().get(RAG_PROCESS_MESSAGE_CONSUMER))
                 .map(consumer -> (Consumer<Object>) consumer);
     }
 
-    private String formatSearchStart(ChatClientRequest chatClientRequest) {
-        String query = chatClientRequest.prompt().getInstructions().stream()
-                .filter(m -> m instanceof UserMessage).reduce((first, second) -> second)
-                .map(m -> ((UserMessage) m).getText()).filter(StringUtils::hasText).orElse("(empty)");
-        String filterExpression = chatClientRequest.context().get(RAG_FILTER_EXPRESSION).toString();
-        VectorStoreService.SearchRequestOption option = this.vectorStoreService.getSearchRequestOption();
-        return "Searching VectorDB documents...\n" +
+    private static String formatPipelineStart(RagPipeline pipeline, String query) {
+        return "Running RAG pipeline `" + pipeline.name() + "`...\n" +
                 "- Query: `" + query + "`\n" +
-                "- Filter: `" + filterExpression + "`\n" +
-                "- Top K: " + option.topK() + "\n" +
-                "- Similarity Threshold: " + option.similarityThreshold();
+                "- Scope: " + (pipeline.docInfoIds().isEmpty() ? "all documents"
+                : pipeline.docInfoIds().size() + " selected documents") + "\n" +
+                "- Stages: " + String.join(" → ", pipeline.stageLabels());
+    }
+
+    private static String formatTraceEvent(TraceEvent event) {
+        String prefix = switch (event.level()) {
+            case WARN -> "[warn] ";
+            case ERROR -> "[error] ";
+            default -> "";
+        };
+        return prefix + "`" + event.stage() + "` " + event.message();
+    }
+
+    private List<String> retrievedTitles(List<Document> retrievedDocuments) {
+        Map<String, String> docInfoTitles = docInfoTitles();
+        return retrievedDocuments.stream()
+                .map(doc -> resolveDocumentTitle(doc, docInfoTitles)).distinct().toList();
+    }
+
+    private Map<String, String> docInfoTitles() {
+        return this.vectorStoreDocumentsReader.read().stream()
+                .collect(Collectors.toMap(VectorStoreDocumentInfo::docInfoId, VectorStoreDocumentInfo::title,
+                        (current, ignored) -> current));
     }
 
     private String formatRetrievedDocuments(List<Document> results) {
         if (results.isEmpty())
             return "No matching VectorDB documents were found.";
-        Map<String, String> docInfoTitles = this.vectorStoreDocumentsReader.read().stream()
-                .collect(Collectors.toMap(VectorStoreDocumentInfo::docInfoId, VectorStoreDocumentInfo::title,
-                        (current, ignored) -> current));
+        Map<String, String> docInfoTitles = docInfoTitles();
         return "Retrieved " + results.size() + " document chunks from VectorDB.\n" +
                 IntStream.range(0, results.size()).mapToObj(i ->
                                 formatRetrievedDocument(results.get(i), i, docInfoTitles))
