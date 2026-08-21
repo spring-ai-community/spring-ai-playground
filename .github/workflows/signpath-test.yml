@@ -1,0 +1,149 @@
+name: SignPath Test Signing
+
+# Exercises the SignPath signing pipeline end to end (build -> submit ->
+# signed exe -> refreshed updater metadata) without publishing anything.
+# Runs on pushes to the integration branch so it can be verified before the
+# release workflow picks the signing steps up on main; workflow_dispatch stays
+# available afterwards, e.g. for the first release-signing run once the
+# SignPath Foundation certificate is issued.
+
+on:
+  workflow_dispatch:
+    inputs:
+      signing_policy_slug:
+        description: "Signing policy to exercise (test-signing until the release certificate is issued)"
+        required: false
+        default: test-signing
+        type: string
+  push:
+    branches: [ "0.2.0-signpath-signing" ]
+
+concurrency:
+  group: signpath-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-jar:
+    name: Build fat JAR
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up GraalVM JDK 21
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: "21"
+          distribution: "graalvm"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          cache: "maven"
+
+      - name: Build Spring Boot production JAR
+        run: ./mvnw -q -DskipTests -Pproduction package
+
+      - name: Upload Spring Boot fat JAR
+        uses: actions/upload-artifact@v6
+        with:
+          name: spring-ai-playground-jar
+          path: |
+            target/spring-ai-playground-*.jar
+            !target/spring-ai-playground-*.jar.original
+          if-no-files-found: error
+
+  sign-windows:
+    name: Windows NSIS + SignPath
+    needs: build-jar
+    runs-on: windows-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      # The SignPath connector downloads the unsigned installer through the
+      # workflow-artifact API using this job's GITHUB_TOKEN.
+      actions: read
+    env:
+      # Step-level `if` cannot read the secrets context, so presence is
+      # computed here and checked by the fail-fast step below.
+      SIGNPATH_TOKEN_PRESENT: ${{ secrets.SIGNPATH_API_TOKEN != '' }}
+
+    steps:
+      - name: Require SIGNPATH_API_TOKEN
+        if: env.SIGNPATH_TOKEN_PRESENT != 'true'
+        shell: bash
+        run: |
+          echo "::error::The SIGNPATH_API_TOKEN repository secret is not set; create a submitter API token in SignPath and add it as a repository secret."
+          exit 1
+
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up GraalVM JDK 21
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: "21"
+          distribution: "graalvm"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          cache: "maven"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: |
+            package-lock.json
+            electron/package-lock.json
+
+      - name: Download pre-built fat JAR
+        uses: actions/download-artifact@v6
+        with:
+          name: spring-ai-playground-jar
+          path: target
+
+      - name: Install Electron dependencies
+        working-directory: electron
+        run: npm ci
+
+      - name: Install frontend dependencies
+        if: hashFiles('package.json') != ''
+        run: npm install --no-audit --no-fund
+
+      - name: Prepare bundled resources
+        working-directory: electron
+        run: npm run prepare:resources
+
+      - name: Build desktop installer
+        working-directory: electron
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npm run dist:win
+
+      - name: Sign Windows installer via SignPath
+        id: sign
+        uses: ./.github/actions/signpath-sign-windows
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          signing-policy-slug: ${{ inputs.signing_policy_slug || 'test-signing' }}
+
+      - name: Report signing request
+        shell: bash
+        run: |
+          {
+            echo "## SignPath signing request"
+            echo ""
+            echo "- Policy: \`${{ inputs.signing_policy_slug || 'test-signing' }}\`"
+            echo "- Request: ${{ steps.sign.outputs.signing-request-web-url }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload signed installer artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: spring-ai-playground-windows-nsis-signed
+          path: |
+            electron/dist/*.exe
+            electron/dist/*.exe.blockmap
+            electron/dist/latest.yml
+          if-no-files-found: error

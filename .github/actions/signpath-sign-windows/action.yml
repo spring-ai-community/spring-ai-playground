@@ -1,0 +1,78 @@
+name: Sign Windows installer via SignPath
+description: >-
+  Submits the NSIS installer to SignPath, replaces it with the signed binary,
+  and rebuilds the electron-updater metadata whose hashes signing invalidated.
+
+inputs:
+  api-token:
+    description: SignPath API token of a user with submitter permissions
+    required: true
+  signing-policy-slug:
+    description: SignPath signing policy to submit to
+    required: true
+  organization-id:
+    description: SignPath organization id
+    required: false
+    default: 073d91ca-c662-4eec-8554-19fc1f378c4c
+  project-slug:
+    description: SignPath project slug
+    required: false
+    default: spring-ai-playground
+  artifact-configuration-slug:
+    description: SignPath artifact configuration expecting a zip with the installer at its root
+    required: false
+    default: windows-installer-zip
+
+outputs:
+  signing-request-web-url:
+    description: SignPath web URL of the signing request
+    value: ${{ steps.signpath.outputs.signing-request-web-url }}
+
+runs:
+  using: composite
+  steps:
+    # GitHub stores workflow artifacts as zip archives, so the SignPath
+    # artifact configuration referenced above must declare a zip-file root
+    # with the installer inside it.
+    - name: Upload unsigned installer
+      id: unsigned
+      uses: actions/upload-artifact@v6
+      with:
+        name: windows-installer-unsigned
+        path: electron/dist/*.exe
+        if-no-files-found: error
+
+    - name: Submit signing request
+      id: signpath
+      uses: signpath/github-action-submit-signing-request@v2
+      with:
+        api-token: ${{ inputs.api-token }}
+        organization-id: ${{ inputs.organization-id }}
+        project-slug: ${{ inputs.project-slug }}
+        signing-policy-slug: ${{ inputs.signing-policy-slug }}
+        artifact-configuration-slug: ${{ inputs.artifact-configuration-slug }}
+        github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+        wait-for-completion: true
+        wait-for-completion-timeout-in-seconds: 1800
+        output-artifact-directory: electron/dist
+
+    # Presence check only: the test-signing certificate is intentionally
+    # untrusted, so Status is not a useful gate before the release
+    # certificate is issued.
+    - name: Verify Authenticode signature
+      shell: pwsh
+      run: |
+        $exe = Get-ChildItem electron/dist/*.exe | Select-Object -First 1
+        $sig = Get-AuthenticodeSignature -FilePath $exe.FullName
+        $sig | Format-List Status, StatusMessage
+        if ($null -eq $sig.SignerCertificate) {
+          throw "No Authenticode signature on $($exe.Name)"
+        }
+        Write-Output "Signer: $($sig.SignerCertificate.Subject)"
+
+    # Signing rewrote the exe, so the blockmap and the latest.yml sha512/size
+    # electron-updater verifies must be rebuilt from the signed binary.
+    - name: Rebuild updater metadata for signed installer
+      shell: bash
+      working-directory: electron
+      run: node scripts/refresh-signed-metadata.mjs

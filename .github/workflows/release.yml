@@ -221,9 +221,18 @@ jobs:
     needs: build-jar
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.runs_on }}
-    timeout-minutes: 60
+    timeout-minutes: 40
     permissions:
       contents: read
+      # The SignPath connector downloads the unsigned installer through the
+      # workflow-artifact API using this job's GITHUB_TOKEN.
+      actions: read
+    env:
+      # Step-level `if` cannot read the secrets context, so the opt-in flag is
+      # computed here: signing runs only when both the SIGNPATH_API_TOKEN
+      # secret and the SIGNPATH_SIGNING_POLICY_SLUG repository variable are
+      # set, keeping forks and unconfigured repos on the unsigned flow.
+      SIGNPATH_ENABLED: ${{ secrets.SIGNPATH_API_TOKEN != '' && vars.SIGNPATH_SIGNING_POLICY_SLUG != '' }}
     strategy:
       # Cancel remaining OS slots if one fails — publish-release won't ship a
       # release missing any platform, so the surviving slots would just burn
@@ -371,6 +380,17 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: ${{ matrix.dist_command }}
+
+      # Windows only, opt-in via SIGNPATH_ENABLED above: submit the NSIS
+      # installer to SignPath for Authenticode signing. The policy variable
+      # stays on test-signing until the SignPath Foundation release
+      # certificate is issued, then switches to release-signing.
+      - name: Sign Windows installer via SignPath
+        if: runner.os == 'Windows' && env.SIGNPATH_ENABLED == 'true'
+        uses: ./.github/actions/signpath-sign-windows
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
 
       - name: Stage per-format Linux update metadata
         if: matrix.update_metadata_format != ''
