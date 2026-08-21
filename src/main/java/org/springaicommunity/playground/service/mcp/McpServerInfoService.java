@@ -21,6 +21,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
 import org.springaicommunity.playground.service.SharedDataReader;
+import org.springaicommunity.playground.service.mcp.McpServerAuthTokenService.AccessMode;
+import org.springaicommunity.playground.service.mcp.McpServerAuthTokenService.AuthTokenChangedEvent;
 import org.springaicommunity.playground.service.mcp.catalog.McpCatalogEntry;
 import org.springaicommunity.playground.service.mcp.catalog.McpCatalogService;
 import org.springaicommunity.playground.service.mcp.client.HttpConnectionParametersWithExtras;
@@ -62,9 +64,11 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
     private final McpClientRegistrationRepository mcpClientRegistrationRepository;
     private final String defaultMcpServerName;
     private final String builtInServerDescription;
+    private final McpServerAuthTokenService authTokenService;
     private final boolean stdioServerMode;
     private final ThreadLocal<Boolean> skipPersist = ThreadLocal.withInitial(() -> Boolean.FALSE);
     private volatile boolean applicationReady = false;
+    private volatile int serverPort;
     private McpServerInfo defaultMcpServerInfo;
 
     public McpServerInfoService(ObjectMapper objectMapper, McpClientPropertiesService<?>[] mcpClientPropertiesServices,
@@ -72,7 +76,7 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
             ObjectProvider<McpServerInfoPersistenceService> mcpServerInfoPersistenceServiceProvider,
             McpClientRegistrationRepository mcpClientRegistrationRepository,
             @Value("${server.port:8282}") int serverPort, McpServerProperties mcpServerProperties,
-            SpringAiPlaygroundOptions playgroundOptions) {
+            SpringAiPlaygroundOptions playgroundOptions, McpServerAuthTokenService authTokenService) {
         this.objectMapper = objectMapper;
         this.mcpClientService = mcpClientService;
         this.mcpCatalogService = mcpCatalogService;
@@ -80,8 +84,14 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
         this.mcpClientRegistrationRepository = mcpClientRegistrationRepository;
         this.defaultMcpServerName = playgroundOptions.builtInMcpServer().name();
         this.builtInServerDescription = playgroundOptions.builtInMcpServer().description();
+        this.authTokenService = authTokenService;
         // Stdio transport has no HTTP /mcp to self-introspect; the loopback client must no-op (else boot crashes).
         this.stdioServerMode = mcpServerProperties.isStdio();
+        if (authTokenService.accessMode() == AccessMode.NONE && !this.stdioServerMode
+                && mcpServerProperties.isEnabled())
+            logger.warn("Built-in MCP server accepts unauthenticated requests on /mcp: "
+                    + "set " + McpServerAuthTokenService.PROPERTY_NAME + " or pick Bearer token in the "
+                    + "MCP Server settings drawer to require a bearer token.");
         this.typeMcpServerInfosMap = Arrays.stream(mcpClientPropertiesServices)
                 .collect(Collectors.toMap(McpClientPropertiesService::getTransportType,
                         mcpClientPropertiesService -> mcpClientPropertiesService.getDefaultConnections().entrySet()
@@ -89,16 +99,27 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
                                         buildMcpServerInfo(mcpClientPropertiesService.getTransportType(),
                                                 entry.getKey(), entry.getValue())))
                                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))));
+        this.serverPort = serverPort;
         this.defaultMcpServerInfo = buildDefaultMcpServerInfo(serverPort);
     }
 
     @Override
     public void onApplicationEvent(WebServerInitializedEvent event) {
         if (Objects.nonNull(this.defaultMcpServerInfo)) {
-            this.defaultMcpServerInfo = buildDefaultMcpServerInfo(event.getWebServer().getPort());
+            this.serverPort = event.getWebServer().getPort();
+            this.defaultMcpServerInfo = buildDefaultMcpServerInfo(this.serverPort);
             updateMcpServerInfo(defaultMcpServerInfo.mcpTransportType(), defaultMcpServerInfo.serverName(),
                     defaultMcpServerInfo);
         }
+    }
+
+    @EventListener
+    public void onAuthTokenChanged(AuthTokenChangedEvent event) {
+        if (this.stdioServerMode || Objects.isNull(this.defaultMcpServerInfo)) return;
+        this.defaultMcpServerInfo = buildDefaultMcpServerInfo(this.serverPort);
+        updateMcpServerInfo(this.defaultMcpServerInfo.mcpTransportType(), this.defaultMcpServerInfo.serverName(),
+                this.defaultMcpServerInfo);
+        updateDefaultMcpTool();
     }
 
     @EventListener
@@ -120,14 +141,22 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
         }));
     }
 
+    public boolean builtInServerTokenRequired() {
+        return this.authTokenService.accessMode() == AccessMode.BEARER_TOKEN;
+    }
+
     public McpServerInfo getDefaultMcpServerInfo() {
         return defaultMcpServerInfo;
     }
 
     private McpServerInfo buildDefaultMcpServerInfo(int serverPort) {
-        return buildMcpServerInfo(McpTransportType.STREAMABLE_HTTP, this.defaultMcpServerName,
-                new McpStreamableHttpClientProperties.ConnectionParameters("http://127.0.0.1:" + serverPort,
-                        "/mcp"), this.builtInServerDescription);
+        String baseUrl = "http://127.0.0.1:" + serverPort;
+        Object connection = this.authTokenService.currentToken()
+                .<Object>map(token -> new HttpConnectionParametersWithExtras.StreamableHttp(baseUrl, "/mcp",
+                        Map.of("Authorization", "Bearer " + token), null, null))
+                .orElseGet(() -> new McpStreamableHttpClientProperties.ConnectionParameters(baseUrl, "/mcp"));
+        return buildMcpServerInfo(McpTransportType.STREAMABLE_HTTP, this.defaultMcpServerName, connection,
+                this.builtInServerDescription);
     }
 
     private McpServerInfo buildMcpServerInfo(McpTransportType transportType, String serverName, Object connection) {

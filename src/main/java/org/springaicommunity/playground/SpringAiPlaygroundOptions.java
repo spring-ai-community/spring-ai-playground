@@ -32,7 +32,7 @@ public record SpringAiPlaygroundOptions(@NestedConfigurationProperty ToolStudio 
 
     public SpringAiPlaygroundOptions {
         if (builtInMcpServer == null) builtInMcpServer = new BuiltInMcpServer(null, null, null);
-        if (mcpServer == null) mcpServer = new McpServer(null, null);
+        if (mcpServer == null) mcpServer = new McpServer(null, null, null);
     }
 
     public record BuiltInMcpServer(String name, String description, ExposureMode exposureMode) {
@@ -45,10 +45,14 @@ public record SpringAiPlaygroundOptions(@NestedConfigurationProperty ToolStudio 
         }
     }
 
-    public record McpServer(RiskLevel composedToolsMaxRisk, List<ComposedTool> composedTools) {
+    public record McpServer(RiskLevel composedToolsMaxRisk, List<ComposedTool> composedTools, String authToken) {
         public McpServer {
             if (composedToolsMaxRisk == null) composedToolsMaxRisk = RiskLevel.L5;
             composedTools = composedTools == null ? List.of() : List.copyOf(composedTools);
+        }
+
+        public boolean authTokenRequired() {
+            return authToken != null && !authToken.isBlank();
         }
     }
 

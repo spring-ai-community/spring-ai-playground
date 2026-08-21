@@ -73,7 +73,7 @@ Once a server is connected and its tools check out, you can **re-expose** select
 
 7. Click the **gear icon** on the MCP Server Info header to open the **Composed Tools** drawer. Set a **Max risk to expose** cap (default `L3`), optionally tick **Require approval (HITL)**, then expand a server and tick the tools you want.
 
-![Composed Tools drawer - max-risk cap, HITL toggle, a server row with its risk chip, and the list of tools currently exposed on the built-in server](../assets/images/mcp-server/expose-tools-drawer.png)
+![Built-in MCP Server drawer - Authentication on top, then Composed Tools with the max-risk cap, HITL toggle, a server row with its risk chip, and the list of tools currently exposed on the built-in server](../assets/images/mcp-server/expose-tools-drawer.png)
 
 8. Each tool shows its own risk chip; rename the exposed alias or edit the description inline if you like. Ticking **HITL** on a tool lowers its effective risk by one band (shown as a `HITL -1` badge).
 

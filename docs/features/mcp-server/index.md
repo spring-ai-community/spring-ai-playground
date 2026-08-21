@@ -153,7 +153,7 @@ See the [MCP Inspector sub-page](inspector.md) for the full per-tab walkthrough,
 
 ## Expose external tools - the MCP Server Proxy { #expose-external-tools }
 
-The **gear icon** on the MCP Server Info header opens the **Composed Tools** drawer, which **re-publishes selected tools from your external connections through the built-in server** (`spring-ai-playground-built-in-mcp`) - so they're callable from Agentic Chat *and* external `/mcp` clients, each wrapped with a risk level, optional HITL approval, logging, and secret masking.
+The **gear icon** on the MCP Server Info header opens the **Built-in MCP Server** drawer. Its **Authentication** section switches the built-in server between **None** and **Bearer token** (reveal, Generate, Copy; applied without a restart - see [Require a bearer token](../../getting-started/external-connections.md#bearer-token)). Its **Composed Tools** section **re-publishes selected tools from your external connections through the built-in server** (`spring-ai-playground-built-in-mcp`) - so they're callable from Agentic Chat *and* external `/mcp` clients, each wrapped with a risk level, optional HITL approval, logging, and secret masking.
 
 This is the **MCP Server Proxy**. Its [dedicated page](proxy.md) covers the full walkthrough - the per-composition risk cap, per-tool HITL and alias/description overrides, the safe-wrapping contract, the poisoning/shadowing guards, and how external clients reach the proxied tools.
 

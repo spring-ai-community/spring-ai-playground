@@ -399,7 +399,7 @@ public class McpExposedToolsPanel {
                 .toList();
     }
 
-    private Span sectionLabel(String text) {
+    static Span sectionLabel(String text) {
         Span label = new Span(text);
         label.getStyle().set("font-weight", "600").set("font-size", "var(--lumo-font-size-s)")
                 .set("color", "var(--lumo-secondary-text-color)").set("margin-top", "0.5em");

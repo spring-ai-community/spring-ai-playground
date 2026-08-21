@@ -57,6 +57,7 @@ import org.springaicommunity.playground.service.util.SecretMasking;
 import org.springaicommunity.playground.webui.JsonEditorWrapper;
 import org.springaicommunity.playground.webui.VaadinUtils;
 import org.springaicommunity.playground.webui.tool.StaticVariableForm;
+import org.springframework.http.HttpHeaders;
 import org.springframework.util.StringUtils;
 
 import java.beans.PropertyChangeSupport;
@@ -168,6 +169,7 @@ public class McpServerConfigView extends VerticalLayout {
     private String originalDesc;
     private McpTransportType originalTransport;
     private String originalJson;
+    private String builtInAuthorization;
     private String originalCategory;
     private Set<String> originalTags;
 
@@ -840,6 +842,8 @@ public class McpServerConfigView extends VerticalLayout {
                 if (root.isObject()) {
                     ObjectNode obj = (ObjectNode) root;
                     Map<String, String> headers = readHeaders(obj.get(HEADERS_KEY));
+                    this.builtInAuthorization = this.mcpClientService.isSelfLoopback(originalName)
+                            ? headers.remove(HttpHeaders.AUTHORIZATION) : null;
                     populateExtras(headers);
                     populateOAuth(obj.get(OAUTH_KEY));
                     populateHttpUrl(obj, type);
@@ -996,6 +1000,12 @@ public class McpServerConfigView extends VerticalLayout {
     private void populateExtras(Map<String, String> headers) {
         headerRows.clear();
         headersContainer.removeAll();
+        if (this.builtInAuthorization != null) {
+            Span managedHint = new Span("Bearer token is managed in the built-in server settings (gear icon).");
+            managedHint.getStyle().set("color", "var(--lumo-secondary-text-color)")
+                    .set("font-size", "var(--lumo-font-size-s)");
+            headersContainer.add(managedHint);
+        }
         presetInsertSelect.setValue(HeaderPreset.NONE);
         if (headers != null) {
             headers.forEach((k, v) -> {
@@ -1040,6 +1050,7 @@ public class McpServerConfigView extends VerticalLayout {
 
     private Map<String, String> snapshotHeaders() {
         Map<String, String> headers = new LinkedHashMap<>();
+        if (this.builtInAuthorization != null) headers.put(HttpHeaders.AUTHORIZATION, this.builtInAuthorization);
         for (StaticVariableForm row : headerRows) {
             String key = row.getKey();
             String value = row.getValue();

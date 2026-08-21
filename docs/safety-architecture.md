@@ -86,7 +86,7 @@ What each layer controls, in detail:
 | **2** | `SandboxOverrides` | Per-tool widening: `networkMode`, `hostsAllow`, `fileRead`/`fileWrite`, `destructive`, `addAllow/DenyClasses`, `fsBasePath`. |
 | **2** | Posture calculator | `SandboxPostureCalculator.compute()` - pure function from overrides to `RiskLevel`. |
 | **2** | Risk badge | L0 baseline · L3 narrow widening · L4 broad widening · L5 critical class re-enabled or destructive fs op. |
-| **3** | MCP transport auth | The app `SecurityFilterChain` is present (for Vaadin and outbound MCP-client OAuth) but `/mcp` and `/sse` are `permitAll`, so the built-in server is **unauthenticated by default**. Gate it by adding Spring AI MCP Security (OAuth2 resource server / API key) for deployed scenarios. |
+| **3** | MCP transport auth | The app `SecurityFilterChain` is present (for Vaadin and outbound MCP-client OAuth) but `/mcp` and `/sse` are `permitAll`, so the built-in server is **unauthenticated by default**. Pick **Bearer token** under MCP Server -> gear -> Authentication, or set `spring.ai.playground.mcp-server.auth-token`, to require a bearer token on both paths (a startup warning fires while neither is set), or add Spring AI MCP Security (OAuth2 resource server / API key) for richer deployed scenarios. |
 | **3** | MCP transport | Streamable HTTP at `/mcp`. Binds to **all interfaces (0.0.0.0) by default** because `server.address` is unset; set it to `127.0.0.1` to restrict to localhost. |
 
 Layer 1 is fixed code in [`JsToolExecutor`](https://github.com/spring-ai-community/spring-ai-playground/blob/main/src/main/java/org/springaicommunity/playground/service/tool/runtime/JsToolExecutor.java), [`JsRuntimeGlobals`](https://github.com/spring-ai-community/spring-ai-playground/blob/main/src/main/java/org/springaicommunity/playground/service/tool/runtime/JsRuntimeGlobals.java), [`SafeHttpFetch`](https://github.com/spring-ai-community/spring-ai-playground/blob/main/src/main/java/org/springaicommunity/playground/service/tool/runtime/SafeHttpFetch.java), and [`SafeFs`](https://github.com/spring-ai-community/spring-ai-playground/blob/main/src/main/java/org/springaicommunity/playground/service/tool/runtime/SafeFs.java). Layer 2 lives in `SandboxOverrides` per `ToolSpec` and `SandboxPostureCalculator` for the badge. Layer 3 is the MCP transport perimeter: the app Spring Security permits `/mcp` by default (it is wired for Vaadin and outbound MCP-client OAuth), so gating the built-in server is an opt-in you add - independent of the sandbox.
@@ -297,7 +297,7 @@ Two design choices are worth noting:
 Tool Studio sits on top of two distinct Spring projects:
 
 - **Spring AI** - `spring-ai-starter-mcp-server` exposes the built-in MCP server over Streamable HTTP at `/mcp`. Every Local-Passed tool registers itself with the server's `McpSyncServer` via `addTool(FunctionToolCallback)`. The sandbox runs *inside* the callback, so MCP never sees a tool that hasn't been through `JsToolExecutor`.
-- **Spring Security** - present for Vaadin and outbound MCP-client OAuth; it permits `/mcp` and `/sse`, so the built-in MCP server is unauthenticated by default. Add Spring AI's official [MCP Security](https://docs.spring.io/spring-ai/reference/api/mcp/mcp-security.html) configuration to gate it for deployed scenarios.
+- **Spring Security** - present for Vaadin and outbound MCP-client OAuth; it permits `/mcp` and `/sse`, so the built-in MCP server is unauthenticated by default. Set `spring.ai.playground.mcp-server.auth-token` for a bearer-token gate on both paths, or add Spring AI's official [MCP Security](https://docs.spring.io/spring-ai/reference/api/mcp/mcp-security.html) configuration for richer deployed scenarios.
 
 ```mermaid
 flowchart LR
@@ -310,7 +310,7 @@ flowchart LR
     EXT --> SEC --> TRANS --> SYNC --> SAND
 ```
 
-The arrows go one way: callers cannot reach the sandbox without traversing the transport and (when enabled) the security filter chain. `SecurityFilterChain` permits `/mcp` and `/sse` by default, so the built-in server is unauthenticated; OAuth2 / API key are the typical choices when you gate it. The sandbox in the bottom box is everything from the previous two diagrams - the sandbox is what gives Spring AI's MCP server a safe runtime for user-authored tools; Spring Security is what gives it an adversarial perimeter once the transport is gated. Both fail to different threats.
+The arrows go one way: callers cannot reach the sandbox without traversing the transport and (when enabled) the security filter chain. `SecurityFilterChain` permits `/mcp` and `/sse` by default, so the built-in server is unauthenticated until you set `spring.ai.playground.mcp-server.auth-token`; OAuth2 / API key are the typical choices for richer gating. The sandbox in the bottom box is everything from the previous two diagrams - the sandbox is what gives Spring AI's MCP server a safe runtime for user-authored tools; Spring Security is what gives it an adversarial perimeter once the transport is gated. Both fail to different threats.
 
 ## Risk Level decision matrix
 
@@ -359,7 +359,7 @@ Concrete threats, the layer that catches each, and the mechanism. This is the re
 | Tool author wants raw `java.io.File` read | Layer 2 (declared widening) | `addAllowClasses: [java.io.File*]` - badge becomes L4 |
 | Tool author wants raw `java.io.FileWriter` write | Layer 2 (declared widening) | `addAllowClasses: [java.io.FileWriter*]` - badge becomes **L5** |
 | External attacker calls `/mcp` from another machine | Layer 3 (opt-in) | Add Spring Security (auth / network ACL) on the MCP transport - not enforced by default |
-| Built-in server reachable off-host (default bind-all) | Layer 3 (opt-in) | **Not mitigated by default** - `server.address` is unset, so the server binds all interfaces; set `server.address=127.0.0.1` (and/or add MCP Security) before running outside a trusted host |
+| Built-in server reachable off-host (default bind-all) | Layer 3 (opt-in) | **Not mitigated by default** - `server.address` is unset, so the server binds all interfaces; set `server.address=127.0.0.1` (and/or `spring.ai.playground.mcp-server.auth-token`) before running outside a trusted host |
 
 The first seven threats are blocked at the **always-on Java sandbox** - no per-tool configuration can disable them. The next three are *opt-in widenings* that surface as risk-level badges before publish, so the gate is review rather than runtime. The last two live entirely on the **MCP transport** layer and are independent of how individual tools were authored.
 

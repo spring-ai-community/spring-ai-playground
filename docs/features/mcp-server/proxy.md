@@ -36,9 +36,9 @@ An external MCP server can be written in any language and run anywhere - you did
 
 ## The Composed Tools drawer
 
-The **gear icon** on the MCP Server Info header opens the **Composed Tools** drawer.
+The **gear icon** on the MCP Server Info header opens the **Built-in MCP Server** drawer. Its top section, **Authentication**, decides who may call the built-in server ([Require a bearer token](../../getting-started/external-connections.md#bearer-token)); **Composed Tools** below it decides what external tools it re-publishes.
 
-![Composed Tools drawer with the max-risk cap set to L3, a HITL-all toggle, a DeepWiki server row carrying a Server: L1 - Safe chip, and the list of tools currently exposed on the built-in server](../../assets/images/mcp-server/expose-tools-drawer.png){ loading=lazy }
+![Built-in MCP Server drawer - the Authentication section on top, then Composed Tools with the max-risk cap, a HITL-all toggle, a DeepWiki server row carrying a Server: L1 - Safe chip, and the list of tools currently exposed on the built-in server](../../assets/images/mcp-server/expose-tools-drawer.png){ loading=lazy }
 
 - **Max risk to expose** caps which tools can be selected - any tool whose effective risk exceeds the cap (default `L3`) is disabled in the list.
 - **Require approval (HITL)** can be set per tool, or for all selected tools at once via the header checkbox. Marking a tool HITL lowers its effective risk by one band and **gates the call at runtime** - external clients are asked via MCP elicitation, and chat on this device shows an approval dialog (see [Human-in-the-Loop](../human-in-the-loop.md)).

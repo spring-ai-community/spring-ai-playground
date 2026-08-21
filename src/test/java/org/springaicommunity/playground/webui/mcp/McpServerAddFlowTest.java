@@ -17,6 +17,7 @@ package org.springaicommunity.playground.webui.mcp;
 
 import com.vaadin.browserless.SpringBrowserlessTest;
 import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.html.Span;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
@@ -37,6 +38,15 @@ class McpServerAddFlowTest extends SpringBrowserlessTest {
 
         McpServerConfigView configView = $(McpServerConfigView.class, view).first();
         assertThat(configView).isNotNull();
+    }
+
+    @Test
+    void builtInServerDetailShowsNoManagedTokenHintWhileTheServerIsOpen() {
+        McpServerView view = navigate(McpServerView.class);
+        McpServerConfigView configView = $(McpServerConfigView.class, view).first();
+
+        assertThat($(Span.class, configView).all()).extracting(Span::getText)
+                .noneMatch(spanText -> spanText.startsWith("Bearer token is managed"));
     }
 
 }

@@ -244,6 +244,9 @@ The bind mount lands on `/root/spring-ai-playground`, which is where the contain
 
 For an HTTP client, the endpoint is `http://localhost:8282/mcp`.
 
+!!! tip "Locking the container down"
+    If the container is reachable from anything other than your own machine, add `-e SPRING_AI_PLAYGROUND_MCP_SERVER_AUTH_TOKEN=<token>` to the `docker run` line and send `Authorization: Bearer <token>` from the client - see [Require a bearer token](../getting-started/external-connections.md#bearer-token). From 0.2.0-M13 a tools-only container can also skip the model provider with `-e SPRING_AI_MODEL_CHAT=none -e SPRING_AI_MODEL_EMBEDDING=none`.
+
 For Claude Desktop, run the same image in stdio mode instead. Add this to `claude_desktop_config.json`:
 
 ```json

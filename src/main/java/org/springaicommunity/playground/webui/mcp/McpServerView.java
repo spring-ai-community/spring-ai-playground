@@ -18,13 +18,16 @@ package org.springaicommunity.playground.webui.mcp;
 import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.html.Hr;
 import com.vaadin.flow.component.icon.VaadinIcon;
+import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.auth.AnonymousAllowed;
 import com.vaadin.flow.spring.annotation.SpringComponent;
 import com.vaadin.flow.spring.annotation.UIScope;
 import org.springaicommunity.playground.service.analytics.UsageAnalyticsService;
+import org.springaicommunity.playground.service.mcp.McpServerAuthTokenService;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
 import org.springaicommunity.playground.service.mcp.catalog.McpCatalogService;
@@ -83,7 +86,7 @@ public class McpServerView extends ContentWorkspaceView {
             McpToolRiskEvaluator mcpToolRiskEvaluator, McpRegistrationRiskPreview mcpRegistrationRiskPreview,
             McpExposedToolService mcpExposedToolService, McpCompositionService mcpCompositionService,
             ToolSpecService toolSpecService, UsageAnalyticsService usageAnalyticsService,
-            UsageEventTracker usageEventTracker) {
+            UsageEventTracker usageEventTracker, McpServerAuthTokenService mcpServerAuthTokenService) {
         this.mcpServerInfoService = mcpServerInfoService;
         this.mcpClientService = mcpClientService;
         this.mcpCategoryService = mcpCategoryService;
@@ -133,14 +136,24 @@ public class McpServerView extends ContentWorkspaceView {
                 event -> addNewMcpServerDetails());
         addHeaderAction(newMcpConnectionButton);
 
-        WorkspaceSettingsDrawer exposeToolsDrawer = installSettingsDrawer(VaadinIcon.COG_O,
-                "Built-in MCP Server Composed Tools",
-                "Choose what the built-in MCP server exposes - built-in tools, composed external tools, or both");
+        WorkspaceSettingsDrawer builtInServerDrawer = installSettingsDrawer(VaadinIcon.COG_O,
+                "Built-in MCP Server",
+                "Built-in MCP server settings - who can call it, and which tools it exposes");
+        McpServerAccessPanel accessPanel = new McpServerAccessPanel(mcpServerAuthTokenService);
         McpExposedToolsPanel exposeToolsPanel = new McpExposedToolsPanel(this.mcpExposedToolService,
                 this.mcpCompositionService, this.mcpServerInfoService, this.mcpClientService,
                 this.mcpToolRiskEvaluator, this.toolSpecService, this.usageEventTracker);
-        exposeToolsDrawer.setBodyFactory(exposeToolsPanel::build);
-        exposeToolsDrawer.setApplyButton("Apply", exposeToolsPanel::apply);
+        builtInServerDrawer.setBodyFactory(() -> {
+            VerticalLayout drawerBody = new VerticalLayout(accessPanel.build(), new Hr(),
+                    McpExposedToolsPanel.sectionLabel("Composed Tools"), exposeToolsPanel.build());
+            drawerBody.setPadding(false);
+            return drawerBody;
+        });
+        builtInServerDrawer.setApplyButton("Apply", () -> {
+            if (!accessPanel.apply()) return;
+            exposeToolsPanel.apply();
+            builtInServerDrawer.close();
+        }, false);
 
         setHeaderLabel("MCP Server Info");
 
