@@ -574,7 +574,7 @@ class HomeSystemPanel extends Div {
         long approved = snap.mcpHitlByOutcome.getOrDefault("approved", 0L);
         long hitlTotal = snap.mcpHitlByOutcome.values().stream().mapToLong(Long::longValue).sum();
         String hitlRate = hitlTotal == 0 ? "no HITL yet"
-                : Math.round(approved * 100.0 / hitlTotal) + "% HITL approved";
+                : Math.round(approved * 100.0 / hitlTotal) + "% HITL approved (both gates)";
 
         Div section = new Div();
         section.getStyle().set("display", "flex").set("flex-direction", "column").set("gap", "0.5rem");

@@ -270,6 +270,10 @@ public class SystemMetricsSnapshot {
             String outcome = c.getId().getTag("outcome");
             if (outcome == null) return;
             s.mcpHitlByOutcome.merge(outcome, (long) c.count(), Long::sum);
+            String side = c.getId().getTag("side");
+            if (side != null) {
+                s.mcpHitlBySideOutcome.merge(side + " / " + outcome, (long) c.count(), Long::sum);
+            }
         });
 
         registry.find(McpToolObservationFilter.TOOL_RISK_COUNTER).counters().forEach(c -> {
@@ -427,6 +431,7 @@ public class SystemMetricsSnapshot {
 
         public final Map<String, Long> mcpRiskSignalByType = new LinkedHashMap<>();
         public final Map<String, Long> mcpHitlByOutcome = new LinkedHashMap<>();
+        public final Map<String, Long> mcpHitlBySideOutcome = new LinkedHashMap<>();
 
         public final Map<String, Long> mcpToolRiskByLevel = new LinkedHashMap<>();
     }

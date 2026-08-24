@@ -123,6 +123,23 @@ class SystemMetricsSnapshotTest {
     }
 
     @Test
+    void mcpHitlDecisionsAlsoKeepTheSideSplit() {
+        MeterRegistry registry = new SimpleMeterRegistry();
+        registry.counter("mcp.hitl.decision", "outcome", "approved", "side", "chat").increment();
+        registry.counter("mcp.hitl.decision", "outcome", "approved", "side", "server").increment();
+        registry.counter("mcp.hitl.decision", "outcome", "approved", "side", "server").increment();
+        registry.counter("mcp.hitl.decision", "outcome", "declined", "side", "chat").increment();
+
+        Snapshot s = new SystemMetricsSnapshot(registry).capture();
+
+        assertThat(s.mcpHitlBySideOutcome).containsEntry("chat / approved", 1L);
+        assertThat(s.mcpHitlBySideOutcome).containsEntry("server / approved", 2L);
+        assertThat(s.mcpHitlBySideOutcome).containsEntry("chat / declined", 1L);
+        assertThat(s.mcpHitlBySideOutcome).doesNotContainKey("server / declined");
+        assertThat(s.mcpHitlByOutcome).containsEntry("approved", 3L);
+    }
+
+    @Test
     void mcpToolRiskIsGroupedByLevel() {
         MeterRegistry registry = new SimpleMeterRegistry();
         registry.counter("saip.tool.risk", "level", "L5").increment();
