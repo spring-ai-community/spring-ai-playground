@@ -338,7 +338,8 @@ public class ChatContentView extends VerticalLayout {
                 applyStreamingState(false);
                 return;
             }
-            this.userPromptTextArea.getElement().executeJs("return this.value;").then(String.class, userPrompt -> {
+            this.userPromptTextArea.getElement().executeJs("return this.value;").then(String.class, rawPrompt -> {
+                String userPrompt = rawPrompt.strip();
                 if (userPrompt.isBlank() && this.pendingImages.isEmpty())
                     return;
                 this.userPromptTextArea.getElement().executeJs("this.value='';");
@@ -353,6 +354,9 @@ public class ChatContentView extends VerticalLayout {
             if (!event.isComposing() && !event.getModifiers().contains(KeyModifier.SHIFT))
                 submitButton.click();
         });
+        this.userPromptTextArea.getElement().executeJs(
+                "this.addEventListener('keydown', e => {"
+                        + " if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) e.preventDefault(); })");
 
         String attachAccept = "image/*,.pdf,.txt,.md,.markdown,.html,.htm,.docx,.pptx";
         ChatAttach attach = new ChatAttach(attachAccept, this::onImageAttached, this::onDocumentAttached,
@@ -2018,8 +2022,7 @@ public class ChatContentView extends VerticalLayout {
 
         public void markError(Throwable throwable) {
             this.streamStatus = STATUS_ERROR;
-            this.streamStatusMessage = Optional.ofNullable(throwable).map(Throwable::getMessage)
-                    .filter(s -> !s.isBlank()).orElse("Unknown error");
+            this.streamStatusMessage = ChatErrorMessages.friendly(throwable);
         }
 
         private static Span buildStreamStatusIndicator(String status, String stage, String message) {

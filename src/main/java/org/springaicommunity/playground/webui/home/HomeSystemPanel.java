@@ -281,7 +281,7 @@ class HomeSystemPanel extends Div {
                 awaiting > 0,
                 () -> UI.getCurrent().navigate(McpServerView.class)));
         grid.add(chip(VaadinIcon.BULLSEYE, "Exposed on MCP",
-                exposed + " of " + localPassed, false,
+                exposed + " of " + localPassed + " built-in", false,
                 () -> UI.getCurrent().navigate(McpServerView.class)));
         return grid;
     }

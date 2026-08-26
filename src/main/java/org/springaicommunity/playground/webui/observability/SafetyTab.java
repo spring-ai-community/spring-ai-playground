@@ -87,11 +87,11 @@ public class SafetyTab extends BaseDashboardTab {
                                 "L0 verified · L1 safe · L2 low · L3 moderate · L4 high · L5 critical.",
                         riskLevelBar),
                 DashboardLayout.chartCard("HITL decisions",
-                        "lifetime — counter mcp.hitl.decision, split by gate",
+                        "lifetime - counter mcp.hitl.decision, split by gate",
                         "Human-in-the-loop approval-gate outcomes per gate. chat = decisions this app's own " +
                                 "approval dialog witnessed; server = decisions an external MCP client asserted " +
-                                "via elicitation. Outcomes: approved / declined, plus ask-failed (chat) and " +
-                                "denied / elicit-failed (server).",
+                                "via elicitation. Outcomes: approved / declined / timeout, plus ask-failed " +
+                                "(chat) and denied / elicit-failed (server).",
                         hitlByOutcomeBar),
                 DashboardLayout.chartCard("Sandbox guard blocks",
                         "lifetime — counter sandbox.guard.blocked",

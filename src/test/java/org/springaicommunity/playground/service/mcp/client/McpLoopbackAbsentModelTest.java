@@ -72,6 +72,9 @@ class McpLoopbackAbsentModelTest extends McpLoopbackClientTestSupport {
         assertThatThrownBy(() -> this.chatModel.call(new Prompt("hello")))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage(AbsentModelFallbackConfig.CHAT_MODEL_ABSENT);
+        assertThatThrownBy(() -> this.chatModel.stream(new Prompt("hello")).blockFirst())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage(AbsentModelFallbackConfig.CHAT_MODEL_ABSENT);
         assertThatThrownBy(() -> this.embeddingModel.embed("hello"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage(AbsentModelFallbackConfig.EMBEDDING_MODEL_ABSENT);

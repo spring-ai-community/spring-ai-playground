@@ -23,5 +23,7 @@ public interface HumanQuestionHandler extends PendingInteraction {
 
     String TOOL_CONTEXT_KEY = "humanQuestionHandler";
 
+    String TIMEOUT_ANSWER = "Timeout";
+
     Map<String, String> ask(List<HumanQuestion> questions);
 }

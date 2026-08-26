@@ -22,6 +22,7 @@ import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springaicommunity.playground.config.AbsentModelFallbackConfig;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.embedding.EmbeddingOptions;
@@ -92,6 +93,7 @@ class HomeProviderStatus extends Div {
     private Div buildChatPill() {
         Div pill = pillContainer();
         ChatModel chatModel = chatModelProvider.getIfAvailable();
+        if (chatModel instanceof AbsentModelFallbackConfig.AbsentChatModel) chatModel = null;
 
         if (chatModel == null) {
             pill.add(statusDot("var(--lumo-error-color)"));
@@ -131,7 +133,9 @@ class HomeProviderStatus extends Div {
     }
 
     private Div buildEmbeddingPill() {
-        if (embeddingModelProvider.getIfAvailable() == null && embeddingOptions.isEmpty()) {
+        EmbeddingModel embeddingModel = embeddingModelProvider.getIfAvailable();
+        if (embeddingModel instanceof AbsentModelFallbackConfig.AbsentEmbeddingModel) return null;
+        if (embeddingModel == null && embeddingOptions.isEmpty()) {
             return null;
         }
         Div pill = pillContainer();
@@ -190,7 +194,7 @@ class HomeProviderStatus extends Div {
 
     private void probeChatReadiness(UI ui) {
         ChatModel chatModel = chatModelProvider.getIfAvailable();
-        if (chatModel == null) return;
+        if (chatModel == null || chatModel instanceof AbsentModelFallbackConfig.AbsentChatModel) return;
         String className = chatModel.getClass().getSimpleName().toLowerCase();
 
         CompletableFuture.supplyAsync(() -> {
@@ -223,7 +227,7 @@ class HomeProviderStatus extends Div {
         if (cachedEmbeddingDimensions != null) return;
         if (embeddingProbeAttempted) return;
         EmbeddingModel em = embeddingModelProvider.getIfAvailable();
-        if (em == null) return;
+        if (em == null || em instanceof AbsentModelFallbackConfig.AbsentEmbeddingModel) return;
         embeddingProbeAttempted = true;
         CompletableFuture.supplyAsync(() -> {
             try {

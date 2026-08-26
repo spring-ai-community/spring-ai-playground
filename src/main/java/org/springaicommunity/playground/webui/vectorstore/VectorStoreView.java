@@ -118,7 +118,8 @@ public class VectorStoreView extends ContentWorkspaceView {
         this.ragPipelineService = ragPipelineService;
 
         this.vectorStoreDocumentView =
-                new VectorStoreDocumentView(offlineEtlPipelineService, buildDocumentChangeSupport());
+                new VectorStoreDocumentView(offlineEtlPipelineService, ragPipelineService,
+                        buildDocumentChangeSupport());
         this.vectorStorePipelineListView = new VectorStorePipelineListView(ragPipelineService,
                 buildPipelineChangeSupport(), this::onEditPipelineRequested);
         this.vectorStoreDocumentView.enableCollapse();

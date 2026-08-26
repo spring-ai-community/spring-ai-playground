@@ -2507,6 +2507,7 @@ function createMainWindow() {
   mainWindow = new BrowserWindow({
     width, height,
     minWidth: 1280, minHeight: 820,
+    title: 'Spring AI Playground',
     show: false,
     fullscreen: false,
     autoHideMenuBar: true,
@@ -2577,7 +2578,10 @@ function createMainWindow() {
   contents.on('did-navigate-in-page', (event, url, isMainFrame) => {
     if (isMainFrame) recordMainWindowActivity(url);
   });
-  contents.on('page-title-updated', (event, title) => recordMainWindowActivity(contents.getURL(), title));
+  contents.on('page-title-updated', (event, title) => {
+    event.preventDefault();
+    recordMainWindowActivity(contents.getURL(), title);
+  });
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
       shell.openExternal(url);
       return { action: 'deny' };

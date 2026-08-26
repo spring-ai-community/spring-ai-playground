@@ -24,6 +24,8 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -51,11 +53,17 @@ public class RagPipelineService implements PersistenceServiceInterface<RagPipeli
 
     public List<RagPipeline> list() {
         return this.pipelines.values().stream()
-                .sorted((a, b) -> Long.compare(b.updatedAt(), a.updatedAt())).toList();
+                .sorted(Comparator.comparingLong(RagPipeline::updatedAt).reversed()).toList();
     }
 
     public Optional<RagPipeline> get(String id) {
         return Optional.ofNullable(this.pipelines.get(id));
+    }
+
+    public List<RagPipeline> referencing(Collection<String> docInfoIds) {
+        return list().stream()
+                .filter(pipeline -> pipeline.docInfoIds().stream().anyMatch(docInfoIds::contains))
+                .toList();
     }
 
     public RagPipeline create(String name, String description, List<String> docInfoIds,
@@ -127,7 +135,7 @@ public class RagPipelineService implements PersistenceServiceInterface<RagPipeli
 
     @Override
     public void onStart() throws IOException {
-        loads().forEach(p -> this.pipelines.put(p.id(), p));
+        loads().forEach(pipeline -> this.pipelines.put(pipeline.id(), pipeline));
         logger.info("Loaded {} RagPipeline(s) from {}", this.pipelines.size(), this.saveDir);
     }
 }

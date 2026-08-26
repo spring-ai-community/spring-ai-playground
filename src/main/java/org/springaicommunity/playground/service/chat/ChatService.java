@@ -19,6 +19,7 @@ package org.springaicommunity.playground.service.chat;
 import com.openai.core.JsonValue;
 import com.openai.models.chat.completions.ChatCompletionChunk;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
+import org.springaicommunity.playground.config.AbsentModelFallbackConfig;
 import org.springaicommunity.playground.config.MdcIdentityFilter;
 import org.springaicommunity.playground.service.SharedDataReader;
 import org.springaicommunity.playground.service.agent.AgentTurn;
@@ -477,6 +478,10 @@ public class ChatService {
 
     public String getChatModelProvider() {
         return this.chatModel.getClass().getSimpleName().replace("ChatModel", "");
+    }
+
+    public boolean isChatModelAbsent() {
+        return this.chatModel instanceof AbsentModelFallbackConfig.AbsentChatModel;
     }
 
     public ChatProvider getChatProvider() {

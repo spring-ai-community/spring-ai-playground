@@ -180,6 +180,40 @@ class ChatConversationReloadTest extends SpringBrowserlessTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void conversationInTheUrlWinsOverTheSelectionRestoredFromBrowserStorage() {
+        long now = System.currentTimeMillis();
+        this.chatHistoryService.putIfAbsentChatHistory(new ChatHistory("pinned-conv-a", "Pinned A", now, now,
+                "sys", (DefaultChatOptions) ChatOptions.builder().build(),
+                () -> List.of(new UserMessage("alpha question"), new AssistantMessage("alpha answer"))));
+        ChatHistory restored = new ChatHistory("pinned-conv-b", "Pinned B", now + 1, now + 1, "sys",
+                (DefaultChatOptions) ChatOptions.builder().build(),
+                () -> List.of(new UserMessage("beta question"), new AssistantMessage("beta answer")));
+        this.chatHistoryService.putIfAbsentChatHistory(restored);
+
+        UI.getCurrent().navigate(ChatView.class, QueryParameters.of("conv", "pinned-conv-a"));
+        roundTrip();
+        ChatView view = (ChatView) getCurrentView();
+        ChatHistoryView historyView = $(ChatHistoryView.class, view).single();
+        historyView.applyRestoredSelection(restored);
+        roundTrip();
+
+        ListBox<ChatHistory> historyList = $(ListBox.class, view)
+                .withCondition(box -> ((ListBox<Object>) box).getListDataView().getItems()
+                        .anyMatch(ChatHistory.class::isInstance))
+                .single();
+        assertThat(historyList.getValue().conversationId()).isEqualTo("pinned-conv-a");
+        assertThat(markdownContents(view)).anyMatch(text -> text.contains("alpha answer"));
+        assertThat(markdownContents(view)).noneMatch(text -> text.contains("beta answer"));
+
+        UI.getCurrent().navigate(ChatView.class);
+        roundTrip();
+        historyView.applyRestoredSelection(restored);
+        roundTrip();
+        assertThat(markdownContents(view)).anyMatch(text -> text.contains("beta answer"));
+    }
+
+    @Test
     void reloadedThinkAndMcpPanelsRenderInsideBoundedScrollerChain() {
         long now = System.currentTimeMillis();
         Map<String, Object> metadata = new HashMap<>();

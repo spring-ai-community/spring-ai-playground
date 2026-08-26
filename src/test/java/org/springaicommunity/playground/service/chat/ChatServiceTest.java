@@ -19,6 +19,7 @@ import tools.jackson.databind.ObjectMapper;
 import com.openai.core.JsonValue;
 import com.openai.models.chat.completions.ChatCompletionChunk;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
+import org.springaicommunity.playground.config.AbsentModelFallbackConfig;
 import org.springaicommunity.playground.service.SpringAiPlaygroundRagAdvisor;
 import org.springaicommunity.playground.service.tool.FileUploadHandler;
 import org.springaicommunity.playground.service.tool.HumanQuestionHandler;
@@ -386,6 +387,20 @@ class ChatServiceTest {
                 ragPipelineService, List::of, null, new ChatRequestOptionsFactory(new ObjectMapper(), null), null,
                 null, Duration.ofMinutes(10));
         assertEquals("MockLlmProvider", service.getChatModelProvider());
+        assertFalse(service.isChatModelAbsent());
+    }
+
+    @Test
+    void absentChatModelIsReportedAsAbsent() {
+        SpringAiPlaygroundOptions playgroundOptions =
+                new SpringAiPlaygroundOptions(null, true, "", new SpringAiPlaygroundOptions.Chat("systemPrompt",
+                        List.of(), null, null, null,
+                        null, null, null, null, null), null, null);
+        ChatService service = new ChatService(new AbsentModelFallbackConfig.AbsentChatModel(), mock(ChatClient.class),
+                mock(ChatMemory.class), playgroundOptions, ragPipelineService, List::of, null,
+                new ChatRequestOptionsFactory(new ObjectMapper(), null), null, null, Duration.ofMinutes(10));
+
+        assertTrue(service.isChatModelAbsent());
     }
 
     private static final class MockLlmProviderChatModel implements ChatModel {

@@ -74,18 +74,29 @@ final class HitlApprovalInterceptor implements AgentRoundInterceptor {
         }
 
         Map<String, String> answers;
+        boolean askFailed = false;
         try {
             answers = handler.ask(questions);
         } catch (RuntimeException e) {
             logger.warn("hitl.ask-failed error={}", e.getMessage());
-            countDecision("ask-failed");
+            askFailed = true;
             answers = Map.of();
         }
         Map<String, Interception> claims = new LinkedHashMap<>();
         for (Map.Entry<String, ToolCall> entry : gatedById.entrySet()) {
             ToolCall call = entry.getValue();
             String answer = answers == null ? null : answers.get(entry.getKey());
-            if (!"Approve".equalsIgnoreCase(answer)) {
+            if (askFailed) {
+                turn.markDeclined(call.name());
+                claims.put(call.id(), Interception.of(AgentTurnMessages.approvalUnavailable(call.name())));
+                logger.info("hitl.ask-failed tool={}", call.name());
+                countDecision("ask-failed");
+            } else if (HumanQuestionHandler.TIMEOUT_ANSWER.equals(answer)) {
+                turn.markDeclined(call.name());
+                claims.put(call.id(), Interception.of(AgentTurnMessages.approvalTimedOut(call.name())));
+                logger.info("hitl.timeout tool={}", call.name());
+                countDecision("timeout");
+            } else if (!"Approve".equalsIgnoreCase(answer)) {
                 turn.markDeclined(call.name());
                 claims.put(call.id(), Interception.of(AgentTurnMessages.declined(call.name())));
                 logger.info("hitl.declined tool={}", call.name());

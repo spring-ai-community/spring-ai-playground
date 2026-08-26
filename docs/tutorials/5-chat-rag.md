@@ -23,7 +23,7 @@ description: Tutorial 5 - RAG without tools. Use an indexed document as grounded
 
 ## What to observe
 
-- A **RAG** panel appears above the answer with the stages that ran and the documents retrieval returned. With a plain document source there is one stage: the search itself.
+- A **RAG** panel appears above the answer with the stages that ran and the documents retrieval returned. With a plain document source the trace reads `Stages: Retrieve → Re-rank → Augment` - no stage costs an extra LLM call, and retrieval is the search itself.
 - If the answer doesn't reflect the document, go back to Tutorial 3 and re-check the similarity search. Ungrounded answers usually mean retrieval failed, not generation.
 
 !!! warning "RAG only as good as your chunks"
@@ -33,7 +33,7 @@ description: Tutorial 5 - RAG without tools. Use an indexed document as grounded
 
 A document source runs plain similarity search. A **pipeline** can reshape the question first, which is the difference between Naive RAG and Advanced RAG in the [Spring AI reference](https://docs.spring.io/spring-ai/reference/api/retrieval-augmented-generation.html).
 
-1. In **Vector Database**, click **New RAG Pipeline**. On the **Pre-Retrieval** tab enable **Rewrite**. On the **Retrieval** tab pick the same document as the search scope. Save it.
+1. In **Vector Database**, click **New RAG Pipeline**. On the **Pre-Retrieval** tab enable **Rewrite**. On the **Retrieval** tab pick the same document as the search scope. On the **Post-Retrieval** tab untick **Re-rank by score** (it is on by default; leaving it on just adds a fourth, LLM-free stage). Save it.
 
 2. Back in chat, switch the RAG source to the new pipeline. Its row now reads `pipeline · stages: 3 · +1 LLM calls` - rewrite, retrieve, and augment, of which only the rewrite costs an extra model call.
 

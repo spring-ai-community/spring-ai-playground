@@ -76,6 +76,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -244,6 +245,7 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
     }
 
     private ChatModelSettingView buildChatModelSettingView() {
+        refreshDownloadedModelsCache();
         this.chatModelSettingView = new ChatModelSettingView(this.chatService.getModels(),
                 this.chatContentView.getSystemPrompt(), this.chatContentView.getChatOption(),
                 this.chatContentView.getExtraOptions(), this.chatService.getChatProvider(),
@@ -255,6 +257,15 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
                     if (!enabled) trackPresetBlocked();
                 });
         return this.chatModelSettingView;
+    }
+
+    private void refreshDownloadedModelsCache() {
+        if (!this.ollamaModelDownloadService.isEnabled()) return;
+        UI ui = VaadinUtils.getUi(this);
+        CompletableFuture.runAsync(this.ollamaModelDownloadService::refreshLocalModels)
+                .thenRun(() -> ui.access(() -> {
+                    if (Objects.nonNull(this.chatModelSettingView)) this.chatModelSettingView.refreshModelItems();
+                }));
     }
 
     private List<String> presetToolMissingKeys(String toolName) {
@@ -454,7 +465,8 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
                 this.imageStore, this.documentIntakeService, this.visionCapabilityService, this.usageAnalyticsService,
                 this.usageEventTracker, this.chatStreamRegistry);
         ChatOptions chatOptions = chatHistory.chatOptions();
-        String label = String.format("%s: %s", this.chatService.getChatModelProvider(), chatOptions.getModel());
+        String label = this.chatService.isChatModelAbsent() ? "No model provider configured"
+                : String.format("%s: %s", this.chatService.getChatModelProvider(), chatOptions.getModel());
         this.pageTitle = pageTitleOf(chatHistory);
         UI ui = VaadinUtils.getUi(this);
         ui.access(() -> {
@@ -469,6 +481,7 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
     public void beforeEnter(BeforeEnterEvent event) {
         List<String> convParam = event.getLocation().getQueryParameters().getParameters().get("conv");
         if (convParam == null || convParam.isEmpty()) {
+            this.chatHistoryView.unpinConversation();
             syncLocationToCurrentConversation();
             return;
         }
@@ -476,6 +489,7 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
         if (convId == null || convId.isBlank()) return;
         ChatHistory existing = this.chatHistoryService.getChatHistory(convId);
         if (existing != null) {
+            this.chatHistoryView.pinConversation(existing.conversationId());
             changeChatContent(existing);
         } else {
             Notification n = Notification.show(

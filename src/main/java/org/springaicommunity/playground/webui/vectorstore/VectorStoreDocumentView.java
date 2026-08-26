@@ -30,6 +30,8 @@ import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.router.BeforeEnterEvent;
 import com.vaadin.flow.router.BeforeEnterObserver;
+import org.springaicommunity.playground.service.vectorstore.RagPipeline;
+import org.springaicommunity.playground.service.vectorstore.RagPipelineService;
 import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentInfo;
 import org.springaicommunity.playground.service.vectorstore.OfflineEtlPipelineService;
 import org.springaicommunity.playground.webui.VaadinUtils;
@@ -48,6 +50,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.springaicommunity.playground.webui.vectorstore.VectorStoreView.DOCUMENTS_DELETE_EVENT;
 import static org.springaicommunity.playground.webui.vectorstore.VectorStoreView.DOCUMENT_ADDING_EVENT;
@@ -56,15 +59,17 @@ import static org.springaicommunity.playground.webui.vectorstore.VectorStoreView
 public class VectorStoreDocumentView extends WorkspaceSidebar implements BeforeEnterObserver {
 
     private final OfflineEtlPipelineService offlineEtlPipelineService;
+    private final RagPipelineService ragPipelineService;
     private final MultiSelectListBox<VectorStoreDocumentInfo> documentListBox;
     private final PropertyChangeSupport documentInfoChangeSupport;
     private Runnable onSelectionStart;
 
     public VectorStoreDocumentView(OfflineEtlPipelineService offlineEtlPipelineService,
-            PropertyChangeSupport documentInfoChangeSupport) {
+            RagPipelineService ragPipelineService, PropertyChangeSupport documentInfoChangeSupport) {
         super("Documents");
         this.documentInfoChangeSupport = documentInfoChangeSupport;
         this.offlineEtlPipelineService = offlineEtlPipelineService;
+        this.ragPipelineService = ragPipelineService;
 
         addHeaderIcon(VaadinIcon.CLOSE, "Delete", e -> deleteDocument());
         addHeaderIcon(VaadinIcon.PENCIL, "Edit", e -> editDocument());
@@ -164,6 +169,17 @@ public class VectorStoreDocumentView extends WorkspaceSidebar implements BeforeE
         Dialog dialog = VaadinUtils.headerDialog(headerTitle);
         dialog.setModality(ModalityMode.STRICT);
         dialog.add("Are you sure you want to delete this permanently?");
+        List<RagPipeline> scopedBy = this.ragPipelineService.referencing(selectedItems.stream()
+                .map(VectorStoreDocumentInfo::docInfoId).collect(Collectors.toSet()));
+        if (!scopedBy.isEmpty()) {
+            Span scopeWarning = new Span("Scoped by pipeline: "
+                    + scopedBy.stream().map(RagPipeline::name).collect(Collectors.joining(", "))
+                    + ". Deleted documents stay in that scope but stop matching; edit or delete the pipeline "
+                    + "separately.");
+            scopeWarning.getStyle().set("display", "block").set("margin-top", "0.5rem")
+                    .set("color", "var(--lumo-error-text-color)").set("font-size", "var(--lumo-font-size-s)");
+            dialog.add(scopeWarning);
+        }
 
         Button deleteButton = new Button("Delete", e -> {
             for (VectorStoreDocumentInfo documentInfo : selectedItems)

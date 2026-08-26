@@ -25,6 +25,7 @@ import com.vaadin.flow.component.html.H3;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
+import org.springaicommunity.playground.config.AbsentModelFallbackConfig;
 import org.springaicommunity.playground.service.chat.ChatHistory;
 import org.springaicommunity.playground.service.chat.ChatHistoryService;
 import org.springaicommunity.playground.service.tool.ToolSpecPersistenceService;
@@ -230,7 +231,7 @@ class HomeChecklist extends Div {
 
     private boolean isProviderLikelyReady() {
         ChatModel chatModel = chatModelProvider.getIfAvailable();
-        if (chatModel == null) return false;
+        if (chatModel == null || chatModel instanceof AbsentModelFallbackConfig.AbsentChatModel) return false;
         String className = chatModel.getClass().getSimpleName().toLowerCase();
         if (className.contains("openai")) {
             String apiKey = environment.getProperty("spring.ai.openai.api-key", "");

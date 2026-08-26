@@ -88,6 +88,19 @@ class HybridToolIndexTest {
     }
 
     @Test
+    void toolNameInsideAPhraseMatchesByTokenAndSkipsSemanticSearch() {
+        RecordingSemanticIndex semantic = new RecordingSemanticIndex();
+        HybridToolIndex index = new HybridToolIndex(semantic);
+        index.indexTools("session-1", List.of(ref("echo"), ref("getWeather")));
+        semantic.nextResults = List.of(ref("unrelated"));
+
+        ToolSearchResponse response = index.search(query("echo a short message"));
+
+        assertThat(response.toolReferences()).extracting(ToolReference::toolName).containsExactly("echo");
+        assertThat(semantic.lastRequest).isNull();
+    }
+
+    @Test
     void noExactMatchDelegatesToSemanticSearch() {
         RecordingSemanticIndex semantic = new RecordingSemanticIndex();
         HybridToolIndex index = new HybridToolIndex(semantic);

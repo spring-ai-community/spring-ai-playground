@@ -15,6 +15,8 @@
  */
 package org.springaicommunity.playground.webui.chat;
 
+import org.springaicommunity.playground.config.AbsentModelFallbackConfig;
+
 import java.util.Locale;
 import java.util.concurrent.TimeoutException;
 
@@ -25,6 +27,8 @@ public final class ChatErrorMessages {
     public static String friendly(Throwable throwable) {
         if (throwable == null) return "Something went wrong.";
         String raw = throwable.getMessage() == null ? "" : throwable.getMessage();
+        if (mentions(throwable, AbsentModelFallbackConfig.CHAT_MODEL_ABSENT))
+            return AbsentModelFallbackConfig.CHAT_MODEL_ABSENT;
         if (throwable instanceof TimeoutException || hasCause(throwable, TimeoutException.class))
             return "The model stopped responding. Try again, or switch to a faster model.";
         if (raw.contains("Stream processing failed"))
@@ -40,6 +44,12 @@ public final class ChatErrorMessages {
                 || lower.contains("does not support image")
                 || lower.contains("image input")
                 || (lower.contains("vision") && lower.contains("not support"));
+    }
+
+    private static boolean mentions(Throwable throwable, String message) {
+        for (Throwable cause = throwable; cause != null; cause = cause.getCause())
+            if (message.equals(cause.getMessage())) return true;
+        return false;
     }
 
     private static boolean hasCause(Throwable throwable, Class<? extends Throwable> type) {

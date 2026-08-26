@@ -76,7 +76,7 @@ class RagPipelineServiceTest {
         RagPipeline created = this.service.create("legal-kr", "desc", List.of("doc1"), null, null, null, null);
         this.persistenceExecutor.awaitCompletion(Duration.ofSeconds(2));
 
-        assertTrue(this.service.list().stream().anyMatch(p -> p.id().equals(created.id())));
+        assertTrue(this.service.list().stream().anyMatch(pipeline -> pipeline.id().equals(created.id())));
         assertTrue(Files.exists(pipelineFile(created.id())));
     }
 
@@ -94,6 +94,18 @@ class RagPipelineServiceTest {
     }
 
     @Test
+    void referencingReturnsPipelinesScopedToAnyOfTheDocuments() {
+        RagPipeline scoped = this.service.create("scoped", null, List.of("doc1", "doc2"), null, null, null, null);
+        this.service.create("store-wide", null, List.of(), null, null, null, null);
+        this.service.create("other-doc", null, List.of("doc3"), null, null, null, null);
+
+        List<RagPipeline> referencing = this.service.referencing(List.of("doc2", "missing"));
+
+        assertEquals(List.of(scoped.id()), referencing.stream().map(RagPipeline::id).toList());
+        assertTrue(this.service.referencing(List.of("doc9")).isEmpty());
+    }
+
+    @Test
     void deleteByIdRemovesFile() throws Exception {
         RagPipeline created = this.service.create("temp", null, List.of(), null, null, null, null);
         this.persistenceExecutor.awaitCompletion(Duration.ofSeconds(2));
@@ -103,7 +115,7 @@ class RagPipelineServiceTest {
         this.service.deleteById(created.id());
         this.persistenceExecutor.awaitCompletion(Duration.ofSeconds(2));
 
-        assertFalse(this.service.list().stream().anyMatch(p -> p.id().equals(created.id())));
+        assertFalse(this.service.list().stream().anyMatch(pipeline -> pipeline.id().equals(created.id())));
         assertFalse(Files.exists(file));
     }
 
@@ -128,11 +140,11 @@ class RagPipelineServiceTest {
 
     @Test
     void listSortsByUpdatedAtDescending() throws Exception {
-        RagPipeline a = this.service.create("a", null, List.of(), null, null, null, null);
+        RagPipeline oldest = this.service.create("a", null, List.of(), null, null, null, null);
         Thread.sleep(2);
-        RagPipeline b = this.service.create("b", null, List.of(), null, null, null, null);
+        RagPipeline middle = this.service.create("b", null, List.of(), null, null, null, null);
         Thread.sleep(2);
-        RagPipeline c = this.service.create("c", null, List.of(), null, null, null, null);
+        RagPipeline newest = this.service.create("c", null, List.of(), null, null, null, null);
         this.persistenceExecutor.awaitCompletion(Duration.ofSeconds(2));
 
         List<String> names = this.service.list().stream().map(RagPipeline::name).toList();
@@ -142,7 +154,7 @@ class RagPipelineServiceTest {
         List<Long> sortedDesc = updates.stream().sorted(Comparator.reverseOrder()).toList();
         assertEquals(sortedDesc, updates);
 
-        assertEquals(List.of(a.id(), b.id(), c.id()).size(), 3);
+        assertEquals(List.of(oldest.id(), middle.id(), newest.id()).size(), 3);
     }
 
     private Path pipelineFile(String id) {
@@ -152,9 +164,9 @@ class RagPipelineServiceTest {
     private static void deleteRecursively(Path root) throws IOException {
         if (!Files.exists(root)) return;
         try (var paths = Files.walk(root)) {
-            paths.sorted(Comparator.reverseOrder()).forEach(p -> {
+            paths.sorted(Comparator.reverseOrder()).forEach(path -> {
                 try {
-                    Files.deleteIfExists(p);
+                    Files.deleteIfExists(path);
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }

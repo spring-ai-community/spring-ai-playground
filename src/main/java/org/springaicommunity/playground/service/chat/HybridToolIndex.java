@@ -51,10 +51,11 @@ public class HybridToolIndex implements ToolIndex {
 
     @Override
     public ToolSearchResponse search(ToolSearchRequest request) {
-        String query = request.query() == null ? "" : request.query().trim().toLowerCase(Locale.ROOT);
-        ToolReference exact = this.byName.getOrDefault(request.sessionId(), Map.of()).get(query);
-        if (exact != null) {
-            return ToolSearchResponse.builder().toolReferences(List.of(exact)).totalMatches(1).build();
+        String query = request.query() == null ? "" : request.query().trim();
+        List<ToolReference> named = PersistentToolIndex.nameMatches(
+                this.byName.getOrDefault(request.sessionId(), Map.of()), query);
+        if (!named.isEmpty()) {
+            return ToolSearchResponse.builder().toolReferences(named).totalMatches(named.size()).build();
         }
         return this.semantic.search(request);
     }

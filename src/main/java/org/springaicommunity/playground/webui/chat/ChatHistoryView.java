@@ -57,16 +57,39 @@ public class ChatHistoryView extends WorkspaceSidebar implements BeforeEnterObse
     private final PropertyChangeSupport chatHistoryChangeSupport;
     private final ChatHistoryService chatHistoryService;
     private final ListBox<ChatHistory> chatHistoryListBox;
+    private String pinnedConversationId;
 
     @Override
     public void beforeEnter(BeforeEnterEvent beforeEnterEvent) {
         this.chatHistoryListBox.setItems(this.chatHistoryService.getChatHistoryList());
+        if (Objects.nonNull(this.pinnedConversationId)) {
+            selectConversation(this.pinnedConversationId);
+            return;
+        }
         this.persistentUiDataStorage.loadData(LAST_SELECTED_CHAT_HISTORY, new TypeReference<ChatHistory>() {},
-                chatHistory -> {
-                    if (Objects.nonNull(chatHistory))
-                        this.chatHistoryListBox.setValue(
-                                chatHistoryService.getChatHistory(chatHistory.conversationId()));
-                });
+                this::applyRestoredSelection);
+    }
+
+    public void pinConversation(String conversationId) {
+        this.pinnedConversationId = conversationId;
+        if (this.chatHistoryListBox.getListDataView().getItemCount() > 0)
+            selectConversation(conversationId);
+    }
+
+    public void unpinConversation() {
+        this.pinnedConversationId = null;
+    }
+
+    void applyRestoredSelection(ChatHistory restored) {
+        if (Objects.nonNull(this.pinnedConversationId) || Objects.isNull(restored))
+            return;
+        selectConversation(restored.conversationId());
+    }
+
+    private void selectConversation(String conversationId) {
+        ChatHistory target = this.chatHistoryService.getChatHistory(conversationId);
+        if (Objects.nonNull(target))
+            this.chatHistoryListBox.setValue(target);
     }
 
     public ChatHistoryView(PersistentUiDataStorage persistentUiDataStorage, ChatHistoryService chatHistoryService,
