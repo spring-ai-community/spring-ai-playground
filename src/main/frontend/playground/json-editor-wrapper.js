@@ -2,7 +2,6 @@ import JSONEditor from 'jsoneditor/dist/jsoneditor.min.js';
 import 'jsoneditor/dist/jsoneditor.min.css';
 import 'ace-builds/src-noconflict/ace';
 import 'ace-builds/src-noconflict/mode-json';
-import 'ace-builds/src-noconflict/worker-json';
 import 'ace-builds/src-noconflict/ext-searchbox';
 import 'ace-builds/src-noconflict/theme-textmate';
 import 'ace-builds/esm-resolver';
