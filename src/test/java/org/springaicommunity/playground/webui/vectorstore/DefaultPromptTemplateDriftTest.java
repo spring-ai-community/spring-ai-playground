@@ -27,15 +27,6 @@ import java.lang.reflect.Field;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * CI-enforced check that the prompt templates the wizard pre-fills are still the ones Spring AI would
- * actually apply. The framework keeps its defaults in private fields with no accessor, so the wizard has
- * to hold copies; saving a value equal to the copy stores null, which means the pipeline runs Spring AI's
- * default rather than ours.
- *
- * Reflection reads the originals so a Spring AI upgrade that reworded any template FAILS here, instead of
- * silently leaving the wizard showing one prompt while retrieval runs another.
- */
 class DefaultPromptTemplateDriftTest {
 
     @Test

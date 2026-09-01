@@ -50,17 +50,6 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
-/**
- * Live integration test: full and partial modular RAG pipelines driven through the browserless
- * chat UI against a REAL local Ollama (chat + embedding models, no mocks). Opt-in only - CI and
- * plain `mvn test` skip it, following the RUN_NETWORK_SMOKE convention:
- *
- * RUN_OLLAMA_IT=true ./mvnw test -Dtest=ChatRagPipelineOllamaLiveTest
- *
- * Requires Ollama on 127.0.0.1:11434 with the `ollama` profile's chat model and the default
- * embedding model pulled. Budget several minutes: every enabled pre-retrieval stage is a real
- * LLM call on a local model.
- */
 @SpringBootTest(properties = {
         "spring.ai.ollama.init.pull-model-strategy=never",
         "spring.ai.playground.user-home=${java.io.tmpdir}/rag-ollama-live-test-home"
@@ -164,12 +153,12 @@ class ChatRagPipelineOllamaLiveTest extends SpringBrowserlessTest {
     @SuppressWarnings("unchecked")
     private ChatView openChatWithPipeline(String pipelineId) {
         ChatView view = navigate(ChatView.class);
-        $(Select.class, view).withCondition(select -> select.getValue() instanceof ReasoningEffort).first()
+        $(Select.class, view).withCondition(select -> select.getValue() instanceof ReasoningEffort).single()
                 .setValue(ReasoningEffort.OFF);
         ComboBox<ChatService.RagSource> sources = $(ComboBox.class, view)
                 .withCondition(combo -> ((ComboBox<Object>) combo).getListDataView().getItems()
                         .anyMatch(ChatService.RagSource.class::isInstance))
-                .first();
+                .single();
         sources.setValue(sources.getListDataView().getItems()
                 .filter(source -> pipelineId.equals(source.sourceId())).findFirst().orElseThrow());
         return view;
@@ -178,11 +167,11 @@ class ChatRagPipelineOllamaLiveTest extends SpringBrowserlessTest {
     private void sendPrompt(ChatView view, String text) {
         TextArea prompt = $(TextArea.class, view)
                 .withCondition(area -> "Ask Spring AI Playground".equals(area.getPlaceholder()))
-                .first();
+                .single();
         test(prompt).setValue(text);
         test($(Button.class, view)
                 .withCondition(button -> "Submit".equals(button.getTooltip().getText()))
-                .first()).click();
+                .single()).click();
         UI ui = UI.getCurrent();
         ui.getInternals().getStateTree().runExecutionsBeforeClientResponse();
         ui.getInternals().dumpPendingJavaScriptInvocations().stream()

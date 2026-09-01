@@ -38,11 +38,6 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Proof that every modular RAG option the spec-coverage audit maps to a config field is actually
- * settable through the wizard UI and survives a save -> reopen-for-edit round trip. Fields live on
- * four tabs; panels are attached lazily, so each tab is selected before its fields are touched.
- */
 @SpringBootTest
 class NewRagPipelineDialogRoundTripTest extends SpringBrowserlessTest {
 
@@ -71,12 +66,12 @@ class NewRagPipelineDialogRoundTripTest extends SpringBrowserlessTest {
         VectorStoreView view = navigate(VectorStoreView.class);
         test($(Button.class, view)
                 .withCondition(button -> "New RAG Pipeline".equals(button.getTooltip().getText()))
-                .first()).click();
-        NewRagPipelineDialog dialog = $(NewRagPipelineDialog.class).first();
+                .single()).click();
+        NewRagPipelineDialog dialog = $(NewRagPipelineDialog.class).single();
 
         textField(dialog, "Name").setValue("wizard-roundtrip");
 
-        Tabs tabs = $(Tabs.class, dialog).first();
+        Tabs tabs = $(Tabs.class, dialog).single();
         tabs.setSelectedIndex(0);
         checkbox(dialog, "Rewrite").setValue(true);
         textField(dialog, "Target search system").setValue("web search");
@@ -92,8 +87,8 @@ class NewRagPipelineDialogRoundTripTest extends SpringBrowserlessTest {
         templateArea(dialog, "{number} {query}").setValue(MULTI_QUERY_TPL);
 
         tabs.setSelectedIndex(1);
-        integerField(dialog, "topK").setValue(7);
-        $(NumberField.class, dialog).withCondition(f -> "similarityThreshold".equals(f.getLabel())).first()
+        integerField(dialog, "Top K").setValue(7);
+        $(NumberField.class, dialog).withCondition(field -> "Similarity Threshold (0 = All)".equals(field.getLabel())).single()
                 .setValue(0.25);
         textField(dialog, "Filter expression (metadata)").setValue("country == 'KR'");
 
@@ -110,7 +105,7 @@ class NewRagPipelineDialogRoundTripTest extends SpringBrowserlessTest {
         emptyContextArea(dialog).setValue(EMPTY_CONTEXT_TPL);
         checkbox(dialog, "Run LLM after augment (call ChatModel for the answer)").setValue(true);
 
-        test($(Button.class, dialog).withCondition(b -> "Save".equals(b.getText())).first()).click();
+        test($(Button.class, dialog).withCondition(button -> "Save".equals(button.getText())).single()).click();
         roundTrip();
 
         this.saved = this.ragPipelineService.list().stream()
@@ -144,14 +139,14 @@ class NewRagPipelineDialogRoundTripTest extends SpringBrowserlessTest {
 
         dialog.openForEdit(this.saved);
         roundTrip();
-        Tabs editTabs = $(Tabs.class, dialog).first();
+        Tabs editTabs = $(Tabs.class, dialog).single();
         editTabs.setSelectedIndex(0);
         assertThat(checkbox(dialog, "Rewrite").getValue()).isTrue();
         assertThat(textField(dialog, "Target search system").getValue()).isEqualTo("web search");
         assertThat(this.<String>comboBox(dialog, "Target language").getValue()).isEqualTo("korean");
         assertThat(integerField(dialog, "N").getValue()).isEqualTo(4);
         editTabs.setSelectedIndex(1);
-        assertThat(integerField(dialog, "topK").getValue()).isEqualTo(7);
+        assertThat(integerField(dialog, "Top K").getValue()).isEqualTo(7);
         assertThat(textField(dialog, "Filter expression (metadata)").getValue()).isEqualTo("country == 'KR'");
         editTabs.setSelectedIndex(3);
         assertThat(this.<RagPipeline.DocumentFormat>comboBox(dialog, "Context format").getValue())
@@ -167,32 +162,32 @@ class NewRagPipelineDialogRoundTripTest extends SpringBrowserlessTest {
     }
 
     private TextField textField(NewRagPipelineDialog dialog, String label) {
-        return $(TextField.class, dialog).withCondition(field -> label.equals(field.getLabel())).first();
+        return $(TextField.class, dialog).withCondition(field -> label.equals(field.getLabel())).single();
     }
 
     private IntegerField integerField(NewRagPipelineDialog dialog, String label) {
-        return $(IntegerField.class, dialog).withCondition(field -> label.equals(field.getLabel())).first();
+        return $(IntegerField.class, dialog).withCondition(field -> label.equals(field.getLabel())).single();
     }
 
     private Checkbox checkbox(NewRagPipelineDialog dialog, String label) {
-        return $(Checkbox.class, dialog).withCondition(box -> label.equals(box.getLabel())).first();
+        return $(Checkbox.class, dialog).withCondition(box -> label.equals(box.getLabel())).single();
     }
 
     @SuppressWarnings("unchecked")
     private <T> ComboBox<T> comboBox(NewRagPipelineDialog dialog, String label) {
-        return $(ComboBox.class, dialog).withCondition(combo -> label.equals(combo.getLabel())).first();
+        return $(ComboBox.class, dialog).withCondition(combo -> label.equals(combo.getLabel())).single();
     }
 
     private TextArea templateArea(NewRagPipelineDialog dialog, String helperMarker) {
         return $(TextArea.class, dialog)
                 .withCondition(area -> area.getHelperText() != null && area.getHelperText().contains(helperMarker))
-                .first();
+                .single();
     }
 
     private TextArea emptyContextArea(NewRagPipelineDialog dialog) {
         return $(TextArea.class, dialog)
                 .withCondition(area -> area.getHelperText() != null
                         && area.getHelperText().startsWith("Used only when context is empty"))
-                .first();
+                .single();
     }
 }

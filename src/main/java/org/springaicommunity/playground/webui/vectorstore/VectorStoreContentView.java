@@ -247,7 +247,9 @@ public class VectorStoreContentView extends VerticalLayout implements BeforeEnte
                                 offlineEtlPipelineService.getChatOriginDocInfoIds()) : vectorStoreService.search(
                         this.searchRequest)).stream()
                         .map(this::convertToViewDocument).toList(),
-                item -> { throw new UnsupportedOperationException("Use openCustomChunkDialog() instead"); },
+                item -> {
+                    throw new UnsupportedOperationException("Use openCustomChunkDialog() instead");
+                },
                 item -> convertToViewDocument(this.vectorStoreService.update(convertToDocument(item))),
                 item -> vectorStoreService.delete(
                         grid.getSelectedItems().stream().map(VectorStoreContentItem::getId).toList()));
@@ -361,7 +363,7 @@ public class VectorStoreContentView extends VerticalLayout implements BeforeEnte
 
     private void addChunkToDocument(String name, Document raw, List<VectorStoreDocumentInfo> existingDocs) {
         VectorStoreDocumentInfo existing =
-                existingDocs.stream().filter(d -> name.equals(d.title())).findFirst().orElse(null);
+                existingDocs.stream().filter(document -> name.equals(document.title())).findFirst().orElse(null);
         if (Objects.nonNull(existing)) {
             Map<String, Object> withDocInfo = new HashMap<>(raw.getMetadata());
             withDocInfo.put(DOC_INFO_ID, existing.docInfoId());
@@ -418,8 +420,7 @@ public class VectorStoreContentView extends VerticalLayout implements BeforeEnte
 
     public void showAllDocuments() {
         this.searchRequest =
-                new SearchRequest.Builder().similarityThreshold(ALL_SEARCH_REQUEST_OPTION.similarityThreshold())
-                        .topK(ALL_SEARCH_REQUEST_OPTION.topK()).build();
+                VectorStoreService.searchAllRequest(offlineEtlPipelineService.getChatOriginDocInfoIds());
         refreshGrid();
     }
 
@@ -439,7 +440,7 @@ public class VectorStoreContentView extends VerticalLayout implements BeforeEnte
     }
 
     private static class VectorStoreContentContextMenu extends GridContextMenu<VectorStoreContentItem> {
-        public VectorStoreContentContextMenu(GridCrud<VectorStoreContentItem> gridCrud) {
+        VectorStoreContentContextMenu(GridCrud<VectorStoreContentItem> gridCrud) {
             super(gridCrud.getGrid());
             Grid<VectorStoreContentItem> grid = gridCrud.getGrid();
             addItem("Edit", e -> e.getItem().ifPresent(item -> {

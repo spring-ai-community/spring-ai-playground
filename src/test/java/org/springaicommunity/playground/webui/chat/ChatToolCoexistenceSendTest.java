@@ -123,7 +123,7 @@ class ChatToolCoexistenceSendTest extends SpringBrowserlessTest {
             TextArea prompt = promptArea(view);
             test(prompt).setValue("use the mcp tool");
             Button submit = $(Button.class, view)
-                    .withCondition(button -> "Submit".equals(button.getTooltip().getText())).first();
+                    .withCondition(button -> "Submit".equals(button.getTooltip().getText())).single();
             test(submit).click();
             completePendingPromptValueJs("use the mcp tool");
             roundTrip();
@@ -139,7 +139,7 @@ class ChatToolCoexistenceSendTest extends SpringBrowserlessTest {
     private Checkbox dynamicCheckbox(ChatView view) {
         return $(Checkbox.class, view)
                 .withCondition(box -> "Dynamic tool discovery".equals(box.getLabel()))
-                .first();
+                .single();
     }
 
     @SuppressWarnings("unchecked")
@@ -147,13 +147,13 @@ class ChatToolCoexistenceSendTest extends SpringBrowserlessTest {
         return $(MultiSelectComboBox.class, view)
                 .withCondition(combo -> "Access Tools via external MCP connections"
                         .equals(combo.getTooltip().getText()))
-                .first();
+                .single();
     }
 
     private TextArea promptArea(ChatView view) {
         return $(TextArea.class, view)
                 .withCondition(area -> "Ask Spring AI Playground".equals(area.getPlaceholder()))
-                .first();
+                .single();
     }
 
     private void completePendingPromptValueJs(String typedValue) {

@@ -176,8 +176,8 @@ public class NewRagPipelineDialog extends Dialog {
     private final Checkbox multiQueryIncludeOriginalCheck = new Checkbox("include original query");
     private final TextArea multiQueryTemplateField = new TextArea();
 
-    private final IntegerField topKField = new IntegerField("topK");
-    private final NumberField similarityThresholdField = new NumberField("similarityThreshold");
+    private final IntegerField topKField = new IntegerField("Top K");
+    private final NumberField similarityThresholdField = new NumberField("Similarity Threshold (0 = All)");
     private final TextField extraFilterField = new TextField("Filter expression (metadata)");
 
     private final Checkbox reRankCheck = new Checkbox("Re-rank by score (descending)");
@@ -255,21 +255,21 @@ public class NewRagPipelineDialog extends Dialog {
         this.descField.setMaxLength(200);
 
         this.documentsCheckGroup.setItemLabelGenerator(VectorStoreDocumentInfo::title);
-        this.documentsCheckGroup.setRenderer(new ComponentRenderer<>(d -> {
+        this.documentsCheckGroup.setRenderer(new ComponentRenderer<>(document -> {
             Div wrapper = new Div();
             wrapper.getStyle().set("display", "flex").set("flex-direction", "column").set("line-height", "1.3");
-            Span title = new Span(d.title());
+            Span title = new Span(document.title());
             title.getStyle().set("font-weight", "500");
             wrapper.add(title);
-            if (d.description() != null && !d.description().isBlank()) {
-                Span desc = new Span(d.description());
+            if (document.description() != null && !document.description().isBlank()) {
+                Span desc = new Span(document.description());
                 desc.getStyle().set("font-size", "var(--lumo-font-size-xs)")
                         .set("color", "var(--lumo-body-text-color)");
                 wrapper.add(desc);
             }
-            int chunkCount = d.documentListSupplier() == null ? 0 : d.documentListSupplier().get().size();
+            int chunkCount = document.documentListSupplier() == null ? 0 : document.documentListSupplier().get().size();
             String meta = chunkCount + " chunk" + (chunkCount == 1 ? "" : "s") + " · updated "
-                    + formatRelative(d.updateTimestamp());
+                    + formatRelative(document.updateTimestamp());
             Span metaSpan = new Span(meta);
             metaSpan.getStyle().set("font-size", "var(--lumo-font-size-xs)")
                     .set("color", "var(--lumo-secondary-text-color)");
@@ -516,7 +516,6 @@ public class NewRagPipelineDialog extends Dialog {
         panel.add(stepHeader("Retrieval (Vector Similarity Search)", localBadge()));
         panel.add(stepDescription(RETRIEVAL_DESC));
 
-        // Documents (search scope) — sub-label and helper combined into one compact line
         panel.add(sectionSubLabelWithHelper("Search scope (documents)",
                 "Checked = search only those; none checked = search the entire vector store."));
         panel.add(this.documentsCheckGroup);
@@ -538,13 +537,13 @@ public class NewRagPipelineDialog extends Dialog {
     private static Component sectionSubLabelWithHelper(String label, String helper) {
         Div wrap = new Div();
         wrap.getStyle().set("margin", "var(--lumo-space-s) 0 var(--lumo-space-xs) 0");
-        Span l = new Span(label);
-        l.getStyle().set("font-weight", "600").set("font-size", "var(--lumo-font-size-s)")
+        Span labelSpan = new Span(label);
+        labelSpan.getStyle().set("font-weight", "600").set("font-size", "var(--lumo-font-size-s)")
                 .set("color", "var(--lumo-body-text-color)");
-        Span h = new Span("  · " + helper);
-        h.getStyle().set("font-weight", "400").set("font-size", "var(--lumo-font-size-xs)")
+        Span helperSpan = new Span("  · " + helper);
+        helperSpan.getStyle().set("font-weight", "400").set("font-size", "var(--lumo-font-size-xs)")
                 .set("color", "var(--lumo-secondary-text-color)");
-        wrap.add(l, h);
+        wrap.add(labelSpan, helperSpan);
         return wrap;
     }
 
@@ -563,7 +562,6 @@ public class NewRagPipelineDialog extends Dialog {
         panel.add(stepHeader("Generation (Augmenter + LLM call)", llmBadge()));
         panel.add(stepDescription(GENERATION_DESC));
 
-        // Augmenter always runs — no enable checkbox; chevron lets users override the default template.
         VerticalLayout augmenterBody = new VerticalLayout(this.documentFormatCombo);
         augmenterBody.setPadding(false);
         augmenterBody.setSpacing(false);
@@ -609,41 +607,34 @@ public class NewRagPipelineDialog extends Dialog {
     }
 
     private static Span stepDescription(String text) {
-        Span s = new Span(text);
-        s.getStyle().set("display", "block")
+        Span span = new Span(text);
+        span.getStyle().set("display", "block")
                 .set("color", "var(--lumo-secondary-text-color)")
                 .set("font-size", "var(--lumo-font-size-s)")
                 .set("margin-bottom", "var(--lumo-space-s)")
                 .set("line-height", "1.45");
-        return s;
+        return span;
     }
 
     private static Span sectionSubLabel(String text) {
-        Span s = new Span(text);
-        s.getStyle().set("display", "block")
+        Span span = new Span(text);
+        span.getStyle().set("display", "block")
                 .set("font-weight", "600")
                 .set("font-size", "var(--lumo-font-size-s)")
                 .set("color", "var(--lumo-body-text-color)")
                 .set("margin", "var(--lumo-space-m) 0 var(--lumo-space-xs) 0");
-        return s;
+        return span;
     }
 
     private static Span inlineHelper(String text) {
-        Span s = new Span(text);
-        s.getStyle().set("display", "block")
+        Span span = new Span(text);
+        span.getStyle().set("display", "block")
                 .set("color", "var(--lumo-secondary-text-color)")
                 .set("font-size", "var(--lumo-font-size-s)")
                 .set("margin-bottom", "var(--lumo-space-s)");
-        return s;
+        return span;
     }
 
-    /**
-     * Card that can be collapsed (header only) or expanded (header + editor).
-     * - With a checkbox: enabling auto-expands; disabling does NOT auto-collapse (user keeps view).
-     * - Without a checkbox (always-on stages like Augmenter): start collapsed; user expands manually
-     *   to override the default template.
-     * - The chevron at the right of the header toggles manually any time.
-     */
     private static class ExpandableCard extends Div {
         private final Div editor = new Div();
         private final Icon chevron = new Icon(VaadinIcon.CHEVRON_DOWN);
@@ -668,7 +659,6 @@ public class NewRagPipelineDialog extends Dialog {
             headerRow.setWidthFull();
             headerRow.setAlignItems(FlexComponent.Alignment.CENTER);
             if (enable != null) {
-                // Checkbox label IS the title — bold + larger so it acts as section heading.
                 enable.getStyle().set("font-weight", "600").set("font-size", "var(--lumo-font-size-m)")
                         .set("flex", "1 1 auto");
                 headerRow.add(enable);
@@ -839,7 +829,7 @@ public class NewRagPipelineDialog extends Dialog {
         this.nameField.setValue(pipeline.name());
         this.descField.setValue(Optional.ofNullable(pipeline.description()).orElse(""));
         Set<VectorStoreDocumentInfo> selected = docs.stream()
-                .filter(d -> pipeline.docInfoIds().contains(d.docInfoId())).collect(Collectors.toSet());
+                .filter(document -> pipeline.docInfoIds().contains(document.docInfoId())).collect(Collectors.toSet());
         this.documentsCheckGroup.setValue(selected);
         RagPipeline.PreRetrievalConfig pre = pipeline.preRetrieval();
         this.rewriteCheck.setValue(pre.rewrite());
@@ -940,21 +930,19 @@ public class NewRagPipelineDialog extends Dialog {
         }
     }
 
-    private static String blankToNull(String s) {
-        return Objects.nonNull(s) && !s.isBlank() ? s : null;
+    private static String blankToNull(String value) {
+        return Objects.nonNull(value) && !value.isBlank() ? value : null;
     }
 
     private static String formatRelative(long epochMs) {
         long now = System.currentTimeMillis();
-        Duration d = Duration.ofMillis(Math.max(0L, now - epochMs));
-        if (d.toMinutes() < 1) return "just now";
-        if (d.toHours() < 1) return d.toMinutes() + "m ago";
-        if (d.toDays() < 1) return d.toHours() + "h ago";
-        return d.toDays() + "d ago";
+        Duration age = Duration.ofMillis(Math.max(0L, now - epochMs));
+        if (age.toMinutes() < 1) return "just now";
+        if (age.toHours() < 1) return age.toMinutes() + "m ago";
+        if (age.toDays() < 1) return age.toHours() + "h ago";
+        return age.toDays() + "d ago";
     }
 
-    // Saves null when the value matches the Spring AI default — so future Spring AI default changes
-    // automatically flow through to existing pipelines instead of being frozen at this snapshot.
     private static String overrideOrNull(String value, String defaultTemplate) {
         if (value == null || value.isBlank()) return null;
         if (Objects.equals(value, defaultTemplate)) return null;

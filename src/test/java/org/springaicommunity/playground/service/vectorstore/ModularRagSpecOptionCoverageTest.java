@@ -33,15 +33,6 @@ import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * CI-enforced audit that every configurable option Spring AI's Modular RAG components expose is
- * accounted for in our pipeline model: either mapped to a RagPipeline config field (and therefore
- * to the wizard UI) or explicitly runtime-only wiring the executor owns.
- *
- * The option surface is discovered by reflection over each component's Builder, so this test FAILS
- * when a Spring AI upgrade adds or removes an option - forcing a deliberate decision instead of a
- * silent feature gap like the one targetSearchSystem/documentFormatter sat in before 2026-08-05.
- */
 class ModularRagSpecOptionCoverageTest {
 
     private static final String RUNTIME_ONLY = "<runtime>";

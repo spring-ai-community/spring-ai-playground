@@ -15,6 +15,7 @@
  */
 package org.springaicommunity.playground.webui.vectorstore;
 
+import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.Key;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
@@ -399,7 +400,7 @@ public class VectorStorePipelineRunView extends VerticalLayout {
         scrollToBottom();
     }
 
-    private Details collapsible(String summaryText, com.vaadin.flow.component.Component content, boolean opened) {
+    private Details collapsible(String summaryText, Component content, boolean opened) {
         Details details = new Details(summaryText, content);
         details.setOpened(opened);
         details.addClassName("vstore-chat-details");
@@ -409,13 +410,13 @@ public class VectorStorePipelineRunView extends VerticalLayout {
     private Div buildDocsList(List<Document> docs) {
         Div docsList = new Div();
         docsList.addClassName("vstore-chat-docs");
-        for (Document d : docs) {
+        for (Document document : docs) {
             Div row = new Div();
             row.addClassName("vstore-chat-doc-row");
-            Span score = new Span(String.format("%.3f", d.getScore() == null ? 0.0 : d.getScore()));
+            Span score = new Span(String.format("%.3f", document.getScore() == null ? 0.0 : document.getScore()));
             score.addClassName("vstore-chat-doc-score");
-            Span text = new Span(d.getText() == null ? "" : d.getText().substring(0,
-                    Math.min(200, d.getText().length())) + (d.getText() != null && d.getText().length() > 200 ? "…" : ""));
+            Span text = new Span(document.getText() == null ? "" : document.getText().substring(0,
+                    Math.min(200, document.getText().length())) + (document.getText() != null && document.getText().length() > 200 ? "…" : ""));
             row.add(score, text);
             docsList.add(row);
         }
@@ -436,12 +437,12 @@ public class VectorStorePipelineRunView extends VerticalLayout {
     private Div buildTraceList(List<TraceEvent> events) {
         Div box = new Div();
         box.addClassName("vstore-chat-trace");
-        for (TraceEvent e : events) {
+        for (TraceEvent event : events) {
             Div line = new Div();
-            String levelTag = e.level() == TraceEvent.Level.WARN ? "[WARN] "
-                    : (e.level() == TraceEvent.Level.ERROR ? "[ERR] " : "");
-            line.setText(String.format("%s%s · %s", levelTag, e.stage(), e.message()));
-            if (e.level() != TraceEvent.Level.INFO) line.addClassName("vstore-chat-trace-warn");
+            String levelTag = event.level() == TraceEvent.Level.WARN ? "[WARN] "
+                    : (event.level() == TraceEvent.Level.ERROR ? "[ERR] " : "");
+            line.setText(String.format("%s%s · %s", levelTag, event.stage(), event.message()));
+            if (event.level() != TraceEvent.Level.INFO) line.addClassName("vstore-chat-trace-warn");
             box.add(line);
         }
         return box;

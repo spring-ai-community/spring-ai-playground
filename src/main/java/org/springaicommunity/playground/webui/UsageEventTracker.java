@@ -15,8 +15,8 @@
  */
 package org.springaicommunity.playground.webui;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import com.vaadin.flow.component.UI;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,7 +44,7 @@ public class UsageEventTracker {
         String json;
         try {
             json = objectMapper.writeValueAsString(payload);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             logger.debug("usage event skipped ({}): {}", eventName, e.getMessage());
             return;
         }

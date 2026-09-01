@@ -20,14 +20,10 @@ import org.springframework.ai.rag.Query;
 import org.springframework.ai.rag.postretrieval.document.DocumentPostProcessor;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
-/**
- * Post-Retrieval stage of Spring AI's Modular RAG: re-ranks by similarity score and truncates to
- * top-N. Re-ranking matters most after Multi-Query expansion, where results joined from several
- * variants arrive unordered; truncation trims the context window and mitigates lost-in-the-middle.
- */
 public class ScoreOrderingDocumentPostProcessor implements DocumentPostProcessor {
 
     private final boolean reRankByScore;
@@ -50,7 +46,7 @@ public class ScoreOrderingDocumentPostProcessor implements DocumentPostProcessor
     public List<Document> process(Query query, List<Document> documents) {
         List<Document> result = new ArrayList<>(documents);
         if (this.reRankByScore)
-            result.sort((a, b) -> Double.compare(scoreOrZero(b), scoreOrZero(a)));
+            result.sort(Comparator.comparingDouble(ScoreOrderingDocumentPostProcessor::scoreOrZero).reversed());
         if (truncates() && result.size() > this.topNTruncate)
             result = new ArrayList<>(result.subList(0, this.topNTruncate));
         return result;

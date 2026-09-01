@@ -54,16 +54,16 @@ class VectorStoreSelectionTest extends SpringBrowserlessTest {
                 .thenReturn(info.documentListSupplier().get());
 
         VectorStoreView view = navigate(VectorStoreView.class);
-        MultiSelectListBox<VectorStoreDocumentInfo> listBox = $(MultiSelectListBox.class, view).first();
+        MultiSelectListBox<VectorStoreDocumentInfo> listBox = $(MultiSelectListBox.class, view).single();
         listBox.select(info);
         roundTrip();
 
         test($(Button.class, view)
                 .withCondition(button -> "Search all".equals(button.getTooltip().getText()))
-                .first()).click();
+                .single()).click();
         roundTrip();
 
-        Grid<?> grid = $(Grid.class, view).first();
+        Grid<?> grid = $(Grid.class, view).single();
         assertThat(grid.getGenericDataView().getItems())
                 .anyMatch(item -> item instanceof VectorStoreContentItem contentItem
                         && contentItem.getText().contains("vector chunk body"));

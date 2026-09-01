@@ -42,13 +42,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * The sibling RagPipelineExecutorTest deliberately runs without a ChatClient.Builder, so every
- * LLM-backed pre-retrieval stage there only proves the graceful-skip path. These tests wire a real
- * ChatClient over a canned ChatModel so the stages actually execute, and assert on the query that
- * reaches the vector store - the only observable that proves a stage did its job and that chained
- * stages feed each other in order.
- */
 class RagPipelineExecutorStageChainTest {
 
     private static final String REWRITTEN = "rewritten query";
@@ -233,7 +226,7 @@ class RagPipelineExecutorStageChainTest {
 
         ArgumentCaptor<Prompt> prompts = ArgumentCaptor.forClass(Prompt.class);
         verify(chatModel, atLeastOnce()).call(prompts.capture());
-        assertThat(prompts.getAllValues()).anyMatch(p -> p.getContents().contains("querying a web search"));
+        assertThat(prompts.getAllValues()).anyMatch(prompt -> prompt.getContents().contains("querying a web search"));
         assertThat(events).anyMatch(e -> e.stage().equals("rewrite") && e.message().contains("target=web search"));
     }
 

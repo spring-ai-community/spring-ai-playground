@@ -76,7 +76,7 @@ class ChatPromptSubmitTest extends SpringBrowserlessTest {
         TextArea prompt = promptArea(view);
         test(prompt).setValue("hello there");
         Button submit = $(Button.class, view)
-                .withCondition(button -> "Submit".equals(button.getTooltip().getText())).first();
+                .withCondition(button -> "Submit".equals(button.getTooltip().getText())).single();
         test(submit).click();
         completePendingPromptValueJs("hello there\n");
         roundTrip();
@@ -87,7 +87,7 @@ class ChatPromptSubmitTest extends SpringBrowserlessTest {
     private TextArea promptArea(ChatView view) {
         return $(TextArea.class, view)
                 .withCondition(area -> "Ask Spring AI Playground".equals(area.getPlaceholder()))
-                .first();
+                .single();
     }
 
     private void completePendingPromptValueJs(String typedValue) {

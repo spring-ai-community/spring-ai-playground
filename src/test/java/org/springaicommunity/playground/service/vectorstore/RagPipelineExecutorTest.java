@@ -15,10 +15,13 @@
  */
 package org.springaicommunity.playground.service.vectorstore;
 
-import org.springaicommunity.playground.service.SharedDataReader;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springaicommunity.playground.service.SharedDataReader;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
@@ -43,9 +46,9 @@ import static org.mockito.Mockito.when;
 class RagPipelineExecutorTest {
 
     private static Document doc(String id, double score, String text, String docInfoId) {
-        Document d = new Document(id, text, Map.of("docInfoId", docInfoId));
-        d.getMetadata().put("distance", 1d - score);
-        return Document.builder().id(d.getId()).text(d.getText()).metadata(d.getMetadata()).score(score).build();
+        Document document = new Document(id, text, Map.of("docInfoId", docInfoId));
+        document.getMetadata().put("distance", 1d - score);
+        return Document.builder().id(document.getId()).text(document.getText()).metadata(document.getMetadata()).score(score).build();
     }
 
     private static ObjectProvider<ChatClient.Builder> emptyProvider() {
@@ -237,9 +240,9 @@ class RagPipelineExecutorTest {
                 doc("d1", 0.84, "Spring AI provides a vector store abstraction.", "doc1")));
 
         RagPipelineExecutor executor = new RagPipelineExecutor(vs, mockVectorStoreService(0.5, 10), emptyProvider(), List::of);
-        List<org.springframework.ai.chat.messages.Message> history = List.of(
-                new org.springframework.ai.chat.messages.UserMessage("What is Spring AI?"),
-                new org.springframework.ai.chat.messages.AssistantMessage("A framework for AI apps."));
+        List<Message> history = List.of(
+                new UserMessage("What is Spring AI?"),
+                new AssistantMessage("A framework for AI apps."));
 
         RagPipelineExecutor.RunResult withHistory =
                 executor.execute(naivePipeline(0), "And the vector store?", history, null);
@@ -408,7 +411,7 @@ class RagPipelineExecutorTest {
         assertNotNull(result.finalPrompt());
         TraceEvent skipEvent = events.stream().filter(e -> e.stage().equals(expectedStage)).findFirst()
                 .orElseThrow(() -> new AssertionError("No trace event for stage " + expectedStage
-                        + " — wiring missing in RagPipelineExecutor.preRetrieval()"));
+                        + " - wiring missing in RagPipelineExecutor.preRetrieval()"));
         assertEquals(TraceEvent.Level.WARN, skipEvent.level(),
                 "Expected WARN-level skip event for " + expectedStage + " (no ChatClient.Builder available)");
     }

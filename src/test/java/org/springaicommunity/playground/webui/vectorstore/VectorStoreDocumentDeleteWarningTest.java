@@ -61,15 +61,15 @@ class VectorStoreDocumentDeleteWarningTest extends SpringBrowserlessTest {
                 .thenReturn(info.documentListSupplier().get());
 
         VectorStoreView view = navigate(VectorStoreView.class);
-        VectorStoreDocumentView documentView = $(VectorStoreDocumentView.class, view).first();
-        MultiSelectListBox<VectorStoreDocumentInfo> listBox = $(MultiSelectListBox.class, documentView).first();
+        VectorStoreDocumentView documentView = $(VectorStoreDocumentView.class, view).single();
+        MultiSelectListBox<VectorStoreDocumentInfo> listBox = $(MultiSelectListBox.class, documentView).single();
         listBox.select(info);
         roundTrip();
 
-        new MenuBarTester<>($(MenuBar.class, documentView).first()).clickItem(0);
+        new MenuBarTester<>($(MenuBar.class, documentView).single()).clickItem(0);
         roundTrip();
 
-        Dialog dialog = $(Dialog.class).withCondition(Dialog::isOpened).first();
+        Dialog dialog = $(Dialog.class).withCondition(Dialog::isOpened).single();
         List<String> spanTexts = $(Span.class, dialog).all().stream().map(Span::getText).toList();
         assertThat(spanTexts).anyMatch(text -> text.startsWith("Scoped by pipeline: Scoped pipeline"));
     }

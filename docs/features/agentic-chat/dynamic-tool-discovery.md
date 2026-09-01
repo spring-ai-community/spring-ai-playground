@@ -71,7 +71,7 @@ It reaches the whole searchable pool - every Local-Passed tool plus any composed
 
 ## Configuration
 
-Dynamic discovery is configured under `spring.ai.playground.chat.tool-search.*` - the master switch (`enabled`), whether new chats start in this mode (`default-on`), the minimum catalog size (`min-tools`), how many names a search returns (`max-results`), the index strategy (`index-type`: `HYBRID` or `VECTOR`), and where the index lives (`vector-store`: a `DEDICATED` private index or the `SHARED` RAG store). See [Configuration](../../getting-started/configuration.md) for the full table and [Context Engineering → Tools](../../context-engineering-architecture.md#tools) for how the index fits the wider context-assembly picture.
+Dynamic discovery is configured under `spring.ai.playground.chat.tool-search.*` - the master switch (`enabled`), the minimum catalog size (`min-tools`), how many names a search returns (`max-results`), the index strategy (`index-type`: `HYBRID` or `VECTOR`), and where the index lives (`vector-store`: a `DEDICATED` private index or the `SHARED` RAG store). See [Configuration](../../getting-started/configuration.md) for the full table and [Context Engineering → Tools](../../context-engineering-architecture.md#tools) for how the index fits the wider context-assembly picture.
 
 ## References
 

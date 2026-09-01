@@ -20,6 +20,8 @@ import com.vaadin.browserless.SpringBrowserlessTest;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.combobox.ComboBox;
+import com.vaadin.flow.component.details.Details;
+import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.markdown.Markdown;
 import com.vaadin.flow.component.textfield.TextArea;
 import com.vaadin.flow.router.QueryParameters;
@@ -113,6 +115,12 @@ class ChatRagProcessPanelTest extends SpringBrowserlessTest {
         assertThat($(Markdown.class, view).all().stream()
                 .map(Markdown::getContent)
                 .anyMatch(content -> content != null && content.contains("Running RAG pipeline"))).isTrue();
+        List<Details> ragPanels = $(Details.class, view).all().stream()
+                .filter(details -> details.getSummary() instanceof Span summary
+                        && summary.getText().startsWith("RAG DOCUMENTS")).toList();
+        assertThat(ragPanels).as("UI-03 the RAG panel is present").hasSize(1);
+        assertThat(ragPanels.getFirst().isOpened())
+                .as("UI-03 the finished RAG panel is collapsed").isFalse();
     }
 
     @Test
@@ -167,17 +175,17 @@ class ChatRagProcessPanelTest extends SpringBrowserlessTest {
         return $(ComboBox.class, view)
                 .withCondition(combo -> ((ComboBox<Object>) combo).getListDataView()
                         .getItems().anyMatch(ChatService.RagSource.class::isInstance))
-                .first();
+                .single();
     }
 
     private void sendPrompt(ChatView view, String text) {
         TextArea prompt = $(TextArea.class, view)
                 .withCondition(area -> "Ask Spring AI Playground".equals(area.getPlaceholder()))
-                .first();
+                .single();
         test(prompt).setValue(text);
         test($(Button.class, view)
                 .withCondition(button -> "Submit".equals(button.getTooltip().getText()))
-                .first()).click();
+                .single()).click();
         completePendingPromptValueJs(text);
     }
 

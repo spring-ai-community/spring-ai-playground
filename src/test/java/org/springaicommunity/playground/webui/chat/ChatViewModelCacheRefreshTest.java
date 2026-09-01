@@ -63,7 +63,7 @@ class ChatViewModelCacheRefreshTest extends SpringBrowserlessTest {
 
         UI.getCurrent().navigate(ChatView.class);
         roundTrip();
-        $(WorkspaceSettingsDrawer.class, (ChatView) getCurrentView()).first().open();
+        $(WorkspaceSettingsDrawer.class, (ChatView) getCurrentView()).single().open();
         roundTrip();
 
         verify(ollamaApi, timeout(2000)).listModels();

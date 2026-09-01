@@ -16,8 +16,10 @@
 package org.springaicommunity.playground.service.vectorstore;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
@@ -38,6 +40,7 @@ import org.springframework.ai.rag.retrieval.join.ConcatenationDocumentJoiner;
 import org.springframework.ai.rag.retrieval.join.DocumentJoiner;
 import org.springframework.ai.rag.retrieval.search.DocumentRetriever;
 import org.springframework.ai.rag.retrieval.search.VectorStoreDocumentRetriever;
+import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 
 import java.lang.reflect.Field;
@@ -48,16 +51,9 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * Conformance to Spring AI's Modular RAG contract, plus a standalone exercise of each of the six
- * roles the spec defines. The executor composes these; here each is driven directly so a break in
- * one element is attributed to that element rather than surfacing as a vague pipeline failure.
- *
- * Spec roles (org.springframework.ai.rag): QueryTransformer, QueryExpander, DocumentRetriever,
- * DocumentJoiner, DocumentPostProcessor, QueryAugmenter.
- */
 class ModularRagSpecConformanceTest {
 
     private static ChatModel modelAnswering(String answer) {
@@ -122,7 +118,7 @@ class ModularRagSpecConformanceTest {
         QueryTransformer transformer = CompressionQueryTransformer.builder()
                 .chatClientBuilder(clientAnswering("who maintains the Aurora Ledger")).build();
         Query withHistory = Query.builder().text("who maintains it?")
-                .history(List.of(new org.springframework.ai.chat.messages.UserMessage("What is the Aurora Ledger?"),
+                .history(List.of(new UserMessage("What is the Aurora Ledger?"),
                         new AssistantMessage("An accounting system."))).build();
 
         assertThat(transformer.transform(withHistory).text()).isEqualTo("who maintains the Aurora Ledger");
@@ -151,7 +147,7 @@ class ModularRagSpecConformanceTest {
     @Test
     void documentRetrieverDelegatesToTheVectorStore() {
         VectorStore vectorStore = mock(VectorStore.class);
-        when(vectorStore.similaritySearch(any(org.springframework.ai.vectorstore.SearchRequest.class)))
+        when(vectorStore.similaritySearch(any(SearchRequest.class)))
                 .thenReturn(List.of(doc("d1", "chunk", 0.9)));
         DocumentRetriever retriever = VectorStoreDocumentRetriever.builder().vectorStore(vectorStore)
                 .topK(4).similarityThreshold(0.5).build();
@@ -214,7 +210,7 @@ class ModularRagSpecConformanceTest {
         QueryAugmenter augmenter = ContextualQueryAugmenter.builder()
                 .documentFormatter(documents -> documents.stream()
                         .map(document -> "<<" + document.getId() + ">> " + document.getText())
-                        .reduce("", (a, b) -> a.isEmpty() ? b : a + "\n" + b))
+                        .reduce("", (joined, line) -> joined.isEmpty() ? line : joined + "\n" + line))
                 .build();
 
         String prompt = augmenter.augment(new Query("who maintains the ledger"),
@@ -232,8 +228,8 @@ class ModularRagSpecConformanceTest {
 
         transformer.transform(new Query("umm what about the ledger"));
 
-        org.mockito.ArgumentCaptor<Prompt> prompts = org.mockito.ArgumentCaptor.forClass(Prompt.class);
-        org.mockito.Mockito.verify(chatModel).call(prompts.capture());
+        ArgumentCaptor<Prompt> prompts = ArgumentCaptor.forClass(Prompt.class);
+        verify(chatModel).call(prompts.capture());
         assertThat(prompts.getValue().getContents()).contains("querying a web search");
     }
 

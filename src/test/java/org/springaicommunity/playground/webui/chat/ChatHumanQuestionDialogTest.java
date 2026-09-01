@@ -85,7 +85,7 @@ class ChatHumanQuestionDialogTest extends SpringBrowserlessTest {
         firstChoice.setValue("Approve");
         test($(Button.class, dialog)
                 .withCondition(button -> "Confirm".equals(button.getText()))
-                .first()).click();
+                .single()).click();
 
         Map<String, String> answers = answer.get(10, TimeUnit.SECONDS);
         assertThat(answers)
@@ -104,14 +104,14 @@ class ChatHumanQuestionDialogTest extends SpringBrowserlessTest {
         ConfirmDialog dialog = awaitAttached(() -> $(ConfirmDialog.class).all().stream()
                 .findFirst().orElse(null));
 
-        assertThat($(McpRiskChip.class, dialog).first().getText()).isEqualTo("L5 - Critical");
+        assertThat($(McpRiskChip.class, dialog).single().getText()).isEqualTo("L5 - Critical");
         assertThat($(Span.class, dialog).all().stream()
                 .anyMatch(span -> span.getText().startsWith("Critical risk"))).isTrue();
         Button approve = $(Button.class, dialog)
-                .withCondition(button -> "Approve".equals(button.getText())).first();
+                .withCondition(button -> "Approve".equals(button.getText())).single();
         assertThat(approve.isEnabled()).isFalse();
 
-        Checkbox acknowledge = $(Checkbox.class, dialog).first();
+        Checkbox acknowledge = $(Checkbox.class, dialog).single();
         acknowledge.setValue(true);
         assertThat(approve.isEnabled()).isTrue();
         acknowledge.setValue(false);
@@ -133,7 +133,7 @@ class ChatHumanQuestionDialogTest extends SpringBrowserlessTest {
         ConfirmDialog dialog = awaitAttached(() -> $(ConfirmDialog.class).all().stream()
                 .findFirst().orElse(null));
 
-        assertThat($(McpRiskChip.class, dialog).first().getText()).isEqualTo("L4 - High");
+        assertThat($(McpRiskChip.class, dialog).single().getText()).isEqualTo("L4 - High");
         assertThat(dialog.getElement().getProperty("confirmTheme")).isEqualTo("error primary");
         assertThat($(Span.class, dialog).all().stream()
                 .anyMatch(span -> span.getText().startsWith("High risk"))).isTrue();
@@ -154,7 +154,7 @@ class ChatHumanQuestionDialogTest extends SpringBrowserlessTest {
         ConfirmDialog dialog = awaitAttached(() -> $(ConfirmDialog.class).all().stream()
                 .findFirst().orElse(null));
 
-        assertThat($(McpRiskChip.class, dialog).first().getText()).isEqualTo("L3 - Moderate");
+        assertThat($(McpRiskChip.class, dialog).single().getText()).isEqualTo("L3 - Moderate");
         assertThat(dialog.getElement().getProperty("confirmTheme")).isNull();
         assertThat($(Span.class, dialog).all().stream()
                 .anyMatch(span -> span.getText().startsWith("High risk")
@@ -198,7 +198,7 @@ class ChatHumanQuestionDialogTest extends SpringBrowserlessTest {
         assertThat(chipTexts).containsExactly("L5 - Critical", "L3 - Moderate");
         test($(Button.class, dialog)
                 .withCondition(button -> "Confirm".equals(button.getText()))
-                .first()).click();
+                .single()).click();
 
         Map<String, String> answers = answer.get(10, TimeUnit.SECONDS);
         assertThat(answers)
@@ -220,7 +220,7 @@ class ChatHumanQuestionDialogTest extends SpringBrowserlessTest {
                 .all().stream().findFirst().orElse(null));
 
         Button confirm = $(Button.class, dialog)
-                .withCondition(button -> "Confirm".equals(button.getText())).first();
+                .withCondition(button -> "Confirm".equals(button.getText())).single();
         assertThat(confirm.getElement().getThemeList()).contains("error");
         assertThat(confirm.isEnabled()).isTrue();
 
@@ -228,7 +228,7 @@ class ChatHumanQuestionDialogTest extends SpringBrowserlessTest {
         criticalChoice.setValue("Approve");
         assertThat(confirm.isEnabled()).isFalse();
 
-        Checkbox acknowledge = $(Checkbox.class, dialog).first();
+        Checkbox acknowledge = $(Checkbox.class, dialog).single();
         acknowledge.setValue(true);
         assertThat(confirm.isEnabled()).isTrue();
         acknowledge.setValue(false);

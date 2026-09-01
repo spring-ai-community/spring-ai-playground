@@ -40,7 +40,10 @@ public class SamplingTab extends VerticalLayout {
     public void attachListeners(UI ui) {
         if (ui == null) return;
         samplingUnsubscribe = clientService.subscribePendingChange(serverInfo, () -> {
-            try { ui.access(this::render); } catch (RuntimeException ignore) {}
+            try {
+                ui.access(this::render);
+            } catch (RuntimeException ignore) {
+            }
         });
     }
 

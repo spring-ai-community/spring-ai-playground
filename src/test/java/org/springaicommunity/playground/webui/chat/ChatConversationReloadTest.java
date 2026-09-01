@@ -142,13 +142,13 @@ class ChatConversationReloadTest extends SpringBrowserlessTest {
         return $(MultiSelectComboBox.class, view)
                 .withCondition(combo -> "Access Tools via external MCP connections"
                         .equals(combo.getTooltip().getText()))
-                .first();
+                .single();
     }
 
     private Checkbox dynamicCheckbox(ChatView view) {
         return $(Checkbox.class, view)
                 .withCondition(box -> "Dynamic tool discovery".equals(box.getLabel()))
-                .first();
+                .single();
     }
 
     @Test
@@ -170,7 +170,7 @@ class ChatConversationReloadTest extends SpringBrowserlessTest {
         ListBox<ChatHistory> historyList = $(ListBox.class, view)
                 .withCondition(box -> ((ListBox<Object>) box).getListDataView().getItems()
                         .anyMatch(ChatHistory.class::isInstance))
-                .first();
+                .single();
         ChatHistory target = historyList.getListDataView().getItems()
                 .filter(history -> "reload-conv-b".equals(history.conversationId()))
                 .findFirst().orElseThrow();
@@ -260,16 +260,16 @@ class ChatConversationReloadTest extends SpringBrowserlessTest {
 
         TextArea prompt = $(TextArea.class, view)
                 .withCondition(area -> "Ask Spring AI Playground".equals(area.getPlaceholder()))
-                .first();
+                .single();
         assertThat(prompt.isReadOnly()).isTrue();
         assertThat(prompt.isEnabled()).isFalse();
         assertThat($(Button.class, view)
                 .withCondition(button -> "Submit".equals(button.getTooltip().getText()))
-                .first().isEnabled()).isFalse();
-        assertThat($(SttMicButton.class, view).first().isEnabled()).isFalse();
+                .single().isEnabled()).isFalse();
+        assertThat($(SttMicButton.class, view).single().isEnabled()).isFalse();
         assertThat($(Button.class, view)
                 .withCondition(button -> "Attach images or documents".equals(button.getTooltip().getText()))
-                .first().isEnabled()).isFalse();
+                .single().isEnabled()).isFalse();
     }
 
     private Details panelWithSummary(ChatView view, String title) {

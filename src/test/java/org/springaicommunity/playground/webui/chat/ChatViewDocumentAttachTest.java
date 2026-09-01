@@ -87,7 +87,7 @@ class ChatViewDocumentAttachTest extends SpringBrowserlessTest {
     }
 
     private ChatAttach chatAttach(ChatView view) {
-        return $(ChatAttach.class, view).first();
+        return $(ChatAttach.class, view).single();
     }
 
     private List<Div> removeControls(ChatView view, String fileName) {
@@ -116,7 +116,7 @@ class ChatViewDocumentAttachTest extends SpringBrowserlessTest {
     @Test
     void smallAttachmentRendersFullTextChipAndRemoveClearsIt() throws InterruptedException {
         ChatView view = navigate(ChatView.class);
-        String conversationId = $(ChatContentView.class, view).first().getConversationId();
+        String conversationId = $(ChatContentView.class, view).single().getConversationId();
 
         chatAttach(view).receiveDocument("notes.md", base64Of("The wifi password rotates monthly."),
                 "text/markdown");
@@ -131,7 +131,7 @@ class ChatViewDocumentAttachTest extends SpringBrowserlessTest {
     void indexedChipPromotesIntoVisibleDocuments() throws InterruptedException {
         String fileName = "contract-" + UUID.randomUUID().toString().substring(0, 8) + ".txt";
         ChatView view = navigate(ChatView.class);
-        String conversationId = $(ChatContentView.class, view).first().getConversationId();
+        String conversationId = $(ChatContentView.class, view).single().getConversationId();
 
         chatAttach(view).receiveDocument(fileName, base64Of(mediumText()), "text/plain");
 

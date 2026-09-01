@@ -64,6 +64,7 @@ import java.beans.PropertyChangeSupport;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -352,7 +353,6 @@ public class VectorStoreView extends ContentWorkspaceView {
                 filesHandedOff.set(false);
                 return;
             }
-            // Dialog dismissed (X, Cancel, Esc) before chunking — remove orphan staged files.
             if (!filesHandedOff.get())
                 removeStagedFiles(vectorStoreDocumentUpload.getUploadedFileNames());
         });
@@ -379,8 +379,6 @@ public class VectorStoreView extends ContentWorkspaceView {
             filesHandedOff.set(true);
             newDocumentDialog.close();
             vectorStoreDocumentUpload.clearFileList();
-            // Reset dialog fields so reopening starts clean. Also clear the invalid flag —
-            // clear() on a touched required field would otherwise leave the red error state visible.
             nameField.clear();
             nameField.setInvalid(false);
             docDescField.clear();
@@ -470,7 +468,7 @@ public class VectorStoreView extends ContentWorkspaceView {
                 });
                 return;
             }
-            Map<String, List<Document>> enrichedByFile = new java.util.LinkedHashMap<>();
+            Map<String, List<Document>> enrichedByFile = new LinkedHashMap<>();
             int offset = 0;
             for (Map.Entry<String, List<Document>> entry : uploadedDocumentItems.entrySet()) {
                 int size = entry.getValue().size();
@@ -488,7 +486,7 @@ public class VectorStoreView extends ContentWorkspaceView {
     private void openChunkConfirmationDialog(List<String> uploadedFileNames,
             Map<String, List<Document>> uploadedDocumentItems, List<Document> chunks, String resolvedTitle,
             String resolvedDescription) {
-        int totalChars = chunks.stream().mapToInt(d -> d.getText() == null ? 0 : d.getText().length()).sum();
+        int totalChars = chunks.stream().mapToInt(chunk -> chunk.getText() == null ? 0 : chunk.getText().length()).sum();
         int avgChars = chunks.isEmpty() ? 0 : totalChars / chunks.size();
 
         IdentityHashMap<Document, Integer> chunkIndex = new IdentityHashMap<>();
@@ -518,9 +516,6 @@ public class VectorStoreView extends ContentWorkspaceView {
 
         Div chunksScroller = new Div(documentListBox);
         chunksScroller.setWidthFull();
-        // Cap height so the dialog (default max-height ~90vh) doesn't overflow once you add the
-        // header / footer / summary / chunks-header chrome — that would force an outer scrollbar.
-        // calc() leaves room for ~320px of chrome and grows with the viewport.
         chunksScroller.getStyle().set("max-height", "calc(90vh - 320px)").set("overflow-y", "auto")
                 .set("border", "1px solid var(--lumo-contrast-20pct)")
                 .set("border-radius", "var(--lumo-border-radius-s)")
@@ -545,7 +540,6 @@ public class VectorStoreView extends ContentWorkspaceView {
         AtomicBoolean confirmed = new AtomicBoolean(false);
         confirmationDialog.addOpenedChangeListener(event -> {
             if (event.isOpened() || confirmed.get()) return;
-            // Cancel / X / Esc — staged files were never embedded, so remove them.
             removeStagedFiles(uploadedFileNames);
         });
 
@@ -619,8 +613,6 @@ public class VectorStoreView extends ContentWorkspaceView {
         card.setSpacing(false);
         card.setMargin(false);
         card.setWidthFull();
-        // STRETCH so the Pre body fills the card width — default flex-start would shrink it to
-        // intrinsic width and waste the wide dialog real estate the user explicitly asked for.
         card.setAlignItems(FlexComponent.Alignment.STRETCH);
         card.getStyle().set("padding", "var(--lumo-space-xs) 0");
 
@@ -696,12 +688,12 @@ public class VectorStoreView extends ContentWorkspaceView {
     }
 
     private static Span popoverSubLabel(String text) {
-        Span s = new Span(text);
-        s.getStyle().set("display", "block").set("font-weight", "600")
+        Span span = new Span(text);
+        span.getStyle().set("display", "block").set("font-weight", "600")
                 .set("font-size", "var(--lumo-font-size-s)")
                 .set("color", "var(--lumo-body-text-color)")
                 .set("margin", "var(--lumo-space-m) 0 var(--lumo-space-xs) 0");
-        return s;
+        return span;
     }
 
     private static String stripExtension(String fileName) {

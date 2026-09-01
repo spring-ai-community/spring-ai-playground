@@ -92,7 +92,7 @@ public record SpringAiPlaygroundOptions(@NestedConfigurationProperty ToolStudio 
             if (memoryMaxMessages == null || memoryMaxMessages <= 0) memoryMaxMessages = 10;
             if (historyMaxMessages == null || historyMaxMessages <= 0) historyMaxMessages = 2_000;
             if (defaultMaxTokens == null || defaultMaxTokens <= 0) defaultMaxTokens = 8_192;
-            if (toolSearch == null) toolSearch = new ToolSearch(null, null, null, null, null, null);
+            if (toolSearch == null) toolSearch = new ToolSearch(null, null, null, null, null);
             if (agentLoop == null) agentLoop = new AgentLoop(null, null, null, null, null, null);
         }
     }
@@ -121,7 +121,7 @@ public record SpringAiPlaygroundOptions(@NestedConfigurationProperty ToolStudio 
                                     Integer topK, Double frequencyPenalty, Double presencePenalty,
                                     List<String> stopSequences) {}
 
-    public record ToolSearch(Boolean enabled, Boolean defaultOn, Integer minTools, Integer maxResults,
+    public record ToolSearch(Boolean enabled, Integer minTools, Integer maxResults,
                              IndexType indexType, VectorStoreMode vectorStore) {
         public enum IndexType { HYBRID, VECTOR }
 
@@ -129,7 +129,6 @@ public record SpringAiPlaygroundOptions(@NestedConfigurationProperty ToolStudio 
 
         public ToolSearch {
             if (enabled == null) enabled = true;
-            if (defaultOn == null) defaultOn = false;
             if (minTools == null || minTools < 0) minTools = 10;
             if (maxResults == null || maxResults <= 0) maxResults = 3;
             if (indexType == null) indexType = IndexType.HYBRID;

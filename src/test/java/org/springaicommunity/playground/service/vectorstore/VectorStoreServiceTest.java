@@ -156,4 +156,15 @@ class VectorStoreServiceTest {
         verify(ragPipelineService).ensureDefaultPipeline(any(), any());
     }
 
+    @Test
+    void searchAllRequestExcludesChatOriginDocuments() {
+        SearchRequest unfiltered = VectorStoreService.searchAllRequest(List.of());
+        assertNull(unfiltered.getFilterExpression());
+        assertEquals(VectorStoreService.ALL_SEARCH_REQUEST_OPTION.topK(), unfiltered.getTopK());
+
+        Filter.Expression exclusion = VectorStoreService.searchAllRequest(List.of("chat-doc")).getFilterExpression();
+        assertEquals(Filter.ExpressionType.NIN, exclusion.type());
+        assertEquals(new Filter.Key(VectorStoreService.DOC_INFO_ID), exclusion.left());
+    }
+
 }
