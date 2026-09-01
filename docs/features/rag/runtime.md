@@ -27,7 +27,7 @@ When a turn retrieves, a **RAG** panel appears above the answer with the stages 
 
 The panel is where a staged pipeline stops being abstract: you see the rewritten query, the expanded variants, and the documents that survived post-processing, in the order they happened. When an answer is not grounded, this tells you whether retrieval failed or generation ignored what it was given.
 
-If the panel reports zero documents and the model replies that the question is outside its knowledge base, the pipeline's similarity threshold is the first thing to check. Scores depend on the embedding model, so a threshold carried over from a different model can sit above everything your corpus actually scores; see [Pipeline Studio → Retrieval](pipeline-studio.md#retrieval) for the measured ranges.
+If the panel reports zero documents, the pipeline's similarity threshold is the first thing to check. An authored pipeline whose **Allow empty context** stays off replies that the question is outside its knowledge base rather than answering; a document picked straight from the chat selector allows empty context, so it answers from the model's own knowledge and only the empty panel tells you retrieval found nothing. Scores depend on the embedding model, so a threshold carried over from a different model can sit above everything your corpus actually scores; see [Pipeline Studio → Retrieval](pipeline-studio.md#retrieval) for the measured ranges.
 
 ## How it runs
 

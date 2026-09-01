@@ -64,18 +64,6 @@ class AttachedDocumentRagAdvisorTest {
     }
 
     @Test
-    void contentTermGateMatchesDesignTable() {
-        assertThat(AttachedDocumentRagAdvisor.hasContentTerms("요약해줘")).isFalse();
-        assertThat(AttachedDocumentRagAdvisor.hasContentTerms("이거 뭐야")).isFalse();
-        assertThat(AttachedDocumentRagAdvisor.hasContentTerms("둘 차이가 뭐야")).isFalse();
-        assertThat(AttachedDocumentRagAdvisor.hasContentTerms("summarize this document")).isFalse();
-        assertThat(AttachedDocumentRagAdvisor.hasContentTerms("   ")).isFalse();
-        assertThat(AttachedDocumentRagAdvisor.hasContentTerms("결제 실패 처리 어떻게 돼있어")).isTrue();
-        assertThat(AttachedDocumentRagAdvisor.hasContentTerms("위약금 조항 어디 있어")).isTrue();
-        assertThat(AttachedDocumentRagAdvisor.hasContentTerms("where is the penalty clause")).isTrue();
-    }
-
-    @Test
     void noAttachmentsPassesRequestThrough() {
         when(intakeService.list("c1")).thenReturn(List.of());
         ChatClientRequest request = requestWith("hello");
@@ -115,14 +103,15 @@ class AttachedDocumentRagAdvisorTest {
     }
 
     @Test
-    void overviewOnlyWhenQueryHasNoContentTerms() {
+    void directiveOnlyQuestionStillSearchesExcerpts() {
         when(intakeService.list("c1")).thenReturn(List.of(
                 attachment(Status.READY, Grade.LARGE, "docInfoId-1", null, "the contract overview")));
+        when(vectorStoreService.search(any(SearchRequest.class))).thenReturn(List.of());
 
         ChatClientRequest result = advisor.before(requestWith("요약해줘"), null);
 
         assertThat(userTextOf(result)).contains("the contract overview");
-        verify(vectorStoreService, never()).search(any(SearchRequest.class));
+        verify(vectorStoreService, times(1)).search(any(SearchRequest.class));
     }
 
     @Test

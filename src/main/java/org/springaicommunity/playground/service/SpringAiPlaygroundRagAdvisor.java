@@ -25,13 +25,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClientRequest;
 import org.springframework.ai.chat.client.ChatClientResponse;
+import org.springframework.ai.chat.client.advisor.ToolCallingAdvisor;
 import org.springframework.ai.chat.client.advisor.api.AdvisorChain;
 import org.springframework.ai.chat.client.advisor.api.BaseAdvisor;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.document.Document;
-import org.springframework.core.Ordered;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -52,6 +52,8 @@ import static org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor.DO
 public class SpringAiPlaygroundRagAdvisor implements BaseAdvisor {
     public static final String RAG_PROCESS_MESSAGE_CONSUMER = "ragProcessMessageConsumer";
     public static final String RAG_SEARCH_COMPLETED_MESSAGE = "VectorDB document search completed.";
+
+    static final int ORDER = ToolCallingAdvisor.DEFAULT_ORDER - 2;
 
     public record RagRetrievedDocumentsInfo(List<String> titles, int count) {}
 
@@ -114,7 +116,7 @@ public class SpringAiPlaygroundRagAdvisor implements BaseAdvisor {
 
     @Override
     public int getOrder() {
-        return Ordered.LOWEST_PRECEDENCE - 1;
+        return ORDER;
     }
 
     private Optional<RagPipeline> resolveSource(String sourceId) {
