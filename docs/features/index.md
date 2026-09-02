@@ -29,7 +29,7 @@ Spring AI Playground is organized around five product surfaces, designed to be u
 
     ---
 
-    Unified runtime that composes tools and RAG context in one conversational interface - chain workflows and agentic tool-use side by side.
+    Unified runtime that composes tools and RAG context in one conversational interface - chain workflows and agentic tool-use side by side. Drop a document on the prompt and it becomes [conversation knowledge](rag/chat-attachments.md), routed by size and registered in the Vector Database with one click.
 
 -   :material-chart-line:{ .lg .middle } **[Observability](observability/index.md)**
 

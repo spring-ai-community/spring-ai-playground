@@ -70,7 +70,7 @@ A concise default - answers directly and cites anything it uses. Works with no t
 
 **What happens** - no tools, no reasoning: the model answers directly.
 
-![General assistant result - the question and a concise CAP-theorem answer, with Spanner/HBase as the CP example and Cassandra/DynamoDB as the AP example](../../assets/images/chat/preset-general-assistant-collapsed.png){ width="1084" }
+![General assistant result - the question, a folded THINK summary, and a concise CAP-theorem answer with PostgreSQL as the CP example and DynamoDB as the AP example](../../assets/images/chat/preset-general-assistant-collapsed.png){ width="1084" }
 
 </div>
 </div>
@@ -150,7 +150,7 @@ Use only enabled tools and never fake their output.</pre>
 
 **What happens** - the agent runs a dozen searches across Wikipedia, arXiv, and developer forums, then writes a structured summary: the RAG pipeline (retrieve, augment, generate), a trade-offs table, and numbered citations back to the sources it pulled. Its reasoning and tool calls run in collapsible **THINK** / **MCP TOOLS** panels (folded here; click any in the app to open).
 
-![Research agent result - the question, folded THINK and MCP TOOLS summaries, and a cited summary of how RAG works with a trade-offs table and numbered sources](../../assets/images/chat/preset-research-agent-collapsed.png){ width="1084" }
+![Research agent result - the question, folded THINK and MCP TOOLS summaries listing searchWikipedia, searchArxiv, searchHackerNews and extractPageContent, and a cited synthesis of how RAG works with its main steps](../../assets/images/chat/preset-research-agent-collapsed.png){ width="1084" }
 
 </div>
 </div>
@@ -523,7 +523,7 @@ Use only enabled tools and never fake their output.</pre>
 
 **What happens** - the agent geocodes Kyoto, pulls the forecast and holidays, and assembles a dated plan. Its reasoning and tool calls run in collapsible **THINK** / **MCP TOOLS** panels (folded here; click any in the app to open).
 
-![Trip planner result - the map request, a folded MCP TOOLS summary, and a plotPointsOnMap card with Tokyo, Kyoto, and Osaka plotted on one map](../../assets/images/chat/preset-trip-planner-collapsed.png){ width="1084" }
+![Trip planner result - the Kyoto day-plan request, folded THINK and MCP TOOLS summaries listing getCurrentTime, geocodeAddress, getOpenMeteoForecast, getPublicHolidays, getCountryInfo, showLocation and convertCurrency, and the plan's location and weather sections](../../assets/images/chat/preset-trip-planner-collapsed.png){ width="1084" }
 
 </div>
 </div>
@@ -809,7 +809,7 @@ Use only enabled tools and never fake their output.</pre>
 
 **What happens** - the agent surveys the tree with `listDir` and `statFile`, then each mutating call - two `moveFile`s and a `deleteFile` - pauses on an **Approve / Reject** prompt ([human-in-the-loop](../human-in-the-loop.md); `moveFile` and `deleteFile` are destructive-rated `L5 → L4` with approval). Three approvals later it reports the moves and the deletion, with the unrelated files untouched.
 
-![Workspace organizer result - the tidy-up request, folded THINK and MCP TOOLS summaries listing moveFile and deleteFile among 9 calls, and a checklist of the two moves and one deletion](../../assets/images/chat/preset-workspace-organizer-result.png){ width="1084" }
+![Workspace organizer result - the tidy-up request, folded THINK and MCP TOOLS summaries listing listAllowedDirectories, listDir, statFile, moveFile and deleteFile among 8 calls, the workspace survey with file sizes, and the three-step plan of two moves and one deletion](../../assets/images/chat/preset-workspace-organizer-result.png){ width="1084" }
 
 </div>
 </div>

@@ -17,6 +17,9 @@ The walkthrough uses a Korean government open-data service, because "we already 
 - Docker installed and running, for the last two sections.
 - A **data.go.kr service key**. The walkthrough calls [KoROAD traffic-accident hotspots by municipality](https://www.data.go.kr/data/15057467/openapi.do). Sign in, click **활용신청**, and the development account is approved automatically.
 
+!!! tip "No key? Run the same capstone against USGS"
+    Every step below except the exact numbers is API-agnostic. To do the whole walkthrough with no credentials, copy [`getRecentEarthquakes`](../features/default-tools/global.md) instead of the traffic tool - it calls the USGS public catalog with no auth and already returns `latitude`, `longitude` and `magnitude`, so the same two action cards (a `plotPointsOnMap` weighted by magnitude and a ranked bar chart) fall out of it. Name the copy `earthquakeBriefing`, set **Network mode (fetch)** to `strict`, and skip straight to section 3. The approval dialog, the `L3 → L2 - Low` chip, the elicitation card and the Docker hand-off all behave identically.
+
 !!! warning "Use the Decoding key, not the Encoding key"
     data.go.kr issues both forms. The Encoding key ends in `%3D%3D`, which is already URL-escaped. Every data.go.kr tool in this catalog runs the key through `encodeURIComponent`, so an Encoding key gets escaped twice and the service rejects it. Copy the **일반 인증키 (Decoding)** value.
 
@@ -146,7 +149,7 @@ Run it once more with **Test Run** and read the Debug Console.
 
 ## 4. Confirm the approval gate { #hitl }
 
-Expand **Sandbox & Capabilities**. Because the action calls `fetch` against an allowlisted host, the tool sits at **L3**, and every tool above `L0` defaults to **Human-in-the-loop: Required** the moment you author it. You do not have to turn it on; you have to decide whether to leave it on.
+Expand **Sandbox & Capabilities**. **Copy And New Tool** does not carry the original's sandbox over - a fresh copy reads `Locked L0` with **Human-in-the-loop** on `Disabled`, and in that state `fetch` is not even defined in the action. Set **Network mode (fetch)** to `strict` (or `allowlist` plus the host). The posture badge flips to `Network strict L3`, and *that* is what pulls **Human-in-the-loop** to `Required - ask every run` on its own - every tool above `L0` defaults to Required. So you do not have to turn the gate on; you have to decide whether to leave it on.
 
 Leave it on, and optionally set an **Approval prompt** so the question names what is about to happen:
 
@@ -162,7 +165,7 @@ Query accident hotspots for {args}. Proceed?
 ## 5. Call it from chat { #chat }
 
 1. Open **Agentic Chat**.
-2. In the tool menu above the prompt, tick **Manual built-in tool selection** and confirm `accidentHotspotBriefing` is listed.
+2. In the tool menu above the prompt, tick **Manual built-in tool selection**. A tool you authored is a **custom** tool, so it is in the **Custom tools for this chat** picker - the one above **Built-in tools for this chat**, which lists only the shipped catalog. Pick `accidentHotspotBriefing` there.
 3. Ask for it in plain language:
 
     *"강남, 수성구, 해운대, 제주시 교통사고 다발지역 뽑아서 지도로 보여줘"*

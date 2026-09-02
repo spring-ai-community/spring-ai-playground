@@ -50,7 +50,7 @@ Unlike many playgrounds that stop at prompt testing, this project connects AI co
           title="Local Model, Real Agent - Spring AI Playground in 30 Seconds"
           allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
           referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
-  <p><a href="https://www.youtube.com/playlist?list=PLfizCrbCZK9k" target="_blank" rel="noopener">Watch the full series on YouTube (7 videos)</a></p>
+  <p><a href="https://www.youtube.com/playlist?list=PLfizCrbCZK9k" target="_blank" rel="noopener">Watch the full demo series on YouTube</a></p>
 </div>
 
 ## :material-format-quote-close: Mentions and Coverage
@@ -557,7 +557,7 @@ Installing an external MCP server normally means cloning a repo, installing the 
 
 - [:material-robot-outline: AI Models](getting-started/external-connections.md#connect-model-providers): switch between Ollama, OpenAI, and OpenAI-compatible runtime paths.
 - [:material-tools: Tool Studio](features/tool-studio/index.md): build low-code tools in JavaScript and expose them instantly through MCP.
-- [:material-connection: MCP Server](features/mcp-server/index.md): inspect external MCP servers, read a live **risk score** (L0-L5) before connecting, and **proxy** their tools onto the built-in server - compose multiple servers into one surface - each gated by per-tool human-in-the-loop.
+- [:material-connection: MCP Server](features/mcp-server/index.md): inspect external MCP servers, read a live **risk score** (L0-L5) before connecting, and **proxy** their tools onto the built-in server - compose multiple servers into one surface - each gated by per-tool human-in-the-loop, with an optional bearer token on the built-in `/mcp` endpoint.
 - [:material-server-network: Default MCP Servers](features/default-mcp-catalog/index.md): 58 preset external MCP server connections (Gmail, Notion, Slack, GitHub, Tavily, ...) gated on `${ENV_VAR}` placeholders.
 - [:material-database-search: RAG](features/vector-database.md): upload content, chunk it, enrich it, embed it, then compose a **Modular RAG pipeline** over it - query rewriting, multi-query expansion, re-ranking, prompt augmentation - and test it against the same executor chat uses.
 - [:material-chat-processing: Agentic Chat](features/agentic-chat/index.md): combine grounded context, built-in tools, and explicitly trusted MCP connections in one interaction flow - with a Prompt Library of ready-to-use [presets](features/agentic-chat/prompt-presets.md) and [`{{variable}}` templates](features/agentic-chat/prompt-templates.md), [dynamic tool discovery](features/agentic-chat/dynamic-tool-discovery.md), per-turn reasoning effort, [document attachments with size-tiered ingest](features/rag/chat-attachments.md), [image attachments as multimodal vision input](features/agentic-chat/image-attachments.md), review-then-act [action cards](features/agentic-chat/index.md#action-cards) (email, calendar, map) and clickable file paths, on-device voice input, and rich code/math/diagram rendering.

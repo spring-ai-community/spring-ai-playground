@@ -43,6 +43,6 @@ description: Tutorial 3 - upload a document, run the ETL pipeline (extract with 
 
 ## What you also got
 
-Embedding into an empty store creates a default retrieval pipeline, `All documents (simple)`, that searches the whole store, so your document is immediately selectable in chat. Everything about how retrieval behaves - Top-K, threshold, query rewriting - lives on that pipeline; see [Pipeline Studio](../features/rag/pipeline-studio.md).
+Embedding while no RAG pipeline exists yet creates a default retrieval pipeline, `All documents (simple)`, that searches the whole store, so your document is immediately selectable in chat. Everything about how retrieval behaves - Top-K, threshold, query rewriting - lives on that pipeline; see [Pipeline Studio](../features/rag/pipeline-studio.md).
 
 Next: [Tutorial 5 - Chat With RAG](5-chat-rag.md) uses this document as grounded context.

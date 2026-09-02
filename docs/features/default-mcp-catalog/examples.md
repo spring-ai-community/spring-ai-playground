@@ -42,7 +42,7 @@ The official MCP reference test server, maintained by the MCP working group. Imp
 
 **Prereq** - Node.js 18+ on the host so `npx` (or `npx.cmd`) can fetch and spawn the package. The catalog automatically picks the entry matching the host OS.
 
-**Docker alternative** - if you'd rather not install Node, switch the form's **Command** to `docker` and **Arguments** to `["run", "-i", "--rm", "tzolov/mcp-everything-server:v2"]` before saving. This is the same form the playground's QA recipe uses as a smoke test.
+**Docker alternative** - if you'd rather not install Node, keep the transport on STDIO and switch the form's **Command** to `docker` and **Arguments** to `["run", "-i", "--rm", "mcp/everything"]` before saving. Use the official `mcp/everything` image: it speaks the protocol over the container's stdin/stdout. Note that it is an older build - 8 tools and 3 prompts under different names (`add`, `annotatedMessage`, `longRunningOperation`, `sampleLLM`, `simple_prompt`, ...) against the 15 tools and 4 prompts the `npx` path pulls. `tzolov/mcp-everything-server:v2` is the HTTP packaging of the same server (it listens on port 3001 and writes nothing to stdout), so reach that one with the **Streamable HTTP** transport against `http://localhost:3001` + `/mcp` after publishing the port.
 
 **Why this server is catalogued under Examples**
 
@@ -71,7 +71,7 @@ If any of these don't behave as documented, the bug is almost certainly in the p
 
 [macOS] Official MCP reference test server exercising every protocol feature - tools, resources, prompts, sampling, completion, logging, progress, root listing.
 
-The activated form is pre-filled to run: `npx -y @modelcontextprotocol/server-everything`. Docker alternative: `docker run -i --rm tzolov/mcp-everything-server:v2`. The hosted `example-server.modelcontextprotocol.io` endpoint requires OAuth and is not auto-activated.
+The activated form is pre-filled to run: `npx -y @modelcontextprotocol/server-everything`. Docker alternative (STDIO): `docker run -i --rm mcp/everything`. The hosted `example-server.modelcontextprotocol.io` endpoint requires OAuth and is not auto-activated.
 
 **Docs** - [github.com/modelcontextprotocol/servers/tree/main/src/everything](https://github.com/modelcontextprotocol/servers/tree/main/src/everything)
 

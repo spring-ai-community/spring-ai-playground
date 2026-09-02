@@ -918,7 +918,7 @@ The MCP Server screen has two cooperating regions - a **filter bar** at the top 
 Built from the shared `webui/common/sidebar/SidebarFilterBar` widget (Tool Studio uses the same one). Three controls that compose AND across groups, OR within a group:
 
 - **Search** - matches against server name, vendor, description, and - for active connections only - live tool names returned by `listTools`. 200 ms debounce before re-rendering.
-- **Categories** multi-select - the 13 built-in catalog categories plus `Custom` for user-added entries: `Example · Productivity · Storage · Communication · Project Management · Dev · Search · Cloud · Database · Finance · CRM · Design · Utility · Custom`.
+- **Categories** multi-select - the 14 built-in catalog categories plus `Custom` for user-added entries: `Example · Productivity · Storage · Communication · Project Management · Dev · Search · Cloud · Database · Public Data · Finance · CRM · Design · Utility · Custom`.
 - **Tags** multi-select - drawn from the union of every catalog entry's tags and every active server's tags. Cohort vocabulary: `aggregator · beta · community · free-tier · geo · global · korea · legal · pipeline · preview · us`.
 
 For example, picking `Productivity` + `preview` narrows to Gmail and Google Calendar (the two preview-stability Workspace entries); a search term layered on top further trims the visible count. The sidebar header counter swaps between `(N)` and `(N filtered of M)` when a filter is active; an empty match offers a **Clear filters** button.

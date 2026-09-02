@@ -51,11 +51,13 @@ Spring AI supports Apache Cassandra, Azure Cosmos DB, Azure Vector Search, Chrom
 - [Offline: Indexing](rag/offline-etl.md) - readers, splitters, and metadata enrichers, and which Spring AI class each control maps to
 - [Pipeline Studio](rag/pipeline-studio.md) - authoring a Modular RAG pipeline and testing it against the real executor
 - [Runtime: RAG in Chat](rag/runtime.md) - selecting a pipeline in Agentic Chat and reading the retrieval trace
+- [Chat Attachments](rag/chat-attachments.md) - files dropped on the chat prompt, routed by size, and registered here with one click
 
 Hands-on paths:
 
 - [Tutorial 3 - Index a Document](../tutorials/3-index-document.md) - ingestion and retrieval validation end to end
 - [Tutorial 5 - Chat with RAG](../tutorials/5-chat-rag.md) - consume the indexed corpus from chat, then upgrade it to a staged pipeline
 - [Tutorial 6 - Tools and RAG](../tutorials/6-tools-and-rag.md) - grounded retrieval and MCP tool calls in one turn
+- [Tutorial 17 - Attach a Document and Ask](../tutorials/17-attach-a-document.md) - the instant route: drop a file on the chat prompt, then register it here
 
 Embedding-model setup is done at launch time; see [Desktop App → Recommended First-Launch Flow](../getting-started/desktop.md#11-recommended-first-launch-flow).

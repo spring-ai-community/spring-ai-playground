@@ -1,6 +1,4 @@
----
 description: Tutorial 15 - investigate documents with the Document detective preset. Upload a file with requestFileUpload, then find, grep, and slice it the Unix-pipeline way.
----
 
 # Tutorial 15 - Investigate Documents with a Pipeline
 
@@ -11,17 +9,20 @@ description: Tutorial 15 - investigate documents with the Document detective pre
 
 ## Steps
 
-1. Open **Agentic Chat**, click the **Prompt Library** (clipboard) icon, and apply the **Document detective** preset from the **Presets** group. When the **Apply preset tools** dialog appears, click **Apply** so the chat exposes the preset's twelve tools - `requestFileUpload` plus the read pipeline (`findFiles`, `searchInFiles`, `grepFile`, `sliceFile`, `lineCount`, ...).
+1. Open **Agentic Chat**, click the **Prompt Library** (clipboard) icon, and pick the **Document detective** preset from the **Presets** group. **Apply to chat** loads it into the **Agentic Chat Setting** drawer; **Apply & New Chat** commits it, and the **Apply preset tools** dialog then asks to publish the preset's twelve tools - `requestFileUpload` plus the read pipeline (`findFiles`, `searchInFiles`, `grepFile`, `sliceFile`, `lineCount`, ...). Click **Apply**.
 
 2. Ask about a document you have **not** pasted - for example `I have a contract file. Find the late delivery penalty clause and quote it with its exact line numbers.` The model realizes it cannot read what it does not have and calls `requestFileUpload` - the chat opens an **Upload a file** dialog mid-conversation.
 
+    !!! tip "Use a tool-capable model"
+        This preset asks the model to *chain* several filesystem calls, which is more than the shipped `qwen3.5:4b` default reliably manages: it tends to narrate the plan ("Step 1: check allowed directories") as text instead of calling the tools, and then no upload dialog ever opens. Switch to `qwen3.5:9b` or `gemma4:e4b` in **Agentic Chat Setting** before you start - the run below is `qwen3.5:9b`.
+
 ![The Upload a file dialog opened by requestFileUpload, asking for the contract file](../assets/images/tutorials/tutorial-15-upload-dialog.png)
-*The same human-in-the-loop seam as tool approvals: the turn pauses until you hand over a file or cancel. Excel converts to CSV in the browser before anything is stored.*
+*The model writes the ask itself - here `Please upload your contract file so we can analyze it for late delivery penalty clauses.` The same human-in-the-loop seam as tool approvals: the turn pauses until you hand over a file or cancel. Excel converts to CSV in the browser before anything is stored.*
 
 3. Pick the file. It lands under the conversation workspace at `uploads/<name>` and the tool returns that path to the model, which reads it and answers with the clause quoted at its exact line numbers - evidence, not paraphrase. The preset scales the tooling to the file: a small contract like this one is read whole with `readTextFile`; on a large document it switches to `grepFile numbered=true` to pin the matching line and `sliceFile` to pull a context window around it.
 
-![The agent's answer quoting the penalty clause at lines 5-6, with an evidence quote and the pipeline steps it ran](../assets/images/tutorials/tutorial-15-answer.png)
-*Every claim carries a verbatim quote and a line number - the `grep -n` discipline as an agent behavior - and the answer ends with the pipeline steps it ran.*
+![The agent's answer - the clause quoted, Line Numbers reading Lines 5-6, an Evidence Quote per line, and a numbered Pipeline Steps list of the six tool calls](../assets/images/tutorials/tutorial-15-answer.png)
+*Every claim carries a verbatim quote and a line number - the `grep -n` discipline as an agent behavior - and the answer ends with the **Pipeline Steps** it actually ran: `listAllowedDirectories()` to find the roots, `requestFileUpload(...)` to get the file, `readTextFile(...)`, `lineCount(...)`, `grepFile(...)` to pin the match, then `sliceFile(start=3, end=8)` for the context window. The run meta above it reports the cost of that discipline - here `135.8s · 27,908 tokens`.*
 
 4. No upload needed when the documents are already on disk: give it a **folder path** instead - `Search every file under ~/contracts for the word "penalty"` - and the agent sweeps it with `findFiles` + `searchInFiles`, then slices context around each hit, exactly like the [preset card's captured run](../features/agentic-chat/prompt-presets.md#document-detective).
 

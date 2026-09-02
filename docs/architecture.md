@@ -99,7 +99,7 @@ Per-feature services under `src/main/java/org/springaicommunity/playground/servi
 | `service/mcp/client` | `McpClientService`, `Mcp*PropertiesService` | External MCP clients across STDIO / HTTP / SSE |
 | `service/mcp/risk` | `McpServerRiskCalculator`, `McpToolPublishRiskCalculator`, `McpToolRiskComposer`, `McpToolPoisoningScanner`, `McpToolHashLedger`, `McpCompositionService`, `McpCompositionShadowingRules`, `McpExposedToolService`, `WrappedExternalToolCallback` | L0-L5 risk scoring for external servers/tools (transport · auth · trust · doc axes + floor rules), tool-description poisoning scan, fingerprint ledger for change detection, and tool **composition** that re-exposes upstream tools on the built-in server with alias / description / HITL overrides - see [MCP Server Safety](mcp-server-safety.md) |
 | `service/util` | `SecretMasking`, `EnvVarResolver` | Resolve `${ENV_VAR}` placeholders against the OS env; sweep connection-error notifications + per-call logs to replace any resolved secret value with `***` |
-| `service/vectorstore` | `VectorStoreService`, `VectorStoreDocumentService` | Tika ingestion, chunking, embedding, search |
+| `service/vectorstore` | `VectorStoreService`, `OfflineEtlPipelineService`, `RagPipelineService`, `RagPipelineExecutor` | Tika ingestion, chunking, embedding, search, staged retrieval |
 | `service/identity` | `DeviceIdProvider`, `UserIdentityService`, `MdcIdentityFilter` (in `config`) | Stable per-device id - salted SHA-256 of the OS machine id, persisted to `identity/installation.json`; injected into MDC as `userId` / `sessionId` for log + trace correlation (see [Observability → Device-based identity](observability-architecture.md#device-identity)) |
 | `observability` *(top-level)* | `ObservabilityCollector`, `ObservabilityRingBuffer`, `ObservabilityTimeSeries`, `ModelPricingService` | Micrometer `ObservationHandler` pipeline + ring buffer / time series / JSON persistence that backs the Observability dashboards - a sibling of `service/`, shown here because it is runtime backend. Full design: [AI Agent Observability](observability-architecture.md) |
 
@@ -299,7 +299,7 @@ RAG only runs when a RAG source is selected for the conversation - otherwise `Sp
 
 ### Flow 4b - Attached documents (size-tiered ingest)
 
-Files dropped on the chat prompt take a separate path from the RAG source selector. `ChatDocumentIntakeService` parses the file with `TikaDocumentReader`, counts tokens, and grades it: small files (up to 4,000 tokens) keep their raw text and skip indexing entirely; larger files run the same splitter and embedding as Flow 3, with chunks stamped `level: 1`, plus a map-reduce document overview built by `HierarchicalSummaryTransformer`. At ask time `AttachedDocumentRagAdvisor` (ordered after the Flow 4 advisors, so memory and any selected RAG source see the original user words) always injects small-file text and document overviews, and runs a `docInfoId`-scoped excerpt search with similarity threshold 0 only when the query still contains content terms after stripping directive verbs and stopwords. Routing decisions print in the chat RAG panel.
+Files dropped on the chat prompt take a separate path from the RAG source selector. `ChatDocumentIntakeService` parses the file with `TikaDocumentReader`, counts tokens, and grades it: small files (up to 4,000 tokens) keep their raw text and skip indexing entirely; larger files run the same splitter and embedding as Flow 3, with chunks stamped `level: 1`, plus a map-reduce document overview built by `HierarchicalSummaryTransformer`. At ask time `AttachedDocumentRagAdvisor` (ordered after the Flow 4 advisors, so memory and any selected RAG source see the original user words) always injects small-file text and document overviews, and, when a medium or large attachment is present, runs one `docInfoId`-scoped excerpt search with similarity threshold 0. What was searched and retrieved prints in the chat RAG panel.
 
 ```mermaid
 flowchart LR
@@ -311,7 +311,7 @@ flowchart LR
     end
     subgraph Ask [Per turn]
         Q["Question"] --> LOOKUP["Overviews + small text<br/>record lookup"]
-        Q -->|"content terms survive"| SEARCH["One similarity search<br/>docInfoId filter, threshold 0"]
+        Q --> SEARCH["One similarity search<br/>docInfoId filter, threshold 0"]
         LOOKUP --> CTX["Assembled context<br/>+ original question"]
         SEARCH --> CTX
     end
@@ -378,11 +378,11 @@ sequenceDiagram
     participant MCP as MCP Server(s)
     participant UI as UI stream
 
-    U->>CCV: prompt + selected docs + selected MCP servers
-    CCV->>CS: stream(prompt, filter, toolCallbacks, consumers)
+    U->>CCV: prompt + RAG source + selected MCP servers
+    CCV->>CS: stream(prompt, ragSourceId, toolCallbacks, consumers)
     CS->>CCL: prompt().user(..).toolCallbacks(..).advisors(..)
     CCL->>ADV: before(request)
-    ADV->>VSS: RAG search (if filter present)
+    ADV->>VSS: RAG pipeline / attachment search (if a source or attachment is present)
     VSS-->>ADV: grounded documents
     ADV-->>CCL: request with memory + documents
     loop until model stops calling tools
@@ -451,7 +451,7 @@ Runtime selection happens through Spring profiles (`ollama`, `openai`) combined 
 - `VectorStoreDocumentPersistenceService` - uploaded documents and metadata
 - `McpServerInfoPersistenceService` - saved external MCP connections
 
-State is serialized as JSON under the user home directory. `SimpleVectorStore` itself is volatile - vectors are recomputed on restart when the default store is in use. Swapping in a durable vector store (pgvector, Weaviate) removes that constraint.
+State is serialized as JSON under the user home directory. The default `SimpleVectorStore` is in-memory at runtime, but it is dumped to `vectorstore/simpleVectorStore/` after each change (debounced) and reloaded at startup, so vectors survive a restart without re-embedding. Swapping in a durable vector store (pgvector, Weaviate) replaces that dump.
 
 ## Extensibility Points
 

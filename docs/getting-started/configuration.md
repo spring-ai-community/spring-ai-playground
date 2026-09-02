@@ -49,8 +49,8 @@ On an **Apple Silicon Mac** the `mlx` profile is layered onto `ollama` automatic
 | `server.shutdown` | relaxed-binding env | `graceful` | Graceful shutdown. |
 | `spring.lifecycle.timeout-per-shutdown-phase` | relaxed-binding env | `30s` | Drain time per phase. |
 | `vaadin.pushmode` | relaxed-binding env | `automatic` | Vaadin server push. |
-| `spring.servlet.multipart.max-file-size` / `max-request-size` | relaxed-binding env | `20MB` / `20MB` | Upload limits (Vector Database ingest). |
-| `spring.http.clients.read-timeout` | relaxed-binding env | `10m` | Per-request ceiling for every HTTP client Spring builds, which means **each individual model call**: an Ollama chat or embedding request, and each [RAG pre-retrieval stage](../features/rag/pipeline-studio.md). Local models legitimately take minutes per call, and without this the JDK client default is unlimited, so a dead provider hangs forever. The chat stream's first-signal watchdog is derived from this value multiplied by the pipeline's stage count. MCP transports use their own client and are unaffected; see `spring.ai.mcp.server.request-timeout` below. |
+| `spring.servlet.multipart.max-file-size` / `max-request-size` | relaxed-binding env | `20MB` / `20MB` | Upload limits (Vector Database ingest and chat attachments). |
+| `spring.http.clients.read-timeout` | relaxed-binding env | `10m` | Per-request ceiling for every HTTP client Spring builds, which means **each individual model call**: an Ollama chat or embedding request, and each [RAG pre-retrieval stage](../features/rag/pipeline-studio.md). Local models legitimately take minutes per call, and without this the JDK client default is unlimited, so a dead provider hangs forever. The chat stream's first-signal watchdog is derived from this value multiplied by the number of LLM pre-retrieval stages plus one (floor five minutes, cap one hour). MCP transports use their own client and are unaffected; see `spring.ai.mcp.server.request-timeout` below. |
 | `management.endpoints.web.exposure.include` | relaxed-binding env | `health,info,metrics,prometheus` | Actuator endpoints exposed at `/actuator/*`. |
 
 ## AI providers & models { #ai }
@@ -59,8 +59,8 @@ Provider selection (which Spring AI model backs each capability):
 
 | Property | Default | Notes |
 |---|---|---|
-| `spring.ai.model.chat` | `ollama` | Set to `openai` by the `openai` Spring profile. |
-| `spring.ai.model.embedding` | `ollama` | Used by the Vector Database. |
+| `spring.ai.model.chat` | `ollama` | Set to `openai` by the `openai` Spring profile. Set to `none` to boot model-free: the app starts with no chat provider, a chat send fails fast with "No chat model is configured", and Tool Studio and the built-in MCP server keep working. |
+| `spring.ai.model.embedding` | `ollama` | Used by the Vector Database, chat attachments, and the dynamic tool index. Set to `none` together with `spring.ai.model.chat=none` for an MCP-server-only deployment; embedding-backed features are disabled. |
 | `spring.ai.model.image` / `moderation` / `audio.speech` / `audio.transcription` | `none` | Opt-in capabilities. |
 
 **Ollama profile** (`ollama`, default):
@@ -72,7 +72,7 @@ Provider selection (which Spring AI model backs each capability):
 | `spring.ai.ollama.chat.options.model` | `qwen3.5:4b` | Default chat model. |
 | `spring.ai.ollama.embedding.options.model` | `qwen3-embedding:0.6b` | Default embedding model. |
 | `spring.ai.ollama.chat.keep-alive` / `spring.ai.ollama.embedding.keep-alive` | `30m` | How long Ollama keeps each model loaded in memory after a call, as a [Go duration](https://pkg.go.dev/time#ParseDuration) (`0` unloads it at once, `-1` keeps it forever). The default trades VRAM for no reload stall when you come back to a chat. Sent per request, so it wins over the Ollama server's own `OLLAMA_KEEP_ALIVE` default; that server env var is still the right knob when you want one duration for every client of a self-managed Ollama. Override a single conversation from the chat settings drawer's provider-options JSON with `{"keep_alive": "5m"}`. |
-| `spring.ai.playground.chat.models` | `qwen3.5:2b/4b/9b, qwen3.6:27b/35b, gemma4:e2b/e4b/12b/31b, gpt-oss:20b, deepseek-r1:8b` | The model menu shown in the chat UI. |
+| `spring.ai.playground.chat.models` | `qwen3.5:2b/4b/9b, qwen3.6:27b/35b, qwen3.8:27b, gemma4:e2b/e4b/12b/31b, gpt-oss:20b, deepseek-r1:8b` | The model menu shown in the chat UI. |
 | `spring.ai.playground.ollama.mlx-auto-select` | `true` | On Apple Silicon, auto-activate the [`mlx` profile](#profiles) (MLX model defaults). Set `false` to keep the generic model names. |
 
 **OpenAI profile** (`openai`):
@@ -145,9 +145,9 @@ The playground publishes its own MCP server at `/mcp` (Streamable HTTP). These c
 | `spring.ai.playground.chat.tool-search.enabled` | relaxed-binding env | `true` | Master switch for **[dynamic tool discovery](../features/agentic-chat/dynamic-tool-discovery.md)** - the `toolSearchTool` advisor, the boot-time tool index, and the chat checkbox. `false` removes the feature entirely. |
 | `spring.ai.playground.chat.tool-search.min-tools` | relaxed-binding env | `10` | Minimum searchable tools before the chat's **Dynamic tool discovery** checkbox enables - discovery only pays off with a real catalog to search. |
 | `spring.ai.playground.chat.tool-search.max-results` | relaxed-binding env | `3` | Tool names returned per `toolSearchTool` search. |
-| `spring.ai.playground.chat.tool-search.index-type` | relaxed-binding env | `HYBRID` | `HYBRID` (exact tool-name match, then vector search) or `VECTOR` (vector only). |
+| `spring.ai.playground.chat.tool-search.index-type` | relaxed-binding env | `HYBRID` | `HYBRID` (tool names whose tokens appear in the query rank first, then vector search) or `VECTOR` (vector only). |
 | `spring.ai.playground.chat.tool-search.vector-store` | relaxed-binding env | `DEDICATED` | `DEDICATED` (a private, persisted tool index) or `SHARED` (reuse the RAG vector store). See [Context Engineering → Tools](../context-engineering-architecture.md#tools). |
-| `spring.ai.mcp.server.request-timeout` | relaxed-binding env | `150` | Seconds. |
+| `spring.ai.mcp.server.request-timeout` | relaxed-binding env | `150s` | Keep the unit suffix: a bare number is read as milliseconds. |
 
 ## RAG & vector store { #rag }
 

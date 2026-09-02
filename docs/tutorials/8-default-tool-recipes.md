@@ -12,10 +12,16 @@ This tutorial differs from [Tutorial 7](7-weather-to-slack.md) in *where* the ch
 The pattern (every recipe follows it):
 
 1. Open the closest default tool in Tool Studio.
-2. **Copy And New Tool** - gives you the same parameter shape with a fresh `toolId` and a `Draft` badge.
-3. Rewrite the JS action to chain the helpers you need.
-4. Adjust the test value so Local Pass exercises the new logic.
-5. **Test & Publish**. The new tool joins the built-in MCP server the same moment Local Pass succeeds - Agentic Chat sees it on the next turn.
+2. **Copy And New Tool** - gives you the same parameter shape under the name `<tool>_COPY`, with a fresh `toolId`, and drops it into **DRAFTS**.
+3. Rename it, adjust the parameters, and rewrite the JS action to chain the helpers you need.
+4. Open **Sandbox & Capabilities** and grant what the action needs (see the box below) - a copy starts fully locked down.
+5. Adjust the test value so Local Pass exercises the new logic. **Test Run** shows the result in the Debug Console without publishing.
+6. **Test & Publish**. The new tool joins the built-in MCP server the same moment Local Pass succeeds - Agentic Chat sees it on the next turn.
+
+!!! warning "Two things that will bite you on the first run"
+    **Parameters are globals, not a `params` object.** Each declared parameter is bound into the action as a top-level variable named after it - `symbol`, not `params.symbol`. Writing `params.x` fails with `ReferenceError: params is not defined`. Static variables work the same way. Where a recipe needs a default, alias the global into a new name (`const sym = symbol || 'BTC';`) - you cannot redeclare a name that is already bound.
+
+    **A copied tool starts with everything switched off.** **Network mode (fetch)** defaults to `blocked` and **Filesystem mode (safety.fs)** to `off`, so `fetch` and `safety.fs` are not even defined in the action - the first run dies with `ReferenceError: fetch is not defined`. Open **Sandbox & Capabilities** and pick the mode each recipe lists before you test.
 
 The cross-platform property carries through - all five recipes use only JVM-backed helpers (`fetch`, `safety.fs.*`), so the same JS runs identically on macOS, Windows, and Linux. See [Tool Studio: Cross-platform by design](../features/tool-studio/index.md#cross-platform-by-design).
 
@@ -27,7 +33,7 @@ The cross-platform property carries through - all five recipes use only JVM-back
 
 **What we're building** - a tool that takes a `query` ("AI", "TypeScript", "Rust", ...), pulls the top Hacker News stories from the last 24 h, and asks the OpenAI Responses API to summarise the chatter in five bullet points. The most universally useful "morning brief" recipe.
 
-**Sandbox** - `networkMode: strict`.
+**Sandbox** - set **Network mode (fetch)** to `strict`.
 
 **Static variable required** - `openaiApiKey = ${OPENAI_API_KEY}`.
 
@@ -36,13 +42,13 @@ The cross-platform property carries through - all five recipes use only JVM-back
 **JS action:**
 
 ```javascript
-const query = params.query;
-const hits = params.hits || 10;
-const model = params.model || 'gpt-4o-mini';
+// `query`, `hits` and `model` arrive as globals named after the parameters
+const hitCount = hits || 10;
+const modelName = model || 'gpt-4o-mini';
 
 // 1. fetch the top stories from Algolia HN Search (anonymous)
 const url = `https://hn.algolia.com/api/v1/search_by_date?` +
-            `query=${encodeURIComponent(query)}&tags=story&hitsPerPage=${hits}`;
+            `query=${encodeURIComponent(query)}&tags=story&hitsPerPage=${hitCount}`;
 const hn = await (await fetch(url)).json();
 const stories = (hn.hits || []).map(h => ({
   title: h.title,
@@ -62,7 +68,7 @@ const aiResp = await fetch('https://api.openai.com/v1/responses', {
     'Authorization': `Bearer ${openaiApiKey}`,
     'Content-Type': 'application/json',
   },
-  body: JSON.stringify({ model, input: prompt }),
+  body: JSON.stringify({ model: modelName, input: prompt }),
 });
 const ai = await aiResp.json();
 const summary = ai.output_text || ai.output?.[0]?.content?.[0]?.text || '';
@@ -82,7 +88,7 @@ return { query, count: stories.length, summary, stories };
 
 **What we're building** - takes `owner` and `repo`, fetches the latest non-draft release, asks the LLM for a three-sentence "what users will feel" digest, and posts it to a Slack channel. The single most common "ship-it" agent pattern in dev teams.
 
-**Sandbox** - `networkMode: strict`.
+**Sandbox** - set **Network mode (fetch)** to `strict`.
 
 **Static variables required** - `openaiApiKey = ${OPENAI_API_KEY}` ・ `slackWebhookUrl = ${SLACK_WEBHOOK_URL}`.
 
@@ -91,9 +97,8 @@ return { query, count: stories.length, summary, stories };
 **JS action:**
 
 ```javascript
-const owner = params.owner;
-const repo = params.repo;
-const model = params.model || 'gpt-4o-mini';
+// `owner`, `repo` and `model` arrive as globals named after the parameters
+const modelName = model || 'gpt-4o-mini';
 
 // 1. latest release
 const ghResp = await fetch(
@@ -110,7 +115,7 @@ const prompt = `Summarise these release notes in three sentences for a ` +
 const aiResp = await fetch('https://api.openai.com/v1/responses', {
   method: 'POST',
   headers: { 'Authorization': `Bearer ${openaiApiKey}`, 'Content-Type': 'application/json' },
-  body: JSON.stringify({ model, input: prompt }),
+  body: JSON.stringify({ model: modelName, input: prompt }),
 });
 const ai = await aiResp.json();
 const summary = ai.output_text || ai.output?.[0]?.content?.[0]?.text || '';
@@ -139,16 +144,16 @@ return { tag: release.tag_name, publishedAt: release.published_at, url: release.
 
 **What we're building** - given a city name, forward-geocode it through Nominatim, fetch tomorrow's hourly forecast from Open-Meteo, and if it is going to be sunny in the afternoon, emit an **Add to calendar** action card (the same `saip-action` block the `addToCalendar` tool produces) pre-filled with a "Beach trip" event. The user reviews the card and picks a destination (Google/Outlook/Yahoo Calendar or an `.ics` file). No keys needed - the geo, weather, and calendar pieces are all free.
 
-**Sandbox** - `networkMode: strict`.
+**Sandbox** - set **Network mode (fetch)** to `strict`.
 
 **Parameters** - `city` (string, required), `eventTitle` (string, optional, default `Outdoor plan`), `timeZone` (string, optional, default `UTC`).
 
 **JS action:**
 
 ````javascript
-const city = params.city;
-const eventTitle = params.eventTitle || 'Outdoor plan';
-const timeZone = params.timeZone || 'UTC';
+// `city`, `eventTitle` and `timeZone` arrive as globals named after the parameters
+const title = eventTitle || 'Outdoor plan';
+const tz = timeZone || 'UTC';
 
 // 1. geocode
 const geoResp = await fetch(
@@ -162,7 +167,7 @@ const { lat, lon, display_name } = geo[0];
 // 2. forecast (3 days, hourly precipitation probability)
 const fcResp = await fetch(
   `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
-  `&hourly=precipitation_probability,temperature_2m&forecast_days=3&timezone=${encodeURIComponent(timeZone)}`
+  `&hourly=precipitation_probability,temperature_2m&forecast_days=3&timezone=${encodeURIComponent(tz)}`
 );
 const fc = await fcResp.json();
 
@@ -181,7 +186,7 @@ const start = new Date(pick.iso).toISOString();
 const end = new Date(new Date(pick.iso).getTime() + 2 * 60 * 60 * 1000).toISOString();
 const action = {
   type: 'calendar',
-  title: eventTitle + ' - ' + display_name.split(',')[0],
+  title: title + ' - ' + display_name.split(',')[0],
   start: start,
   end: end,
   location: display_name,
@@ -203,23 +208,24 @@ return 'Found a sunny afternoon - review it and click Add to calendar.\n\n```sai
 
 **What we're building** - fetches the live BTC price from Upbit and Bithumb (both anonymous), computes the cross-exchange spread (the "kimchi premium" between Korean exchanges and the global market is a long-running phenomenon), and returns a JSON snapshot. Pure-Korea recipe - no English-speaking equivalent. No keys needed.
 
-**Sandbox** - `networkMode: strict`.
+**Sandbox** - set **Network mode (fetch)** to `strict`.
 
 **Parameters** - `symbol` (string, optional, default `BTC`).
 
 **JS action:**
 
 ```javascript
-const symbol = params.symbol || 'BTC';
+// `symbol` arrives as a global named after the parameter
+const sym = symbol || 'BTC';
 
 // 1. Upbit ticker (KRW-XXX)
-const upResp = await fetch(`https://api.upbit.com/v1/ticker?markets=KRW-${symbol}`);
+const upResp = await fetch(`https://api.upbit.com/v1/ticker?markets=KRW-${sym}`);
 const upArr = await upResp.json();
 if (!upArr.length) return { ok: false, reason: 'upbit market not found' };
 const upPrice = upArr[0].trade_price;
 
 // 2. Bithumb ticker (symbol_KRW)
-const bhResp = await fetch(`https://api.bithumb.com/public/ticker/${symbol}_KRW`);
+const bhResp = await fetch(`https://api.bithumb.com/public/ticker/${sym}_KRW`);
 const bh = await bhResp.json();
 if (bh.status !== '0000') return { ok: false, reason: 'bithumb error ' + bh.status };
 const bhPrice = Number(bh.data.closing_price);
@@ -228,7 +234,7 @@ const bhPrice = Number(bh.data.closing_price);
 const spreadPct = ((upPrice - bhPrice) / bhPrice) * 100;
 
 return {
-  symbol,
+  symbol: sym,
   upbitKrw: upPrice,
   bithumbKrw: bhPrice,
   spreadKrw: upPrice - bhPrice,
@@ -249,16 +255,16 @@ return {
 
 **What we're building** - finds the most recent `*.log` file under a directory, greps a regex (default `ERROR`), takes the last 50 matching lines, and writes them to a summary file. Useful for chunked log directories where the agent should produce a "recent errors" digest without inhaling the whole tree.
 
-**Sandbox** - `fileRead = true` (L3) and `fileWrite = true` (L4) - open the **Sandbox & Capabilities** pane and switch **Filesystem mode** to `read+write` before publishing.
+**Sandbox** - open **Sandbox & Capabilities**, switch **Filesystem mode (safety.fs)** to `read+write` (L4), and set the **Base path** the tool may reach.
 
 **Parameters** - `dir` (string, required), `pattern` (string, optional, default `ERROR`), `outPath` (string, optional, default `${dir}/errors-summary.txt`).
 
 **JS action:**
 
 ```javascript
-const dir = params.dir;
-const pattern = params.pattern || 'ERROR';
-const outPath = params.outPath || dir + '/errors-summary.txt';
+// `dir`, `pattern` and `outPath` arrive as globals named after the parameters
+const regex = pattern || 'ERROR';
+const out = outPath || dir + '/errors-summary.txt';
 
 // 1. find the latest *.log under dir
 const entries = safety.fs.list(dir);
@@ -269,12 +275,12 @@ withMtime.sort((a, b) => b.mtime - a.mtime);
 const latest = dir + '/' + withMtime[0].n;
 
 // 2. grep the pattern, last 50 hits
-const hits = safety.fs.grep(pattern, latest, { caseInsensitive: true, numbered: true, limit: 200 });
+const hits = safety.fs.grep(regex, latest, { caseInsensitive: true, numbered: true, limit: 200 });
 const tail = hits.slice(-50);
 
 // 3. write the summary
-safety.fs.writeText(outPath, tail.join('\n'));
-return { ok: true, source: latest, matches: hits.length, written: outPath };
+safety.fs.writeText(out, tail.join('\n'));
+return { ok: true, source: latest, matches: hits.length, written: out };
 ```
 
 **Test value** - `dir`: `/tmp/logs` (set `SPRING_AI_PLAYGROUND_TOOL_STUDIO_FS_BASE_PATH=/tmp` first), `pattern`: `ERROR`.
@@ -290,7 +296,8 @@ For each recipe:
 - The `Drafts` badge disappears as soon as Local Pass succeeds - the tool moves to `LOCAL PASS` in the sidebar and the MCP server's Tools tab updates without restart.
 - The Agentic Chat inventory shows the new tool name when MCP is reconnected.
 - The action invocation appears as a single MCP tool call in the chat trace, not several - that's the whole point of in-action composition.
-- Risk badge matches your sandbox edits: Recipe 5 = L4, Recipes 1-4 = L0 (no overrides) or L3 if you tightened anything.
+- Risk badge matches your sandbox edits. Every recipe that calls `fetch` needs a network mode, so Recipes 1-4 land at **L3** (`strict` = any host behind the SSRF guard; `allowlist` is also L3, `open` is L4). Recipe 5 writes files, so `read+write` puts it at **L4**.
+- Above `L0` the **Human-in-the-loop** mode flips itself to `Required - ask every run`, so the chat prompt for these recipes will pop an approval dialog before the tool runs. Switch it to `Disabled - no prompt` if you want the chain to run unattended.
 
 ## Where to go from here
 

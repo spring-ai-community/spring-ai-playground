@@ -29,6 +29,9 @@ description: Tutorial 5 - RAG without tools. Use an indexed document as grounded
 !!! warning "RAG only as good as your chunks"
     A great chat model can't recover from poorly chunked content. If your document has tables or code blocks, look at the chunked output in Vector Database before relying on it in chat - the splitter may have cut at unhelpful boundaries.
 
+!!! tip "Just want to talk about one file?"
+    You do not have to index it first. Drop the file on the prompt box and the chat ingests it on its own - full text for a small file, chunks plus an always-present overview for a larger one - and you can register it in the Vector Database later with one click. [Tutorial 17](17-attach-a-document.md) walks through it.
+
 ## Going further: the same question through a pipeline
 
 A document source runs plain similarity search. A **pipeline** can reshape the question first, which is the difference between Naive RAG and Advanced RAG in the [Spring AI reference](https://docs.spring.io/spring-ai/reference/api/retrieval-augmented-generation.html).

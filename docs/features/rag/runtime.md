@@ -45,9 +45,9 @@ Retrieved documents are carried on the request so the panel and the answer rende
 Each stage is a separate model call, so a four-stage pipeline on a local model can take minutes before the first token appears. Two limits apply:
 
 - `spring.http.clients.read-timeout` (default `10m`) bounds each individual HTTP call to the model, including embedding calls and every pre-retrieval stage. See [Configuration](../../getting-started/configuration.md).
-- The first-signal watchdog is derived from that value multiplied by the pipeline's stage count, so enabling more stages widens the budget automatically instead of tripping a fixed limit.
+- The first-signal watchdog is derived from that value multiplied by the number of LLM pre-retrieval stages plus one (for the answer itself), with a five-minute floor and a one-hour cap, so enabling more LLM stages widens the budget automatically instead of tripping a fixed limit. A plain document source adds no extra stages.
 
-If a turn dies waiting, the stage count in the pipeline hint is the first thing to check against your model's speed.
+If a turn dies waiting, the `+N LLM calls` figure in the pipeline hint is the first thing to check against your model's speed.
 
 ## Next
 

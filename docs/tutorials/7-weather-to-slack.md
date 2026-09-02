@@ -14,15 +14,15 @@ This is the canonical *"try an agentic workflow"* task on the Home checklist. No
 
 ## Steps
 
-1. In **Agentic Chat**, switch to a tool-capable model (`qwen3.5:9b` works; `gemma4:e4b` chains more reliably for longer prompts), tick **Manual built-in tool selection**, and confirm `getWeather` and `sendSlackMessage` are selected in the exposed-tools list.
+1. In **Agentic Chat**, switch to a tool-capable model (`qwen3.5:9b` works; `gemma4:e4b` chains more reliably for longer prompts), open the tool menu above the prompt, tick **Manual built-in tool selection**, and pick **both** `getWeather` and `sendSlackMessage` - the per-chat selection starts empty. `sendSlackMessage` only appears in that list once `SLACK_WEBHOOK_URL` is set: without it the tool sits under **DRAFTS** in Tool Studio and is never exposed.
 2. Send this prompt verbatim:
 
     ```text
     Get today's weather for Seoul and send a short summary to Slack.
     ```
 
-![Tool-chain prompt ready with MCP enabled](../assets/images/tutorials/tutorial-7-tool-chain.png)
-*① Built-in MCP enabled - `getWeather` and `sendSlackMessage` are both in the inventory, ② one prompt that requires two tool calls in the right order.*
+![The composer with sendSlackMessage and getWeather picked in the tool selector and the two-tool prompt typed but not sent](../assets/images/tutorials/tutorial-7-tool-chain.png)
+*① both tools picked in the tool selector - `getWeather` and `sendSlackMessage` are now in the model's inventory, ② one prompt that requires two tool calls in the right order.*
 
 3. Watch the chat stream:
     - the assistant calls `getWeather` with `Seoul`

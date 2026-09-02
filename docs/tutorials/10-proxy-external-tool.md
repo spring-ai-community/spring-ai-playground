@@ -20,42 +20,46 @@ In **MCP Server**, open the sidebar's **Inactive MCP** section and activate the 
 
 ## Step 2 - Open the Composed Tools drawer
 
-Click the **gear icon** at the top-right of the *MCP Server Info* header. The **Built-in MCP Server Composed Tools** drawer lists every active server.
+Click the **gear icon** at the top-right of the *MCP Server Info* header. The **Built-in MCP Server** drawer opens; below its **Authentication** section, **Composed Tools** lists every active server.
 
-![Composed Tools drawer - DeepWiki and MCP-Everything each shown with a Server risk chip, the exposure-mode selector, a max-risk cap, and an HITL-all toggle](../assets/images/mcp-server/expose-tools-drawer.png){ loading=lazy }
+![Built-in MCP Server drawer - the Authentication section, then Composed Tools with the exposure-mode selector, the max-risk cap, the HITL-all toggle, and MCP-Everything and DeepWiki each listed under Connected MCP servers with a Server risk chip and a tool count](../assets/images/mcp-server/expose-tools-drawer.png){ loading=lazy }
+*Each connected server gets a collapsed row under **Connected MCP servers**: its `Server:` risk chip, its transport, how many tools it publishes, and how many of them you have exposed so far (`STREAMABLE_HTTP · 3 tools · 0 exposed`).*
 
 ## Step 3 - Set the proxy-wide options
 
 The top of the drawer governs what the whole built-in server publishes:
 
-![Composed Tools drawer controls, numbered: 1 the COMPOSED TOOLS summary chips, 2 the 'What the built-in server exposes' selector, 3 the Max risk to expose cap, 4 the Require approval HITL-for-all toggle](../assets/images/mcp-server/proxy-drawer-controls.png){ loading=lazy }
+![Composed Tools drawer controls, numbered: 1 the COMPOSED TOOLS summary chips, 2 the 'What the built-in server exposes' selector, 3 the Max risk to expose cap, 4 the Mark all selected tools for human review HITL-for-all toggle](../assets/images/mcp-server/proxy-drawer-controls.png){ loading=lazy }
 
 1. **COMPOSED TOOLS** - a live summary of every tool currently selected across *all* servers, by exposed alias. This is the merged set the built-in server will publish.
 2. **What the built-in server exposes** - `Both built-in and composed` (default), `Built-in tools only`, or `Composed tools only`. "Built-in" = your Tool Studio default + custom tools; "Composed" = the external tools you pick below. Pick `Composed tools only` to turn the playground into a *pure* proxy for upstream servers.
-3. **Max risk to expose** - a ceiling; any tool whose effective risk exceeds it is disabled in the list, so you can't accidentally publish something over your bar.
-4. **Require approval (HITL) for all selected tools** - gate every proxied tool at once (or do it per tool in Step 6).
+3. **Max risk to expose (tools above this can't be selected)** - a ceiling; any tool whose effective risk exceeds it is disabled in the list, so you can't accidentally publish something over your bar. It opens at `L5`, so lower it deliberately if you want a tighter bar.
+4. **Mark all selected tools for human review (HITL, -1 risk band)** - gate every proxied tool at once (or do it per tool in Step 6).
 
 ## Step 4 - Proxy a whole server
 
 To front an *entire* server, expand its row and tick **Select all** (1). Every tool shows its own **risk chip** (2) and a per-tool **HITL** checkbox (3); any tool over the max-risk cap stays disabled.
 
-![DeepWiki expanded in the drawer, numbered: 1 the Select all checkbox (3/3 selected), 2 a per-tool L2 - Low risk chip, 3 a per-tool HITL checkbox](../assets/images/mcp-server/expose-tools-expanded.png){ loading=lazy }
+![DeepWiki expanded in the drawer with Select all showing 3 / 3 selected and its three tools each ticked, carrying an L2 - Low chip and an HITL checkbox](../assets/images/mcp-server/expose-tools-expanded.png){ loading=lazy }
+*The header count follows along - `3 tools · 3 exposed` - and the `3 / 3 selected` readout beside **Select all** is the authoritative one.*
 
 ## Step 5 - ...or combine tools across several servers
 
-You don't have to take a whole server. Expand **multiple** servers and tick exactly the tools you want - the **COMPOSED TOOLS** summary at the top shows the merged set drawn from every server. Each exposed alias defaults to `<server>_<tool>` (normalized), e.g. `deepwiki_read_wiki_structure` from DeepWiki and `mcp_everything_echo` from MCP Everything, all served from your one endpoint.
+You don't have to take a whole server. Expand **multiple** servers and tick exactly the tools you want - the **COMPOSED TOOLS** summary at the top shows the merged set drawn from every server. Each exposed alias defaults to `<server>_<tool>` with the server name normalized, e.g. `deepwiki_read_wiki_structure` from DeepWiki and `mcp_everything_echo` from MCP-Everything (the upstream tool name passes through as-is, hyphens included: `mcp_everything_get-sum`), all served from your one endpoint.
 
-![COMPOSED TOOLS summary showing six tools combined from two servers - three deepwiki_* and three mcp_everything_* aliases](../assets/images/mcp-server/proxy-combination.png){ loading=lazy }
+![COMPOSED TOOLS summary reading 6 exposed with three deepwiki_ aliases and three mcp_everything_ aliases](../assets/images/mcp-server/proxy-combination.png){ loading=lazy }
+*`6 exposed` - three from DeepWiki, three from MCP-Everything - merged into the one set the built-in server will publish.*
 
 ## Step 6 - (Optional) rename, re-describe, or gate per tool
 
-Click a selected tool to edit its **exposed alias** or **description** (the input schema passes through unchanged), and tick its **HITL** box to require human approval before each call - which also lowers its effective risk by one band (shown as a `HITL -1` badge).
+Click the chevron on a selected tool to open its **Exposed name** and **Description** fields (the input schema passes through unchanged), and tick its **HITL** box to require human approval before each call - which also lowers its effective risk by one band (shown as a `HITL -1` badge).
 
 ## Step 7 - Apply
 
 Click **Apply**. The selected tools join the built-in server immediately - no restart. Select the built-in server in the sidebar and its [Inspector](../features/mcp-server/inspector.md#tools) now lists the proxied tools alongside your native ones. (They show `L0 - Verified` here because the built-in server bypasses the risk model for its own tools; the upstream's real level still shows on *its* connection's Inspector.)
 
-![Built-in server Inspector filtered to 'deepwiki' - the three proxied deepwiki_* tools now served by the built-in server at L0 - Verified](../assets/images/mcp-server/proxy-result.png){ loading=lazy }
+![Built-in server Inspector with deepwiki typed into the tool search - the three proxied deepwiki_ tools now served by the built-in server at L0 - Verified](../assets/images/mcp-server/proxy-result.png){ loading=lazy }
+*The header count (`18 tools` here) stays at the server's full total - 12 native plus the 6 composed - while the search narrows the cards.*
 
 ## Step 8 - Name the proxy endpoint (what clients see)
 

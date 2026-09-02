@@ -71,7 +71,7 @@ url = "http://localhost:8282/mcp"
 }
 ```
 
-Cline, Windsurf, Zed, and other MCP hosts follow the same pattern - add a Streamable HTTP (or SSE) server pointing at `http://localhost:8282/mcp`. Check your client's MCP docs for the exact field names.
+Cline, Windsurf, Zed, and other MCP hosts follow the same pattern - add a Streamable HTTP server pointing at `http://localhost:8282/mcp`. Check your client's MCP docs for the exact field names.
 
 > ![Claude](../assets/images/icons/claude.svg){ .provider-icon } **Claude Desktop.** Its custom connectors (**Settings -> Connectors**) connect from Anthropic's cloud, so they cannot reach a `localhost` server. To use the playground from Claude Desktop, either run it as a stdio server with the `mcp-stdio` profile and add it to `claude_desktop_config.json`, or expose the HTTP endpoint through a tunnel. See [Build custom connectors via remote MCP](https://support.claude.com/en/articles/11503834-build-custom-connectors-via-remote-mcp-servers).
 
@@ -144,7 +144,7 @@ The default profile is `ollama` - it serves both chat and embeddings locally, wi
 
 - chat model: `qwen3.5:4b`
 - embedding model: `qwen3-embedding:0.6b`
-- selectable chat models: `qwen3.5:2b/4b/9b`, `qwen3.6:27b/35b`, `gemma4:e2b/e4b/12b/31b`, `gpt-oss:20b`, `deepseek-r1:8b`
+- selectable chat models: `qwen3.5:2b/4b/9b`, `qwen3.6:27b/35b`, `qwen3.8:27b`, `gemma4:e2b/e4b/12b/31b`, `gpt-oss:20b`, `deepseek-r1:8b`
 
 Missing models are pulled automatically when first used; the selectable list controls the in-app model picker. In Docker, point at a host Ollama with `SPRING_AI_OLLAMA_BASE_URL`.
 

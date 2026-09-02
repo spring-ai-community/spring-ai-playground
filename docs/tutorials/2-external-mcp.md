@@ -14,10 +14,10 @@ description: Tutorial 2 - connect an external MCP server (Streamable HTTP / STDI
 
 1. Open **MCP Server** and click the **Add Custom Server** header button (top right of the screen) to start a new manual connection.
 2. Pick the transport type. **Streamable HTTP** is the modern default; STDIO is for proxy-style local processes (Claude Desktop's `mcp-remote`); SSE is the legacy HTTP+SSE shape.
-3. Fill in the connection name, category, optional tags, and the JSON config for your transport.
+3. Fill in the connection name, category, optional tags, and the transport details. A name with a space is rejected inline (`Server name cannot contain spaces`) and **Save & Connect** stays disabled until you fix it.
 
-![New MCP connection form with status sidebar, transport, JSON config, headers, and connect buttons](../assets/images/tutorials/tutorial-2-connection-form.png)
-*① the sidebar shows a colored status dot per connection (green OK · gray offline · red error). ② transport - Streamable HTTP is the modern default; STDIO and SSE are also supported. ③ JSON connection config (URL + endpoint, or stdio command + args). ④ **Headers** section, with a `${ENV_VAR}` substitution hint - values like `${MY_API_KEY}` resolve from the OS environment at connect time. ⑤ **Save & Connect** registers the connection; **Test Connection** spins up a transient client to validate the config without touching the live one.*
+![New MCP connection form - the 3-layer sidebar, transport radios with the server risk chip, URL and Endpoint fields, the Headers section, and the connect buttons](../assets/images/tutorials/tutorial-2-connection-form.png)
+*① the sidebar is a 3-layer rail - **BUILT-IN MCP**, **ACTIVE MCP**, **INACTIVE MCP** - under a `MCP Server Connections (N)` header, a search box, and Categories / Tags filters; each row carries a colored status dot (green OK · gray offline · red error). ② transport - Streamable HTTP is the modern default; STDIO and SSE are also supported. Beside the radios sits the **server risk chip**, which starts at `Server: L5 - Critical` because an unsaved, unverified server is scored at the floor. ③ **URL** and **Endpoint** as separate fields (STDIO swaps them for a command + args editor), both accepting `${ENV_VAR}`. ④ **Headers** section, with the same `${ENV_VAR}` substitution hint - values like `${MY_API_KEY}` resolve from the OS environment at connect time. ⑤ **Save & Connect** registers the connection; **Test Connection** spins up a transient client to validate the config without touching the live one. Until you save, the **MCP Inspector** below is just a hint: `Click "Save & Connect" above to enable the Tool Inspector.`*
 
 ### Add an Authorization header
 
@@ -34,7 +34,7 @@ Many remote MCP servers require an API key or bearer token. Use the **Insert aut
 For servers that expect an OAuth dance instead of a static token (Atlassian's MCP server is a common example), tick the **Use OAuth 2.1 authorization** checkbox on the form. The OAuth sub-form appears below the Headers section; unticking the checkbox drops the OAuth block from the persisted config entirely.
 
 ![OAuth 2.1 sub-form with Client ID, Issuer URI, Scopes, Advanced, Redirect URI, and Authorize button](../assets/images/tutorials/tutorial-2-oauth-subform.png)
-*① the **Use OAuth 2.1 authorization** checkbox toggles the sub-form. ② **Client ID** (required) and **Issuer URI** - the issuer alone is enough for OIDC discovery (`.well-known`) to auto-resolve the authorization and token endpoints. ③ **Scopes** are comma-separated; leave blank to inherit the issuer's defaults. ④ **Advanced** discloses manual `authorization_uri` / `token_uri` / client-secret / client auth method overrides for non-OIDC providers. ⑤ the **Redirect URI** the playground listens on - register this URI as an allowed redirect on the issuer side. ⑥ **Authorize** opens your system browser to the consent screen - click it after **Save & Connect**.*
+*① the **Use OAuth 2.1 authorization** checkbox toggles the sub-form. ② **Client ID** (required) and **Issuer URI** - the issuer alone is enough for OIDC discovery (`.well-known`) to auto-resolve the authorization and token endpoints. ③ **Scopes** are comma-separated; leave blank to inherit the issuer's defaults. ④ **Advanced (manual URIs · client secret · auth method)** discloses the overrides for non-OIDC providers. ⑤ the **Redirect URI** the playground listens on - it is derived from the connection (`http://localhost:<port>/login/oauth2/code/mcp-<transport>-<server name>`), so register that exact URI as an allowed redirect on the issuer side. ⑥ **Authorize** opens your system browser to the consent screen - click it after **Save & Connect**.*
 
 The flow has three observable states:
 
@@ -52,12 +52,12 @@ Tokens are encrypted on disk under `~/spring-ai-playground/mcp/oauth-tokens/`. R
 
 The eight tabs split into **server primitives** the server exposes (Tools, Resources, Prompts, Ping, Notifications) and **client primitives** the server can ask *your* playground to handle (Roots, Sampling, Elicitation). For most "use this server's tools in chat" workflows you'll spend your time on Tools and Resources; the others are mostly useful when developing or debugging an MCP server.
 
-5. Click **Tools**. Each tool is a full-width card with its description, a **risk chip** (L0-L5) scoring the tool, schema-typed inputs, and a **Run** button that calls the tool through the live transport.
+5. Click **Tools**. Each tool is a full-width card with its description, a **risk chip** (L0-L5) scoring the tool, schema-typed inputs, and a play button - *Run tool* - that calls the tool through the live transport.
 
 ![Tools tab with the new card layout - search, run, schema-typed inputs](../assets/images/tutorials/tutorial-2-inspector-tools.png)
-*① the selected tab - Tools is the default. ② all eight tabs are visible side by side. ③ search filters cards by name or description, with the live count. ④ the **Run** button on each card calls the tool through the actual transport (not just a sandbox). ⑤ the tool name. ⑥ parameter rows rendered per the JSON Schema (string / number / boolean / enum each get the matching control).*
+*Here with the catalog's **DeepWiki** entry activated. ① the selected tab - Tools is the default. ② all eight tabs are visible side by side. ③ search filters the cards by name or description; the count beside it (`3 tools`) is the server's full total, not the filtered one. ④ the play button on each card calls the tool through the actual transport (not just a sandbox). ⑤ the tool name and its **risk chip** - DeepWiki's three tools all score `L2 - Low`. ⑥ parameter rows rendered per the JSON Schema (string / number / boolean / enum each get the matching control), required ones marked with a `•`.*
 
-6. Fill in any required parameters and click **Run**. The result lands inline in the same card - a status header (OK / ERROR, elapsed ms, timestamp), a **REQUEST** section, a **RESPONSE** section, and a **Raw** toggle that swaps in the JSON-RPC envelope. Use **Copy** to grab the response, or the dismiss button to clear the panel.
+6. Fill in any required parameters and click the play button. The result lands inline in the same card - a status header (OK / ERROR, elapsed ms, timestamp), a **REQUEST** section, a **RESPONSE** section, and a **Raw** toggle that swaps in the JSON-RPC envelope. Use **Copy** to grab the response, or the dismiss button to clear the panel.
 
 !!! tip "Validate here, not in chat"
     Tools that fail in MCP Inspector will fail in Agentic Chat too - but the chat error message is wrapped in the agent's reasoning trace and harder to debug. Save yourself a turn: run every new tool through the inspector once before letting a model invoke it.
@@ -71,7 +71,7 @@ The eight tabs split into **server primitives** the server exposes (Tools, Resou
 
 Once a server is connected and its tools check out, you can **re-expose** selected tools on the playground's *built-in* MCP server, so they are published on `/mcp` and become selectable in Agentic Chat alongside your Tool Studio tools.
 
-7. Click the **gear icon** on the MCP Server Info header to open the **Composed Tools** drawer. Set a **Max risk to expose** cap (default `L3`), optionally tick **Require approval (HITL)**, then expand a server and tick the tools you want.
+7. Click the **gear icon** on the MCP Server Info header to open the **Built-in MCP Server Composed Tools** drawer. Pick what the built-in server publishes under **What the built-in server exposes** (`Both built-in and composed` is the default, or `Built-in tools only` / `Composed tools only`), set the **Max risk to expose** cap (it opens at `L5`), optionally tick **Mark all selected tools for human review (HITL, -1 risk band)**, then expand a server and tick the tools you want.
 
 ![Built-in MCP Server drawer - Authentication on top, then Composed Tools with the max-risk cap, HITL toggle, a server row with its risk chip, and the list of tools currently exposed on the built-in server](../assets/images/mcp-server/expose-tools-drawer.png)
 

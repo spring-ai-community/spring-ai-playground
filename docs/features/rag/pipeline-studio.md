@@ -35,7 +35,7 @@ Each stage header carries a badge. **LLM** means the stage calls the configured 
 
 Pre-retrieval and generation carry the LLM badge; retrieval and post-retrieval are local. Generation only spends a call when *Run LLM after augment* is on, which chat never uses because the chat model answers instead. So a pipeline's extra cost is simply the number of enabled pre-retrieval stages, which is what the pipeline picker in chat reports as `+N LLM calls`. Multi-Query is the one that also multiplies the retrieval side: N variants mean N embedding calls and N searches before the joiner merges them.
 
-This matters far more with local models than with hosted ones. On `qwen3.5:4b-mlx`, a single rewrite stage took 66 seconds out of a 67-second retrieval turn: the vector search itself was half a second, and the model call was everything else. Four pre-retrieval stages can therefore add minutes before the first token appears, which is why the app derives its stream watchdog from the per-call timeout multiplied by the stage count rather than using a fixed budget.
+This matters far more with local models than with hosted ones. On `qwen3.5:4b-mlx`, a single rewrite stage took 66 seconds out of a 67-second retrieval turn: the vector search itself was half a second, and the model call was everything else. Four pre-retrieval stages can therefore add minutes before the first token appears, which is why the app derives its stream watchdog from the per-call timeout multiplied by the number of LLM pre-retrieval stages plus one (for the answer itself), with a five-minute floor and a one-hour cap, rather than using a fixed budget.
 
 ## Pre-Retrieval
 
@@ -77,7 +77,7 @@ The ranking is what actually finds the answer; in every measurement the correct 
 
 The starting values come from `spring.ai.playground.vectorstore.similarity-threshold` and `.top-k`, so a deployment aimed at a different embedding model can ship its own defaults; see [Configuration](../../getting-started/configuration.md#rag).
 
-The **filter expression** is an additional Spring AI metadata filter, written in the same DSL as the search bar. It is combined with the document scope rather than replacing it. An expression that fails to parse is logged and ignored rather than failing the turn.
+The **filter expression** is an additional Spring AI metadata filter, written in the same DSL as the search bar. It is combined with the document scope rather than replacing it. An expression that fails to parse is reported as a warning in the trace and ignored rather than failing the turn.
 
 ## Post-Retrieval
 
@@ -115,7 +115,7 @@ The conversation keeps its history, so Compression has something to compress. Re
 
 ## The default pipeline
 
-Embedding a document into an empty store also creates a pipeline named **All documents (simple)**, so chat has a usable RAG source without a trip through the wizard. It runs no query transformation, has no document scope so it searches the whole store, and enables score re-ranking. That makes it `stages: 3` (retrieve, re-rank, augment) with no extra model calls. It snapshots the global Top-K and similarity threshold at the moment it is created and then owns those values like any other pipeline, so later changes to the search bar's settings leave it alone.
+Embedding a document while no RAG pipeline exists yet also creates a pipeline named **All documents (simple)**, so chat has a usable RAG source without a trip through the wizard. It runs no query transformation, has no document scope so it searches the whole store, and enables score re-ranking. That makes it `stages: 3` (retrieve, re-rank, augment) with no extra model calls. It snapshots the global Top-K and similarity threshold at the moment it is created and then owns those values like any other pipeline, so later changes to the search bar's settings leave it alone.
 
 ## Next
 

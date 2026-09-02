@@ -88,7 +88,7 @@ Chunking is a separate step from embedding. **Chunk Document** runs extract and 
 
 Review is also a filter: each chunk has a checkbox, and unchecking one drops it from the load stage. Boilerplate, a table of contents, or a legal footer can be left out instead of polluting the store with chunks that will only ever be false matches.
 
-**Embed and insert** performs the load stage, writing every selected chunk through the configured `VectorStore`. The document then appears under **Sources → Documents**, and if this is the first document in an empty store the app also creates a default retrieval pipeline for it, so chat has something to select immediately.
+**Embed and insert** performs the load stage, writing every selected chunk through the configured `VectorStore`. The document then appears under **Sources → Documents**, and if no RAG pipeline exists yet the app also creates a default retrieval pipeline for it, so chat has something to select immediately.
 
 ## Not exposed, and why
 

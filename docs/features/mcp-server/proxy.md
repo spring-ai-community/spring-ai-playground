@@ -40,8 +40,8 @@ The **gear icon** on the MCP Server Info header opens the **Built-in MCP Server*
 
 ![Built-in MCP Server drawer - the Authentication section on top, then Composed Tools with the max-risk cap, a HITL-all toggle, a DeepWiki server row carrying a Server: L1 - Safe chip, and the list of tools currently exposed on the built-in server](../../assets/images/mcp-server/expose-tools-drawer.png){ loading=lazy }
 
-- **Max risk to expose** caps which tools can be selected - any tool whose effective risk exceeds the cap (default `L3`) is disabled in the list.
-- **Require approval (HITL)** can be set per tool, or for all selected tools at once via the header checkbox. Marking a tool HITL lowers its effective risk by one band and **gates the call at runtime** - external clients are asked via MCP elicitation, and chat on this device shows an approval dialog (see [Human-in-the-Loop](../human-in-the-loop.md)).
+- **Max risk to expose (tools above this can't be selected)** caps which tools can be selected - any tool whose effective risk exceeds the cap is disabled in the list. The drawer opens at `L5`, so lower it deliberately.
+- **HITL** can be ticked per tool, or for all selected tools at once via the header's **Mark all selected tools for human review (HITL, -1 risk band)** checkbox. Marking a tool HITL lowers its effective risk by one band and **gates the call at runtime** - external clients are asked via MCP elicitation, and chat on this device shows an approval dialog (see [Human-in-the-Loop](../human-in-the-loop.md)).
 - Each server row expands to its tools; every tool shows its own **risk chip** plus an alias / description editor. The exposed alias defaults to `<server>_<tool>` and the input schema passes through unchanged.
 
 ![DeepWiki expanded in the drawer - three tools each with a risk chip; read_wiki_structure shows L1 - Safe with a HITL -1 mitigation badge and a ticked HITL box, while read_wiki_contents and ask_question stay L2 - Low](../../assets/images/mcp-server/expose-tools-expanded.png){ loading=lazy }
@@ -66,10 +66,12 @@ This is how external tools reach external clients in practice; the [trust-and-ri
 
 1. **Connect the upstream server** - activate a [catalog entry](../default-mcp-catalog/index.md) or add a custom server, and confirm its tools work in the [Inspector](inspector.md#tools).
 2. **Open the Composed Tools drawer** - the gear icon on the MCP Server Info header.
-3. **Set the ceiling** - pick a **Max risk to expose** cap; optionally tick **Require approval (HITL) for all selected tools**.
+3. **Set the ceiling** - pick a **Max risk to expose** cap; optionally tick **Mark all selected tools for human review (HITL, -1 risk band)**.
 4. **Select tools** - expand a server, tick the tools you want. Each shows its effective risk chip; over-cap tools are disabled.
 5. **(Optional) Rename / gate** - edit the exposed alias or description, and toggle HITL per tool.
 6. **Apply** - the tools join the built-in server, visible at the top of the sidebar and callable from chat and `/mcp`.
+
+Apply takes effect at runtime only. On the next app start the exposed set is rebuilt from `application.yaml`, so tools that must survive a restart go under `composed-tools` as shown below.
 
 ## Configure exposure via YAML { #yaml-exposure }
 

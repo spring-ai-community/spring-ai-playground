@@ -54,7 +54,7 @@ When a server isn't in the catalog, the **Add Custom Server** header CTA opens a
 Three field constraints worth knowing before saving:
 
 - **Server name** - pre-filled to `New MCP Server`. The constraint is `[A-Za-z0-9._-]+` (no spaces) so the persisted JSON file name stays inside the save directory; typing a space surfaces an inline red validation note.
-- **Category** - defaults to `CUSTOM`. The combo accepts a typed value to create a new label, or picks from the 13 built-in catalog categories.
+- **Category** - defaults to `CUSTOM`. The combo accepts a typed value to create a new label, or picks from the 15 built-in catalog categories.
 - **Tags** - free-form; the chip picker suggests cohort tags already in use across the active list and catalog.
 
 The **Headers** section's **Insert auth header preset...** dropdown drops a templated row (Bearer / Basic / API Key) with `${VAR}` substitution wired in; the **+** button next to it adds a blank row. OAuth 2.1 has its own checkbox-toggled sub-form further down.

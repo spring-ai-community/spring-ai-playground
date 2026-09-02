@@ -2,7 +2,7 @@ description: End-to-end Spring AI Playground tutorials - Tool Studio authoring, 
 
 # Tutorials
 
-These sixteen tutorials walk you from creating a single tool to composing chains over the bundled default catalog, with optional deep-dives off the main path - the MCP protocol surface, re-publishing tools through the MCP Server Proxy, gating tool calls behind human approval, turning a Prompt Library template into a reusable preset, uploading a file into chat for an agent to analyze, attaching an image for a vision model to see, and investigating documents with a filesystem pipeline - and a capstone that ships one API all the way to a running MCP server. They follow the natural product workflow: build → validate → ground → compose.
+These seventeen tutorials walk you from creating a single tool to composing chains over the bundled default catalog, with optional deep-dives off the main path - the MCP protocol surface, re-publishing tools through the MCP Server Proxy, gating tool calls behind human approval, turning a Prompt Library template into a reusable preset, uploading a file into chat for an agent to analyze, attaching an image for a vision model to see, and investigating documents with a filesystem pipeline - and a capstone that ships one API all the way to a running MCP server. They follow the natural product workflow: build → validate → ground → compose.
 
 The shipped chat default is **`qwen3.5:4b`** - fast, vision-capable, fine for the early tutorials. Switch to **`qwen3.5:9b`** or **`gemma4:e4b`** when you reach tutorials 4-7, where tool-calling reliability matters. Embeddings use **`qwen3-embedding:0.6b`** throughout. See [Picking a model](#picking-a-model) for the tradeoffs.
 
@@ -26,6 +26,7 @@ flowchart LR
   T14["14. Attach an Image<br/>native vision input"]
   T15["15. Investigate Documents<br/>Unix-pipeline tools"]
   T16["16. API to MCP Server<br/>publish + gate + ship"]
+  T17["17. Attach a Document<br/>instant RAG in chat"]
   T1 --> T2
   T2 --> T4
   T3 --> T5
@@ -40,6 +41,7 @@ flowchart LR
   T4 -. upload .-> T13
   T4 -. vision .-> T14
   T13 -. pipeline .-> T15
+  T5 -. attach .-> T17
   T8 ==> T16
   T11 -. gate .-> T16
   classDef build fill:#eef2ff,stroke:#3F51B5,color:#1e1b4b
@@ -52,7 +54,7 @@ flowchart LR
   class T2 validate
   class T3 ground
   class T4,T5,T6,T7,T8 compose
-  class T9,T10,T11,T12,T13,T14,T15 bonus
+  class T9,T10,T11,T12,T13,T14,T15,T17 bonus
   class T16 ship
 ```
 
@@ -183,6 +185,13 @@ Tutorials 1-3 produce reusable assets (a tool, an MCP connection, an indexed doc
 
     Wrap an API you already have credentials for, gate it behind human approval, then hand the same configuration to Docker so any MCP client can call it.  
     **25 min** · ★★★ · Tool Studio + Agentic Chat + MCP Server + Docker · *capstone*
+
+-   :material-file-document-plus-outline:{ .lg .middle } **[17. Attach a Document and Ask](17-attach-a-document.md)**
+
+    ---
+
+    Drop a document on the chat prompt, get a summary and pinpoint answers with no indexing step, then register it in the Vector Database with one click.  
+    **12 min** · ★☆☆ · Agentic Chat + Vector Database · *deep dive*
 
 </div>
 

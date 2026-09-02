@@ -1,8 +1,11 @@
-description: Turn on human-in-the-loop approval for a tool, then approve and decline its calls from inside Agentic Chat - the runtime safety gate that asks before a tool runs.
+description: Tutorial 11 - turn on human-in-the-loop approval for a tool, then approve and decline its calls from inside Agentic Chat - the runtime safety gate that asks before a tool runs.
 
-# 11. Approve a Tool in Chat (Human-in-the-Loop)
+# Tutorial 11 - Approve a Tool in Chat
 
-**Goal:** require approval on a tool, then watch Agentic Chat **pause and ask you** before it runs - and see what happens when you decline.
+**Time** 6 min · **Difficulty** ★★☆ · **Surfaces** Tool Studio, Agentic Chat
+
+!!! abstract "Goal"
+    Require approval on a tool, then watch Agentic Chat **pause and ask you** before it runs - and see what happens when you decline.
 
 This is the runtime half of the safety story: the [sandbox](../safety-architecture.md) and [risk model](../mcp-server-safety.md) decide *what a tool may do*; **human-in-the-loop (HITL)** decides *whether this call runs at all*. See the [feature page](../features/human-in-the-loop.md) and [architecture](../hitl-architecture.md) for the full picture.
 
@@ -28,7 +31,7 @@ Agentic Chat reaches your published tools through the built-in MCP server.
 
 1. Open **Agentic Chat**.
 2. In the tool menu above the prompt, tick **Manual built-in tool selection**.
-3. Confirm your tool appears in the exposed-tools list.
+3. Pick your tool. A shipped catalog tool (like `getWeather`) is in **Built-in tools for this chat**; one you authored yourself is a **custom** tool and sits in the **Custom tools for this chat** picker above it.
 
 ## 3. Trigger the tool and approve { #approve }
 
@@ -46,7 +49,7 @@ Click **Approve**. The tool runs, its result returns to the model, and the answe
 !!! tip "Inspect the arguments before you approve"
     The dialog shows the exact arguments the model chose. This is your chance to catch a wrong path, a bad amount, or an unintended recipient *before* the call fires.
 
-The dialog escalates with the tool's risk level: at **L4 (High)** a warning line appears and **Approve** turns red; at **L5 (Critical)** - the filesystem delete and move tools, for example - **Approve** stays disabled until you tick *"I reviewed the arguments and accept the risk"*. Try it with `deleteFile` from the [filesystem tools](../features/default-tools/filesystem.md) to see the full escalation:
+The dialog escalates with the tool's risk level: at **L4 (High)** the line `High risk: can modify files, spend money, or change external state.` appears and **Approve** turns red; at **L5 (Critical)** - the filesystem delete and move tools, for example - the line reads `Critical risk: may be irreversible or destroy data. Review the arguments.` and **Approve** stays disabled until you tick *"I reviewed the arguments and accept the risk"*. Try it with `deleteFile` from the [filesystem tools](../features/default-tools/filesystem.md) to see the full escalation:
 
 ![The L5 Critical approval dialog for deleteFile - a red L5 - Critical chip, the prompt naming the file to delete, a red Critical risk warning line, and an I reviewed the arguments and accept the risk checkbox above a disabled red Approve button](../assets/images/chat/hitl-approval-l5.png){ width="420" }
 
@@ -57,13 +60,14 @@ Ask again, but this time click **Decline**.
 The tool does **not** run. Instead the model is told you declined approval and that it should not retry - so it either finds another way or replies that the action couldn't be completed because you declined. Nothing executed; the decline is recorded in the run.
 
 !!! warning "Approval fails safe"
-    If you don't answer within two minutes (the `agent-loop.approval-timeout-seconds` [setting](../getting-started/configuration.md#agent-loop)), or close the dialog, the call is treated as **declined** and does not run. A gated tool only runs on an explicit **Approve**.
+    If you don't answer within two minutes (the `agent-loop.approval-timeout-seconds` [setting](../getting-started/configuration.md#agent-loop)), the call **times out** and does not run: the model is told the approval is still pending, so it replies that the action is waiting on you and that you can send the request again. The Safety dashboard counts it as a `timeout`, separate from a decline. A gated tool only runs on an explicit **Approve**.
 
 ## What you learned { #recap }
 
 - Set a tool's **Human-in-the-loop** mode to **Required** in Tool Studio.
 - Agentic Chat **pauses** on a gated call and asks you to **Approve** or **Decline**.
 - **Decline** (and timeout) block the call and tell the model - execution is deny-by-default.
+- When one round gates several calls at once, the dialog batches them: the header becomes **Tool approvals required**, each call gets its own Approve/Decline radio group, and a single **Confirm** applies your choices - with the same acknowledgement checkbox if any of them is `L5`.
 
 ## Next steps
 

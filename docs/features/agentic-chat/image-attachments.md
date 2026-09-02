@@ -12,7 +12,7 @@ Agentic Chat accepts images as first-class, native multimodal input: attach a ph
 
 | Entry point | How |
 |---|---|
-| **Attach button** | Click the picture icon in the prompt field and pick one or more images |
+| **Attach button** | Click the paperclip in the prompt field (*Attach images or documents*) and pick one or more images |
 | **Drag and drop** | Drop image files anywhere on the prompt field |
 | **Clipboard paste** | Copy an image (or a screenshot) and paste it into the prompt field |
 

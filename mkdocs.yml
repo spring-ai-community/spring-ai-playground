@@ -164,6 +164,7 @@ nav:
       - "14. Attach and Analyze an Image": tutorials/14-analyze-an-image.md
       - "15. Investigate Documents": tutorials/15-investigate-documents.md
       - "16. Public API to MCP Server": tutorials/16-public-api-to-mcp-server.md
+      - "17. Attach a Document": tutorials/17-attach-a-document.md
   # Changelog is published in the repo as CHANGELOG.md (and rendered at
   # /changelog/ when reached by URL via the docs/changelog.md include).
   # Intentionally omitted from main nav to avoid duplicating GitHub-hosted

@@ -32,7 +32,7 @@ Spring AI's MCP support exposes both sides through `spring-ai-starter-mcp-client
 
 Every card also carries its own **risk chip** next to the tool name. On the DeepWiki connection, both read tools score `L2 - Low`:
 
-![Tools tab on the DeepWiki connection - read_wiki_structure and read_wiki_contents each carry a green L2 - Low risk chip beside the tool name, above their repoName parameter row](../../assets/images/mcp-server/inspector-tools-risk.png){ loading=lazy }
+![Tools tab on the DeepWiki connection - ask_question, read_wiki_contents and read_wiki_structure each carry a green L2 - Low risk chip beside the tool name, above their parameter rows](../../assets/images/mcp-server/inspector-tools-risk.png){ loading=lazy }
 
 *The per-tool chip is the [MCP tool risk](../../mcp-server-safety.md#tool-risk) level, scored independently of the server. The same upstream tool re-exposed on the built-in server shows `L0 - Verified` instead, since the built-in self-loopback server bypasses the risk model.*
 
