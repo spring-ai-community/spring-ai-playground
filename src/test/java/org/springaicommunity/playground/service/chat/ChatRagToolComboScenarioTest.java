@@ -42,6 +42,7 @@ import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.DefaultChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.document.Document;
+import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.model.tool.ToolCallingChatOptions;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.definition.ToolDefinition;
@@ -117,6 +118,9 @@ class ChatRagToolComboScenarioTest {
 
     @MockitoBean
     VectorStore vectorStore;
+
+    @MockitoBean
+    EmbeddingModel embeddingModel;
 
     @MockitoSpyBean
     RagPipelineExecutor ragPipelineExecutor;
@@ -471,14 +475,19 @@ class ChatRagToolComboScenarioTest {
 
     @Test
     void dynamicToolsCoexistWithPipelineRetrieval() {
+        // The dedicated tool index owns a separate vector store; mock its model as well.
+        when(this.embeddingModel.dimensions()).thenReturn(3);
+        when(this.embeddingModel.embed(any(Document.class))).thenReturn(new float[] {1.0f, 0.0f, 0.0f});
         VectorStoreDocumentInfo document = registerDocument("curated-rt02", false);
         RagPipeline pipeline = retrievalOnlyPipeline("rt02", List.of(document.docInfoId()));
-        ToolCallback callback = probeCallback("rt02Probe");
+        // A fresh name forces indexing even when a previous run persisted the tool index.
+        ToolCallback callback = probeCallback("rt02Probe_" + UUID.randomUUID().toString().replace("-", ""));
         ChatHistory history = newHistory()
                 .withToolPreferences(ChatToolPreferences.defaults().withDynamicTools(true));
 
         send(history, CONTENT_QUERY, pipeline.id(), List.of(callback), null);
 
+        verify(this.embeddingModel, atLeastOnce()).embed(any(Document.class));
         assertThat(userTextSentToModel()).as("RT-02 retrieval survives dynamic mode").contains(PIPELINE_CHUNK_MARK);
         assertThat(toolNamesSentToModel())
                 .as("RT-02 the turn really ran in dynamic mode: the pool is hidden behind the search tool")

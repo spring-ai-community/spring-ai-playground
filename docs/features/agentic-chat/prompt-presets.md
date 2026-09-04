@@ -615,7 +615,7 @@ Use only enabled tools and never fake their output.</pre>
 
 **What happens** - the agent calls `getRecentEarthquakes`, states the magnitudes and locations briefly, then calls `plotPointsOnMap` to drop every quake onto one multi-point Leaflet map (with a Light / Dark toggle and Copy / PNG export). Its reasoning and tool calls run in collapsible **THINK** / **MCP TOOLS** panels (folded here; click any in the app to open).
 
-![The Data visualizer preset in action - closing magnitude bullets for Japan (5.8) and Chile (5.0), above a rendered map card titled Earthquake Locations with three round markers near central Asia, Japan, and South America, zoom controls, a Light / Dark toggle, and Copy and PNG buttons; the tool selector at the bottom shows getCryptoPrice and evalExpression next to an overflow chip for 14 more](../../assets/images/chat/preset-data-visualizer-result.png){ width="980" }
+![The Data visualizer preset in action - closing summary bullets naming the strongest event and the busiest region, above a rendered map card titled Significant Earthquakes (M5+) - Last 72 Hours with one weight-sized marker per quake worldwide, zoom controls, a Light / Dark toggle, and Copy and PNG buttons](../../assets/images/chat/preset-data-visualizer-result.png){ width="980" }
 
 </div>
 </div>

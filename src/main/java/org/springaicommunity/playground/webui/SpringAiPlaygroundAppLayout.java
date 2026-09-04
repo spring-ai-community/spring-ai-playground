@@ -45,13 +45,7 @@ import java.util.Map;
 
 @PageTitle("Spring AI Playground")
 @CssImport("./playground/sidebar.css")
-@CssImport(value = "./playground/input-placeholder.css", themeFor = "vaadin-text-field")
-@CssImport(value = "./playground/input-placeholder.css", themeFor = "vaadin-text-area")
-@CssImport(value = "./playground/input-placeholder.css", themeFor = "vaadin-password-field")
-@CssImport(value = "./playground/input-placeholder.css", themeFor = "vaadin-combo-box")
-@CssImport(value = "./playground/input-placeholder.css", themeFor = "vaadin-multi-select-combo-box")
-@CssImport(value = "./playground/input-placeholder.css", themeFor = "vaadin-select")
-@CssImport(value = "./playground/disabled-placeholder.css", themeFor = "vaadin-multi-select-combo-box")
+@CssImport("./playground/input-placeholder.css")
 @CssImport("./playground/disabled-combo.css")
 // The parent layout must allow access at least as broadly as its views, or navigation is denied.
 @AnonymousAllowed
