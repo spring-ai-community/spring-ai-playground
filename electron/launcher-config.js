@@ -40,6 +40,7 @@ const CONFIG_TEMPLATES = {
           - qwen3.5:9b
           - qwen3.6:27b
           - qwen3.6:35b
+          - qwen3.8:27b
           - gemma4:e2b
           - gemma4:e4b
           - gemma4:12b
@@ -228,6 +229,7 @@ const MLX_MODEL_MAP = {
   'qwen3.5:35b': 'qwen3.5:35b-mlx',
   'qwen3.6:27b': 'qwen3.6:27b-mlx',
   'qwen3.6:35b': 'qwen3.6:35b-mlx',
+  'qwen3.8:27b': 'qwen3.8:27b-mlx',
   'gemma4:e2b': 'gemma4:e2b-mlx',
   'gemma4:e4b': 'gemma4:e4b-mlx',
   'gemma4:12b': 'gemma4:12b-mlx',
@@ -260,6 +262,7 @@ const OLLAMA_APPLE_SILICON_YAML = `spring:
           - qwen3.5:9b-mlx
           - qwen3.6:27b-mlx
           - qwen3.6:35b-mlx
+          - qwen3.8:27b-mlx
           - gemma4:e2b-mlx
           - gemma4:e4b-mlx
           - gemma4:12b-mlx
@@ -269,6 +272,7 @@ const OLLAMA_APPLE_SILICON_YAML = `spring:
           - qwen3.5:9b
           - qwen3.6:27b
           - qwen3.6:35b
+          - qwen3.8:27b
           - gemma4:e2b
           - gemma4:e4b
           - gemma4:12b

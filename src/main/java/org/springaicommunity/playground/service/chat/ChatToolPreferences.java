@@ -15,28 +15,43 @@
  */
 package org.springaicommunity.playground.service.chat;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import org.springaicommunity.playground.service.mcp.client.McpTransportType;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public record ChatToolPreferences(boolean useBuiltinMcp, Set<String> exposedToolIds, List<String> ragDocInfoIds,
+public record ChatToolPreferences(boolean useBuiltinMcp, Set<String> exposedToolIds, String ragSourceId,
         Map<McpTransportType, List<String>> mcpServerNames, ReasoningEffort reasoningEffort, boolean dynamicTools) {
 
     public ChatToolPreferences {
         exposedToolIds = exposedToolIds == null ? Set.of() : Set.copyOf(exposedToolIds);
-        ragDocInfoIds = ragDocInfoIds == null ? List.of() : List.copyOf(ragDocInfoIds);
         mcpServerNames = mcpServerNames == null ? Map.of() : Map.copyOf(mcpServerNames);
         reasoningEffort = reasoningEffort == null ? ReasoningEffort.DEFAULT : reasoningEffort;
     }
 
+    @JsonCreator
+    static ChatToolPreferences fromJson(@JsonProperty("useBuiltinMcp") boolean useBuiltinMcp,
+            @JsonProperty("exposedToolIds") Set<String> exposedToolIds,
+            @JsonProperty("ragSourceId") String ragSourceId,
+            @JsonProperty("ragDocInfoIds") List<String> ragDocInfoIds,
+            @JsonProperty("mcpServerNames") Map<McpTransportType, List<String>> mcpServerNames,
+            @JsonProperty("reasoningEffort") ReasoningEffort reasoningEffort,
+            @JsonProperty("dynamicTools") boolean dynamicTools) {
+        String sourceId = ragSourceId == null && ragDocInfoIds != null && !ragDocInfoIds.isEmpty()
+                ? ChatService.RAG_DOCUMENT_SOURCE_PREFIX + ragDocInfoIds.getFirst() : ragSourceId;
+        return new ChatToolPreferences(useBuiltinMcp, exposedToolIds, sourceId, mcpServerNames, reasoningEffort,
+                dynamicTools);
+    }
+
     public static ChatToolPreferences defaults() {
-        return new ChatToolPreferences(false, Set.of(), List.of(), Map.of(), ReasoningEffort.DEFAULT, false);
+        return new ChatToolPreferences(false, Set.of(), null, Map.of(), ReasoningEffort.DEFAULT, false);
     }
 
     public ChatToolPreferences withDynamicTools(boolean dynamicTools) {
-        return new ChatToolPreferences(useBuiltinMcp, exposedToolIds, ragDocInfoIds, mcpServerNames,
+        return new ChatToolPreferences(useBuiltinMcp, exposedToolIds, ragSourceId, mcpServerNames,
                 reasoningEffort, dynamicTools);
     }
 }

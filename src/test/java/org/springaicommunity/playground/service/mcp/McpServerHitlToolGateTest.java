@@ -36,6 +36,7 @@ import org.springaicommunity.playground.service.tool.ToolManifest.Sandbox.RiskLe
 import org.springframework.beans.factory.ObjectProvider;
 
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 
@@ -56,7 +57,8 @@ class McpServerHitlToolGateTest {
     @SuppressWarnings("unchecked")
     private final ObjectProvider<McpClientService> mcpClientServiceProvider = mock(ObjectProvider.class);
     private final McpClientService mcpClientService = mock(McpClientService.class);
-    private final McpServerHitlToolGate gate = new McpServerHitlToolGate(mcpClientServiceProvider, new SimpleMeterRegistry());
+    private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+    private final McpServerHitlToolGate gate = new McpServerHitlToolGate(mcpClientServiceProvider, meterRegistry);
     private final AtomicInteger delegateCalls = new AtomicInteger();
     private final CallToolResult delegateResult =
             CallToolResult.builder().addTextContent("ok").isError(false).build();
@@ -133,6 +135,37 @@ class McpServerHitlToolGateTest {
 
     private static String deniedText(CallToolResult result) {
         return ((TextContent) result.content().get(0)).text();
+    }
+
+    @Test
+    void elicitationTimeoutDeniesAndCountsTimeout() {
+        McpSyncServerExchange exchange = exchange("cursor", true);
+        when(exchange.createElicitation(any()))
+                .thenThrow(new RuntimeException(new TimeoutException("elicitation timed out")));
+
+        CallToolResult result = invoke(decorated(required()), exchange);
+
+        assertEquals(0, delegateCalls.get());
+        assertTrue(result.isError());
+        assertEquals(1.0, decisionCount("timeout"));
+        assertEquals(0.0, decisionCount("elicit-failed"));
+    }
+
+    @Test
+    void elicitationFailureDeniesAndCountsElicitFailed() {
+        McpSyncServerExchange exchange = exchange("cursor", true);
+        when(exchange.createElicitation(any())).thenThrow(new IllegalStateException("transport broke"));
+
+        CallToolResult result = invoke(decorated(required()), exchange);
+
+        assertEquals(0, delegateCalls.get());
+        assertTrue(result.isError());
+        assertEquals(1.0, decisionCount("elicit-failed"));
+        assertEquals(0.0, decisionCount("timeout"));
+    }
+
+    private double decisionCount(String outcome) {
+        return meterRegistry.counter("mcp.hitl.decision", "outcome", outcome, "side", "server").count();
     }
 
     @Test

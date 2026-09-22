@@ -111,7 +111,12 @@ nav:
               - "Examples": features/default-mcp-catalog/examples.md
           - "MCP Inspector": features/mcp-server/inspector.md
           - "MCP Server Proxy": features/mcp-server/proxy.md
-      - "Vector Database": features/vector-database.md
+      - "RAG":
+          - "Overview": features/vector-database.md
+          - "Offline: Indexing": features/rag/offline-etl.md
+          - "Pipeline Studio": features/rag/pipeline-studio.md
+          - "Runtime: RAG in Chat": features/rag/runtime.md
+          - "Chat Attachments": features/rag/chat-attachments.md
       - "Agentic Chat":
           - features/agentic-chat/index.md
           - "Self-equipping Agents": features/agentic-chat/dynamic-tool-discovery.md
@@ -158,10 +163,14 @@ nav:
       - "13. Upload and Analyze a File": tutorials/13-upload-a-file.md
       - "14. Attach and Analyze an Image": tutorials/14-analyze-an-image.md
       - "15. Investigate Documents": tutorials/15-investigate-documents.md
+      - "16. Public API to MCP Server": tutorials/16-public-api-to-mcp-server.md
+      - "17. Attach a Document": tutorials/17-attach-a-document.md
   # Changelog is published in the repo as CHANGELOG.md (and rendered at
   # /changelog/ when reached by URL via the docs/changelog.md include).
   # Intentionally omitted from main nav to avoid duplicating GitHub-hosted
   # release notes in the site menu.
+  # Mentions (mentions.md) is likewise kept out of the nav on purpose: it is
+  # reached from the Home page's Mentions and Coverage section and the README.
 
 docs_dir: docs
 
@@ -180,6 +189,7 @@ extra_javascript:
   - assets/javascripts/default-tools-search.js
   - assets/javascripts/nav-default-expand.js
   - assets/javascripts/verify-version-resolve.js
+  - assets/javascripts/download-stats.js
 
 markdown_extensions:
   - meta

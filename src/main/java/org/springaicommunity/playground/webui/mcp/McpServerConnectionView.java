@@ -292,7 +292,7 @@ public class McpServerConnectionView extends WorkspaceSidebar implements BeforeE
         VerticalLayout body = parentSectionBody();
 
         if (sectionCount == 0) {
-            Span empty = new Span("No active MCP yet — activate one from the Inactive MCP list below.");
+            Span empty = new Span("No active MCP yet - activate one from the Inactive MCP list below.");
             empty.getStyle()
                     .set("display", "block")
                     .set("padding", "var(--lumo-space-xs) var(--lumo-space-m)")
@@ -322,7 +322,7 @@ public class McpServerConnectionView extends WorkspaceSidebar implements BeforeE
     private Details buildCatalogSection(Map<String, List<McpServerInfo>> filteredByCategory, int sectionCount) {
         VerticalLayout body = parentSectionBody();
 
-        Span hint = new Span("Catalog entries — click an item to activate.");
+        Span hint = new Span("Catalog entries - click an item to activate.");
         hint.getStyle()
                 .set("display", "block")
                 .set("padding", "var(--lumo-space-xs) var(--lumo-space-m)")
@@ -528,11 +528,11 @@ public class McpServerConnectionView extends WorkspaceSidebar implements BeforeE
         switch (status.status()) {
             case ERROR -> appendLine(sb, "Error: " + (status.error() == null ? "" : status.error()));
             case AWAITING_AUTHORIZATION ->
-                    appendLine(sb, "Awaiting OAuth authorization — open the config panel and click Authorize.");
+                    appendLine(sb, "Awaiting OAuth authorization - open the config panel and click Authorize.");
             case MISSING_CONFIG ->
                     appendLine(sb, status.error() == null ? "Missing required configuration" : status.error());
             default -> {
-                if (ghost) appendLine(sb, "Catalog entry — click to activate.");
+                if (ghost) appendLine(sb, "Catalog entry - click to activate.");
             }
         }
         return sb.toString();

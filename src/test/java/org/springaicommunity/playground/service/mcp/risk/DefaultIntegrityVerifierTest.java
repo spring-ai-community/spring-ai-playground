@@ -60,6 +60,7 @@ class DefaultIntegrityVerifierTest {
             @Override public void onHashLedgerMismatch(McpRiskEvents.HashLedgerMismatch event) {
                 captured.set(event);
             }
+            @Override public void onHashLedgerRecanonicalized(McpRiskEvents.HashLedgerRecanonicalized event) {}
             @Override public void onCompositionLifecycle(McpRiskEvents.CompositionLifecycle event) {}
             @Override public void onPoisoningHit(McpRiskEvents.PoisoningHit event) {}
         };

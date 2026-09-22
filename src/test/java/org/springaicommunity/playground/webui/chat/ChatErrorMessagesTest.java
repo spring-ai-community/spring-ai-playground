@@ -16,6 +16,7 @@
 package org.springaicommunity.playground.webui.chat;
 
 import org.junit.jupiter.api.Test;
+import org.springaicommunity.playground.config.AbsentModelFallbackConfig;
 
 import java.util.concurrent.TimeoutException;
 
@@ -67,4 +68,12 @@ class ChatErrorMessagesTest {
     void testBlankMessageGetsFallback() {
         assertEquals("Something went wrong.", ChatErrorMessages.friendly(new RuntimeException()));
     }
+
+    @Test
+    void absentChatModelSurvivesTheAdvisorWrapper() {
+        Throwable wrapped = new IllegalStateException("Stream processing failed",
+                new IllegalStateException(AbsentModelFallbackConfig.CHAT_MODEL_ABSENT));
+        assertEquals(AbsentModelFallbackConfig.CHAT_MODEL_ABSENT, ChatErrorMessages.friendly(wrapped));
+    }
+
 }

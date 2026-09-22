@@ -21,7 +21,7 @@ import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.listbox.MultiSelectListBox;
 import org.junit.jupiter.api.Test;
 import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentInfo;
-import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentService;
+import org.springaicommunity.playground.service.vectorstore.OfflineEtlPipelineService;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
@@ -43,27 +43,27 @@ class VectorStoreSelectionTest extends SpringBrowserlessTest {
     private VectorStore vectorStore;
 
     @Autowired
-    private VectorStoreDocumentService documentService;
+    private OfflineEtlPipelineService documentService;
 
     @Test
     @SuppressWarnings("unchecked")
     void selectingSeededDocumentRendersItsChunks() {
         Document chunk = new Document("vector chunk body", Map.of("source", "browserless"));
-        VectorStoreDocumentInfo info = this.documentService.putNewDocument("browserless-doc.txt", List.of(chunk));
+        VectorStoreDocumentInfo info = this.documentService.loadDocument("browserless-doc.txt", List.of(chunk));
         lenient().when(this.vectorStore.similaritySearch(any(SearchRequest.class)))
                 .thenReturn(info.documentListSupplier().get());
 
         VectorStoreView view = navigate(VectorStoreView.class);
-        MultiSelectListBox<VectorStoreDocumentInfo> listBox = $(MultiSelectListBox.class, view).first();
+        MultiSelectListBox<VectorStoreDocumentInfo> listBox = $(MultiSelectListBox.class, view).single();
         listBox.select(info);
         roundTrip();
 
         test($(Button.class, view)
                 .withCondition(button -> "Search all".equals(button.getTooltip().getText()))
-                .first()).click();
+                .single()).click();
         roundTrip();
 
-        Grid<?> grid = $(Grid.class, view).first();
+        Grid<?> grid = $(Grid.class, view).single();
         assertThat(grid.getGenericDataView().getItems())
                 .anyMatch(item -> item instanceof VectorStoreContentItem contentItem
                         && contentItem.getText().contains("vector chunk body"));

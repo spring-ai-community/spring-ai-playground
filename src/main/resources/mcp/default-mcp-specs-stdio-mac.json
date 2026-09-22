@@ -83,7 +83,7 @@
     "tier": 2,
     "vendor": "modelcontextprotocol",
     "vendorOfficial": true,
-    "description": "[macOS] Official MCP reference test server exercising every protocol feature — tools, resources, prompts, sampling, completion, logging, progress, root listing.\n\nPrereq: Node.js 18+ on macOS.\n\nThe activated form is pre-filled to run:\n  npx -y @modelcontextprotocol/server-everything\n\nDocker alternative:\n  docker run -i --rm tzolov/mcp-everything-server:v2\n\nNote: the hosted `example-server.modelcontextprotocol.io` endpoint requires OAuth and is not auto-activated.\n\nDocs: https://github.com/modelcontextprotocol/servers/tree/main/src/everything",
+    "description": "[macOS] Official MCP reference test server exercising every protocol feature — tools, resources, prompts, sampling, completion, logging, progress, root listing.\n\nPrereq: Node.js 18+ on macOS.\n\nThe activated form is pre-filled to run:\n  npx -y @modelcontextprotocol/server-everything\n\nDocker alternative (STDIO):\n  docker run -i --rm mcp/everything\n  This image is an older build: 8 tools / 3 prompts under different names.\n  tzolov/mcp-everything-server:v2 is the HTTP packaging (port 3001), not stdio.\n\nNote: the hosted `example-server.modelcontextprotocol.io` endpoint requires OAuth and is not auto-activated.\n\nDocs: https://github.com/modelcontextprotocol/servers/tree/main/src/everything",
     "stability": "GA",
     "transports": [{
       "type": "STDIO",

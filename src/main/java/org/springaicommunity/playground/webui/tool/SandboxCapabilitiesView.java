@@ -356,8 +356,8 @@ public class SandboxCapabilitiesView extends Details {
 
     private static String hitlModeLabel(HumanInTheLoop.Mode mode) {
         return switch (mode) {
-            case REQUIRED -> "Required — ask every run";
-            case DISABLED -> "Disabled — no prompt";
+            case REQUIRED -> "Required - ask every run";
+            case DISABLED -> "Disabled - no prompt";
         };
     }
 
@@ -374,7 +374,7 @@ public class SandboxCapabilitiesView extends Details {
 
     private void applyBasePathHelperText(String fileMode, String defaultBasePath) {
         String helper = "off".equals(fileMode)
-                ? "Filesystem mode is off — set a path now and toggle to read/read+write to enable safety.fs.* (default: " + defaultBasePath + ")"
+                ? "Filesystem mode is off - set a path now and toggle to read/read+write to enable safety.fs.* (default: " + defaultBasePath + ")"
                 : "Tools read/write inside this folder only. Default: " + defaultBasePath + ".";
         this.fsBasePathField.setHelperText(helper);
     }

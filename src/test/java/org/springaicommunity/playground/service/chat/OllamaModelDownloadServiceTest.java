@@ -84,6 +84,20 @@ class OllamaModelDownloadServiceTest {
     }
 
     @Test
+    void testRefreshPicksUpExternallyPulledModel() {
+        OllamaApi api = mock(OllamaApi.class);
+        when(api.listModels()).thenReturn(modelList("qwen3.5:4b-mlx"))
+                .thenReturn(modelList("qwen3.5:4b-mlx", "qwen3.8:27b-mlx"));
+        OllamaModelDownloadService service = new OllamaModelDownloadService(providerOf(api), ollamaModel());
+
+        service.refreshLocalModels();
+        assertFalse(service.isDownloaded("qwen3.8:27b-mlx"));
+
+        service.refreshLocalModels();
+        assertTrue(service.isDownloaded("qwen3.8:27b-mlx"));
+    }
+
+    @Test
     void testFailOpenWhenListingFails() {
         OllamaApi api = mock(OllamaApi.class);
         when(api.listModels()).thenThrow(new IllegalStateException("ollama down"));

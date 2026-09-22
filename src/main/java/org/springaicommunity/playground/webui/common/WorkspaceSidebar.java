@@ -36,6 +36,9 @@ public abstract class WorkspaceSidebar extends VerticalLayout {
     private final Span titleSpan;
     private final MenuBar headerMenuBar;
     private final Div contentSlot;
+    private final Header header;
+    private Icon collapseChevron;
+    private boolean collapsed = false;
 
     protected WorkspaceSidebar(String title) {
         setSpacing(false);
@@ -52,8 +55,8 @@ public abstract class WorkspaceSidebar extends VerticalLayout {
         this.headerMenuBar.addThemeVariants(MenuBarVariant.LUMO_END_ALIGNED,
                 MenuBarVariant.LUMO_TERTIARY_INLINE);
 
-        Header header = new Header(this.titleSpan, this.headerMenuBar);
-        header.getStyle()
+        this.header = new Header(this.titleSpan, this.headerMenuBar);
+        this.header.getStyle()
                 .set("white-space", "nowrap")
                 .set("width", "100%")
                 .set("display", "flex")
@@ -67,11 +70,12 @@ public abstract class WorkspaceSidebar extends VerticalLayout {
         this.contentSlot.getStyle()
                 .set("flex", "1 1 auto")
                 .set("min-height", "0")
-                .set("overflow", "hidden")
+                .set("overflow-y", "auto")
+                .set("overflow-x", "hidden")
                 .set("display", "flex")
                 .set("flex-direction", "column");
 
-        add(header, this.contentSlot);
+        add(this.header, this.contentSlot);
     }
 
     protected MenuItem addHeaderIcon(VaadinIcon icon, String tooltip,
@@ -83,6 +87,46 @@ public abstract class WorkspaceSidebar extends VerticalLayout {
 
     protected void setSidebarTitle(String title) {
         this.titleSpan.setText(title);
+    }
+
+    public void enableCollapse() {
+        if (this.collapseChevron != null) return;
+        this.collapseChevron = new Icon(VaadinIcon.CHEVRON_DOWN);
+        this.collapseChevron.setSize("0.85rem");
+        this.collapseChevron.getStyle()
+                .set("cursor", "pointer")
+                .set("margin-right", "var(--lumo-space-s)")
+                .set("color", "var(--lumo-secondary-text-color)")
+                .set("flex", "0 0 auto");
+        this.collapseChevron.addClickListener(e -> setCollapsed(!this.collapsed));
+
+        this.titleSpan.getStyle().set("cursor", "pointer").set("user-select", "none");
+        this.titleSpan.addClickListener(e -> setCollapsed(!this.collapsed));
+
+        this.header.getElement().insertChild(0, this.collapseChevron.getElement());
+        getStyle()
+                .set("flex", "0 1 auto")
+                .set("max-height", "50%")
+                .set("min-height", "0");
+        setHeight(null);
+    }
+
+    public void setCollapsed(boolean collapsed) {
+        this.collapsed = collapsed;
+        this.contentSlot.setVisible(!collapsed);
+        if (this.collapseChevron != null) {
+            this.collapseChevron.getElement().setAttribute("icon",
+                    collapsed ? "vaadin:chevron-right" : "vaadin:chevron-down");
+        }
+        if (collapsed) {
+            getStyle().set("flex", "0 0 auto").set("max-height", "none");
+        } else {
+            getStyle().set("flex", "0 1 auto").set("max-height", "50%");
+        }
+    }
+
+    public boolean isCollapsed() {
+        return this.collapsed;
     }
 
     protected void setSidebarContent(Component content) {

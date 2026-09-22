@@ -65,11 +65,11 @@ public final class ChatHumanQuestionHandler implements HumanQuestionHandler {
         } catch (RuntimeException e) {
             logger.warn("hitl.dialog-failed questions={} error={}", questions.size(), e.getMessage());
             this.pendingCancel.set(null);
-            return defaultAnswers(questions);
+            throw e;
         }
         try {
             return DialogInteractions.await(decision, this.decisionTimeoutSeconds,
-                    () -> defaultAnswers(questions));
+                    () -> timeoutAnswers(questions));
         } finally {
             this.pendingCancel.set(null);
             closeQuietly(dialogRef.get());
@@ -246,6 +246,14 @@ public final class ChatHumanQuestionHandler implements HumanQuestionHandler {
         Map<String, String> answers = new LinkedHashMap<>();
         for (HumanQuestion question : questions) {
             answers.put(question.id(), defaultAnswer(question));
+        }
+        return answers;
+    }
+
+    private static Map<String, String> timeoutAnswers(List<HumanQuestion> questions) {
+        Map<String, String> answers = new LinkedHashMap<>();
+        for (HumanQuestion question : questions) {
+            answers.put(question.id(), TIMEOUT_ANSWER);
         }
         return answers;
     }

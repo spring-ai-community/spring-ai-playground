@@ -934,13 +934,16 @@ function weightColor(w) {
     return w >= 6 ? '#d7263d' : w >= 5.5 ? '#f46036' : w >= 5 ? '#f4a236' : '#f4d03f';
 }
 
-const MAP_BASEMAPS = {
-    light: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-    dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-};
+const MAP_TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+const MAP_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+const MAP_DARK_FILTER = 'invert(1) hue-rotate(180deg) brightness(0.86) contrast(0.85) saturate(0.2)';
 
-function basemapLayer(style) {
-    return L.tileLayer(MAP_BASEMAPS[style], { maxZoom: 8, subdomains: 'abcd', crossOrigin: true });
+function basemapLayer() {
+    return L.tileLayer(MAP_TILE_URL, { maxZoom: 19, detectRetina: true, attribution: MAP_ATTRIBUTION, crossOrigin: true });
+}
+
+function applyBasemapStyle(map, box) {
+    map.getPane('tilePane').style.filter = box.dataset.style === 'dark' ? MAP_DARK_FILTER : 'none';
 }
 
 function exportLeafletMap(map, box) {
@@ -948,15 +951,18 @@ function exportLeafletMap(map, box) {
     const out = document.createElement('canvas');
     out.width = size.x;
     out.height = size.y;
+    const dark = box.dataset.style === 'dark';
     const ctx = out.getContext('2d');
-    ctx.fillStyle = box.dataset.style === 'dark' ? '#0b1322' : '#eaeef2';
+    ctx.fillStyle = dark ? '#0b1322' : '#eaeef2';
     ctx.fillRect(0, 0, size.x, size.y);
     const base = box.getBoundingClientRect();
+    ctx.filter = dark ? MAP_DARK_FILTER : 'none';
     box.querySelectorAll('img.leaflet-tile').forEach((img) => {
         if (!img.complete || !img.naturalWidth) return;
         const r = img.getBoundingClientRect();
         ctx.drawImage(img, r.left - base.left, r.top - base.top, r.width, r.height);
     });
+    ctx.filter = 'none';
     box.querySelectorAll('canvas').forEach((cv) => {
         if (cv === out || !cv.width || !cv.height) return;
         const r = cv.getBoundingClientRect();
@@ -977,9 +983,11 @@ registerActionCard('pointmap', (data) => {
     card.appendChild(box);
     try {
         const map = L.map(box, {
-            worldCopyJump: true, attributionControl: false, scrollWheelZoom: false, preferCanvas: true,
+            worldCopyJump: true, scrollWheelZoom: false, preferCanvas: true,
         });
-        let tiles = basemapLayer(style).addTo(map);
+        map.attributionControl.setPrefix('');
+        basemapLayer().addTo(map);
+        applyBasemapStyle(map, box);
         const latlngs = [];
         points.forEach((p) => {
             const w = typeof p.weight === 'number' ? p.weight : (typeof p.mag === 'number' ? p.mag : null);
@@ -1005,8 +1013,7 @@ registerActionCard('pointmap', (data) => {
                     if (s === style) return;
                     style = s;
                     box.dataset.style = s;
-                    map.removeLayer(tiles);
-                    tiles = basemapLayer(s).addTo(map);
+                    applyBasemapStyle(map, box);
                     div.querySelectorAll('button').forEach((x) => x.classList.toggle('active', x.textContent.toLowerCase() === s));
                 });
             });
@@ -1103,9 +1110,11 @@ registerActionCard('geoheat', (data) => {
     card.appendChild(box);
     try {
         const map = L.map(box, {
-            worldCopyJump: true, attributionControl: false, scrollWheelZoom: false, preferCanvas: true,
+            worldCopyJump: true, scrollWheelZoom: false, preferCanvas: true,
         });
-        let tiles = basemapLayer(style).addTo(map);
+        map.attributionControl.setPrefix('');
+        basemapLayer().addTo(map);
+        applyBasemapStyle(map, box);
         const heatCanvas = document.createElement('canvas');
         heatCanvas.className = 'saip-heat-layer';
         box.appendChild(heatCanvas);
@@ -1128,8 +1137,7 @@ registerActionCard('geoheat', (data) => {
                     if (s === style) return;
                     style = s;
                     box.dataset.style = s;
-                    map.removeLayer(tiles);
-                    tiles = basemapLayer(s).addTo(map);
+                    applyBasemapStyle(map, box);
                     div.querySelectorAll('button').forEach((x) => x.classList.toggle('active', x.textContent.toLowerCase() === s));
                 });
             });

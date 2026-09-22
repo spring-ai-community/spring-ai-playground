@@ -38,6 +38,7 @@ class McpRiskSignalLoggerTest {
         McpRiskSignalLogger sink = new McpRiskSignalLogger(registry, new McpRiskEventRingBuffer());
 
         sink.onHashLedgerMismatch(null);
+        sink.onHashLedgerRecanonicalized(null);
         sink.onPoisoningHit(null);
         sink.onPoisoningHit(null);
         sink.onServerRiskComputed(null);
@@ -46,6 +47,7 @@ class McpRiskSignalLoggerTest {
         sink.onToolPublishRiskComputed(null);
 
         assertThat(count(registry, "hash-ledger-mismatch")).isEqualTo(1.0);
+        assertThat(count(registry, "hash-ledger-recanonicalized")).isEqualTo(1.0);
         assertThat(count(registry, "poisoning-hit")).isEqualTo(2.0);
         assertThat(count(registry, "server-risk-computed")).isEqualTo(1.0);
         assertThat(count(registry, "floor-override-triggered")).isEqualTo(1.0);
@@ -75,6 +77,21 @@ class McpRiskSignalLoggerTest {
         assertThat(e.type()).isEqualTo("poisoning-hit");
         assertThat(e.severity()).isEqualTo("warn");
         assertThat(e.summary()).contains("weather-server", "get_alerts", "PROMPT_INJECTION");
+    }
+
+    @Test
+    void recanonicalizationIsAuditedAsInfoNotTamper() {
+        McpRiskEventRingBuffer buffer = new McpRiskEventRingBuffer();
+        McpRiskSignalLogger sink = new McpRiskSignalLogger(new SimpleMeterRegistry(), buffer);
+
+        Instant at = Instant.ofEpochMilli(1_700_000_000_000L);
+        sink.onHashLedgerRecanonicalized(new McpRiskEvents.HashLedgerRecanonicalized(at, "github", "list_repos",
+                "mcp-tool-sha256/v1", "jcs-rfc8785-sha256/v1", "hash-1", "hash-2"));
+
+        McpRiskEventRingBuffer.RiskEvent event = buffer.snapshot().getFirst();
+        assertThat(event.type()).isEqualTo("hash-ledger-recanonicalized");
+        assertThat(event.severity()).isEqualTo("info");
+        assertThat(event.summary()).contains("github", "list_repos", "jcs-rfc8785-sha256/v1");
     }
 
     @Test

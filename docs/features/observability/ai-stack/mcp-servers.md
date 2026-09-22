@@ -31,7 +31,7 @@ All dashboards share the [Observability global settings](../index.md#global-sett
 
 | Card | Shows | Source |
 |---|---|---|
-| MCP servers | Number of registered external MCP servers | `McpClientService.registeredServers().size()` |
+| MCP servers | Number of registered external MCP servers | `McpClientService.snapshotStatuses()` - one entry per configured connection |
 | Servers up | Number with last connection state OK | Live ping / connection state |
 | MCP tool calls | Count of all externally-routed tool calls | Spans with `mcp.method.name` non-null |
 | Distinct tools | Unique tool names called externally | `set(spring.ai.tool.definition.name)` filtered |
@@ -42,7 +42,7 @@ All dashboards share the [Observability global settings](../index.md#global-sett
 
 | Card | Shows | Source |
 |---|---|---|
-| OAuth authorized | Count of OAuth-protected servers currently in authorized state | `McpServerInfo.oauthStatus` |
+| OAuth authorized | Count of OAuth-protected servers currently in authorized state | `McpClientService.snapshotOAuthState()` rows with status `OK` and an access or refresh token bound |
 | OAuth awaiting | Count awaiting authorization (user-driven OAuth dance not yet completed) | OAuth state machine |
 | OAuth errored / offline | Count where OAuth flow has errored or the server is unreachable | OAuth state machine + ping |
 | OAuth expiring < 5 min | Token-refresh urgency - these will fail soon if not refreshed | Token expiry timestamp |

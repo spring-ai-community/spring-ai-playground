@@ -132,6 +132,19 @@ class CanonicalHasherTest {
                         + " and every stored fingerprint would silently re-baseline");
     }
 
+    @Test
+    void mcpToolDigestDeclaresTheSchemeThatProducedTheValue() {
+        JsonNode schema = new ObjectMapper().readTree(
+                "{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\"}},\"required\":[\"query\"]}");
+        CanonicalHasher.ContentDigest digest = hasher.digestMcpTool("search_web",
+                "Search the web and return top results.", schema, McpToolDescriptor.Annotations.EMPTY);
+
+        assertEquals(CanonicalHasher.MCP_TOOL_SCHEME, digest.scheme());
+        assertEquals(hasher.hashMcpTool("search_web", "Search the web and return top results.",
+                schema, McpToolDescriptor.Annotations.EMPTY), digest.value(),
+                "declaring the scheme must not change the bytes being hashed");
+    }
+
     private McpServerInfo server(String connectionJson, long created, Long lastUsed) {
         McpServerInfo info = new McpServerInfo(McpTransportType.STREAMABLE_HTTP, "Gmail",
                 "Read and send mail", created, created, connectionJson, "PRODUCTIVITY", Set.of("global"));

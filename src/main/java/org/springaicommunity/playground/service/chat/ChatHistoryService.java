@@ -22,6 +22,7 @@ import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.DefaultChatOptions;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -39,14 +40,16 @@ public class ChatHistoryService {
     private final ChatMemory chatMemory;
     private final ChatHistoryPersistenceService chatHistoryPersistenceService;
     private final ChatModel chatModel;
+    private final ObjectProvider<ChatDocumentIntakeService> documentIntakeServiceProvider;
 
     private final Map<String, ChatHistory> conversationIdHistoryMap;
 
     public ChatHistoryService(ChatMemory chatMemory, ChatHistoryPersistenceService chatHistoryPersistenceService,
-            ChatModel chatModel) {
+            ChatModel chatModel, ObjectProvider<ChatDocumentIntakeService> documentIntakeServiceProvider) {
         this.chatMemory = chatMemory;
         this.chatHistoryPersistenceService = chatHistoryPersistenceService;
         this.chatModel = chatModel;
+        this.documentIntakeServiceProvider = documentIntakeServiceProvider;
         this.conversationIdHistoryMap = new ConcurrentHashMap<>();
     }
 
@@ -91,6 +94,8 @@ public class ChatHistoryService {
     public void deleteChatHistory(ChatHistory chatHistory, boolean deleteWorkspace) {
         this.chatMemory.clear(chatHistory.conversationId());
         this.conversationIdHistoryMap.remove(chatHistory.conversationId());
+        this.documentIntakeServiceProvider.ifAvailable(intakeService ->
+                intakeService.removeConversation(chatHistory.conversationId()));
         this.chatHistoryPersistenceService.deleteAsync(chatHistory, deleteWorkspace);
     }
 

@@ -59,6 +59,7 @@ class McpCompositionServiceTest {
             @Override public void onToolPublishRiskComputed(McpRiskEvents.ToolPublishRiskComputed event) {}
             @Override public void onFloorOverrideTriggered(McpRiskEvents.FloorOverrideTriggered event) {}
             @Override public void onHashLedgerMismatch(McpRiskEvents.HashLedgerMismatch event) {}
+            @Override public void onHashLedgerRecanonicalized(McpRiskEvents.HashLedgerRecanonicalized event) {}
             @Override public void onCompositionLifecycle(McpRiskEvents.CompositionLifecycle event) {
                 emittedEvents.add(event);
             }

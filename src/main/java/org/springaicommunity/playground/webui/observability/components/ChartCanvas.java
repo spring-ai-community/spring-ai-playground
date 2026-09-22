@@ -39,6 +39,7 @@ import java.util.Map;
 
 @Tag("playground-observability-chart")
 @NpmPackage(value = "echarts", version = "5.6.0")
+@NpmPackage(value = "tslib", version = "2.3.0")
 @JsModule("./playground/observability-chart.js")
 public class ChartCanvas extends Component implements HasSize, HasStyle {
 

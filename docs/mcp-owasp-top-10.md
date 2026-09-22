@@ -5,6 +5,8 @@ description: How Spring AI Playground's enforced controls map to the OWASP MCP T
 
 The [OWASP MCP Top 10](https://owasp.org/www-project-mcp-top-10/) (categories `MCP01:2025` through `MCP10:2025`) is the first OWASP catalog of the risks most likely to compromise a Model Context Protocol deployment. This page maps each category to the **controls Spring AI Playground actually ships**, and is deliberately honest about where coverage is partial or absent. It is a defensive coverage map, not a claim of completeness.
 
+The host-side gating pattern behind this map is published upstream as an OWASP recommended control, [Client-Side Tool Risk Gating for MCP Hosts](https://owasp.org/www-project-mcp-top-10/2025/recommended-controls/Client-Side-Tool-Risk-Gating). That document was contributed from this project and is written vendor-neutrally, describing the pattern rather than the implementation; this page is the implementation-specific counterpart.
+
 This complements the architecture documents that describe each control in depth:
 
 - [AI Agent Tool Safety](safety-architecture.md) - the sandbox that contains locally-authored JS tools, and the isolation-tier model
@@ -97,7 +99,7 @@ The table is the summary; each row links to its section below. Detailed mechanic
 
 **Risk:** servers, tools, or agents that fail to verify identity or enforce access control.
 
-**Coverage: outbound shipped, inbound opt-in.** For connecting **to** external MCP servers the playground ships a full **OAuth 2.1 client** (authorization-code and refresh-token flows, encrypted token store). For its **own** built-in server, `/mcp` is `permitAll` by default - a deliberate choice for the local-first, single-user model, where the agent reaches the built-in server over loopback and there is no second party to authenticate. This is not a missing capability: gating the endpoint is a one-module opt-in.
+**Coverage: outbound shipped, inbound opt-in.** For connecting **to** external MCP servers the playground ships a full **OAuth 2.1 client** (authorization-code and refresh-token flows, encrypted token store). For its **own** built-in server, `/mcp` is `permitAll` by default - a deliberate choice for the local-first, single-user model, where the agent reaches the built-in server over loopback and there is no second party to authenticate. This is not a missing capability: gating the endpoint is one property for a shared-secret bearer token (`spring.ai.playground.mcp-server.auth-token`, see [Configuration](getting-started/configuration.md)), or a one-module opt-in for full OAuth2.
 
 !!! info "Enabling inbound auth on the built-in server"
     The [`spring-ai-community/mcp-security`](https://github.com/spring-ai-community/mcp-security) module (a sibling project in the same org) turns the built-in server into an OAuth2 **resource server** that requires a Bearer token on `/mcp`. The recommended path is the Boot auto-configuration: add `org.springaicommunity:mcp-server-security-spring-boot` (alongside `spring-boot-starter-oauth2-resource-server`) and set `spring.security.oauth2.resourceserver.jwt.issuer-uri` - the auto-config then secures `/mcp` with no extra code. (For manual control instead, the `mcp-server-security` module exposes `McpServerOAuth2Configurer.mcpServerOAuth2(...)` to wire into the [`SecurityConfig`](https://github.com/spring-ai-community/spring-ai-playground/blob/main/src/main/java/org/springaicommunity/playground/config/SecurityConfig.java) filter chain, replacing the current `permitAll` on `/mcp`.) The playground already ships the outbound half (`spring-boot-starter-oauth2-client`); the inbound half is left out of the default build on purpose. For a deployed or multi-user instance, also set `server.address=127.0.0.1` - the default binds to all interfaces because `server.address` is unset.
@@ -142,3 +144,4 @@ Stated together so the coverage above is not read as completeness:
 - [Human-in-the-Loop Approval](hitl-architecture.md) - the per-call gate referenced across MCP02, MCP06, MCP10
 - [AI Agent Observability](observability-architecture.md) - the audit layer behind MCP08
 - [OWASP MCP Top 10](https://owasp.org/www-project-mcp-top-10/) - the upstream catalog
+- [Client-Side Tool Risk Gating for MCP Hosts](https://owasp.org/www-project-mcp-top-10/2025/recommended-controls/Client-Side-Tool-Risk-Gating) - the upstream recommended control contributed from this project, stated as a vendor-neutral pattern

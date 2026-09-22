@@ -47,14 +47,14 @@ public final class ExposedToolsSelector {
     public static MultiSelectComboBox<ToolSpec> newComposedSelector(Function<ToolSpec, String> riskLevelFn,
             Function<ToolSpec, String> categoryFn) {
         return newCategorizedSelector("Composed external tools",
-                "Tools re-exposed from connected external MCP servers — risk and HITL governed.",
+                "Tools re-exposed from connected external MCP servers - risk and HITL governed.",
                 riskLevelFn, categoryFn);
     }
 
     public static MultiSelectComboBox<ToolSpec> newBuiltinSelector(Function<ToolSpec, String> riskLevelFn,
             Function<ToolSpec, String> categoryFn) {
         return newCategorizedSelector("Built-in tools to expose",
-                "Local-Passed built-in tools — tick which to expose.", riskLevelFn, categoryFn);
+                "Local-Passed built-in tools - tick which to expose.", riskLevelFn, categoryFn);
     }
 
     public static MultiSelectComboBox<ToolSpec> newCategorizedSelector(String label, String helperText,

@@ -1823,5 +1823,88 @@
       }
     },
     "draft": true
+  },
+  {
+    "toolId": "49f05479-f908-5503-9661-5c9bfe474da9",
+    "name": "getTrafficAccidentHotspots",
+    "description": "Korea-locale (KR) tool — Korean responses; some parameters require Korean input.\n\nKoROAD (Korea Road Traffic Authority) traffic-accident hotspot zones for one municipality (KR; data.go.kr serviceKey required). Register the `한국도로교통공단_지자체별 교통사고 다발지역` service at data.go.kr, receive a serviceKey, and set DATA_GO_KR_TRAFFIC_KEY on the tool's staticVariables, or inject as env var. `lawdCode` is the 5-digit legal-dong city/county code, the same code getApartmentTradePrice takes. Examples: Gangnam=11680, Seocho=11650, Songpa=11710, Seongdong=11200, Haeundae=26350, Jeju City=50110. The service publishes only the top 3 hotspots per municipality and the newest year lags about 18 months, so an omitted `year` walks backwards until rows appear. Each spot carries WGS84 coordinates, so results feed plotPointsOnMap directly. Returns: { lawdCode, year, totalCount, spots:[{ spotName, accidents, casualties, deaths, seriousInjuries, minorInjuries, reportedInjuries, lat, lng }] }.",
+    "staticVariables": [
+      {
+        "dataGoKrTrafficKey": "${DATA_GO_KR_TRAFFIC_KEY}"
+      }
+    ],
+    "params": [
+      {
+        "name": "lawdCode",
+        "description": "5-digit legal-dong sigungu code (not a road address). Common values: '강남구'=11680, '서초구'=11650, '송파구'=11710, '마포구'=11440, '성동구'=11200, '영등포구'=11560, '종로구'=11110, '해운대구(부산)'=26350, '수성구(대구)'=27260, '분당구(성남)'=41135, '제주시'=50110.",
+        "required": true,
+        "type": "STRING",
+        "testValue": "11680"
+      },
+      {
+        "name": "year",
+        "description": "Statistics year as YYYY (e.g. 2024). Omit to use the newest year that has data.",
+        "required": false,
+        "type": "STRING",
+        "testValue": "2024"
+      },
+      {
+        "name": "numOfRows",
+        "description": "Results per page (1-100, default 10). The service publishes 3 hotspots per municipality.",
+        "required": false,
+        "type": "STRING",
+        "testValue": "10"
+      }
+    ],
+    "code": "/**\n * KoROAD accident hotspot zones by municipality (KR; requires data.go.kr serviceKey).\n *\n * GET https://apis.data.go.kr/B552061/frequentzoneLg/getRestFrequentzoneLg\n *     ?serviceKey={KEY}&searchYearCd=2024&siDo=11&guGun=680&type=json&numOfRows=10&pageNo=1\n *\n * Request the `한국도로교통공단_지자체별 교통사고 다발지역` dataset on data.go.kr for the serviceKey.\n *\n * NOTE: the service splits the 5-digit legal-dong sigungu code - siDo is the first 2 digits,\n *       guGun the last 3 (성동구 11200 -> 11 / 200). That mapping is absent from the published\n *       spec and was derived against the live service, so `lawdCode` stays consistent with\n *       getApartmentTradePrice instead of exposing two opaque codes.\n *       Only the top 3 hotspots per municipality are published and the newest year lags\n *       roughly 18 months, so an omitted `year` walks backwards until a year returns rows.\n */\n\nif (lawdCode == null || lawdCode === '') throw new Error('lawdCode required (5자리 법정동 시군구 코드)');\n\nconst code = String(lawdCode).trim();\nif (!/^\\d{5}$/.test(code)) throw new Error('lawdCode must be 5 digits');\n\nconst rows = (numOfRows == null || numOfRows === '') ? 10 : Math.max(1, Math.min(100, parseInt(numOfRows, 10)));\n\nconst asked = (year == null || year === '') ? null : String(year).trim().slice(0, 4);\nconst thisYear = new Date().getFullYear();\nconst years = asked ? [asked] : [String(thisYear - 1), String(thisYear - 2), String(thisYear - 3)];\n\nconst num = v => v == null || v === '' ? null : Number(String(v).replace(/,/g, '').trim());\n\nfor (const y of years) {\n  const url = 'https://apis.data.go.kr/B552061/frequentzoneLg/getRestFrequentzoneLg'\n            + '?serviceKey='   + encodeURIComponent(dataGoKrTrafficKey)\n            + '&searchYearCd=' + y\n            + '&siDo='         + code.slice(0, 2)\n            + '&guGun='        + code.slice(2)\n            + '&type=json'\n            + '&numOfRows='    + rows\n            + '&pageNo=1';\n\n  const resp = await fetch(url, {\n    headers: { 'Accept': 'application/json' },\n    maxLength: 3_000_000,\n  });\n  if (!resp.ok) return { success: false, status: resp.status, message: resp.text() };\n\n  const d = resp.json();\n  if (d && d.OpenAPI_ServiceResponse) {\n    const hdr = d.OpenAPI_ServiceResponse.cmmMsgHeader || {};\n    return {\n      success: false, status: hdr.returnReasonCode || 'unknown',\n      message: hdr.returnAuthMsg || hdr.errMsg || 'accident-hotspot service error',\n    };\n  }\n\n  let itemsRaw = (d.items && d.items.item) || [];\n  if (itemsRaw && !Array.isArray(itemsRaw) && typeof itemsRaw === 'object') itemsRaw = [itemsRaw];\n  if (itemsRaw.length === 0) continue;\n\n  return {\n    lawdCode:   code,\n    year:       y,\n    totalCount: d.totalCount,\n    spots: itemsRaw.map(s => ({\n      spotName:         s.spot_nm,\n      accidents:        num(s.occrrnc_cnt),\n      casualties:       num(s.caslt_cnt),\n      deaths:           num(s.dth_dnv_cnt),\n      seriousInjuries:  num(s.se_dnv_cnt),\n      minorInjuries:    num(s.sl_dnv_cnt),\n      reportedInjuries: num(s.wnd_dnv_cnt),\n      lat:              num(s.la_crd),\n      lng:              num(s.lo_crd),\n    })),\n  };\n}\n\nreturn { lawdCode: code, year: null, totalCount: 0, spots: [] };\n",
+    "codeType": "Javascript",
+    "createTimestamp": 1768000000000,
+    "updateTimestamp": 1768000000000,
+    "category": "WEB",
+    "tags": [
+      "korea",
+      "geo"
+    ],
+    "sandboxOverrides": {
+      "addAllowClasses": [],
+      "removeAllowClasses": [],
+      "addDenyClasses": [],
+      "removeDenyClasses": [],
+      "networkMode": "allowlist",
+      "hostsAllow": [
+        "apis.data.go.kr"
+      ],
+      "fileRead": null,
+      "fileWrite": null,
+      "fsBasePath": null
+    },
+    "toolSafety": {
+      "version": "1.0",
+      "runtime": {
+        "id": "spring-ai-playground/polyglot-js",
+        "minVersion": "0.2.0",
+        "ecmaVersion": "2024",
+        "javaInterop": false,
+        "helpers": [
+          "safety.http/v1"
+        ],
+        "console": true
+      },
+      "category": {
+        "source": "builtin",
+        "id": "WEB"
+      },
+      "capabilities": {
+        "network": {
+          "mode": "allowlist",
+          "hosts": [
+            "apis.data.go.kr"
+          ]
+        },
+        "fileRead": false,
+        "fileWrite": false
+      }
+    },
+    "draft": true
   }
 ]

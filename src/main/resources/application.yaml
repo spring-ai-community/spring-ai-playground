@@ -39,6 +39,13 @@ management:
       probability: 1.0
 
 spring:
+  http:
+    clients:
+      # Per-request ceiling for every Spring-built HTTP client, i.e. each individual LLM call
+      # (Ollama chat/embedding, RAG pre-retrieval stages). Local models legitimately take minutes
+      # per call; without this the JDK client default is unlimited and a dead provider hangs
+      # forever. MCP transports use their own JDK HttpClient and are not affected.
+      read-timeout: 10m
   lifecycle:
     timeout-per-shutdown-phase: 30s
   threads:
@@ -128,6 +135,11 @@ spring:
         memory-max-messages: 10
         history-max-messages: 2000
         default-max-tokens: 8192
+      vectorstore:
+        # Cosine scores are embedding-model specific: with qwen3-embedding:0.6b a matching chunk scores
+        # ~0.48-0.65 and an unanswerable question ~0.25, so a higher cut empties every search.
+        similarity-threshold: 0.35
+        top-k: 4
       built-in-mcp-server:
         name: spring-ai-playground-built-in-mcp
         description: "Spring AI Playground's built-in MCP server, served over Streamable HTTP at /mcp. Publishes your native Tool Studio tools (default catalog + custom) plus composed tools from connected external MCP servers, per the configured exposure mode."
@@ -173,6 +185,7 @@ spring:
           - qwen3.5:9b
           - qwen3.6:27b
           - qwen3.6:35b
+          - qwen3.8:27b
           - gemma4:e2b
           - gemma4:e4b
           - gemma4:12b
@@ -198,6 +211,7 @@ spring:
           - qwen3.5:9b-mlx
           - qwen3.6:27b-mlx
           - qwen3.6:35b-mlx
+          - qwen3.8:27b-mlx
           - gemma4:e2b-mlx
           - gemma4:e4b-mlx
           - gemma4:12b-mlx
@@ -208,6 +222,7 @@ spring:
           - qwen3.5:9b
           - qwen3.6:27b
           - qwen3.6:35b
+          - qwen3.8:27b
           - gemma4:e2b
           - gemma4:e4b
           - gemma4:12b
@@ -231,6 +246,7 @@ spring:
           stream-options:
             include-usage: true
       embedding:
+        metadata-mode: none
         options:
           model: text-embedding-3-small
     playground:

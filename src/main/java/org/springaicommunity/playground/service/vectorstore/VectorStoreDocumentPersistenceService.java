@@ -51,7 +51,7 @@ public class VectorStoreDocumentPersistenceService implements PersistenceService
     private final Path saveDir;
     private final Path simpleVectorstoreSaveDir;
     private final VectorStore vectorStore;
-    private final VectorStoreDocumentService vectorStoreDocumentService;
+    private final OfflineEtlPipelineService offlineEtlPipelineService;
     private final PersistenceExecutor persistenceExecutor;
     private final Duration dumpDebounceDelay;
     private final ScheduledExecutorService dumpScheduler =
@@ -63,7 +63,7 @@ public class VectorStoreDocumentPersistenceService implements PersistenceService
     private final AtomicReference<ScheduledFuture<?>> pendingDump = new AtomicReference<>();
 
     public VectorStoreDocumentPersistenceService(Path springAiPlaygroundHomeDir, VectorStore vectorStore,
-            VectorStoreDocumentService vectorStoreDocumentService, PersistenceExecutor persistenceExecutor,
+            OfflineEtlPipelineService offlineEtlPipelineService, PersistenceExecutor persistenceExecutor,
             @Value("${spring.ai.playground.vectorstore.simple-dump-debounce-ms:5000}") long dumpDebounceDelayMs)
             throws IOException {
         this.saveDir = springAiPlaygroundHomeDir.resolve("vectorstore").resolve("save").resolve(
@@ -73,7 +73,7 @@ public class VectorStoreDocumentPersistenceService implements PersistenceService
         this.simpleVectorstoreSaveDir = springAiPlaygroundHomeDir.resolve("vectorstore").resolve("simpleVectorStore");
         Files.createDirectories(this.simpleVectorstoreSaveDir);
         this.vectorStore = vectorStore;
-        this.vectorStoreDocumentService = vectorStoreDocumentService;
+        this.offlineEtlPipelineService = offlineEtlPipelineService;
         this.persistenceExecutor = persistenceExecutor;
         this.dumpDebounceDelay = Duration.ofMillis(dumpDebounceDelayMs);
     }
@@ -113,7 +113,7 @@ public class VectorStoreDocumentPersistenceService implements PersistenceService
         Optional<SimpleVectorStore> svs = asSimpleVectorStore();
         if (svs.isEmpty()) return;
         Path dumpPath = this.simpleVectorstoreSaveDir.resolve(SIMPLE_VECTOR_STORE_JSON);
-        if (this.vectorStoreDocumentService.getDocumentList().isEmpty())
+        if (this.offlineEtlPipelineService.getDocumentList().isEmpty())
             Files.deleteIfExists(dumpPath);
         else
             svs.get().save(dumpPath.toFile());
@@ -148,16 +148,20 @@ public class VectorStoreDocumentPersistenceService implements PersistenceService
     public VectorStoreDocumentInfo convertTo(Map<String, Object> vectorStoreDocumentInfoMap) {
         String docInfoId = vectorStoreDocumentInfoMap.get("docInfoId").toString();
         String title = vectorStoreDocumentInfoMap.get("title").toString();
+        Object descRaw = vectorStoreDocumentInfoMap.get("description");
+        String description = descRaw == null ? null : descRaw.toString();
         long createTimestamp = ((Number) vectorStoreDocumentInfoMap.get("createTimestamp")).longValue();
         long updateTimestamp = ((Number) vectorStoreDocumentInfoMap.get("updateTimestamp")).longValue();
         String documentFileName = vectorStoreDocumentInfoMap.computeIfAbsent("documentFileName", key -> "").toString();
         String documentPath = vectorStoreDocumentInfoMap.computeIfAbsent("documentPath", key -> "").toString();
+        boolean chatOrigin = Boolean.parseBoolean(
+                vectorStoreDocumentInfoMap.getOrDefault("chatOrigin", Boolean.FALSE).toString());
         List<Map<String, Object>> documentMapList =
                 (List<Map<String, Object>>) vectorStoreDocumentInfoMap.get("documentList");
         List<Document> documentList =
                 documentMapList.stream().map(this::convertToDocument).collect(Collectors.toList());
-        return new VectorStoreDocumentInfo(docInfoId, title, createTimestamp, updateTimestamp, documentFileName,
-                documentPath, () -> documentList);
+        return new VectorStoreDocumentInfo(docInfoId, title, description, createTimestamp, updateTimestamp,
+                documentFileName, documentPath, chatOrigin, () -> documentList);
     }
 
     @Override
@@ -181,8 +185,8 @@ public class VectorStoreDocumentPersistenceService implements PersistenceService
         if (Files.exists(dumpPath))
             asSimpleVectorStore().ifPresent(svs -> svs.load(dumpPath.toFile()));
         List<VectorStoreDocumentInfo> loaded = loads();
-        vectorStoreDocumentService.loadAll(() -> loaded.forEach(vectorStoreDocumentInfo -> {
-            vectorStoreDocumentService.updateDocumentInfo(vectorStoreDocumentInfo,
+        offlineEtlPipelineService.loadAll(() -> loaded.forEach(vectorStoreDocumentInfo -> {
+            offlineEtlPipelineService.updateDocumentInfo(vectorStoreDocumentInfo,
                     vectorStoreDocumentInfo.title());
             vectorStoreDocumentInfo.changeDocumentListSupplier(() -> this.vectorStore.similaritySearch(
                     SEARCH_ALL_REQUEST_WITH_DOC_INFO_IDS_FUNCTION.apply(
@@ -205,7 +209,7 @@ public class VectorStoreDocumentPersistenceService implements PersistenceService
     public void delete(VectorStoreDocumentInfo saveObject) {
         PersistenceServiceInterface.super.delete(saveObject);
         try {
-            this.vectorStoreDocumentService.removeUploadedDocumentFile(saveObject.getDocumentFileName());
+            this.offlineEtlPipelineService.removeUploadedDocumentFile(saveObject.getDocumentFileName());
         } catch (IOException e) {
             throw new UncheckedIOException(
                     "Failed to remove uploaded file for document " + saveObject.docInfoId(), e);
@@ -213,7 +217,7 @@ public class VectorStoreDocumentPersistenceService implements PersistenceService
     }
 
     public void delete(List<String> documentIds) {
-        this.vectorStoreDocumentService.getDocumentList().stream()
+        this.offlineEtlPipelineService.getDocumentList().stream()
                 .filter(document -> documentIds.contains(document.docInfoId())).forEach(this::delete);
     }
 }

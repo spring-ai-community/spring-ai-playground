@@ -34,6 +34,7 @@ import com.vaadin.flow.spring.annotation.SpringComponent;
 import com.vaadin.flow.spring.annotation.UIScope;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
 import org.springaicommunity.playground.service.analytics.UsageAnalyticsService;
+import org.springaicommunity.playground.service.chat.ChatDocumentIntakeService;
 import org.springaicommunity.playground.service.chat.ChatExportService;
 import org.springaicommunity.playground.service.chat.ChatExtraOptions;
 import org.springaicommunity.playground.service.chat.ChatHistory;
@@ -75,6 +76,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -110,6 +112,7 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
     private final ChatClientActionRegistry clientActionRegistry;
     private final ConversationFileUploadStore fileUploadStore;
     private final ChatImageStore imageStore;
+    private final ChatDocumentIntakeService documentIntakeService;
     private final VisionCapabilityService visionCapabilityService;
     private final ChatSystemPromptPresetService chatSystemPromptPresetService;
     private final ChatSystemPromptTemplateRenderer chatSystemPromptTemplateRenderer;
@@ -133,7 +136,7 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
             OllamaModelDownloadService ollamaModelDownloadService,
             McpCompositionToolCallbackProvider compositionProvider, SpringAiPlaygroundOptions playgroundOptions,
             ChatClientActionRegistry clientActionRegistry, ConversationFileUploadStore fileUploadStore,
-            ChatImageStore imageStore,
+            ChatImageStore imageStore, ChatDocumentIntakeService documentIntakeService,
             VisionCapabilityService visionCapabilityService, UsageAnalyticsService usageAnalyticsService,
             UsageEventTracker usageEventTracker, ChatStreamRegistry chatStreamRegistry) {
         this.persistentUiDataStorage = persistentUiDataStorage;
@@ -153,6 +156,7 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
         this.clientActionRegistry = clientActionRegistry;
         this.fileUploadStore = fileUploadStore;
         this.imageStore = imageStore;
+        this.documentIntakeService = documentIntakeService;
         this.visionCapabilityService = visionCapabilityService;
         this.usageAnalyticsService = usageAnalyticsService;
         this.usageEventTracker = usageEventTracker;
@@ -241,6 +245,7 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
     }
 
     private ChatModelSettingView buildChatModelSettingView() {
+        refreshDownloadedModelsCache();
         this.chatModelSettingView = new ChatModelSettingView(this.chatService.getModels(),
                 this.chatContentView.getSystemPrompt(), this.chatContentView.getChatOption(),
                 this.chatContentView.getExtraOptions(), this.chatService.getChatProvider(),
@@ -252,6 +257,15 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
                     if (!enabled) trackPresetBlocked();
                 });
         return this.chatModelSettingView;
+    }
+
+    private void refreshDownloadedModelsCache() {
+        if (!this.ollamaModelDownloadService.isEnabled()) return;
+        UI ui = VaadinUtils.getUi(this);
+        CompletableFuture.runAsync(this.ollamaModelDownloadService::refreshLocalModels)
+                .thenRun(() -> ui.access(() -> {
+                    if (Objects.nonNull(this.chatModelSettingView)) this.chatModelSettingView.refreshModelItems();
+                }));
     }
 
     private List<String> presetToolMissingKeys(String toolName) {
@@ -332,7 +346,7 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
     private ChatToolPreferences presetPreferences(List<ToolSpec> matched) {
         Set<String> toolIds = matched.stream().map(ToolSpec::toolId)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
-        return new ChatToolPreferences(true, toolIds, List.of(), Map.of(), ReasoningEffort.DEFAULT, false);
+        return new ChatToolPreferences(true, toolIds, null, Map.of(), ReasoningEffort.DEFAULT, false);
     }
 
     private record PresetToolMatch(List<ToolSpec> matched, Map<String, String> unmatched) {}
@@ -448,10 +462,11 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
                 this.toolSpecService, this.toolSpecPersistenceService, this.toolActivationCalculator,
                 this.mcpServerInfoService, this.chatExportService,
                 this.compositionProvider, this.playgroundOptions, this.clientActionRegistry, this.fileUploadStore,
-                this.imageStore, this.visionCapabilityService, this.usageAnalyticsService, this.usageEventTracker,
-                this.chatStreamRegistry);
+                this.imageStore, this.documentIntakeService, this.visionCapabilityService, this.usageAnalyticsService,
+                this.usageEventTracker, this.chatStreamRegistry);
         ChatOptions chatOptions = chatHistory.chatOptions();
-        String label = String.format("%s: %s", this.chatService.getChatModelProvider(), chatOptions.getModel());
+        String label = this.chatService.isChatModelAbsent() ? "No model provider configured"
+                : String.format("%s: %s", this.chatService.getChatModelProvider(), chatOptions.getModel());
         this.pageTitle = pageTitleOf(chatHistory);
         UI ui = VaadinUtils.getUi(this);
         ui.access(() -> {
@@ -466,6 +481,7 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
     public void beforeEnter(BeforeEnterEvent event) {
         List<String> convParam = event.getLocation().getQueryParameters().getParameters().get("conv");
         if (convParam == null || convParam.isEmpty()) {
+            this.chatHistoryView.unpinConversation();
             syncLocationToCurrentConversation();
             return;
         }
@@ -473,10 +489,11 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
         if (convId == null || convId.isBlank()) return;
         ChatHistory existing = this.chatHistoryService.getChatHistory(convId);
         if (existing != null) {
+            this.chatHistoryView.pinConversation(existing.conversationId());
             changeChatContent(existing);
         } else {
             Notification n = Notification.show(
-                    "Conversation " + shortenId(convId) + " is not in active chat history — starting a fresh chat.",
+                    "Conversation " + shortenId(convId) + " is not in active chat history - starting a fresh chat.",
                     6000, Notification.Position.TOP_CENTER);
             n.addThemeVariants(NotificationVariant.LUMO_CONTRAST);
         }

@@ -110,6 +110,16 @@ class PersistentToolIndexTest {
     }
 
     @Test
+    void toolNameInsideAPhraseMatchesByToken() {
+        PersistentToolIndex index = index(SIGNATURE, true);
+        index.indexTools("chat-1", List.of(ref("echo"), ref("get-sum"), ref("getTime")));
+
+        assertThat(toolNames(index.search(query("echo tool for a message")))).containsExactly("echo");
+        assertThat(toolNames(index.search(query("use get-sum on the numbers")))).containsExactly("get-sum");
+        assertThat(toolNames(index.search(query("call echo then get-sum")))).containsExactly("echo", "get-sum");
+    }
+
+    @Test
     void clearIndexDoesNotDropTheSharedIndex() {
         PersistentToolIndex index = index(SIGNATURE, true);
         index.indexTools("chat-1", List.of(ref("getWeather")));

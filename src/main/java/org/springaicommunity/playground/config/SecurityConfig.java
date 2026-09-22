@@ -16,6 +16,7 @@
 package org.springaicommunity.playground.config;
 
 import com.vaadin.flow.spring.security.VaadinSecurityConfigurer;
+import org.springaicommunity.playground.service.mcp.McpServerAuthTokenService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -27,13 +28,15 @@ import org.springframework.security.oauth2.client.OAuth2AuthorizedClientProvider
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
     @Bean
-    SecurityFilterChain mcpClientSecurityFilterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain mcpClientSecurityFilterChain(HttpSecurity http,
+            McpServerAuthTokenService authTokenService) throws Exception {
         // Single-user desktop app with no authentication.
         http.authorizeHttpRequests(auth -> auth
                 .requestMatchers("/mcp", "/mcp/**", "/sse", "/sse/**", "/actuator/**",
@@ -43,6 +46,8 @@ public class SecurityConfig {
                 .anyRequest().permitAll());
 
         http.csrf(csrf -> csrf.disable());
+
+        http.addFilterBefore(new McpServerAuthTokenFilter(authTokenService), AuthorizationFilter.class);
 
         http.oauth2Client(Customizer.withDefaults());
 

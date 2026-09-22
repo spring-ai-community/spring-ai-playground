@@ -25,7 +25,7 @@ Editing before applying is encouraged - a built-in preset is a strong starting p
 
 A preset can declare the built-in tools its role uses - for example **Log detective** names seven local-log tools, **Data wrangler** names a dozen data and file tools, and **Workspace organizer** names all eleven filesystem tools with the mutating ones gated by [human-in-the-loop](../human-in-the-loop.md) approval. The detail pane lists them under **Required tools**. The built-in presets are all wired to key-less (**Local Pass**) tools, so they apply with no setup. If a preset names a key-gated tool - more common in presets you save yourself - selecting it checks for the needed API keys and **blocks Apply until they are set**, listing the missing tools and their environment keys in red under the preset; you add them in [Tool Studio](../tool-studio/index.md). One preset, **Self-equipping agent**, declares no fixed list at all - it uses [dynamic tool discovery](dynamic-tool-discovery.md) to search the whole catalog on demand instead, and it is what a brand-new chat opens with **by default** (switch to any other preset, or none, whenever you like).
 
-Applying a preset **resets the built-in MCP server to expose exactly those tools** - the same preset-authoritative model the default-tool preset uses - turns built-in MCP on for the new chat, and selects them in the [tool selector](index.md#choosing-tools-and-documents). A confirmation dialog lists what will be exposed before you commit. The new exposure **persists across restarts** and is the same set shown in [Tool Studio](../tool-studio/index.md)'s built-in exposure, so the chat and Tool Studio always agree. Tools are never enabled silently. The startup [tool preset](../default-tools/index.md) and this chat preset are two entry points to that **same** exposed set, not competing systems - see [Default Tools → Two presets, one exposed set](../default-tools/index.md#one-exposed-set).
+Applying a preset **resets the built-in MCP server to expose exactly those tools** - the same preset-authoritative model the default-tool preset uses - turns built-in MCP on for the new chat, and selects them in the [tool selector](index.md#choosing-tools-and-a-rag-source). A confirmation dialog lists what will be exposed before you commit. The new exposure **persists across restarts** and is the same set shown in [Tool Studio](../tool-studio/index.md)'s built-in exposure, so the chat and Tool Studio always agree. Tools are never enabled silently. The startup [tool preset](../default-tools/index.md) and this chat preset are two entry points to that **same** exposed set, not competing systems - see [Default Tools → Two presets, one exposed set](../default-tools/index.md#one-exposed-set).
 
 ## My presets - saving your own
 
@@ -70,7 +70,7 @@ A concise default - answers directly and cites anything it uses. Works with no t
 
 **What happens** - no tools, no reasoning: the model answers directly.
 
-![General assistant result - the question and a concise CAP-theorem answer, with Spanner/HBase as the CP example and Cassandra/DynamoDB as the AP example](../../assets/images/chat/preset-general-assistant-collapsed.png){ width="1084" }
+![General assistant result - the question, a folded THINK summary, and a concise CAP-theorem answer with PostgreSQL as the CP example and DynamoDB as the AP example](../../assets/images/chat/preset-general-assistant-collapsed.png){ width="1084" }
 
 </div>
 </div>
@@ -150,7 +150,7 @@ Use only enabled tools and never fake their output.</pre>
 
 **What happens** - the agent runs a dozen searches across Wikipedia, arXiv, and developer forums, then writes a structured summary: the RAG pipeline (retrieve, augment, generate), a trade-offs table, and numbered citations back to the sources it pulled. Its reasoning and tool calls run in collapsible **THINK** / **MCP TOOLS** panels (folded here; click any in the app to open).
 
-![Research agent result - the question, folded THINK and MCP TOOLS summaries, and a cited summary of how RAG works with a trade-offs table and numbered sources](../../assets/images/chat/preset-research-agent-collapsed.png){ width="1084" }
+![Research agent result - the question, folded THINK and MCP TOOLS summaries listing searchWikipedia, searchArxiv, searchHackerNews and extractPageContent, and a cited synthesis of how RAG works with its main steps](../../assets/images/chat/preset-research-agent-collapsed.png){ width="1084" }
 
 </div>
 </div>
@@ -523,7 +523,7 @@ Use only enabled tools and never fake their output.</pre>
 
 **What happens** - the agent geocodes Kyoto, pulls the forecast and holidays, and assembles a dated plan. Its reasoning and tool calls run in collapsible **THINK** / **MCP TOOLS** panels (folded here; click any in the app to open).
 
-![Trip planner result - the map request, a folded MCP TOOLS summary, and a plotPointsOnMap card with Tokyo, Kyoto, and Osaka plotted on one map](../../assets/images/chat/preset-trip-planner-collapsed.png){ width="1084" }
+![Trip planner result - the Kyoto day-plan request, folded THINK and MCP TOOLS summaries listing getCurrentTime, geocodeAddress, getOpenMeteoForecast, getPublicHolidays, getCountryInfo, showLocation and convertCurrency, and the plan's location and weather sections](../../assets/images/chat/preset-trip-planner-collapsed.png){ width="1084" }
 
 </div>
 </div>
@@ -615,7 +615,7 @@ Use only enabled tools and never fake their output.</pre>
 
 **What happens** - the agent calls `getRecentEarthquakes`, states the magnitudes and locations briefly, then calls `plotPointsOnMap` to drop every quake onto one multi-point Leaflet map (with a Light / Dark toggle and Copy / PNG export). Its reasoning and tool calls run in collapsible **THINK** / **MCP TOOLS** panels (folded here; click any in the app to open).
 
-![The Data visualizer preset in action - closing magnitude bullets for Japan (5.8) and Chile (5.0), above a rendered map card titled Earthquake Locations with three round markers near central Asia, Japan, and South America, zoom controls, a Light / Dark toggle, and Copy and PNG buttons; the tool selector at the bottom shows getCryptoPrice and evalExpression next to an overflow chip for 14 more](../../assets/images/chat/preset-data-visualizer-result.png){ width="980" }
+![The Data visualizer preset in action - closing summary bullets naming the strongest event and the busiest region, above a rendered map card titled Significant Earthquakes (M5+) - Last 72 Hours with one weight-sized marker per quake worldwide, zoom controls, a Light / Dark toggle, and Copy and PNG buttons](../../assets/images/chat/preset-data-visualizer-result.png){ width="980" }
 
 </div>
 </div>
@@ -809,7 +809,7 @@ Use only enabled tools and never fake their output.</pre>
 
 **What happens** - the agent surveys the tree with `listDir` and `statFile`, then each mutating call - two `moveFile`s and a `deleteFile` - pauses on an **Approve / Reject** prompt ([human-in-the-loop](../human-in-the-loop.md); `moveFile` and `deleteFile` are destructive-rated `L5 → L4` with approval). Three approvals later it reports the moves and the deletion, with the unrelated files untouched.
 
-![Workspace organizer result - the tidy-up request, folded THINK and MCP TOOLS summaries listing moveFile and deleteFile among 9 calls, and a checklist of the two moves and one deletion](../../assets/images/chat/preset-workspace-organizer-result.png){ width="1084" }
+![Workspace organizer result - the tidy-up request, folded THINK and MCP TOOLS summaries listing listAllowedDirectories, listDir, statFile, moveFile and deleteFile among 8 calls, the workspace survey with file sizes, and the three-step plan of two moves and one deletion](../../assets/images/chat/preset-workspace-organizer-result.png){ width="1084" }
 
 </div>
 </div>

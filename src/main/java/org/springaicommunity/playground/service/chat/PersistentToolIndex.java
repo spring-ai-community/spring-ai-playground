@@ -130,9 +130,9 @@ public class PersistentToolIndex implements ToolIndex {
     public ToolSearchResponse search(ToolSearchRequest toolSearchRequest) {
         String query = toolSearchRequest.query() == null ? "" : toolSearchRequest.query().trim();
         if (this.exactNameEnabled) {
-            ToolReference exact = this.byName.get(query.toLowerCase(Locale.ROOT));
-            if (exact != null) {
-                return ToolSearchResponse.builder().toolReferences(List.of(exact)).totalMatches(1).build();
+            List<ToolReference> named = nameMatches(this.byName, query);
+            if (!named.isEmpty()) {
+                return ToolSearchResponse.builder().toolReferences(named).totalMatches(named.size()).build();
             }
         }
         int maxResults = toolSearchRequest.maxResults() != null ? toolSearchRequest.maxResults() : DEFAULT_MAX_RESULTS;
@@ -149,6 +149,18 @@ public class PersistentToolIndex implements ToolIndex {
 
     @Override
     public void clearIndex(String sessionId) {
+    }
+
+    static List<ToolReference> nameMatches(Map<String, ToolReference> byName, String query) {
+        String normalized = query.toLowerCase(Locale.ROOT);
+        ToolReference whole = byName.get(normalized);
+        if (whole != null) return List.of(whole);
+        Map<String, ToolReference> matches = new LinkedHashMap<>();
+        for (String token : normalized.split("[^a-z0-9_-]+")) {
+            ToolReference reference = byName.get(token);
+            if (reference != null) matches.putIfAbsent(reference.toolName(), reference);
+        }
+        return List.copyOf(matches.values());
     }
 
     private static Document toDocument(String hash, ToolReference reference) {

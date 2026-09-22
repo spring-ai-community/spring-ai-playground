@@ -25,6 +25,8 @@ public interface McpRiskSignalSink {
 
     void onHashLedgerMismatch(McpRiskEvents.HashLedgerMismatch event);
 
+    void onHashLedgerRecanonicalized(McpRiskEvents.HashLedgerRecanonicalized event);
+
     void onCompositionLifecycle(McpRiskEvents.CompositionLifecycle event);
 
     void onPoisoningHit(McpRiskEvents.PoisoningHit event);
@@ -34,6 +36,7 @@ public interface McpRiskSignalSink {
         @Override public void onToolPublishRiskComputed(McpRiskEvents.ToolPublishRiskComputed event) {}
         @Override public void onFloorOverrideTriggered(McpRiskEvents.FloorOverrideTriggered event) {}
         @Override public void onHashLedgerMismatch(McpRiskEvents.HashLedgerMismatch event) {}
+        @Override public void onHashLedgerRecanonicalized(McpRiskEvents.HashLedgerRecanonicalized event) {}
         @Override public void onCompositionLifecycle(McpRiskEvents.CompositionLifecycle event) {}
         @Override public void onPoisoningHit(McpRiskEvents.PoisoningHit event) {}
     };

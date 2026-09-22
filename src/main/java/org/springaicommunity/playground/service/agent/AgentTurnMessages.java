@@ -27,6 +27,18 @@ public final class AgentTurnMessages {
                 + "declined approval.";
     }
 
+    public static String approvalUnavailable(String toolName) {
+        return "The approval prompt for tool '" + toolName + "' could not be shown, so it was treated as declined "
+                + "and NOT executed. Do not call '" + toolName + "' again for this request; tell the user to retry "
+                + "in a new message.";
+    }
+
+    public static String approvalTimedOut(String toolName) {
+        return "The approval request for tool '" + toolName + "' timed out before the user decided. It was NOT "
+                + "executed. Do not call '" + toolName + "' again for this request; tell the user the action is "
+                + "waiting on their approval and they can send the request again when ready.";
+    }
+
     public static String notCompleted(String toolName, String note) {
         return note + " Do NOT call '" + toolName + "' again for this request. Continue without it, or tell "
                 + "the user what is missing so they can retry in a new message.";

@@ -64,7 +64,7 @@ Once Spring AI Playground is running through any of the three paths above, the *
 ![Getting started checklist on the Home screen](../assets/images/home-getting-started.png)
 
 1. **Configure a model provider** - Pick Ollama (default, local) or OpenAI. The provider pill on Home shows a green dot and "Ready" once the base URL is reachable (Ollama) or an API key is set (OpenAI). A red dot means the app cannot reach your provider - recheck the launcher config or env vars.
-2. **Start a chat** - Agentic Chat is ready the moment a provider is connected. The app ships with the **Starter 5** tools exposed by default (`getCurrentTime`, `getWeather`, `searchWikipedia`, `extractPageContent`, `evalExpression`) and a wider 115-tool bundled catalog you can opt into through Tool Studio's **Built-in MCP Server Native Tools** drawer (or the launcher's **Default MCP Tools** card), so you can test end-to-end without writing any code.
+2. **Start a chat** - Agentic Chat is ready the moment a provider is connected. The app ships with the **Starter 5** tools exposed by default (`getCurrentTime`, `getWeather`, `searchWikipedia`, `extractPageContent`, `evalExpression`) and a wider 116-tool bundled catalog you can opt into through Tool Studio's **Built-in MCP Server Native Tools** drawer (or the launcher's **Default MCP Tools** card), so you can test end-to-end without writing any code.
 3. **Upload a document for RAG** - Drop a PDF or text file into the Vector Database surface. The file is chunked, embedded, and indexed on the spot; retrieval becomes available inside chat immediately.
 4. **Create your first tool** - Open Tool Studio, write a small JavaScript function, and define its sample arguments. A new tool starts as a **Draft** - invisible to MCP and to chat. Run it locally: if the test passes, it earns its **Local Pass** and is added live to the built-in MCP server the same moment. No restart, no redeploy. Agentic Chat picks it up immediately.
 5. **Equip an agent and ask it** - Apply a [Prompt Library preset](../features/agentic-chat/prompt-presets.md) or pick tools in the chat settings drawer, then ask something that uses them - for example: *"Use the weather tool for Seoul, then summarize what `searchWikipedia` returns about that city."* This exercises two Starter 5 tools in sequence and shows the full agentic path (plan → call tool → read result → call next tool → reply). The default agent can also find tools on its own through [dynamic tool discovery](../features/agentic-chat/dynamic-tool-discovery.md).
@@ -123,7 +123,7 @@ Spring AI Playground is provider-agnostic with a local-first **Ollama** default 
 
 Each release ships with two integrity guarantees. Verifying is optional, but recommended for production use.
 
-Replace `<VERSION>` in the commands below with the version printed in the installer filename you downloaded (for example `0.2.0-M12`). On this page, JavaScript substitutes the latest release version automatically when GitHub is reachable.
+Replace `<VERSION>` in the commands below with the version printed in the installer filename you downloaded (for example `0.2.0`). On this page, JavaScript substitutes the latest release version automatically when GitHub is reachable.
 
 ### 1. SHA-256 checksum
 

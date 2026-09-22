@@ -49,7 +49,8 @@ On an **Apple Silicon Mac** the `mlx` profile is layered onto `ollama` automatic
 | `server.shutdown` | relaxed-binding env | `graceful` | Graceful shutdown. |
 | `spring.lifecycle.timeout-per-shutdown-phase` | relaxed-binding env | `30s` | Drain time per phase. |
 | `vaadin.pushmode` | relaxed-binding env | `automatic` | Vaadin server push. |
-| `spring.servlet.multipart.max-file-size` / `max-request-size` | relaxed-binding env | `20MB` / `20MB` | Upload limits (Vector Database ingest). |
+| `spring.servlet.multipart.max-file-size` / `max-request-size` | relaxed-binding env | `20MB` / `20MB` | Upload limits (Vector Database ingest and chat attachments). |
+| `spring.http.clients.read-timeout` | relaxed-binding env | `10m` | Per-request ceiling for every HTTP client Spring builds, which means **each individual model call**: an Ollama chat or embedding request, and each [RAG pre-retrieval stage](../features/rag/pipeline-studio.md). Local models legitimately take minutes per call, and without this the JDK client default is unlimited, so a dead provider hangs forever. The chat stream's first-signal watchdog is derived from this value multiplied by the number of LLM pre-retrieval stages plus one (floor five minutes, cap one hour). MCP transports use their own client and are unaffected; see `spring.ai.mcp.server.request-timeout` below. |
 | `management.endpoints.web.exposure.include` | relaxed-binding env | `health,info,metrics,prometheus` | Actuator endpoints exposed at `/actuator/*`. |
 
 ## AI providers & models { #ai }
@@ -58,8 +59,8 @@ Provider selection (which Spring AI model backs each capability):
 
 | Property | Default | Notes |
 |---|---|---|
-| `spring.ai.model.chat` | `ollama` | Set to `openai` by the `openai` Spring profile. |
-| `spring.ai.model.embedding` | `ollama` | Used by the Vector Database. |
+| `spring.ai.model.chat` | `ollama` | Set to `openai` by the `openai` Spring profile. Set to `none` to boot model-free: the app starts with no chat provider, a chat send fails fast with "No chat model is configured", and Tool Studio and the built-in MCP server keep working. |
+| `spring.ai.model.embedding` | `ollama` | Used by the Vector Database, chat attachments, and the dynamic tool index. Set to `none` together with `spring.ai.model.chat=none` for an MCP-server-only deployment; embedding-backed features are disabled. |
 | `spring.ai.model.image` / `moderation` / `audio.speech` / `audio.transcription` | `none` | Opt-in capabilities. |
 
 **Ollama profile** (`ollama`, default):
@@ -71,7 +72,7 @@ Provider selection (which Spring AI model backs each capability):
 | `spring.ai.ollama.chat.options.model` | `qwen3.5:4b` | Default chat model. |
 | `spring.ai.ollama.embedding.options.model` | `qwen3-embedding:0.6b` | Default embedding model. |
 | `spring.ai.ollama.chat.keep-alive` / `spring.ai.ollama.embedding.keep-alive` | `30m` | How long Ollama keeps each model loaded in memory after a call, as a [Go duration](https://pkg.go.dev/time#ParseDuration) (`0` unloads it at once, `-1` keeps it forever). The default trades VRAM for no reload stall when you come back to a chat. Sent per request, so it wins over the Ollama server's own `OLLAMA_KEEP_ALIVE` default; that server env var is still the right knob when you want one duration for every client of a self-managed Ollama. Override a single conversation from the chat settings drawer's provider-options JSON with `{"keep_alive": "5m"}`. |
-| `spring.ai.playground.chat.models` | `qwen3.5:2b/4b/9b, qwen3.6:27b/35b, gemma4:e2b/e4b/12b/31b, gpt-oss:20b, deepseek-r1:8b` | The model menu shown in the chat UI. |
+| `spring.ai.playground.chat.models` | `qwen3.5:2b/4b/9b, qwen3.6:27b/35b, qwen3.8:27b, gemma4:e2b/e4b/12b/31b, gpt-oss:20b, deepseek-r1:8b` | The model menu shown in the chat UI. |
 | `spring.ai.playground.ollama.mlx-auto-select` | `true` | On Apple Silicon, auto-activate the [`mlx` profile](#profiles) (MLX model defaults). Set `false` to keep the generic model names. |
 
 **OpenAI profile** (`openai`):
@@ -135,18 +136,28 @@ The playground publishes its own MCP server at `/mcp` (Streamable HTTP). These c
 | `spring.ai.playground.built-in-mcp-server.exposure-mode` | relaxed-binding env | `both` | `builtin-only` · `composed-only` · `both` - whether `/mcp` serves your Tool Studio tools, the composed external tools, or both. |
 | `spring.ai.playground.mcp-server.composed-tools-max-risk` | relaxed-binding env | `L5` | Caps which composed tools are published (`L1`-`L5`). |
 | `spring.ai.playground.mcp-server.composed-tools` | relaxed-binding env | `[]` | Declarative list of composed (proxied) external tools - see [Configure exposure via YAML](../features/mcp-server/proxy.md#yaml-exposure). |
+| `spring.ai.playground.mcp-server.auth-token` | relaxed-binding env | *(unset)* | Bearer token required on `/mcp` and `/sse`. Can also be set at runtime from **MCP Server -> gear -> Authentication**; a value configured here wins and makes that section read-only. While it is unset the built-in server serves anyone who can reach the port and logs a warning at startup; once set, a request without `Authorization: Bearer <token>` gets `401`. The app's own loopback client picks the token up automatically, so Tool Studio and the Inspector keep working. Setup per launch mode and client header examples: [Require a bearer token](external-connections.md#bearer-token). |
 | `spring.ai.mcp.server.protocol` | relaxed-binding env | `STREAMABLE` | `SSE` · `STREAMABLE` · `STATELESS`. |
 | `spring.ai.playground.chat.tool-result-max-chars` | relaxed-binding env | `12000` | Caps the characters of any single tool result before it returns to the model in the [Agentic Chat](../features/agentic-chat/index.md) loop - built-in, authored, or external. Oversized results are truncated (with a marker) so one verbose tool call cannot blow up the context window. `0` disables the cap. |
 | `spring.ai.playground.chat.memory-max-messages` | relaxed-binding env | `10` | How many recent messages are sent to the model each turn - the conversation **memory window**. Overridable per chat from the settings drawer's **Recent messages** field. See [Context Engineering → Conversation memory](../context-engineering-architecture.md#conversation-memory). |
 | `spring.ai.playground.chat.history-max-messages` | relaxed-binding env | `2000` | Safety cap on the **full local conversation store** that the screen and on-disk history read from; messages beyond this are dropped. The memory window above is what the model actually sees. |
 | `spring.ai.playground.chat.default-preset` | relaxed-binding env | `self-equipping-agent` | The [prompt preset](../features/agentic-chat/prompt-presets.md) a **brand-new chat** opens with - its system prompt plus, for a dynamic preset, [dynamic tool discovery](../features/agentic-chat/dynamic-tool-discovery.md). It does not touch the built-in MCP exposure. Empty or an unknown id falls back to a plain chat. |
 | `spring.ai.playground.chat.tool-search.enabled` | relaxed-binding env | `true` | Master switch for **[dynamic tool discovery](../features/agentic-chat/dynamic-tool-discovery.md)** - the `toolSearchTool` advisor, the boot-time tool index, and the chat checkbox. `false` removes the feature entirely. |
-| `spring.ai.playground.chat.tool-search.default-on` | relaxed-binding env | `false` | Whether new chats start in dynamic-discovery mode when no preset decides it. Note the shipped `chat.default-preset` (`self-equipping-agent`, below) already opens new chats in dynamic mode; this flag matters once you change or clear that preset. |
 | `spring.ai.playground.chat.tool-search.min-tools` | relaxed-binding env | `10` | Minimum searchable tools before the chat's **Dynamic tool discovery** checkbox enables - discovery only pays off with a real catalog to search. |
 | `spring.ai.playground.chat.tool-search.max-results` | relaxed-binding env | `3` | Tool names returned per `toolSearchTool` search. |
-| `spring.ai.playground.chat.tool-search.index-type` | relaxed-binding env | `HYBRID` | `HYBRID` (exact tool-name match, then vector search) or `VECTOR` (vector only). |
+| `spring.ai.playground.chat.tool-search.index-type` | relaxed-binding env | `HYBRID` | `HYBRID` (tool names whose tokens appear in the query rank first, then vector search) or `VECTOR` (vector only). |
 | `spring.ai.playground.chat.tool-search.vector-store` | relaxed-binding env | `DEDICATED` | `DEDICATED` (a private, persisted tool index) or `SHARED` (reuse the RAG vector store). See [Context Engineering → Tools](../context-engineering-architecture.md#tools). |
-| `spring.ai.mcp.server.request-timeout` | relaxed-binding env | `150` | Seconds. |
+| `spring.ai.mcp.server.request-timeout` | relaxed-binding env | `150s` | Keep the unit suffix: a bare number is read as milliseconds. |
+
+## RAG & vector store { #rag }
+
+Defaults for the [Vector Database](../features/vector-database.md) search bar, and the values a new [RAG pipeline](../features/rag/pipeline-studio.md) starts from. A pipeline keeps its own copy once created, so changing these later does not move existing pipelines.
+
+| Property | Env | Default | Notes |
+|---|---|---|---|
+| `spring.ai.playground.vectorstore.similarity-threshold` | relaxed-binding env | `0.35` | Minimum cosine score for a chunk to be returned. **Scores are embedding-model specific.** With the default `qwen3-embedding:0.6b` a chunk that answers the question scores roughly 0.48 to 0.65, while a question the corpus cannot answer tops out near 0.25; set the cut above your own corpus and every search comes back empty. Re-check after switching embedding models, using [the measured ranges](../features/rag/pipeline-studio.md#retrieval) as a starting point. |
+| `spring.ai.playground.vectorstore.top-k` | relaxed-binding env | `4` | Documents returned per query. This is the effective limit on what reaches the prompt, since ranking already puts the best chunk first. |
+| `spring.ai.playground.vectorstore.simple-dump-debounce-ms` | relaxed-binding env | `5000` | Debounce before the default `SimpleVectorStore` flushes to disk. |
 
 ## Agent loop { #agent-loop }
 

@@ -99,7 +99,7 @@ Per-feature services under `src/main/java/org/springaicommunity/playground/servi
 | `service/mcp/client` | `McpClientService`, `Mcp*PropertiesService` | External MCP clients across STDIO / HTTP / SSE |
 | `service/mcp/risk` | `McpServerRiskCalculator`, `McpToolPublishRiskCalculator`, `McpToolRiskComposer`, `McpToolPoisoningScanner`, `McpToolHashLedger`, `McpCompositionService`, `McpCompositionShadowingRules`, `McpExposedToolService`, `WrappedExternalToolCallback` | L0-L5 risk scoring for external servers/tools (transport · auth · trust · doc axes + floor rules), tool-description poisoning scan, fingerprint ledger for change detection, and tool **composition** that re-exposes upstream tools on the built-in server with alias / description / HITL overrides - see [MCP Server Safety](mcp-server-safety.md) |
 | `service/util` | `SecretMasking`, `EnvVarResolver` | Resolve `${ENV_VAR}` placeholders against the OS env; sweep connection-error notifications + per-call logs to replace any resolved secret value with `***` |
-| `service/vectorstore` | `VectorStoreService`, `VectorStoreDocumentService` | Tika ingestion, chunking, embedding, search |
+| `service/vectorstore` | `VectorStoreService`, `OfflineEtlPipelineService`, `RagPipelineService`, `RagPipelineExecutor` | Tika ingestion, chunking, embedding, search, staged retrieval |
 | `service/identity` | `DeviceIdProvider`, `UserIdentityService`, `MdcIdentityFilter` (in `config`) | Stable per-device id - salted SHA-256 of the OS machine id, persisted to `identity/installation.json`; injected into MDC as `userId` / `sessionId` for log + trace correlation (see [Observability → Device-based identity](observability-architecture.md#device-identity)) |
 | `observability` *(top-level)* | `ObservabilityCollector`, `ObservabilityRingBuffer`, `ObservabilityTimeSeries`, `ModelPricingService` | Micrometer `ObservationHandler` pipeline + ring buffer / time series / JSON persistence that backs the Observability dashboards - a sibling of `service/`, shown here because it is runtime backend. Full design: [AI Agent Observability](observability-architecture.md) |
 
@@ -110,7 +110,7 @@ Persistence is pluggable via `PersistenceServiceInterface` and coordinated by `S
 
 Thin adapter layer configured in `SpringAiPlaygroundApplication` and related Spring `@Configuration` classes.
 
-- `ChatClient` is built once from **all `Advisor` beans injected as an array** (`chatClientBuilder.defaultAdvisors(Advisor[])`), ordered by each advisor's `getOrder()`. They are **`MessageChatMemoryAdvisor`**, **`SpringAiPlaygroundRagAdvisor`** (`LOWEST_PRECEDENCE - 1`), **`SimpleLoggerAdvisor`**, and Spring AI's **`ToolCallingAdvisor`** (static tools) or **`ToolSearchToolCallingAdvisor`** (dynamic discovery), which own the tool-calling loop. Both are given `AgentLoopManager` as their `ToolCallingManager`, so every round runs through the [agent loop](agent-loop-architecture.md) - round bounds, the [human-in-the-loop approval gate](hitl-architecture.md), and the interactive interceptors - before any tool executes.
+- `ChatClient` is built once from **all `Advisor` beans injected as an array** (`chatClientBuilder.defaultAdvisors(Advisor[])`), ordered by each advisor's `getOrder()`. They are **`MessageChatMemoryAdvisor`** (`DEFAULT_CHAT_MEMORY_PRECEDENCE_ORDER`), **`SpringAiPlaygroundRagAdvisor`** (`ToolCallingAdvisor.DEFAULT_ORDER - 2`), **`AttachedDocumentRagAdvisor`** (`- 1`, so a selected RAG source augments before attachment context is layered on), Spring AI's **`ToolCallingAdvisor`** (static tools) or **`ToolSearchToolCallingAdvisor`** (dynamic discovery), which own the tool-calling loop, and **`SimpleLoggerAdvisor`**. Both RAG advisors sit between chat memory and the tool-calling advisor on purpose: after memory has merged history and stored the raw question, and ahead of the loop that re-invokes the rest of the chain once per tool round, so retrieval runs once per turn rather than once per round. Both are given `AgentLoopManager` as their `ToolCallingManager`, so every round runs through the [agent loop](agent-loop-architecture.md) - round bounds, the [human-in-the-loop approval gate](hitl-architecture.md), and the interactive interceptors - before any tool executes.
 - `ChatMemory` defaults to `MessageWindowChatMemory` (last 10 messages) backed by `InMemoryChatMemoryRepository`.
 - `VectorStore` defaults to `SimpleVectorStore` (in-memory). Swap via Spring profile or user configuration.
 - `EmbeddingModel` is resolved from the active model profile (Ollama by default, OpenAI optional).
@@ -237,27 +237,30 @@ flowchart LR
     RULES -->|violation| SVC
 ```
 
-### Flow 3 - Document ingestion and RAG
+### Flow 3 - Document ingestion (offline ETL)
+
+Ingestion follows Spring AI's ETL pipeline: `DocumentReader` extract, `DocumentTransformer` transform, `DocumentWriter` load.
 
 ```mermaid
 flowchart LR
-    UP["Upload<br/>PDF · DOCX · HTML"]
-    TIKA["Tika reader"]
-    SPLIT["Text splitter<br/>chunk 800 · min 350"]
+    UP["Upload<br/>PDF · DOCX · MD · HTML · JSON · TXT"]
+    READ["DocumentReader<br/>7 readers · picked by extension"]
+    SPLIT["TokenTextSplitter<br/>chunk 800 · min 350"]
+    ENRICH["Metadata enrichers<br/>Keyword · Summary · optional LLM"]
     TAG["Tag with docInfoId"]
     EMBED["Embedding model"]
     STORE["Vector store<br/>add"]
     DI["Document info<br/>metadata · lazy"]
 
-    UP --> TIKA --> SPLIT --> TAG --> EMBED --> STORE
+    UP --> READ --> SPLIT --> ENRICH --> TAG --> EMBED --> STORE
     STORE --> DI
 ```
 
-Searches go through `VectorStoreService.search(query, filterExpression)` which builds a `SearchRequest` with similarity threshold `0.6` and top-K `10` by default. The `docInfoId` metadata makes it possible to scope retrieval to specific documents in Chat.
+Chunking is a separate user step from embedding, so chunks are reviewable before anything is written. Manual searches from the Vector Database bar go through `VectorStoreService.search(query, filterExpression)` with similarity threshold `0.35` and top-K `4` by default; retrieval inside a RAG pipeline uses that pipeline's own values instead. The `docInfoId` metadata is what scopes retrieval to specific documents. See [Offline: Indexing](features/rag/offline-etl.md).
 
 ### Flow 4 - Chat advisor chain (memory + RAG)
 
-Every chat request passes through the `ChatClient` advisor chain before it reaches the model. The chain is assembled from all `Advisor` beans injected as an array (`defaultAdvisors(Advisor[])`) and ordered by each advisor's `getOrder()` - **MessageChatMemoryAdvisor**, **SpringAiPlaygroundRagAdvisor**, **SimpleLoggerAdvisor**, and Spring AI's **ToolCallingAdvisor** / **ToolSearchToolCallingAdvisor** (which own the tool-calling loop and delegate each round to `AgentLoopManager` - the [agent loop](agent-loop-architecture.md) and [human-in-the-loop gate](hitl-architecture.md); see Flow 5).
+Every chat request passes through the `ChatClient` advisor chain before it reaches the model. The chain is assembled from all `Advisor` beans injected as an array (`defaultAdvisors(Advisor[])`) and ordered by each advisor's `getOrder()` - **MessageChatMemoryAdvisor**, **SpringAiPlaygroundRagAdvisor**, **AttachedDocumentRagAdvisor**, Spring AI's **ToolCallingAdvisor** / **ToolSearchToolCallingAdvisor** (which own the tool-calling loop and delegate each round to `AgentLoopManager` - the [agent loop](agent-loop-architecture.md) and [human-in-the-loop gate](hitl-architecture.md); see Flow 5).
 
 ```mermaid
 sequenceDiagram
@@ -267,30 +270,57 @@ sequenceDiagram
     participant MEM as Memory advisor
     participant CMEM as ChatMemory<br/>(MessageWindow, last 10)
     participant RAG as RAG advisor (ours)
-    participant RAA as Spring AI RAG
-    participant VSS as VectorStoreService
+    participant EX as RagPipelineExecutor
+    participant VS as VectorStore
     participant LOG as SimpleLoggerAdvisor
     participant MODEL as ChatModel
 
-    CS->>CCL: prompt().user(..).advisors(conversationId, ragFilter)
+    CS->>CCL: prompt().user(..).advisors(conversationId, ragSourceId)
     CCL->>MEM: before(request)
     MEM->>CMEM: read prior messages
     CMEM-->>MEM: last-N window
     MEM-->>CCL: request + attached history
-    alt ragFilterExpression present
+    alt RAG source selected
         CCL->>RAG: before(request)
-        RAG->>RAA: build with filter-bound retriever
-        RAA->>VSS: search(query, filter)
-        VSS-->>RAA: documents (threshold 0.6, top-K 10)
-        RAA-->>RAG: DOCUMENT_CONTEXT populated
-        RAG-->>CCL: request + grounded context
+        RAG->>EX: executeForChat(pipeline, query, history)
+        EX->>EX: pre-retrieval transformers (LLM, if enabled)
+        EX->>VS: similarity search (pipeline top-K / threshold)
+        VS-->>EX: candidate documents
+        EX->>EX: join · post-process · augment
+        EX-->>RAG: final prompt + DOCUMENT_CONTEXT
+        RAG-->>CCL: request with augmented user message
     end
     CCL->>LOG: before(request)
     LOG-->>CCL: (logged)
     CCL->>MODEL: send prompt
 ```
 
-RAG only runs when the user selected at least one document - otherwise `SpringAiPlaygroundRagAdvisor` short-circuits and the chain moves on. Retrieved documents are carried in the request's `DOCUMENT_CONTEXT` so the UI can render them alongside the final answer.
+RAG only runs when a RAG source is selected for the conversation - otherwise `SpringAiPlaygroundRagAdvisor` short-circuits and the chain moves on. A source is either a saved pipeline or a single document, and a document is handled by synthesizing a retrieval-only pipeline, so both take the same executor path that [Pipeline Studio](features/rag/pipeline-studio.md) tests against. The executor stops after the augmenter rather than calling a model itself, so the answer still streams from the chat model. Retrieved documents are carried in the request's `DOCUMENT_CONTEXT` so the UI can render them alongside the final answer, and stage events surface in the chat RAG panel.
+
+### Flow 4b - Attached documents (size-tiered ingest)
+
+Files dropped on the chat prompt take a separate path from the RAG source selector. `ChatDocumentIntakeService` parses the file with `TikaDocumentReader`, counts tokens, and grades it: small files (up to 4,000 tokens) keep their raw text and skip indexing entirely; larger files run the same splitter and embedding as Flow 3, with chunks stamped `level: 1`, plus a map-reduce document overview built by `HierarchicalSummaryTransformer`. At ask time `AttachedDocumentRagAdvisor` (ordered after the Flow 4 advisors, so memory and any selected RAG source see the original user words) always injects small-file text and document overviews, and, when a medium or large attachment is present, runs one `docInfoId`-scoped excerpt search with similarity threshold 0. What was searched and retrieved prints in the chat RAG panel.
+
+```mermaid
+flowchart LR
+    subgraph Attach [On attach]
+        FILE["File on prompt"] --> TIKA["TikaDocumentReader<br/>+ token count"]
+        TIKA -->|"up to 4k tokens"| RAW["Raw text on record<br/>no vectors"]
+        TIKA -->|"larger"| ETL["Flow 3 splitter + embed<br/>level 1 chunks, hidden registry entry"]
+        ETL --> OV["HierarchicalSummaryTransformer<br/>map-reduce overview"]
+    end
+    subgraph Ask [Per turn]
+        Q["Question"] --> LOOKUP["Overviews + small text<br/>record lookup"]
+        Q --> SEARCH["One similarity search<br/>docInfoId filter, threshold 0"]
+        LOOKUP --> CTX["Assembled context<br/>+ original question"]
+        SEARCH --> CTX
+    end
+    RAW -.-> LOOKUP
+    OV -.-> LOOKUP
+    ETL -.-> SEARCH
+```
+
+Attachments carry a `chatOrigin` flag on their registry entry, so they stay conversation-scoped: hidden from the Documents listing and the RAG source selector, excluded from the retrieval of any pipeline whose search scope is left blank, and deleted together with the conversation. The chip's register action clears the flag, moving the document to an independent knowledge-base lifecycle that survives conversation deletion. Per-conversation attachment records (`chat/attachments/<conversationId>.json`) persist chip state, tier, overview, and promotion, so a restart restores both lifecycles. See [Chat Attachments](features/rag/chat-attachments.md).
 
 ### Flow 5 - Chat with MCP tools
 
@@ -348,11 +378,11 @@ sequenceDiagram
     participant MCP as MCP Server(s)
     participant UI as UI stream
 
-    U->>CCV: prompt + selected docs + selected MCP servers
-    CCV->>CS: stream(prompt, filter, toolCallbacks, consumers)
+    U->>CCV: prompt + RAG source + selected MCP servers
+    CCV->>CS: stream(prompt, ragSourceId, toolCallbacks, consumers)
     CS->>CCL: prompt().user(..).toolCallbacks(..).advisors(..)
     CCL->>ADV: before(request)
-    ADV->>VSS: RAG search (if filter present)
+    ADV->>VSS: RAG pipeline / attachment search (if a source or attachment is present)
     VSS-->>ADV: grounded documents
     ADV-->>CCL: request with memory + documents
     loop until model stops calling tools
@@ -421,7 +451,7 @@ Runtime selection happens through Spring profiles (`ollama`, `openai`) combined 
 - `VectorStoreDocumentPersistenceService` - uploaded documents and metadata
 - `McpServerInfoPersistenceService` - saved external MCP connections
 
-State is serialized as JSON under the user home directory. `SimpleVectorStore` itself is volatile - vectors are recomputed on restart when the default store is in use. Swapping in a durable vector store (pgvector, Weaviate) removes that constraint.
+State is serialized as JSON under the user home directory. The default `SimpleVectorStore` is in-memory at runtime, but it is dumped to `vectorstore/simpleVectorStore/` after each change (debounced) and reloaded at startup, so vectors survive a restart without re-embedding. Swapping in a durable vector store (pgvector, Weaviate) replaces that dump.
 
 ## Extensibility Points
 

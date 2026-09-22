@@ -6,7 +6,14 @@ vaadin-multi-select-combo-box[disabled] > input {
     -webkit-text-fill-color: var(--lumo-secondary-text-color);
 }
 
-vaadin-multi-select-combo-box[disabled] > input::placeholder {
+vaadin-multi-select-combo-box[disabled]:not([has-value]) > input,
+vaadin-combo-box[disabled]:not([has-value]) > input {
+    flex: 1 0 4rem;
+    opacity: 1;
+}
+
+vaadin-multi-select-combo-box[disabled] > input::placeholder,
+vaadin-combo-box[disabled] > input::placeholder {
     color: var(--lumo-tertiary-text-color);
     -webkit-text-fill-color: var(--lumo-tertiary-text-color);
     opacity: 0.6;

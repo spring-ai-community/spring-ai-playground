@@ -15,11 +15,28 @@
  */
 package org.springaicommunity.playground.service.mcp;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import tools.jackson.databind.ObjectMapper;
+import org.springaicommunity.playground.SpringAiPlaygroundOptions;
+import org.springaicommunity.playground.service.mcp.catalog.McpCatalogService;
+import org.springaicommunity.playground.service.mcp.client.McpClientPropertiesService;
+import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.service.mcp.client.McpTransportType;
+import org.springaicommunity.playground.service.oauth.McpClientRegistrationRepository;
+import org.springaicommunity.playground.service.oauth.OAuthTokenEncryptor;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
+import org.springframework.ai.mcp.server.common.autoconfigure.properties.McpServerProperties;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
@@ -27,6 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
 
 @SpringBootTest
 class McpServerInfoServiceTest {
@@ -119,4 +137,39 @@ class McpServerInfoServiceTest {
         assertEquals(1, serverInfos.get(McpTransportType.STREAMABLE_HTTP).size());
 
     }
+
+    @Test
+    void warnsAtStartupWhenTheBuiltInServerHasNoAuthToken() throws IOException {
+        Logger serviceLogger = (Logger) LoggerFactory.getLogger(McpServerInfoService.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        serviceLogger.addAppender(appender);
+        try {
+            newService(null, false);
+            assertTrue(appender.list.stream().anyMatch(event -> event.getLevel() == Level.WARN
+                    && event.getFormattedMessage().contains("auth-token")));
+            appender.list.clear();
+            newService("secret", false);
+            newService(null, true);
+            assertTrue(appender.list.stream().noneMatch(event -> event.getLevel() == Level.WARN));
+        } finally {
+            serviceLogger.detachAppender(appender);
+            appender.stop();
+        }
+    }
+
+    private static void newService(String authToken, boolean stdio) throws IOException {
+        Path homeDir = Files.createTempDirectory("saip-mcp-info-test");
+        SpringAiPlaygroundOptions playgroundOptions = new SpringAiPlaygroundOptions(null, false, null, null, null,
+                new SpringAiPlaygroundOptions.McpServer(null, null, authToken));
+        McpServerProperties serverProperties = new McpServerProperties();
+        serverProperties.setStdio(stdio);
+        ObjectProvider<McpServerInfoPersistenceService> persistence = mock();
+        new McpServerInfoService(new ObjectMapper(), new McpClientPropertiesService<?>[0],
+                mock(McpClientService.class), mock(McpCatalogService.class), persistence,
+                mock(McpClientRegistrationRepository.class), 8282, serverProperties,
+                playgroundOptions, new McpServerAuthTokenService(playgroundOptions, homeDir,
+                        new OAuthTokenEncryptor(homeDir), event -> { }));
+    }
+
 }

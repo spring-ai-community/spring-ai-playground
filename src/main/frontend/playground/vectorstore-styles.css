@@ -4,5 +4,254 @@
     margin: 0;
     border: none;
     gap: var(--lumo-space-s);
+}
 
+/* Sidebar wrapping Documents + Pipelines sections */
+.vstore-sidebar {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+.vstore-sidebar > * {
+    flex: 1 1 0;
+    min-height: 0;
+}
+
+.vstore-main-split {
+    height: 100%;
+}
+
+/* RAG pipeline area (M4 = placeholder + summary; runtime layers come in M6+) */
+.vstore-pipeline-run {
+    height: 100%;
+    overflow: hidden;
+}
+
+.vstore-pipeline-summary {
+    box-sizing: border-box;
+    padding: var(--lumo-space-xs) var(--lumo-space-m);
+    background: var(--lumo-contrast-5pct);
+    border-bottom: 1px solid var(--lumo-contrast-10pct);
+    font-size: var(--lumo-font-size-xs);
+}
+
+.vstore-pipeline-summary-row {
+    display: flex;
+    align-items: center;
+    gap: var(--lumo-space-s);
+    flex-wrap: wrap;
+}
+
+.vstore-pipeline-summary-name {
+    font-weight: 600;
+    color: var(--lumo-body-text-color);
+}
+
+.vstore-pipeline-summary-desc {
+    color: var(--lumo-secondary-text-color);
+}
+
+.vstore-pipeline-summary-chip {
+    background: var(--lumo-contrast-10pct);
+    color: var(--lumo-secondary-text-color);
+    padding: 1px 6px;
+    border-radius: var(--lumo-border-radius-s);
+    font-size: var(--lumo-font-size-xxs);
+}
+
+.vstore-pipeline-body {
+    height: 100%;
+    overflow: hidden;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Chat-style pipeline test surface: left config card + right test conversation */
+.vstore-pipeline-chat-panel {
+    height: 100%;
+    min-height: 0;
+}
+
+.vstore-pipeline-config-card {
+    flex: 0 0 240px;
+    overflow-y: auto;
+    border-right: 1px solid var(--lumo-contrast-10pct);
+    padding: var(--lumo-space-s) var(--lumo-space-m);
+    background: var(--lumo-contrast-5pct);
+}
+
+.vstore-pipeline-config-section {
+    margin-bottom: var(--lumo-space-m);
+}
+
+.vstore-pipeline-config-heading {
+    display: block;
+    font-size: var(--lumo-font-size-xxs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--lumo-secondary-text-color);
+    margin-bottom: var(--lumo-space-xs);
+}
+
+.vstore-pipeline-config-line {
+    font-size: var(--lumo-font-size-s);
+    color: var(--lumo-body-text-color);
+    padding: 1px 0;
+}
+
+.vstore-pipeline-chat-column {
+    min-width: 0;
+}
+
+.vstore-pipeline-messages {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: var(--lumo-space-m);
+    display: flex;
+    flex-direction: column;
+    gap: var(--lumo-space-s);
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.vstore-chat-user {
+    align-self: flex-end;
+    max-width: 70%;
+    background: var(--lumo-primary-color-10pct);
+    color: var(--lumo-body-text-color);
+    padding: var(--lumo-space-s) var(--lumo-space-m);
+    border-radius: var(--lumo-border-radius-l) var(--lumo-border-radius-l) 0 var(--lumo-border-radius-l);
+    font-size: var(--lumo-font-size-s);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.vstore-chat-assistant {
+    align-self: flex-start;
+    max-width: 92%;
+    width: fit-content;
+    min-width: 40%;
+    background: var(--lumo-base-color);
+    border: 1px solid var(--lumo-contrast-10pct);
+    padding: var(--lumo-space-s) var(--lumo-space-m);
+    border-radius: var(--lumo-border-radius-l) var(--lumo-border-radius-l) var(--lumo-border-radius-l) 0;
+    font-size: var(--lumo-font-size-s);
+}
+
+.vstore-chat-pending {
+    color: var(--lumo-secondary-text-color);
+    font-style: italic;
+}
+
+.vstore-chat-error {
+    background: var(--lumo-error-color-10pct);
+    color: var(--lumo-error-text-color);
+}
+
+.vstore-chat-headline {
+    font-weight: 600;
+    font-size: var(--lumo-font-size-s);
+    margin-bottom: var(--lumo-space-xs);
+}
+
+.vstore-chat-answer {
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin-bottom: var(--lumo-space-xs);
+}
+
+.vstore-chat-details {
+    margin: 0;
+}
+
+.vstore-chat-details::part(summary) {
+    font-size: var(--lumo-font-size-xs);
+    color: var(--lumo-secondary-text-color);
+    padding: var(--lumo-space-xs) 0;
+}
+
+.vstore-chat-docs {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid var(--lumo-contrast-10pct);
+    border-radius: var(--lumo-border-radius-s);
+    padding: var(--lumo-space-xs);
+}
+
+.vstore-chat-doc-row {
+    padding: var(--lumo-space-xs);
+    border-bottom: 1px solid var(--lumo-contrast-5pct);
+    font-size: var(--lumo-font-size-s);
+}
+
+.vstore-chat-doc-score {
+    font-family: var(--lumo-font-family-monospace);
+    font-size: var(--lumo-font-size-xs);
+    color: var(--lumo-primary-text-color);
+    font-weight: 600;
+    margin-right: var(--lumo-space-s);
+}
+
+.vstore-chat-doc-empty {
+    color: var(--lumo-secondary-text-color);
+    padding: var(--lumo-space-s);
+    display: block;
+}
+
+.vstore-chat-pre {
+    background: var(--lumo-contrast-5pct);
+    padding: var(--lumo-space-s);
+    border-radius: var(--lumo-border-radius-s);
+    max-height: 240px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: var(--lumo-font-size-xs);
+    font-family: var(--lumo-font-family-monospace);
+    margin: 0;
+}
+
+.vstore-chat-trace {
+    max-height: 180px;
+    overflow-y: auto;
+    border: 1px solid var(--lumo-contrast-10pct);
+    border-radius: var(--lumo-border-radius-s);
+    padding: var(--lumo-space-xs);
+    font-family: var(--lumo-font-family-monospace);
+    font-size: var(--lumo-font-size-xs);
+}
+
+.vstore-chat-trace-warn {
+    color: var(--lumo-error-text-color);
+}
+
+.vstore-pipeline-query-row {
+    padding: var(--lumo-space-s) var(--lumo-space-m);
+    border-top: 1px solid var(--lumo-contrast-10pct);
+    background: var(--lumo-base-color);
+    box-sizing: border-box;
+}
+
+.vstore-pipeline-placeholder,
+.vstore-pipeline-pending {
+    text-align: center;
+    color: var(--lumo-secondary-text-color);
+    padding: var(--lumo-space-l);
+}
+
+.vstore-pipeline-placeholder h4,
+.vstore-pipeline-pending h4 {
+    margin: 0 0 var(--lumo-space-s) 0;
+    color: var(--lumo-body-text-color);
+    font-size: var(--lumo-font-size-l);
+}
+
+.vstore-pipeline-placeholder-hint {
+    font-size: var(--lumo-font-size-s);
+    color: var(--lumo-secondary-text-color);
 }

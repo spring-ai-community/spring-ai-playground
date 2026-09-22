@@ -43,7 +43,7 @@ public class McpRiskChip extends HtmlContainer {
         if (prefix != null && !prefix.isBlank()) {
             text.append(prefix).append(": ");
         }
-        text.append(level.name()).append(" — ").append(level.label());
+        text.append(level.name()).append(" - ").append(level.label());
         if (floorTrigger != null && !floorTrigger.isBlank()) {
             text.append(" (floor: ").append(shortTrigger(floorTrigger)).append(')');
         }
@@ -67,7 +67,7 @@ public class McpRiskChip extends HtmlContainer {
         if (inherentLevel != null && effectiveLevel != null && inherentLevel != effectiveLevel) {
             StringBuilder text = new StringBuilder();
             text.append(inherentLevel.name()).append(" → ").append(effectiveLevel.name())
-                    .append(" — ").append(effectiveLevel.label());
+                    .append(" - ").append(effectiveLevel.label());
             if (floorTrigger != null && !floorTrigger.isBlank()) {
                 text.append(" (floor: ").append(shortTrigger(floorTrigger)).append(')');
             }
@@ -99,12 +99,12 @@ public class McpRiskChip extends HtmlContainer {
     public static String levelRationale(RiskLevel level) {
         if (level == null) return "";
         return switch (level) {
-            case L0 -> "Built-in trusted tool — risk model bypassed";
-            case L1 -> "Safe — local operations, no external access";
-            case L2 -> "Low — external read-only or API-key auth";
-            case L3 -> "Moderate — external write, network fetch, or community trust";
-            case L4 -> "High — admin-scope, exec capability, or irreversible actions";
-            case L5 -> "Critical — floor rule triggered or unverified server";
+            case L0 -> "Built-in trusted tool - risk model bypassed";
+            case L1 -> "Safe - local operations, no external access";
+            case L2 -> "Low - external read-only or API-key auth";
+            case L3 -> "Moderate - external write, network fetch, or community trust";
+            case L4 -> "High - admin-scope, exec capability, or irreversible actions";
+            case L5 -> "Critical - floor rule triggered or unverified server";
         };
     }
 

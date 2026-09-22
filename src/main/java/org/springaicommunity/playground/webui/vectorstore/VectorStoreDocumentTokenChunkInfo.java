@@ -16,14 +16,17 @@
 package org.springaicommunity.playground.webui.vectorstore;
 
 import com.vaadin.flow.component.checkbox.Checkbox;
-import com.vaadin.flow.component.html.H5;
+import com.vaadin.flow.component.combobox.ComboBox;
+import com.vaadin.flow.component.html.Div;
+import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.NumberField;
-import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentService.TokenTextSplitInfo;
+import org.springaicommunity.playground.service.vectorstore.OfflineEtlPipelineService;
+import org.springaicommunity.playground.service.vectorstore.OfflineEtlPipelineService.TokenTextSplitInfo;
 
-import static org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentService.DEFAULT_TOKEN_TEXT_SPLIT_INFO;
+import static org.springaicommunity.playground.service.vectorstore.OfflineEtlPipelineService.DEFAULT_TOKEN_TEXT_SPLIT_INFO;
 
 public class VectorStoreDocumentTokenChunkInfo extends VerticalLayout {
 
@@ -32,13 +35,19 @@ public class VectorStoreDocumentTokenChunkInfo extends VerticalLayout {
     private final NumberField minChunkLengthToEmbedField;
     private final NumberField maxNumChunksField;
     private final Checkbox keepSeparatorCheckbox;
+    private final ComboBox<String> encodingTypeCombo;
 
     public VectorStoreDocumentTokenChunkInfo() {
         setMargin(false);
         setPadding(false);
         setSpacing(false);
+        setWidthFull();
 
-        H5 title = new H5("Token Text Splitter Settings");
+        Span title = new Span("Token Text Splitter Settings");
+        title.getStyle().set("display", "block").set("font-weight", "600")
+                .set("font-size", "var(--lumo-font-size-s)")
+                .set("color", "var(--lumo-body-text-color)")
+                .set("margin", "var(--lumo-space-m) 0 var(--lumo-space-xs) 0");
         add(title);
 
         chunkSizeField = createValidatedField("Chunk Size", DEFAULT_TOKEN_TEXT_SPLIT_INFO.chunkSize(), 1, 10000,
@@ -56,18 +65,27 @@ public class VectorStoreDocumentTokenChunkInfo extends VerticalLayout {
         keepSeparatorCheckbox = new Checkbox("Keep Separator");
         keepSeparatorCheckbox.setValue(DEFAULT_TOKEN_TEXT_SPLIT_INFO.keepSeparator());
 
-        HorizontalLayout paramLayout =
-                new HorizontalLayout(chunkSizeField, minChunkSizeCharsField, minChunkLengthToEmbedField,
-                        maxNumChunksField);
-        paramLayout.setWidthFull();
-        paramLayout.getStyle().set("padding", "var(--lumo-space-m) 0 var(--lumo-space-m) 0");
+        encodingTypeCombo = new ComboBox<>("Encoding Type");
+        encodingTypeCombo.setItems(OfflineEtlPipelineService.encodingTypeNames());
+        encodingTypeCombo.setValue(DEFAULT_TOKEN_TEXT_SPLIT_INFO.encodingType());
+        encodingTypeCombo.setWidthFull();
+        encodingTypeCombo.setHelperText("Tokenizer used to count chunk tokens (CL100K_BASE fits most models).");
 
-        HorizontalLayout keepSeparatorLayout = new HorizontalLayout(keepSeparatorCheckbox);
+        Div paramGrid = new Div(chunkSizeField, minChunkSizeCharsField, minChunkLengthToEmbedField, maxNumChunksField);
+        paramGrid.getStyle()
+                .set("display", "grid")
+                .set("grid-template-columns", "1fr 1fr")
+                .set("gap", "var(--lumo-space-s) var(--lumo-space-m)")
+                .set("width", "100%")
+                .set("padding", "var(--lumo-space-xs) 0 var(--lumo-space-s) 0");
+
+        HorizontalLayout keepSeparatorLayout = new HorizontalLayout(encodingTypeCombo, keepSeparatorCheckbox);
         keepSeparatorLayout.setWidthFull();
+        keepSeparatorLayout.setAlignItems(FlexComponent.Alignment.BASELINE);
         keepSeparatorLayout.setJustifyContentMode(FlexComponent.JustifyContentMode.START);
         keepSeparatorLayout.getStyle().set("padding-bottom", "var(--lumo-space-m)");
 
-        add(paramLayout, keepSeparatorLayout);
+        add(paramGrid, keepSeparatorLayout);
     }
 
     private NumberField createValidatedField(String label, double defaultVal, double min, double max, String errorMsg) {
@@ -76,7 +94,7 @@ public class VectorStoreDocumentTokenChunkInfo extends VerticalLayout {
         field.setStep(1);
         field.setMin(min);
         field.setMax(max);
-        field.setWidth("15em");
+        field.setWidthFull();
         field.setRequiredIndicatorVisible(true);
         field.addValueChangeListener(ev -> {
             Double v = ev.getValue();
@@ -109,7 +127,8 @@ public class VectorStoreDocumentTokenChunkInfo extends VerticalLayout {
         return new TokenTextSplitInfo(chunkSizeField.getValue().intValue(),
                 minChunkSizeCharsField.getValue().intValue(), minChunkLengthToEmbedField.getValue().intValue(),
                 maxNumChunksField.getValue().intValue(),
-                keepSeparatorCheckbox.getValue()
+                keepSeparatorCheckbox.getValue(),
+                encodingTypeCombo.getValue()
         );
     }
 }

@@ -70,7 +70,7 @@ public class ElicitationRequestPrimitive extends Div {
             add(form);
         } else if (schema == null || schema.isEmpty()) {
             add(InspectorHelpers.simpleSectionLabel("Confirmation"));
-            Span note = new Span("No additional input required — approve to allow this action.");
+            Span note = new Span("No additional input required - approve to allow this action.");
             note.getStyle().set("font-size", "var(--lumo-font-size-s)")
                     .set("color", "var(--lumo-secondary-text-color)");
             add(note);

@@ -156,7 +156,7 @@ For Claude Desktop, point `claude_desktop_config.json` at the absolute JAR path:
       "command": "java",
       "args": [
         "-jar",
-        "/absolute/path/to/spring-ai-playground-0.2.0-M12.jar",
+        "/absolute/path/to/spring-ai-playground-<VERSION>.jar",
         "--spring.profiles.include=mcp-stdio"
       ]
     }
@@ -189,14 +189,14 @@ docker run -d -p 8282:8282 --name spring-ai-playground \
 
 ```bash
 export OPENAI_API_KEY=your-openai-api-key
-./mvnw spring-boot:run --spring.profiles.active=openai
+./mvnw spring-boot:run -Dspring-boot.run.profiles=openai
 ```
 
 ### From source - Windows
 
 ```bash
 set OPENAI_API_KEY=your-openai-api-key
-./mvnw spring-boot:run --spring.profiles.active=openai
+mvnw.cmd spring-boot:run -Dspring-boot.run.profiles=openai
 ```
 
 For OpenAI-compatible servers and the YAML overrides each one expects, see [External Connections → OpenAI-compatible servers](external-connections.md#switching-to-openai-compatible-servers).

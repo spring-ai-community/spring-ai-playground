@@ -55,6 +55,7 @@ class AgentLoopManagerHitlTest {
 
     private final ToolCallingManager delegate = mock(ToolCallingManager.class);
     private final ToolSpecService toolSpecService = mock(ToolSpecService.class);
+    private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
 
     private AgentLoopManager manager() {
         return manager(12_000);
@@ -64,7 +65,7 @@ class AgentLoopManagerHitlTest {
     private AgentLoopManager manager(int toolResultMaxChars) {
         ObjectProvider<ToolSpecService> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(toolSpecService);
-        return new AgentLoopManager(delegate, provider, new SimpleMeterRegistry(), toolResultMaxChars);
+        return new AgentLoopManager(delegate, provider, meterRegistry, toolResultMaxChars);
     }
 
     private Prompt promptWith(HumanQuestionHandler handler) {
@@ -153,6 +154,19 @@ class AgentLoopManagerHitlTest {
     }
 
     @Test
+    void timedOutApprovalIsNotExecutedAndReportsTimeout() {
+        ChatResponse response = responseWith(toolCall("1", "writeFile"));
+        Prompt prompt = promptWith(questions -> answerAll(questions, HumanQuestionHandler.TIMEOUT_ANSWER));
+        when(toolSpecService.requiresApproval("writeFile")).thenReturn(true);
+
+        ToolExecutionResult result = manager().executeToolCalls(prompt, response);
+
+        verify(delegate, never()).executeToolCalls(any(), any());
+        ToolResponseMessage trm = (ToolResponseMessage) result.conversationHistory().getLast();
+        assertTrue(trm.getResponses().get(0).responseData().contains("timed out"));
+    }
+
+    @Test
     void mixedBatchExecutesApprovedAndSubstitutesDeclinedInOrder() {
         ChatResponse response = responseWith(toolCall("1", "writeFile"), toolCall("2", "getTime"));
         Prompt prompt = promptWith(questions -> answerAll(questions, "Decline"));
@@ -228,6 +242,8 @@ class AgentLoopManagerHitlTest {
         verify(delegate, never()).executeToolCalls(any(), any());
         ToolResponseMessage trm = (ToolResponseMessage) result.conversationHistory().getLast();
         assertTrue(trm.getResponses().get(0).responseData().toLowerCase().contains("declined"));
+        assertEquals(1.0, decisionCount("ask-failed"));
+        assertEquals(0.0, decisionCount("declined"));
     }
 
     @Test
@@ -385,6 +401,10 @@ class AgentLoopManagerHitlTest {
         manager().executeToolCalls(prompt, response);
 
         assertEquals(ToolManifest.Sandbox.RiskLevel.L5, seen.get().get(0).riskLevel());
+    }
+
+    private double decisionCount(String outcome) {
+        return meterRegistry.counter("mcp.hitl.decision", "outcome", outcome, "side", "chat").count();
     }
 
     private static Map<String, String> answerAll(List<HumanQuestion> questions, String label) {

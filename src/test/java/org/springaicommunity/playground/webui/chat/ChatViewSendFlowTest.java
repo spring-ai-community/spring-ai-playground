@@ -80,7 +80,7 @@ class ChatViewSendFlowTest extends SpringBrowserlessTest {
 
         Button submit = $(Button.class, view)
                 .withCondition(button -> "Submit".equals(button.getTooltip().getText()))
-                .first();
+                .single();
         test(submit).click();
         completePendingPromptValueJs("hello from browserless");
 
@@ -97,12 +97,12 @@ class ChatViewSendFlowTest extends SpringBrowserlessTest {
         test(prompt).setValue("streaming lock check");
         Button submit = $(Button.class, view)
                 .withCondition(button -> "Submit".equals(button.getTooltip().getText()))
-                .first();
+                .single();
         test(submit).click();
         completePendingPromptValueJs("streaming lock check");
 
         assertThat(attachButton(view).isEnabled()).isFalse();
-        assertThat($(SttMicButton.class, view).first().isEnabled()).isFalse();
+        assertThat($(SttMicButton.class, view).single().isEnabled()).isFalse();
         assertThat(prompt.isReadOnly()).isTrue();
         assertThat(submit.isEnabled()).isTrue();
         assertThat(submit.getTooltip().getText()).isEqualTo("Stop");
@@ -112,7 +112,7 @@ class ChatViewSendFlowTest extends SpringBrowserlessTest {
 
         assertThat(awaitAttachEnabled(view)).isTrue();
         assertThat(prompt.isReadOnly()).isFalse();
-        assertThat($(SttMicButton.class, view).first().isEnabled()).isTrue();
+        assertThat($(SttMicButton.class, view).single().isEnabled()).isTrue();
         assertThat(submit.getTooltip().getText()).isEqualTo("Submit");
     }
 
@@ -125,12 +125,12 @@ class ChatViewSendFlowTest extends SpringBrowserlessTest {
         test(promptArea(view)).setValue("image lands mid-stream");
         Button submit = $(Button.class, view)
                 .withCondition(button -> "Submit".equals(button.getTooltip().getText()))
-                .first();
+                .single();
         test(submit).click();
         completePendingPromptValueJs("image lands mid-stream");
         assertThat(attachButton(view).isEnabled()).isFalse();
 
-        $(ChatAttach.class, view).first().receiveImage("late.png", "aGVsbG8=", "image/png", null);
+        $(ChatAttach.class, view).single().receiveImage("late.png", "aGVsbG8=", "image/png", null);
         roundTrip();
         assertThat(attachButton(view).isEnabled()).isFalse();
 
@@ -143,7 +143,7 @@ class ChatViewSendFlowTest extends SpringBrowserlessTest {
     @Test
     void attachButtonDisablesAtMaxImagesWhileIdle() {
         ChatView view = navigate(ChatView.class);
-        ChatAttach attach = $(ChatAttach.class, view).first();
+        ChatAttach attach = $(ChatAttach.class, view).single();
 
         for (int i = 0; i < 5; i++) {
             attach.receiveImage("img" + i + ".png", "aGVsbG8=", "image/png", null);
@@ -166,7 +166,7 @@ class ChatViewSendFlowTest extends SpringBrowserlessTest {
         test(promptArea(view)).setValue("trigger think panel");
         Button submit = $(Button.class, view)
                 .withCondition(button -> "Submit".equals(button.getTooltip().getText()))
-                .first();
+                .single();
         test(submit).click();
         completePendingPromptValueJs("trigger think panel");
 
@@ -217,7 +217,7 @@ class ChatViewSendFlowTest extends SpringBrowserlessTest {
         test(prompt).setValue("stop reenables attach");
         Button submit = $(Button.class, view)
                 .withCondition(button -> "Submit".equals(button.getTooltip().getText()))
-                .first();
+                .single();
         test(submit).click();
         completePendingPromptValueJs("stop reenables attach");
         assertThat(attachButton(view).isEnabled()).isFalse();
@@ -242,7 +242,7 @@ class ChatViewSendFlowTest extends SpringBrowserlessTest {
         test(promptArea(view)).setValue("background stream question");
         Button submit = $(Button.class, view)
                 .withCondition(button -> "Submit".equals(button.getTooltip().getText()))
-                .first();
+                .single();
         test(submit).click();
         completePendingPromptValueJs("background stream question");
         assertThat(attachButton(view).isEnabled()).isFalse();
@@ -255,7 +255,7 @@ class ChatViewSendFlowTest extends SpringBrowserlessTest {
         view = switchToConversation(streamingConvId);
         assertThat(promptArea(view).isReadOnly()).isTrue();
         assertThat(attachButton(view).isEnabled()).isFalse();
-        assertThat($(SttMicButton.class, view).first().isEnabled()).isFalse();
+        assertThat($(SttMicButton.class, view).single().isEnabled()).isFalse();
 
         replies.tryEmitNext(new ChatResponse(List.of(new Generation(
                 new AssistantMessage("finished while parked elsewhere")))));
@@ -279,7 +279,7 @@ class ChatViewSendFlowTest extends SpringBrowserlessTest {
         test(promptArea(view)).setValue("stop me from elsewhere");
         Button submit = $(Button.class, view)
                 .withCondition(button -> "Submit".equals(button.getTooltip().getText()))
-                .first();
+                .single();
         test(submit).click();
         completePendingPromptValueJs("stop me from elsewhere");
         String streamingConvId = newConversationId(knownIds);
@@ -288,7 +288,7 @@ class ChatViewSendFlowTest extends SpringBrowserlessTest {
         view = switchToConversation(streamingConvId);
         Button stop = $(Button.class, view)
                 .withCondition(button -> "Stop".equals(button.getTooltip().getText()))
-                .first();
+                .single();
         test(stop).click();
 
         assertThat(awaitAttachEnabled(view)).isTrue();
@@ -317,13 +317,13 @@ class ChatViewSendFlowTest extends SpringBrowserlessTest {
     private TextArea promptArea(ChatView view) {
         return $(TextArea.class, view)
                 .withCondition(area -> "Ask Spring AI Playground".equals(area.getPlaceholder()))
-                .first();
+                .single();
     }
 
     private Button attachButton(ChatView view) {
         return $(Button.class, view)
-                .withCondition(button -> "Attach image".equals(button.getTooltip().getText()))
-                .first();
+                .withCondition(button -> "Attach images or documents".equals(button.getTooltip().getText()))
+                .single();
     }
 
     private boolean awaitAttachEnabled(ChatView view) throws InterruptedException {

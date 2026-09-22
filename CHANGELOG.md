@@ -6,9 +6,55 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.0-M13]
+
 ### Added
 
-- **Modular RAG pipeline studio** in Vector Database — composable ETL pipeline editor for reader / chunker / pre-retrieval / retrieval / post-retrieval stages, reworked chunk-confirmation dialog UX, Name + Description fields on documents, and an internal rename of `VectorStoreDocumentService` → `OfflineEtlPipelineService`.
+- **Offline ETL and Modular RAG Pipeline Studio in Vector Database** - RAG is split the way Spring AI splits it. **New Document & ETL Pipeline** auto-recommends a reader from the file (Tika, text, JSON, Markdown, HTML, PDF by page or paragraph), exposes the `TokenTextSplitter` settings, optionally enriches chunks with LLM keyword and summary metadata, and previews every chunk with a per-chunk opt-out before **Embed and insert**. **New RAG Pipeline** is a four-tab wizard over the framework's own modules (pre-retrieval, retrieval, post-retrieval, generation), saved as JSON and runnable in place with Documents / Final prompt / Trace sections. Deleting a document warns about pipelines that scope it (`feat(rag)`).
+- **One RAG source selector in Agentic Chat** - the chat picks a document (`retrieval only`) or a saved pipeline (`stages: N - +M LLM calls`); both run through the same `RagPipelineExecutor` the studio tests against, and the RAG DOCUMENTS panel prints every stage, query, timing, and score. Conversations saved by M11 / M12 load into the new single source (`feat(rag)`).
+- **Document attachments in Agentic Chat** - drop a `pdf`, `txt`, `md`, `html`, `docx`, or `pptx` file (20MB, five per conversation) on the prompt. Up to 4,000 tokens the text is injected in full every turn; above that the file is chunked, embedded, and summarized into an always-present overview with one scoped excerpt search per turn, so "summarize this" and pinpoint questions both work. An attachment stays private to its conversation until the chip's database icon registers it in the Vector Database (`feat(chat)`).
+- **Bearer token for the built-in MCP server** - **MCP Server -> gear -> Authentication** switches between **None** and **Bearer token** (reveal, Generate, Copy), applies without a restart, and stores the token encrypted; `spring.ai.playground.mcp-server.auth-token` does the same declaratively and wins over the UI. `/mcp` then answers `401` with `WWW-Authenticate: Bearer` to a missing or wrong token, while the web UI and the app's own tools keep working (`feat(mcp)`).
+- **Model-free boot** - `spring.ai.model.chat=none` and `spring.ai.model.embedding=none` start the app with no model provider: Tool Studio and the built-in MCP server keep working, and a chat send fails fast with a clear message (`feat(config)`, `fix(chat)`).
+- **Canonicalization scheme on the tool hash ledger** - the ledger records which scheme produced each tool fingerprint and re-baselines on a scheme change instead of raising a false tamper signal (`feat(mcp)`).
+- **HITL decisions split by gate** - `mcp.hitl.decision` carries `side` (`chat` / `server`), and the Safety chart breaks outcomes out per gate (`feat(observability)`).
+- **KOROAD accident hotspots tool** - `getTrafficAccidentHotspots` joins the Korea defaults (116 built-in tools), with tutorial 16 walking a public API into a published MCP tool (`feat(tools)`).
+- **`qwen3.8:27b` in the default model lists** - Ollama and MLX profiles, and the desktop launcher templates (`feat(chat)`).
+
+### Changed
+
+- **Spring AI 2.0.1, Vaadin 25.2.8, and Jackson 3** - the remaining Jackson 2 usages move to Jackson 3; JSON persisted by earlier milestones still loads. Vaadin 25.2 brings the Vite 8 / Rolldown frontend toolchain: the JSON editor no longer imports the Ace worker script into the page bundle (it is served as its own file), and `tslib` is declared for the ECharts bundle (`build(pom)`, `refactor`).
+- **Dynamic tool search matches name tokens** - in `HYBRID` mode tools whose name tokens appear in the query rank ahead of the vector hits, so "add two numbers" finds `get-sum` on a connected MCP server (`fix(chat)`).
+- **Map cards use keyless OpenStreetMap tiles** - CARTO started watermarking un-keyed requests; the dark theme is a CSS filter over the OSM tiles (`fix(chat)`).
+- **MCP servers stay selectable in dynamic tool mode**, and labels across Chat, Home, MCP, and Tool Studio use plain ASCII punctuation (`fix(chat,ui)`).
+
+### Removed
+
+- **`spring.ai.playground.chat.tool-search.default-on`** - the property was documented but never read, so it is gone from the options and the configuration reference; new chats follow `chat.default-preset` as before, and a leftover value is ignored (`refactor`).
+
+### Fixed
+
+- **OpenAI embeddings index the document text only** - metadata no longer leaks into the embedding input (`fix(rag)`).
+- **HITL timeout is reported as a timeout** - an expired approval dialog is recorded as `timeout` and tells the model the tool was not run, instead of counting as `ask-failed` (`fix(chat)`).
+- **A `?conv=` deep link wins over the restored history selection** (`fix(chat)`).
+- **Disabled selectors keep their placeholder** - "No RAG sources" and "No MCP servers connected" render instead of a blank box (`fix(chat)`).
+
+### Documentation
+
+- **RAG section rebuilt** - Overview, Offline: Indexing, Pipeline Studio, Runtime: RAG in Chat, and Chat Attachments pages, each mapping a control to its Spring AI class; the architecture pages gain the attachment and RAG flows (`docs`).
+- **Tutorials 1-16 and the feature pages re-verified in the app** - drifted claims corrected, 70 captures refreshed, tutorial 16 added to the nav, downloads page reworked; new **tutorial 17 - Attach a Document and Ask** walks the attachment flow from drop to registered document (`docs`).
+- **Configuration and connections** - model-free boot, the token-match tool search, and a **Require a bearer token** guide (in-app setup, per-launch-mode configuration, client header examples); README lists the M13 features (`docs`).
+
+### Security
+
+- **Optional bearer token on `/mcp`** - stored encrypted and bound to the host and user, never logged, compared in constant time, and editable only from a browser on the machine that runs the app; a stored token that cannot be decrypted keeps `/mcp` locked instead of falling open.
+- **Attachments are untrusted input** - their text enters the prompt fenced as data with an instruction not to follow it.
+
+### Build / Tooling
+
+- **Windows installer signing via SignPath** - the release workflow submits the installer to SignPath and refreshes the auto-updater metadata; signing is gated on the release certificate (`ci`).
+- **Code of conduct and code signing policy** added to the repository (`chore(repo)`).
+- **Network smoke test is opt-in** behind `RUN_NETWORK_SMOKE=true` (`test`).
+- **Version bump to 0.2.0-M13** (`build(pom)`).
 
 ## [0.2.0-M12]
 

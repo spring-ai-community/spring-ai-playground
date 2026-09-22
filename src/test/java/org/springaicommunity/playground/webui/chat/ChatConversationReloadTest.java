@@ -105,7 +105,7 @@ class ChatConversationReloadTest extends SpringBrowserlessTest {
     }
 
     @Test
-    void selectingAnMcpServerWhileDynamicTurnsDynamicOffAndPersistsTheSelection() {
+    void selectingAnMcpServerWhileDynamicKeepsBothAndPersistsBoth() {
         long now = System.currentTimeMillis();
         this.mcpServerInfoService.updateMcpServerInfo(McpTransportType.SSE, "dynamic-exit-sse",
                 new McpServerInfo(McpTransportType.SSE, "dynamic-exit-sse", "connected before the chat",
@@ -120,17 +120,17 @@ class ChatConversationReloadTest extends SpringBrowserlessTest {
             MultiSelectComboBox<McpServerInfo> combo = mcpServerCombo(view);
             assertThat(dynamicCheckbox(view).getValue()).isTrue();
             assertThat(combo.isEnabled()).isTrue();
-            assertThat(combo.getPlaceholder()).isEqualTo("Select servers (turns Dynamic off)");
+            assertThat(combo.getPlaceholder()).isEqualTo("Select MCP servers for tools");
 
             test(combo).selectItem("dynamic-exit-sse(SSE)");
             ComponentUtil.fireEvent(combo,
                     new AbstractField.ComponentValueChangeEvent<>(combo, combo, Set.of(), true));
             roundTrip();
 
-            assertThat(dynamicCheckbox(view).getValue()).isFalse();
+            assertThat(dynamicCheckbox(view).getValue()).isTrue();
             assertThat(combo.getPlaceholder()).isEqualTo("Select MCP servers for tools");
             ChatToolPreferences persisted = this.chatHistoryService.getChatHistory("dyn-conv").toolPreferences();
-            assertThat(persisted.dynamicTools()).isFalse();
+            assertThat(persisted.dynamicTools()).isTrue();
             assertThat(persisted.mcpServerNames().get(McpTransportType.SSE)).containsExactly("dynamic-exit-sse");
         } finally {
             this.mcpServerInfoService.deleteMcpServerInfo(McpTransportType.SSE, "dynamic-exit-sse");
@@ -142,13 +142,13 @@ class ChatConversationReloadTest extends SpringBrowserlessTest {
         return $(MultiSelectComboBox.class, view)
                 .withCondition(combo -> "Access Tools via external MCP connections"
                         .equals(combo.getTooltip().getText()))
-                .first();
+                .single();
     }
 
     private Checkbox dynamicCheckbox(ChatView view) {
         return $(Checkbox.class, view)
                 .withCondition(box -> "Dynamic tool discovery".equals(box.getLabel()))
-                .first();
+                .single();
     }
 
     @Test
@@ -170,11 +170,45 @@ class ChatConversationReloadTest extends SpringBrowserlessTest {
         ListBox<ChatHistory> historyList = $(ListBox.class, view)
                 .withCondition(box -> ((ListBox<Object>) box).getListDataView().getItems()
                         .anyMatch(ChatHistory.class::isInstance))
-                .first();
+                .single();
         ChatHistory target = historyList.getListDataView().getItems()
                 .filter(history -> "reload-conv-b".equals(history.conversationId()))
                 .findFirst().orElseThrow();
         historyList.setValue(target);
+        roundTrip();
+        assertThat(markdownContents(view)).anyMatch(text -> text.contains("beta answer"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void conversationInTheUrlWinsOverTheSelectionRestoredFromBrowserStorage() {
+        long now = System.currentTimeMillis();
+        this.chatHistoryService.putIfAbsentChatHistory(new ChatHistory("pinned-conv-a", "Pinned A", now, now,
+                "sys", (DefaultChatOptions) ChatOptions.builder().build(),
+                () -> List.of(new UserMessage("alpha question"), new AssistantMessage("alpha answer"))));
+        ChatHistory restored = new ChatHistory("pinned-conv-b", "Pinned B", now + 1, now + 1, "sys",
+                (DefaultChatOptions) ChatOptions.builder().build(),
+                () -> List.of(new UserMessage("beta question"), new AssistantMessage("beta answer")));
+        this.chatHistoryService.putIfAbsentChatHistory(restored);
+
+        UI.getCurrent().navigate(ChatView.class, QueryParameters.of("conv", "pinned-conv-a"));
+        roundTrip();
+        ChatView view = (ChatView) getCurrentView();
+        ChatHistoryView historyView = $(ChatHistoryView.class, view).single();
+        historyView.applyRestoredSelection(restored);
+        roundTrip();
+
+        ListBox<ChatHistory> historyList = $(ListBox.class, view)
+                .withCondition(box -> ((ListBox<Object>) box).getListDataView().getItems()
+                        .anyMatch(ChatHistory.class::isInstance))
+                .single();
+        assertThat(historyList.getValue().conversationId()).isEqualTo("pinned-conv-a");
+        assertThat(markdownContents(view)).anyMatch(text -> text.contains("alpha answer"));
+        assertThat(markdownContents(view)).noneMatch(text -> text.contains("beta answer"));
+
+        UI.getCurrent().navigate(ChatView.class);
+        roundTrip();
+        historyView.applyRestoredSelection(restored);
         roundTrip();
         assertThat(markdownContents(view)).anyMatch(text -> text.contains("beta answer"));
     }
@@ -226,16 +260,16 @@ class ChatConversationReloadTest extends SpringBrowserlessTest {
 
         TextArea prompt = $(TextArea.class, view)
                 .withCondition(area -> "Ask Spring AI Playground".equals(area.getPlaceholder()))
-                .first();
+                .single();
         assertThat(prompt.isReadOnly()).isTrue();
         assertThat(prompt.isEnabled()).isFalse();
         assertThat($(Button.class, view)
                 .withCondition(button -> "Submit".equals(button.getTooltip().getText()))
-                .first().isEnabled()).isFalse();
-        assertThat($(SttMicButton.class, view).first().isEnabled()).isFalse();
+                .single().isEnabled()).isFalse();
+        assertThat($(SttMicButton.class, view).single().isEnabled()).isFalse();
         assertThat($(Button.class, view)
-                .withCondition(button -> "Attach image".equals(button.getTooltip().getText()))
-                .first().isEnabled()).isFalse();
+                .withCondition(button -> "Attach images or documents".equals(button.getTooltip().getText()))
+                .single().isEnabled()).isFalse();
     }
 
     private Details panelWithSummary(ChatView view, String title) {

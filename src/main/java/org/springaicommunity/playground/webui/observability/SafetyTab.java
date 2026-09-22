@@ -79,7 +79,7 @@ public class SafetyTab extends BaseDashboardTab {
                         "lifetime — counter saip.risk.signal",
                         "Counter saip.risk.signal grouped by type: server-risk-computed, " +
                                 "tool-publish-risk-computed, floor-override-triggered, hash-ledger-mismatch, " +
-                                "composition-lifecycle, poisoning-hit.",
+                                "hash-ledger-recanonicalized, composition-lifecycle, poisoning-hit.",
                         riskByTypeBar),
                 DashboardLayout.chartCard("Risk level distribution",
                         "lifetime — counter saip.tool.risk",
@@ -87,9 +87,11 @@ public class SafetyTab extends BaseDashboardTab {
                                 "L0 verified · L1 safe · L2 low · L3 moderate · L4 high · L5 critical.",
                         riskLevelBar),
                 DashboardLayout.chartCard("HITL decisions",
-                        "lifetime — counter mcp.hitl.decision",
-                        "Human-in-the-loop approval-gate outcomes from both gates: approved / declined, " +
-                                "plus ask-failed (chat-side) and denied / elicit-failed (MCP-server-side).",
+                        "lifetime - counter mcp.hitl.decision, split by gate",
+                        "Human-in-the-loop approval-gate outcomes per gate. chat = decisions this app's own " +
+                                "approval dialog witnessed; server = decisions an external MCP client asserted " +
+                                "via elicitation. Outcomes: approved / declined / timeout, plus ask-failed " +
+                                "(chat) and denied / elicit-failed (server).",
                         hitlByOutcomeBar),
                 DashboardLayout.chartCard("Sandbox guard blocks",
                         "lifetime — counter sandbox.guard.blocked",
@@ -142,13 +144,13 @@ public class SafetyTab extends BaseDashboardTab {
                 "floor-override-triggered — a risk floor rule forced a higher level");
         hitlApprovalCard.setValue(approvalRate(approved, hitlTotal),
                 hitlTotal == 0 ? "no human-in-the-loop decisions yet"
-                        : approved + " approved of " + hitlTotal + " HITL decisions (lifetime)");
+                        : approved + " approved of " + hitlTotal + " HITL decisions (lifetime, both gates)");
         sandboxBlockCard.setValue(String.valueOf(sandboxBlocks),
                 "Σ sandbox.guard.blocked counter (SSRF + filesystem policy rejections)");
 
         riskByTypeBar.horizontalBarChart(riskByType, DashboardPalette.WARN, 8);
         riskLevelBar.horizontalBarChartInOrder(riskLevelByLevel(snap.mcpToolRiskByLevel), DashboardPalette.PRIMARY);
-        hitlByOutcomeBar.horizontalBarChart(hitl, DashboardPalette.SUCCESS, 6);
+        hitlByOutcomeBar.horizontalBarChart(snap.mcpHitlBySideOutcome, DashboardPalette.SUCCESS, 8);
         sandboxByReasonBar.horizontalBarChart(snap.sandboxGuardBlocked, DashboardPalette.INFO, 8);
 
         setStatus(riskTotal + " risk signals · " + tamper + " tamper · " + poison + " poisoning · "

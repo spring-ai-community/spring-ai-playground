@@ -19,17 +19,17 @@ Spring AI Playground is organized around five product surfaces, designed to be u
 
     Built-in MCP server over Streamable HTTP, external connections via HTTP / SSE / STDIO / OAuth 2.1, a multi-tab Inspector for tools, resources, prompts, and client primitives, and a preset catalog of 58 preset MCP servers (50 vendor-official remote + 8 community stdio) activatable from the sidebar - see the [MCP Catalog directory](default-mcp-catalog/index.md).
 
--   :material-database-search:{ .lg .middle } **[Vector Database](vector-database.md)**
+-   :material-database-search:{ .lg .middle } **[Vector Database and RAG](vector-database.md)**
 
     ---
 
-    Document ingestion, chunking, embedding, storage, and similarity search across Spring AI vector stores - the RAG validation surface.
+    Both halves of RAG made inspectable: Spring AI's ETL pipeline for ingestion (7 document readers, splitter, metadata enrichers) and Modular RAG for retrieval, authored and tested in [Pipeline Studio](rag/pipeline-studio.md) before chat consumes it.
 
 -   :material-chat-processing:{ .lg .middle } **[Agentic Chat](agentic-chat/index.md)**
 
     ---
 
-    Unified runtime that composes tools and RAG context in one conversational interface - chain workflows and agentic tool-use side by side.
+    Unified runtime that composes tools and RAG context in one conversational interface - chain workflows and agentic tool-use side by side. Drop a document on the prompt and it becomes [conversation knowledge](rag/chat-attachments.md), routed by size and registered in the Vector Database with one click.
 
 -   :material-chart-line:{ .lg .middle } **[Observability](observability/index.md)**
 

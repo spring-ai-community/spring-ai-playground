@@ -97,8 +97,10 @@ class McpCompositionToolCallbackProviderTest {
         McpToolHashLedger ledger = new McpToolHashLedger(tempHome, new ObjectMapper(),
                 new CanonicalHasher(new ObjectMapper()), executor, McpRiskSignalSink.NOOP);
         // A rug-pull: the recorded definition changed, leaving the tool awaiting re-review.
-        ledger.checkAndRecord("GitHub", "list_repos", "hash-v1");
-        ledger.checkAndRecord("GitHub", "list_repos", "hash-v2");
+        ledger.checkAndRecord("GitHub", "list_repos",
+                new CanonicalHasher.ContentDigest(CanonicalHasher.MCP_TOOL_SCHEME, "hash-v1"));
+        ledger.checkAndRecord("GitHub", "list_repos",
+                new CanonicalHasher.ContentDigest(CanonicalHasher.MCP_TOOL_SCHEME, "hash-v2"));
 
         McpServerInfo info = new McpServerInfo(McpTransportType.STDIO, "GitHub", "", 0L, 0L, "{}");
         McpCompositionService composition = mock(McpCompositionService.class);

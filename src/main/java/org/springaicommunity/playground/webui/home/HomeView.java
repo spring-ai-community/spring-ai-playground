@@ -30,7 +30,7 @@ import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.service.tool.ToolActivationCalculator;
 import org.springaicommunity.playground.service.tool.ToolSpecPersistenceService;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
-import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentService;
+import org.springaicommunity.playground.service.vectorstore.OfflineEtlPipelineService;
 import org.springaicommunity.playground.webui.SpringAiPlaygroundAppLayout;
 import org.springaicommunity.playground.webui.common.ContentWorkspaceView;
 import org.springframework.ai.chat.model.ChatModel;
@@ -52,7 +52,7 @@ public class HomeView extends ContentWorkspaceView {
             McpServerInfoService mcpServerInfoService,
             McpClientService mcpClientService,
             McpCatalogService mcpCatalogService,
-            VectorStoreDocumentService vectorStoreDocumentService,
+            OfflineEtlPipelineService offlineEtlPipelineService,
             ChatHistoryService chatHistoryService,
             ToolSpecPersistenceService toolSpecPersistenceService,
             ToolActivationCalculator toolActivationCalculator,
@@ -66,7 +66,7 @@ public class HomeView extends ContentWorkspaceView {
         configureSidebar(new HomeItemView(), "Links");
         setHeaderLabel("Welcome");
         setContent(new HomeInfoView(toolSpecService, mcpServerInfoService, mcpClientService, mcpCatalogService,
-                vectorStoreDocumentService, chatHistoryService, toolSpecPersistenceService, toolActivationCalculator,
+                offlineEtlPipelineService, chatHistoryService, toolSpecPersistenceService, toolActivationCalculator,
                 chatModelProvider, embeddingModelProvider, embeddingOptions,
                 observabilityTimeSeries, systemMetricsSnapshot, mcpRiskEventRingBuffer, environment));
     }

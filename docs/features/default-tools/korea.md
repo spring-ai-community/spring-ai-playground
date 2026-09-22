@@ -1,16 +1,16 @@
-description: Default Tools - Korea reference. 21 Korea-locale tools - Upbit, Bithumb, Naver, Kakao, KMA, KOFIC, KRX, data.go.kr keychain.
+description: Default Tools - Korea reference. 22 Korea-locale tools - Upbit, Bithumb, Naver, Kakao, KMA, KOFIC, KRX, data.go.kr keychain.
 
 # Default Tools - Korea
 
-The 21 tools in `default-tool-specs-kr.json` are **Korea-locale services** - crypto exchanges (Upbit, Bithumb), search and local discovery (Naver, Kakao, K-pop iTunes, K-beauty, Korea Tourism), government open-data services (data.go.kr keychain, Seoul Open Data Plaza), and Korea-specific finance and disaster feeds (KAMIS, KOFIC, KRX, MOLIT, MFDS, MOIS).
+The 22 tools in `default-tool-specs-kr.json` are **Korea-locale services** - crypto exchanges (Upbit, Bithumb), search and local discovery (Naver, Kakao, K-pop iTunes, K-beauty, Korea Tourism), government open-data services (data.go.kr keychain, Seoul Open Data Plaza), and Korea-specific finance and disaster feeds (KAMIS, KOFIC, KRX, MOLIT, MFDS, MOIS).
 
 Most return **Korean text in their response payloads** - names, addresses, codenames - so a chat agent calling them should be locale-aware. Eight are no-key (Upbit endpoints, Bithumb endpoints, iTunes K-pop, Open Beauty Facts), the other thirteen need provider-issued keys. Provider keys live in the tool's static variables as `${ENV_VAR}` placeholders that resolve at runtime from the JVM environment - they are not committed to the spec.
 
 Like the global network tools, every fetch runs through [the SSRF four-layer guard](../tool-studio/index.md#ssrf-four-layer-guard) in the default host-`allowlist` egress mode.
 
-## Browse the 21 services { #browse-the-services }
+## Browse the 22 services { #browse-the-services }
 
-Crypto markets (6, no key) · Search & local (5, mixed) · Finance & data (4, mixed) · Weather & disaster (3, mixed) · Government dispatcher (2 + 1 generic). All run at sandbox **L3** with host-`allowlist` egress.
+Crypto markets (6, no key) · Search & local (5, mixed) · Finance & data (4, mixed) · Weather & disaster (3, mixed) · Road safety (1, key) · Government dispatcher (2 + 1 generic). All run at sandbox **L3** with host-`allowlist` egress.
 
 <div class="tcg-grid" markdown>
 
@@ -630,16 +630,13 @@ AirKorea (data.go.kr) real-time air quality readings by Korean province (KR; dat
 
 ```javascript
 /**
- * AirKorea - 시도별 실시간 대기질 (PM10/PM2.5/O3/...) (KR; requires data.go.kr key).
+ * AirKorea - real-time provincial air quality (PM10/PM2.5/O3/...) (KR; requires data.go.kr key).
  *
  * GET http://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getCtprvnRltmMesureDnsty
  *     ?sidoName={sido}&pageNo=1&numOfRows=100&returnType=json&serviceKey={key}&ver=1.3
  *
  * Credential lives in staticVariables - `${DATA_GO_KR_AIR_KEY}` by default.
  * Issue a serviceKey at https://www.data.go.kr/data/15073861/openapi.do.
- *
- * `sidoName` is the Korean province name: 전국 | 서울 | 부산 | 대구 | 인천 | 광주 | 대전 |
- *   울산 | 경기 | 강원 | 충북 | 충남 | 전북 | 전남 | 경북 | 경남 | 제주 | 세종.
  *
  * NOTE: data.go.kr endpoints are HTTP not HTTPS - included in the allowlist.
  *       data.go.kr returns HTTP 200 with an error envelope when the serviceKey
@@ -697,7 +694,6 @@ return {
   totalCount:  body.totalCount,
   stations:    items,
 };
-
 ```
 
 </details>
@@ -931,7 +927,7 @@ Korea Tourism Organization TourAPI 4.0 keyword search - tourist spots, cultural 
 
 ```javascript
 /**
- * Korea TourAPI 4.0 - 한국관광공사 키워드 검색 (KR; requires data.go.kr key).
+ * Korea TourAPI 4.0 - Korea Tourism Organization keyword search (KR; requires data.go.kr key).
  *
  * GET http://apis.data.go.kr/B551011/KorService2/searchKeyword2
  *     ?serviceKey={KEY}&keyword=경복궁&areaCode=&sigunguCode=&contentTypeId=
@@ -939,18 +935,6 @@ Korea Tourism Organization TourAPI 4.0 keyword search - tourist spots, cultural 
  *
  * Credential lives in staticVariables - `${DATA_GO_KR_TOUR_KEY}` by default.
  * Issue a serviceKey at https://www.data.go.kr/data/15101578/openapi.do.
- *
- * Optional filters:
- *   areaCode        서울=1, 인천=2, 대전=3, 대구=4, 광주=5, 부산=6, 울산=7, 세종=8,
- *                   경기=31, 강원=32, 충북=33, 충남=34, 경북=35, 경남=36, 전북=37,
- *                   전남=38, 제주=39.
- *   sigunguCode     시·군·구 코드. areaCode와 함께 사용. 대표 값:
- *                     전북(37) → 전주=12, 군산=11, 익산=14, 남원=15
- *                     경북(35) → 경주=2,  안동=1,  포항=23
- *                     제주(39) → 제주시=4, 서귀포시=5
- *                   (광역시는 sigungu 불필요)
- *   contentTypeId   관광지=12, 문화시설=14, 축제공연행사=15, 여행코스=25,
- *                   레포츠=28, 숙박=32, 쇼핑=38, 음식점=39.
  */
 
 if (keyword == null || keyword === '') throw new Error('keyword required');
@@ -1016,7 +1000,6 @@ return {
   numOfRows:    body.numOfRows,
   items:        items,
 };
-
 ```
 
 </details>
@@ -1055,16 +1038,16 @@ Seoul Open Data Plaza (data.seoul.go.kr) cultural events search (KR; separate ke
 
 ```javascript
 /**
- * Seoul Open Data Plaza - 서울시 문화행사 정보 (KR; requires Seoul Open API key,
+ * Seoul Open Data Plaza - Seoul cultural events listing (KR; requires Seoul Open API key,
  * issued separately from data.go.kr).
  *
  * URL is positional (path-segment style):
  *   http://openapi.seoul.go.kr:8088/{KEY}/json/culturalEventInfo/{START}/{END}
  *      /{CODENAME}/{TITLE}/{DATE}
  *
- * - CODENAME: optional 분류 (예: '뮤지컬', '전시/미술', '국악', '콘서트')
- * - TITLE:    optional 제목 부분 일치
- * - DATE:     optional 'YYYY-MM-DD' - 해당 날짜에 진행되는 행사만
+ * - CODENAME: optional category, e.g. '뮤지컬', '전시/미술', '국악', '콘서트'
+ * - TITLE:    optional title substring match
+ * - DATE:     optional 'YYYY-MM-DD' - only events active on that date
  *
  * Empty trailing params are simply omitted. Issue a key at
  * https://data.seoul.go.kr/together/apikey.do (free; 1,000 req/day).
@@ -1129,7 +1112,6 @@ return {
   totalCount: svc.list_total_count,
   events:     events,
 };
-
 ```
 
 </details>
@@ -1169,7 +1151,7 @@ KAMIS agricultural product wholesale/retail prices - daily price data operated b
 
 ```javascript
 /**
- * KAMIS - 한국농수산식품유통공사 농산물 도·소매 가격 조회 (KR; cert_id + cert_key 필요).
+ * KAMIS - Korea Agro-Fisheries Trade Corp wholesale/retail crop prices (KR; requires cert_id + cert_key).
  *
  * GET http://www.kamis.or.kr/service/price/xml.do?action=periodProductList
  *     &p_cert_key={KEY}&p_cert_id={ID}&p_returntype=json
@@ -1178,16 +1160,6 @@ KAMIS agricultural product wholesale/retail prices - daily price data operated b
  *
  * Credentials live in staticVariables - `${KAMIS_CERT_ID}` and `${KAMIS_CERT_KEY}` by default.
  * Sign up at https://www.kamis.or.kr/customer/reference/openapi_list.do (free).
- *
- * Codes (a small subset):
- *   p_productclscode    01=소매, 02=도매
- *   p_itemcategorycode  100=식량작물, 200=채소류, 300=특용작물, 400=과일류,
- *                       500=축산물, 600=수산물
- *   p_itemcode          품목 코드. 자주 쓰는 예:
- *                         식량 111=쌀, 112=찹쌀, 113=현미
- *                         채소 211=배추, 215=상추, 226=양파, 233=양배추
- *                         과일 411=사과, 412=배, 418=포도, 422=감귤
- *                         축산 514=한우(등심), 515=돼지(삼겹)
  */
 
 if (itemCode == null || itemCode === '') throw new Error('itemCode required (KAMIS 품목 코드)');
@@ -1250,7 +1222,6 @@ return {
   count:        rows.length,
   rows:         rows,
 };
-
 ```
 
 </details>
@@ -1288,15 +1259,10 @@ KOFIC (Korean Film Council) daily box-office ranking (KR; single API key require
 
 ```javascript
 /**
- * KOFIC - 영화진흥위원회 일별 박스오피스 순위 (KR; single API key, lightweight signup).
+ * KOFIC - Korea Film Council daily box-office ranking (KR; single API key, lightweight signup).
  *
  * GET http://www.kobis.or.kr/kobisopenapi/webservice/rest/boxoffice/searchDailyBoxOfficeList.json
  *     ?key={KEY}&targetDt=20260512
- *
- * Optional filters:
- *   multiMovieYn  Y=다양성영화만 / N=상업영화만 (omit for both)
- *   repNationCd   K=한국영화 / F=외국영화 (omit for both)
- *   wideAreaCd    상영지역 코드 (omit for 전국)
  *
  * Issue a key at https://www.kobis.or.kr/kobisopenapi/ (free, immediate).
  */
@@ -1354,7 +1320,6 @@ return {
   count:       rows.length,
   movies:      rows,
 };
-
 ```
 
 </details>
@@ -1395,22 +1360,22 @@ KRX Korea Exchange daily stock quotes (data.go.kr) - KOSPI/KOSDAQ/KONEX daily op
 
 ```javascript
 /**
- * KRX 주식시세정보 via data.go.kr (KR; data.go.kr serviceKey 필요).
+ * KRX stock quotes via data.go.kr (KR; requires data.go.kr serviceKey).
  *
  * GET http://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService/getStockPriceInfo
  *     ?serviceKey={KEY}&numOfRows=10&pageNo=1&resultType=json
  *     &basDt=20260512&itmsNm=삼성전자
  *
  * Why this and not KIS API?
- *   KIS(한국투자증권 OpenAPI)는 OAuth 토큰 발급 후 Bearer 호출 방식이라 stateless 툴
- *   호출에는 비효율적입니다(매 호출 토큰 새로 발급 → 일일 한도 소모). data.go.kr KRX
- *   엔드포인트는 다른 data.go.kr 툴과 동일한 단일 serviceKey 패턴이고, 일·종목별
- *   시세를 깔끔하게 돌려줍니다.
+ *   KIS (Korea Investment OpenAPI) requires an OAuth token + Bearer call per request,
+ *   which is inefficient for stateless tools (each call burns the daily token quota).
+ *   The data.go.kr KRX endpoint uses the same single-serviceKey pattern as the other
+ *   data.go.kr tools and returns clean per-day, per-symbol quotes.
  *
- * 필터: `basDt`(영업일, YYYYMMDD), `itmsNm`(종목명), `likeItmsNm`(부분일치),
- *       `srtnCd`(단축종목코드, 예: 005930), `mrktCls`(KOSPI/KOSDAQ/KONEX).
+ * Filters: `basDt` (trading day, YYYYMMDD), `itmsNm` (issue name), `likeItmsNm` (substring),
+ *          `srtnCd` (short issue code, e.g. 005930), `mrktCls` (KOSPI/KOSDAQ/KONEX).
  *
- * data.go.kr에서 `금융위원회_주식시세정보` 서비스를 별도 신청 후 serviceKey를 받습니다
+ * Request the `금융위원회_주식시세정보` dataset on data.go.kr to obtain the serviceKey.
  * (https://www.data.go.kr/data/15094808/openapi.do).
  */
 
@@ -1479,7 +1444,6 @@ return {
   numOfRows:  num(body.numOfRows),
   items:      items,
 };
-
 ```
 
 </details>
@@ -1521,14 +1485,14 @@ data.go.kr generic dispatcher - calls arbitrary data.go.kr services not covered 
  * GET http://apis.data.go.kr/{servicePath}?serviceKey={KEY}&{...query}
  *
  * Inputs:
- *   - servicePath  : path under apis.data.go.kr (예: '1160100/service/.../getStockPriceInfo').
+ *   - servicePath  : path under apis.data.go.kr (e.g. '1160100/service/.../getStockPriceInfo').
  *                    Must NOT include the scheme or host.
  *   - query        : object of extra query parameters
- *                    (예: { pageNo: 1, numOfRows: 10, basDt: '20260512', itmsNm: '삼성전자' })
+ *                    (e.g. { pageNo: 1, numOfRows: 10, basDt: '20260512', itmsNm: '삼성전자' })
  *   - serviceKey   : data.go.kr serviceKey (from staticVariable / env-backed `${DATA_GO_KR_KEY}`).
  *
  * Each service on data.go.kr requires its own approval - the same physical
- * serviceKey is reused, but the developer must have "신청" the dataset.
+ * serviceKey is reused, but the developer must have signed up for ("신청") the dataset.
  *
  * Output envelope:
  *   - success: { ok:true, totalCount, pageNo, numOfRows, items, raw }
@@ -1590,7 +1554,6 @@ return {
   items:      items || null,
   raw:        d,
 };
-
 ```
 
 </details>
@@ -1630,22 +1593,17 @@ KMA short-term weather forecast - hourly forecast for the next ~72 hours by lat/
 
 ```javascript
 /**
- * 기상청(KMA) 단기예보 (KR; requires data.go.kr serviceKey).
+ * KMA (Korea Meteorological Administration) short-term forecast (KR; requires data.go.kr serviceKey).
  *
  * GET http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst
  *     ?serviceKey={KEY}&pageNo=1&numOfRows=1000&dataType=JSON
  *     &base_date=20260513&base_time=0500&nx=60&ny=127
  *
- * 좌표 입력 방식 (둘 중 하나):
- *   (1) latitude + longitude  - 위경도 (WGS84) → 내부에서 KMA Lambert Conformal Conic
- *       격자 (nx, ny)로 변환
- *   (2) nx + ny               - KMA 격자 좌표 (예: 서울 60,127 / 부산 98,76 / 제주 52,38)
+ * If base_date/base_time are omitted, the 0500 issuance for today is used. KMA issues
+ * at 02/05/08/11/14/17/20/23 and data is available ~30 min after each issuance.
  *
- * base_date/base_time 미지정 시 오늘 0500 발표분. KMA는 02/05/08/11/14/17/20/23시
- * 발표하며 데이터는 발표 ~30분 후 가용.
- *
- * 응답은 (fcstDate, fcstTime) 단위로 pivot되어 시간슬롯별 한 행으로 정리됩니다.
- * 컬럼: temp(℃), humidity(%), precipProbability(%), precipType, precipAmount,
+ * The response is pivoted by (fcstDate, fcstTime) so each time slot is one row.
+ * Columns: temp(℃), humidity(%), precipProbability(%), precipType, precipAmount,
  *       skyCondition, windSpeed(m/s), windDirection(deg).
  */
 
@@ -1752,7 +1710,6 @@ return {
   count:     forecasts.length,
   forecasts: forecasts,
 };
-
 ```
 
 </details>
@@ -1790,21 +1747,12 @@ MOLIT (Ministry of Land, Infrastructure & Transport) apartment sale transactions
 
 ```javascript
 /**
- * 국토교통부 아파트 매매 실거래가 (KR; data.go.kr serviceKey 필요).
+ * MOLIT apartment sale transaction records (KR; requires data.go.kr serviceKey).
  *
  * GET http://apis.data.go.kr/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev
  *     ?serviceKey={KEY}&LAWD_CD=11680&DEAL_YMD=202604&pageNo=1&numOfRows=100
  *
- * LAWD_CD = 5자리 법정동 시군구 코드 (도로명 X). 자주 쓰는 값:
- *   강남구 11680, 서초구 11650, 송파구 11710, 마포구 11440, 성동구 11200,
- *   영등포구 11560, 용산구 11170, 종로구 11110, 중구 11140,
- *   해운대구(부산) 26350, 수영구(부산) 26410,
- *   분당구(성남) 41135, 일산동구(고양) 41281,
- *   제주시 50110, 서귀포시 50130.
- *
- * DEAL_YMD = 거래연월 YYYYMM (필수).
- *
- * data.go.kr 에서 `국토교통부_아파트매매 실거래자료` 신청 후 serviceKey 사용.
+ * Request the `국토교통부_아파트매매 실거래자료` dataset on data.go.kr to obtain the serviceKey.
  */
 
 if (lawdCode == null || lawdCode === '') throw new Error('lawdCode required (5자리 법정동 시군구 코드)');
@@ -1849,14 +1797,14 @@ const items = itemsRaw.map(t => ({
   dealYear:     num(t.dealYear || t.년),
   dealMonth:    num(t.dealMonth || t.월),
   dealDay:      num(t.dealDay   || t.일),
-  dealAmount:   num(t.dealAmount || t.거래금액),   // 단위: 만원
-  excluUseAr:   num(t.excluUseAr || t.전용면적),   // 단위: ㎡
+  dealAmount:   num(t.dealAmount || t.거래금액),   // unit: 10000 KRW
+  excluUseAr:   num(t.excluUseAr || t.전용면적),   // unit: m^2
   floor:        num(t.floor      || t.층),
   buildYear:    num(t.buildYear  || t.건축년도),
   umdNm:        t.umdNm || t.법정동,
   jibun:        t.jibun || t.지번,
   roadName:     t.roadNm || t.도로명,
-  dealingType:  t.dealingGbn || t.거래유형,        // 중개 / 직거래
+  dealingType:  t.dealingGbn || t.거래유형,        // brokered / direct
 }));
 
 return {
@@ -1867,7 +1815,6 @@ return {
   numOfRows:  body.numOfRows,
   items:      items,
 };
-
 ```
 
 </details>
@@ -1906,16 +1853,16 @@ MFDS (Ministry of Food & Drug Safety) drug product approval search (KR; data.go.
 
 ```javascript
 /**
- * 식약처 의약품 품목허가 정보 검색 (KR; data.go.kr serviceKey 필요).
+ * MFDS drug item license search (KR; requires data.go.kr serviceKey).
  *
  * GET http://apis.data.go.kr/1471000/MdcinPrductPrmsnInfoService02/getMdcinPrductItem02
  *     ?serviceKey={KEY}&type=json&pageNo=1&numOfRows=10
  *     &item_name=타이레놀&entp_name=&item_seq=
  *
- * 한 가지 이상의 검색 조건 필요: `itemName`(품목명, 부분일치),
- * `entpName`(업체명), `itemSeq`(품목 시퀀스코드).
+ * At least one search filter is required: `itemName` (product name, substring),
+ * `entpName` (manufacturer), `itemSeq` (item sequence code).
  *
- * data.go.kr 에서 `식품의약품안전처_의약품 품목허가 정보` 신청 후 serviceKey 사용.
+ * Request the `식품의약품안전처_의약품 품목허가 정보` dataset on data.go.kr to obtain the serviceKey.
  */
 
 
@@ -1977,7 +1924,6 @@ return {
   numOfRows:  body.numOfRows,
   items:      items,
 };
-
 ```
 
 </details>
@@ -2016,14 +1962,14 @@ MOIS (Ministry of the Interior & Safety) emergency disaster-alert SMS history (K
 
 ```javascript
 /**
- * 행정안전부 재난문자 발송 내역 (KR; data.go.kr serviceKey 필요).
+ * MOIS emergency disaster-text broadcast history (KR; requires data.go.kr serviceKey).
  *
  * GET http://apis.data.go.kr/1741000/DisasterMsg3/getDisasterMsg1List
  *     ?serviceKey={KEY}&pageNo=1&numOfRows=20&type=json
  *     &fromTm=20260512&toTm=20260513&location_name=서울특별시
  *
- * data.go.kr 에서 `행정안전부_긴급재난문자` 서비스 신청 후 serviceKey 사용.
- * `area`(지역명 부분일치)와 `fromDate`/`toDate`(YYYYMMDD)는 모두 선택.
+ * Request the `행정안전부_긴급재난문자` dataset on data.go.kr to obtain the serviceKey.
+ * `area` (region substring) and `fromDate` / `toDate` (YYYYMMDD) are all optional.
  */
 
 
@@ -2072,7 +2018,118 @@ return {
   numOfRows:  body.numOfRows,
   items:      items,
 };
+```
 
+</details>
+
+</div>
+</div>
+
+<div class="tcg-card t-koroad tcg-card--clickable" id="getTrafficAccidentHotspots" data-tool-id="getTrafficAccidentHotspots" data-tool-title="getTrafficAccidentHotspots" markdown>
+<div class="tcg-name"><span class="tcg-name__text">getTrafficAccidentHotspots</span> <span class="cost">🔑 × 1</span></div>
+<div class="tcg-art" markdown>:material-map-marker-alert:</div>
+<div class="tcg-type">web · korea · geo <span class="risk risk-l3">L3</span></div>
+<div class="tcg-body" markdown>
+KoROAD (Korea Road Traffic Authority) traffic-accident hotspot zones for one municipality (KR; data.go.kr serviceKey required). Register the `한국도로교통공단_지자체별 교통사고 다발지역` service at data.go.kr, receive a serviceKey, and set DATA_GO_KR_TRAFFIC_KEY on the tool's staticVariables, or inject as env var. `lawdCode` is the 5-digit legal-dong city/county code, the same code getApartmentTradePrice takes. Examples: Gangnam=11680, Seocho=11650, Songpa=11710, Seongdong=11200, Haeundae=26350, Jeju City=50110. The service publishes only the top 3 hotspots per municipality and the newest year lags about 18 months, so an omitted `year` walks backwards until rows appear. Each spot carries WGS84 coordinates, so results feed plotPointsOnMap directly. Returns: { lawdCode, year, totalCount, spots:[{ spotName, accidents, casualties, deaths, seriousInjuries, minorInjuries, reportedInjuries, lat, lng }] }.
+</div>
+<div class="tcg-stats" markdown>
+<div class="tcg-stats__line" markdown>**Params** &nbsp; `lawdCode` · `year` · `numOfRows`</div>
+<div class="tcg-stats__line" markdown>**Env** &nbsp; &nbsp; &nbsp; `DATA_GO_KR_TRAFFIC_KEY`</div>
+</div>
+<div class="tcg-cta">Click for full reference · params · sandbox · JS source</div>
+<div class="tcg-detail-template" hidden markdown>
+
+**Parameters**
+
+| Param | Type | Req | Description |
+|---|---|---|---|
+| `lawdCode` | `STRING` | ✓ | 5-digit legal-dong city/county code (Gangnam=11680, Haeundae=26350, ...) |
+| `year` | `STRING` |  | Statistics year YYYY (e.g. 2024). Omit for the newest year that has data |
+| `numOfRows` | `STRING` |  | Results per page (1-100, default 10) |
+
+**Sandbox** - **L3** (Scoped widening) - `fetch` allowlisted to `apis.data.go.kr` (SSRF-guarded); no filesystem.
+
+<details class="tcg-sysprompt" markdown>
+<summary>JS source</summary>
+
+```javascript
+/**
+ * KoROAD accident hotspot zones by municipality (KR; requires data.go.kr serviceKey).
+ *
+ * GET https://apis.data.go.kr/B552061/frequentzoneLg/getRestFrequentzoneLg
+ *     ?serviceKey={KEY}&searchYearCd=2024&siDo=11&guGun=680&type=json&numOfRows=10&pageNo=1
+ *
+ * Request the `한국도로교통공단_지자체별 교통사고 다발지역` dataset on data.go.kr for the serviceKey.
+ *
+ * NOTE: the service splits the 5-digit legal-dong sigungu code - siDo is the first 2 digits,
+ *       guGun the last 3 (성동구 11200 -> 11 / 200). That mapping is absent from the published
+ *       spec and was derived against the live service, so `lawdCode` stays consistent with
+ *       getApartmentTradePrice instead of exposing two opaque codes.
+ *       Only the top 3 hotspots per municipality are published and the newest year lags
+ *       roughly 18 months, so an omitted `year` walks backwards until a year returns rows.
+ */
+
+if (lawdCode == null || lawdCode === '') throw new Error('lawdCode required (5자리 법정동 시군구 코드)');
+
+const code = String(lawdCode).trim();
+if (!/^\d{5}$/.test(code)) throw new Error('lawdCode must be 5 digits');
+
+const rows = (numOfRows == null || numOfRows === '') ? 10 : Math.max(1, Math.min(100, parseInt(numOfRows, 10)));
+
+const asked = (year == null || year === '') ? null : String(year).trim().slice(0, 4);
+const thisYear = new Date().getFullYear();
+const years = asked ? [asked] : [String(thisYear - 1), String(thisYear - 2), String(thisYear - 3)];
+
+const num = v => v == null || v === '' ? null : Number(String(v).replace(/,/g, '').trim());
+
+for (const y of years) {
+  const url = 'https://apis.data.go.kr/B552061/frequentzoneLg/getRestFrequentzoneLg'
+            + '?serviceKey='   + encodeURIComponent(dataGoKrTrafficKey)
+            + '&searchYearCd=' + y
+            + '&siDo='         + code.slice(0, 2)
+            + '&guGun='        + code.slice(2)
+            + '&type=json'
+            + '&numOfRows='    + rows
+            + '&pageNo=1';
+
+  const resp = await fetch(url, {
+    headers: { 'Accept': 'application/json' },
+    maxLength: 3_000_000,
+  });
+  if (!resp.ok) return { success: false, status: resp.status, message: resp.text() };
+
+  const d = resp.json();
+  if (d && d.OpenAPI_ServiceResponse) {
+    const hdr = d.OpenAPI_ServiceResponse.cmmMsgHeader || {};
+    return {
+      success: false, status: hdr.returnReasonCode || 'unknown',
+      message: hdr.returnAuthMsg || hdr.errMsg || 'accident-hotspot service error',
+    };
+  }
+
+  let itemsRaw = (d.items && d.items.item) || [];
+  if (itemsRaw && !Array.isArray(itemsRaw) && typeof itemsRaw === 'object') itemsRaw = [itemsRaw];
+  if (itemsRaw.length === 0) continue;
+
+  return {
+    lawdCode:   code,
+    year:       y,
+    totalCount: d.totalCount,
+    spots: itemsRaw.map(s => ({
+      spotName:         s.spot_nm,
+      accidents:        num(s.occrrnc_cnt),
+      casualties:       num(s.caslt_cnt),
+      deaths:           num(s.dth_dnv_cnt),
+      seriousInjuries:  num(s.se_dnv_cnt),
+      minorInjuries:    num(s.sl_dnv_cnt),
+      reportedInjuries: num(s.wnd_dnv_cnt),
+      lat:              num(s.la_crd),
+      lng:              num(s.lo_crd),
+    })),
+  };
+}
+
+return { lawdCode: code, year: null, totalCount: 0, spots: [] };
 ```
 
 </details>
@@ -2096,7 +2153,7 @@ The Korea bundle is heavier on data sources, so most chains are *Korean source �
 
 ## Keys & secrets
 
-Eight of the 21 are no-key (Upbit, Bithumb, iTunes K-pop, Open Beauty Facts - see the cost badges on each card). The other thirteen pull from six keychains.
+Eight of the 22 are no-key (Upbit, Bithumb, iTunes K-pop, Open Beauty Facts - see the cost badges on each card). The other fourteen pull from six keychains.
 
 ### Naver Open APIs
 
@@ -2128,7 +2185,7 @@ Eight of the 21 are no-key (Upbit, Bithumb, iTunes K-pop, Open Beauty Facts - se
 |---|---|---|
 | `getKoficBoxOffice` | `KOFIC_API_KEY` | [kobis.or.kr/kobisopenapi/](https://www.kobis.or.kr/kobisopenapi/) - instant issuance |
 
-### data.go.kr keychain (8 services)
+### data.go.kr keychain (9 services)
 
 `data.go.kr` issues one keystring per service registration even when the value happens to be the same across services. Each tool below needs its **own** service registration; the env var name distinguishes them:
 
@@ -2141,6 +2198,7 @@ Eight of the 21 are no-key (Upbit, Bithumb, iTunes K-pop, Open Beauty Facts - se
 | `getApartmentTradePrice` | `DATA_GO_KR_APT_KEY` | [data.go.kr/data/15126468/openapi.do](https://www.data.go.kr/data/15126468/openapi.do) - MOLIT apartment-trade transactions (detailed) |
 | `searchKoreaDrugInfo` | `DATA_GO_KR_DRUG_KEY` | [data.go.kr/data/15095677/openapi.do](https://www.data.go.kr/data/15095677/openapi.do) - MFDS drug-product approval |
 | `getKoreaEmergencyAlerts` | `DATA_GO_KR_DISASTER_KEY` | [data.go.kr/data/15134001/openapi.do](https://www.data.go.kr/data/15134001/openapi.do) - MOIS emergency disaster alerts |
+| `getTrafficAccidentHotspots` | `DATA_GO_KR_TRAFFIC_KEY` | [data.go.kr/data/15057467/openapi.do](https://www.data.go.kr/data/15057467/openapi.do) - KoROAD accident hotspots by municipality |
 | `callDataGoKrOpenApi` | `DATA_GO_KR_KEY` | [data.go.kr/tcs/dss/selectDataSetList.do?dType=API](https://www.data.go.kr/tcs/dss/selectDataSetList.do?dType=API) - generic dispatcher; pick any other data.go.kr service from the API catalog |
 
 The launcher's **Environment Variables** card is the recommended place to set the whole keychain at once. Each `${ENV_VAR}` placeholder on the tool's static variables resolves at runtime from the JVM environment; the resolved string is masked from `console.log` whenever it appears in the trace.

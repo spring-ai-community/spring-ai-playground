@@ -6,7 +6,7 @@ description: Agentic Chat - one local runtime combining documents, tools, models
 
 Agentic Chat is the unified runtime where Spring AI Playground combines documents, tools, models, and conversation state. It is also where everything you assemble elsewhere - system prompts, built-in and authored tools, proxied MCP servers, and indexed documents - comes together as the live context for a single conversation.
 
-![Agentic Chat workspace - the conversation area above the prompt input, with the reasoning, built-in tool, external MCP, and RAG document selectors on the selector row and the New Chat, Export, Prompt Library, and Settings actions in the header](../../assets/images/chat/chat-overview.png){ width="1500" }
+![Agentic Chat workspace - the conversation area above the prompt input, with the reasoning, built-in tool, external MCP, and RAG source selectors on the selector row and the New Chat, Export, Prompt Library, and Settings actions in the header](../../assets/images/chat/chat-overview.png){ width="1500" }
 
 This unified interface lets you:
 
@@ -20,7 +20,7 @@ This unified interface lets you:
 
 ## Key Features
 
-- document selection for RAG grounding
+- RAG source selection for grounding - a saved retrieval pipeline or a single indexed document
 - MCP connection selection for tool-enabled execution
 - manual tool selection or **dynamic tool discovery** - the model searches a large catalog on demand
 - per-turn reasoning effort and provider-aware generation options
@@ -36,7 +36,7 @@ The screen has three regions:
 
 - **Header actions** (top right): **New Chat**, **Export conversation** (download icon), **Prompt Library** (clipboard icon), and the **Settings** cog - the cog stays the right-most action, an app-wide convention.
 - **Conversation area**: the running exchange. User turns render as plain text; assistant turns render as Markdown and carry collapsible process panels (THINK, MCP TOOLS, RAG) when those stages run.
-- **Selector row + prompt input** (bottom): the reasoning control and the tool and document selectors sit directly above the text box, so what the model can reach is always one glance from where you type.
+- **Selector row + prompt input** (bottom): the reasoning control and the tool and RAG source selectors sit directly above the text box, so what the model can reach is always one glance from where you type.
 
 ## Composing a request
 
@@ -48,7 +48,7 @@ The lightbulb dropdown on the selector row sets how hard the model thinks on the
 
 The control is provider-aware and only appears for models that support it. The level maps to each provider's own knobs - on OpenAI it becomes `reasoning_effort`; on Ollama it toggles thinking and its depth. `Off` sends no reasoning option at all, which is the safe default for non-reasoning models. See [Context Engineering → Reasoning effort](../../context-engineering-architecture.md#reasoning-effort) for the mapping.
 
-### Choosing tools and documents
+### Choosing tools and a RAG source
 
 The **tools** icon on the selector row opens the tool popover. It is the per-chat switch for what the agent may call, and it offers two mutually exclusive ways to decide:
 
@@ -60,17 +60,21 @@ The **tools** icon on the selector row opens the tool popover. It is the per-cha
     - **Built-in tools** - the Local-Passed built-in tools; tick which ones this chat may call.
     - **Composed external tools** - tools re-exposed from connected external MCP servers, each risk-scored and human-in-the-loop governed.
 
-Ticking one mode unticks the other. Beside the popover, the **MCP servers** selector picks which connected external servers feed the chat - it reads **No MCP servers connected** until you connect one, and **Disabled in Dynamic mode** while discovery handles tools - and the **document** selector enables [Vector Database](../vector-database.md) collections for RAG grounding. All of these selections are remembered per conversation.
+Ticking one mode unticks the other. Beside the popover, the **MCP servers** selector picks which connected external servers feed the chat - it reads **No MCP servers connected** until you connect one, and **Select MCP servers for tools** once a server is connected. It is independent of the two modes above: a selected server's tools are bound to the chat directly, and while Dynamic tool discovery is on they also join the searchable set. The **RAG source** selector grounds the conversation, taking one source at a time: either a saved retrieval pipeline (its row shows the stage count and the extra LLM calls it costs) or a single indexed document (`retrieval only`). See [Runtime: RAG in Chat](../rag/runtime.md). All of these selections are remembered per conversation.
 
 ### Dynamic tool discovery { #dynamic-tool-discovery }
 
-By default a chat sends the model the full schema of every tool you expose - fine for a handful, but a broad agent setup can push **tens of thousands of tokens of definitions into every turn**. **Dynamic tool discovery** removes that cost: the chat hands the model a single `toolSearchTool`, and the model searches the catalog on demand instead of receiving every definition up front. Tick it at the top of the tool popover (the exposed-tools box then reads **Dynamic — searching all tools**); it stays disabled until the searchable pool clears the `tool-search.min-tools` floor (default 10), so add more in [Tool Studio](../tool-studio/index.md) if it is greyed out.
+By default a chat sends the model the full schema of every tool you expose - fine for a handful, but a broad agent setup can push **tens of thousands of tokens of definitions into every turn**. **Dynamic tool discovery** removes that cost: the chat hands the model a single `toolSearchTool`, and the model searches the catalog on demand instead of receiving every definition up front. Tick it at the top of the tool popover (the exposed-tools box then reads **Dynamic - searching all tools**); it stays disabled until the searchable pool clears the `tool-search.min-tools` floor (default 10), so add more in [Tool Studio](../tool-studio/index.md) if it is greyed out.
 
 It is also how the built-in **[Self-equipping agent](prompt-presets.md)** preset works. For the full picture - why it matters for agents, the 34-64% token-savings experiment behind it, how it lets a small local model drive a large toolbox, and the configuration - see **[Dynamic tool discovery](dynamic-tool-discovery.md)**.
 
+### Document attachments
+
+The paperclip by the prompt box attaches documents - or drop a file onto the prompt. Attached files show as chips above the prompt and are routed by size rather than by a wizard: a small file is kept as full text, a larger one is split, embedded into a conversation-scoped slice of the built-in vector store, and summarized into an always-injected overview. The chip states the routing decision, and the chat RAG panel prints it per turn. No RAG source has to be selected for an attached document - it is used automatically in that conversation, so `Summarize this` and pinpoint questions both work as soon as the chip is ready. A chip can be promoted into the Vector Database so the document outlives the conversation and becomes selectable as a RAG source everywhere. The full pipeline - the size tiers, the overview transformer, scoped retrieval, and promotion - is on the [Chat Attachments](../rag/chat-attachments.md) page.
+
 ### Multimodal vision input
 
-The picture icon by the prompt box attaches images (up to five per message) - or drop a file onto the prompt, or paste a screenshot. Attached images show as removable chips above the prompt, are resized and EXIF-tagged in the browser, stored content-addressed under the playground home, and sent to the model as native multimodal input. A capability check warns when the selected model cannot actually see (including the mlx false-positive case on Apple Silicon). The full pipeline - storage, vision checks, error handling, and the `describeImage` re-reference tool - is on the [Multimodal Vision Input](image-attachments.md) page.
+The same paperclip attaches images (up to five per message) - or drop a file onto the prompt, or paste a screenshot. Attached images show as removable chips above the prompt, are resized and EXIF-tagged in the browser, stored content-addressed under the playground home, and sent to the model as native multimodal input. A capability check warns when the selected model cannot actually see (including the mlx false-positive case on Apple Silicon). The full pipeline - storage, vision checks, error handling, and the `describeImage` re-reference tool - is on the [Multimodal Vision Input](image-attachments.md) page.
 
 ### Voice input
 
@@ -186,11 +190,11 @@ Every assistant turn carries its own metrics in the header line - the time, how 
 
 When a turn thinks, calls tools, or retrieves documents, those stages appear as collapsible panels above the answer, each summarizing its duration and token cost:
 
-![An agentic turn with an expanded THINK panel showing the model's reasoning and an expanded MCP TOOLS panel showing a getCurrentTime call with its request and result, above the final answer](../../assets/images/chat/chat-agentic-panels.png){ width="1263" }
+![An agentic turn with a collapsed THINK panel and an expanded MCP TOOLS panel listing both calls - toolSearchTool with its query and the tool names it returned, then getCurrentTime with its result - above the final answer](../../assets/images/chat/chat-agentic-panels.png){ width="1263" }
 
 - **THINK** - the model's reasoning trace (when reasoning effort is on).
 - **MCP TOOLS** - each tool call with its arguments and result, the call count, and the tool names.
-- **RAG** - the retrieval step, with the document count and titles.
+- **RAG** - the retrieval pipeline, stage by stage: each query transformation and the query it produced, then the documents retrieval returned.
 
 The panels collapse once a stage completes so the answer stays front and center; click any panel to reopen it. This is the same visibility the [Observability](../observability/index.md) dashboards capture after the fact.
 
@@ -204,11 +208,14 @@ The **Export conversation** action in the header (and the per-message **Export**
 
 ### 1. RAG: Knowledge via Chain Workflow
 
-When documents are selected, Agentic Chat follows a deterministic retrieval pattern:
+When a RAG source is selected, Agentic Chat runs Spring AI's Modular RAG flow, in a fixed order that you configure but the model does not choose:
 
-- retrieval from the vector store
-- prompt augmentation with grounded context
-- response generation based on that context
+- pre-retrieval query transformation, if the pipeline enables any
+- retrieval from the vector store, scoped and tuned by the pipeline
+- post-retrieval re-ranking and truncation
+- prompt augmentation with the grounded context, then generation from it
+
+Every stage maps to a Spring AI component; see [Pipeline Studio](../rag/pipeline-studio.md).
 
 ### 2. MCP: Actions via Agentic Reasoning
 
@@ -244,7 +251,7 @@ For Ollama-based flows:
 - use reasoning-capable models from [Ollama's Thinking Category](https://ollama.com/search?c=thinking)
 - validate tools in MCP Inspector before relying on them in Agentic Chat
 
-The default `playground.chat.models` list features `qwen3.5:4b` (default, the smallest vision-capable build) plus `qwen3.5:2b` / `qwen3.5:9b`, `qwen3.6:27b` / `qwen3.6:35b` for stronger tool-oriented reasoning, the `gemma4` family (`e2b` / `e4b` / `12b` / `31b`), and `gpt-oss:20b` / `deepseek-r1:8b` as alternatives. See [Picking a Model](../../tutorials/index.md#picking-a-model) in the Tutorials for the tradeoffs.
+The default `playground.chat.models` list features `qwen3.5:4b` (default, the smallest vision-capable build) plus `qwen3.5:2b` / `qwen3.5:9b`, `qwen3.6:27b` / `qwen3.6:35b` / `qwen3.8:27b` for stronger tool-oriented reasoning, the `gemma4` family (`e2b` / `e4b` / `12b` / `31b`), and `gpt-oss:20b` / `deepseek-r1:8b` as alternatives. See [Picking a Model](../../tutorials/index.md#picking-a-model) in the Tutorials for the tradeoffs.
 
 ## Agentic Chat Architecture Overview
 
@@ -261,7 +268,7 @@ This Chat experience facilitates exploration of Spring AI's workflow and agentic
 | Component | Type | Description | Configuration Location | Key Benefits | Model Requirements |
 | --- | --- | --- | --- | --- | --- |
 | **LLM** | Core Model | Executes chain-based workflows and performs agentic reasoning for tool usage within a unified chat runtime. | Agentic Chat | Central reasoning and response generation; supports both deterministic workflows and agentic patterns. | Chat models; tool-aware and reasoning-capable models recommended. |
-| **Retrieval (RAG)** | Chain Workflow | Deterministic retrieval and prompt augmentation using vector search over selected documents. | Vector Database | Predictable, controllable knowledge grounding; tunable retrieval parameters such as Top-K and thresholds. | Standard chat plus embedding models. |
+| **Retrieval (RAG)** | Chain Workflow | Deterministic Modular RAG flow: query transformation, vector search, post-processing, and prompt augmentation, composed per pipeline. | Vector Database (Pipeline Studio) | Predictable, controllable knowledge grounding; per-pipeline Top-K, thresholds, and query-transformation stages. | Standard chat plus embedding models; query-transformation stages add a model call each. |
 | **Tools (MCP)** | Agentic Execution | Dynamic tool selection and invocation via MCP, driven by LLM reasoning and tool schemas. | Tool Studio, MCP Server | Enables external actions, multi-step reasoning, and adaptive behavior. | Tool-enabled models with function calling and reasoning support. |
 | **Memory** | Shared Agentic State | The full conversation is kept locally; each turn the model sees a configurable trailing window, supplied through `MessageChatMemoryAdvisor` over an [`LlmWindowChatMemory`](../../context-engineering-architecture.md#conversation-memory) decorator. | Agentic Chat drawer (per-chat **Recent messages**) + `spring.ai.playground.chat.memory-max-messages` (default 10); `history-max-messages` (2000) caps the local store | Coherent multi-turn dialogue without inflating every request; the recent-context window is tunable per conversation. | Models benefit from a longer window when the task needs more history. |
 
@@ -271,8 +278,8 @@ By leveraging these elements, Agentic Chat goes beyond basic Q&A and becomes a p
 
 Agentic Chat is a **consumer** of three inventories curated elsewhere in the Playground. Use these references to know what's available before composing a chat session:
 
-- **[Default Tools](../default-tools/index.md)** - 108 pre-loaded built-in tools (Examples · Utilities · Filesystem · Global · Korea · Visualization) callable directly from chat without any external setup. Each carries a Risk Level (L0-L5) and `${ENV_VAR}` requirements per page.
+- **[Default Tools](../default-tools/index.md)** - 116 pre-loaded built-in tools (Examples · Utilities · Filesystem · Global · Korea · Visualization) callable directly from chat without any external setup. Each carries a Risk Level (L0-L5) and `${ENV_VAR}` requirements per page.
 - **[Default MCP Servers](../default-mcp-catalog/index.md)** - 58 preset external MCP server connections (Gmail, Notion, GitHub, Linear, BigQuery, Stripe, ...). One-click activation from the MCP Server sidebar adds them as tool sources for chat.
-- **[Vector Database](../vector-database.md)** - indexed document collections that the **RAG advisor chain** retrieves from at chat time (`SpringAiPlaygroundRagAdvisor` short-circuits when no documents are selected, so retrieval is opt-in per conversation).
+- **[Vector Database and RAG](../vector-database.md)** - indexed documents and the retrieval pipelines built on them, which the **RAG advisor chain** runs at chat time (`SpringAiPlaygroundRagAdvisor` short-circuits when no RAG source is selected, so retrieval is opt-in per conversation).
 
 → Try it: [Tutorials](../../tutorials/index.md) - end-to-end flows that combine Tool Studio, MCP Inspector, Vector Database, and Agentic Chat.

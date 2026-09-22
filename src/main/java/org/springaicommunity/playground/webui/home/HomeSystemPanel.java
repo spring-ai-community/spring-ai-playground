@@ -195,14 +195,23 @@ class HomeSystemPanel extends Div {
             pill.add(text);
             return pill;
         }
+        String boundAddress = address.isEmpty() ? "0.0.0.0" : address;
+        if (this.mcpServerInfoService.builtInServerTokenRequired()) {
+            Div pill = pill("var(--lumo-success-color)");
+            pill.getElement().setAttribute("title", "The built-in MCP server is reachable on " + boundAddress
+                    + " and requires a bearer token on /mcp.");
+            pill.add(new Span("token required"));
+            return pill;
+        }
         Div pill = pill("var(--lumo-warning-color)");
         pill.getStyle()
                 .set("border-color", "var(--lumo-warning-color-50pct)")
                 .set("background-color", "var(--lumo-warning-color-10pct)");
         pill.getElement().setAttribute("title",
                 "Anyone on your network can reach the built-in MCP server and call exposed tools. "
-                        + "Set server.address=localhost to restrict it to this machine.");
-        Span text = new Span("Bound " + (address.isEmpty() ? "0.0.0.0" : address) + " · no auth");
+                        + "Set server.address=localhost to restrict it to this machine, or pick Bearer token "
+                        + "in the MCP Server settings drawer.");
+        Span text = new Span("Bound " + boundAddress + " · no auth");
         text.getStyle().set("color", "var(--lumo-warning-text-color)");
         pill.add(text);
         return pill;
@@ -272,7 +281,7 @@ class HomeSystemPanel extends Div {
                 awaiting > 0,
                 () -> UI.getCurrent().navigate(McpServerView.class)));
         grid.add(chip(VaadinIcon.BULLSEYE, "Exposed on MCP",
-                exposed + " of " + localPassed, false,
+                exposed + " of " + localPassed + " built-in", false,
                 () -> UI.getCurrent().navigate(McpServerView.class)));
         return grid;
     }
@@ -565,7 +574,7 @@ class HomeSystemPanel extends Div {
         long approved = snap.mcpHitlByOutcome.getOrDefault("approved", 0L);
         long hitlTotal = snap.mcpHitlByOutcome.values().stream().mapToLong(Long::longValue).sum();
         String hitlRate = hitlTotal == 0 ? "no HITL yet"
-                : Math.round(approved * 100.0 / hitlTotal) + "% HITL approved";
+                : Math.round(approved * 100.0 / hitlTotal) + "% HITL approved (both gates)";
 
         Div section = new Div();
         section.getStyle().set("display", "flex").set("flex-direction", "column").set("gap", "0.5rem");
@@ -582,7 +591,7 @@ class HomeSystemPanel extends Div {
         section.add(headerRow);
 
         if (totalRisk == 0) {
-            Span empty = new Span("No tool risk recorded yet — run a tool from chat to populate.");
+            Span empty = new Span("No tool risk recorded yet - run a tool from chat to populate.");
             empty.getStyle().set("font-size", "var(--lumo-font-size-xs)")
                     .set("color", "var(--lumo-tertiary-text-color)");
             section.add(empty);

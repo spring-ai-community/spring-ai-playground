@@ -213,7 +213,7 @@ public class JavascriptToolPlaygroundView extends VerticalLayout {
                 """);
 
         Span staticHint = new Span(
-                "Optional key–value pairs available in your code as global variables, injected into the action context");
+                "Optional key-value pairs available in your code as global variables, injected into the action context");
         staticHint.getElement().getStyle().set("font-size", "0.85em").set("color", "var(--lumo-secondary-text-color)");
 
         HorizontalLayout staticVarsHeader =

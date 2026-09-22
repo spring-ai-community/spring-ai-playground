@@ -142,7 +142,7 @@ public class McpExposedToolsPanel {
         this.exposedToolService.apply(new ArrayList<>(this.selected.values()), this.capField.getValue());
         String composed = mode.includesComposed()
                 ? this.selected.size() + " composed tool(s) exposed" : "composed tools off";
-        Notification.show("Built-in server exposure: " + modeLabel(mode) + " — " + composed, 3000,
+        Notification.show("Built-in server exposure: " + modeLabel(mode) + " - " + composed, 3000,
                 Notification.Position.BOTTOM_END);
         this.usageEventTracker.track(UI.getCurrent(), "mcp_tools_exposed", Map.of(
                 "mode", mode.name(),
@@ -399,7 +399,7 @@ public class McpExposedToolsPanel {
                 .toList();
     }
 
-    private Span sectionLabel(String text) {
+    static Span sectionLabel(String text) {
         Span label = new Span(text);
         label.getStyle().set("font-weight", "600").set("font-size", "var(--lumo-font-size-s)")
                 .set("color", "var(--lumo-secondary-text-color)").set("margin-top", "0.5em");

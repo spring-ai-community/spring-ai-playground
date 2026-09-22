@@ -39,6 +39,8 @@ import java.util.TreeSet;
 @Component
 public class CanonicalHasher {
 
+    public static final String MCP_TOOL_SCHEME = "saip-jackson-sorted-sha256/v1";
+
     private final ObjectMapper mapper;
 
     public CanonicalHasher(ObjectMapper objectMapper) {
@@ -46,6 +48,23 @@ public class CanonicalHasher {
                 .disable(SerializationFeature.INDENT_OUTPUT)
                 .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true)
                 .build();
+    }
+
+    public record ContentDigest(String scheme, String value) {
+
+        public ContentDigest {
+            if (scheme == null || scheme.isBlank()) {
+                throw new IllegalArgumentException("A digest must name the canonicalization scheme that produced it");
+            }
+            if (value == null || value.isBlank()) {
+                throw new IllegalArgumentException("A digest must carry a value");
+            }
+        }
+    }
+
+    public ContentDigest digestMcpTool(String name, String description, JsonNode inputSchema,
+            McpToolDescriptor.Annotations annotations) {
+        return new ContentDigest(MCP_TOOL_SCHEME, hashMcpTool(name, description, inputSchema, annotations));
     }
 
     public String hashMcpTool(String name, String description, JsonNode inputSchema,

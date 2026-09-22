@@ -1,5 +1,8 @@
-::slotted(input)::placeholder,
-::slotted(textarea)::placeholder {
+vaadin-text-field > input::placeholder,
+vaadin-text-area > textarea::placeholder,
+vaadin-password-field > input::placeholder,
+vaadin-combo-box > input::placeholder,
+vaadin-multi-select-combo-box > input::placeholder {
     color: var(--lumo-tertiary-text-color);
     -webkit-text-fill-color: var(--lumo-tertiary-text-color);
     opacity: 0.6;

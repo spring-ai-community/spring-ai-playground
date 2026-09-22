@@ -43,6 +43,11 @@ class HomeViewRenderTest extends SpringBrowserlessTest {
     }
 
     @Test
+    void homeBindPillWarnsNoAuthWhileTheBuiltInServerIsOpenOffLoopback() {
+        assertThat(systemPanelText()).contains("no auth").doesNotContain("token required");
+    }
+
+    @Test
     void homeSurfacesTheUsageKpis() {
         assertThat(systemPanelText())
                 .contains("Calls").contains("Tokens").contains("Tool calls").contains("p95 latency");

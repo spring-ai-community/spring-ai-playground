@@ -29,6 +29,7 @@ public final class McpRiskEvents {
         public static final String TOOL_PUBLISH_RISK_COMPUTED = "tool-publish-risk-computed";
         public static final String FLOOR_OVERRIDE_TRIGGERED = "floor-override-triggered";
         public static final String HASH_LEDGER_MISMATCH = "hash-ledger-mismatch";
+        public static final String HASH_LEDGER_RECANONICALIZED = "hash-ledger-recanonicalized";
         public static final String COMPOSITION_LIFECYCLE = "composition-lifecycle";
         public static final String POISONING_HIT = "poisoning-hit";
 
@@ -69,6 +70,15 @@ public final class McpRiskEvents {
             String previousHash,
             String currentHash,
             List<String> changedFields) {}
+
+    public record HashLedgerRecanonicalized(
+            Instant at,
+            String serverId,
+            String toolName,
+            String previousScheme,
+            String currentScheme,
+            String previousHash,
+            String currentHash) {}
 
     public record CompositionLifecycle(
             Instant at,

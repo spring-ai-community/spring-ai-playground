@@ -513,6 +513,11 @@ vaadin-details-summary::part(content) {
     background: #0b1322;
 }
 
+.saip-action-pointmap .leaflet-control-attribution {
+    font-size: 10px;
+    background: rgba(255, 255, 255, 0.78);
+}
+
 .saip-heat-layer {
     position: absolute;
     top: 0;

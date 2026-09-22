@@ -1,8 +1,12 @@
 # mcp-stdio profile.
 #
-# Loaded automatically when the `mcp-stdio` Spring profile is active
-# (the published container sets SPRING_PROFILES_ACTIVE=mcp-stdio in its
-# Dockerfile, so a plain `docker run -i image` already runs in this mode).
+# Loaded when the `mcp-stdio` Spring profile is active. The published
+# container does NOT activate it by default: its default matches the app
+# default (Vaadin UI on 8282 plus the streamable-http MCP server). Opt in
+# with `docker run -i --rm -e SPRING_PROFILES_INCLUDE=mcp-stdio ...`, which
+# layers this profile on top of the default one so model configuration
+# (Ollama / OpenAI) keeps applying; SPRING_PROFILES_ACTIVE would replace the
+# list and drop it.
 #
 # In stdio mode the MCP JSON-RPC channel IS process stdout/stdin, so any
 # stray write to stdout corrupts the protocol. This profile:

@@ -44,7 +44,7 @@ import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.service.tool.ToolActivationCalculator;
 import org.springaicommunity.playground.service.tool.ToolSpecPersistenceService;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
-import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentService;
+import org.springaicommunity.playground.service.vectorstore.OfflineEtlPipelineService;
 import org.springaicommunity.playground.webui.chat.ChatView;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.embedding.EmbeddingModel;
@@ -100,7 +100,7 @@ public class HomeInfoView extends Div {
             McpServerInfoService mcpServerInfoService,
             McpClientService mcpClientService,
             McpCatalogService mcpCatalogService,
-            VectorStoreDocumentService vectorStoreDocumentService,
+            OfflineEtlPipelineService offlineEtlPipelineService,
             ChatHistoryService chatHistoryService,
             ToolSpecPersistenceService toolSpecPersistenceService,
             ToolActivationCalculator toolActivationCalculator,
@@ -143,14 +143,14 @@ public class HomeInfoView extends Div {
                 observabilityTimeSeries, systemMetricsSnapshot, mcpRiskEventRingBuffer);
         HomeSurfaceCards surfaceCards = new HomeSurfaceCards(
                 toolSpecService, toolSpecPersistenceService,
-                mcpServerInfoService, mcpClientService, vectorStoreDocumentService, mcpCatalogService,
+                mcpServerInfoService, mcpClientService, offlineEtlPipelineService, mcpCatalogService,
                 chatHistoryService);
         this.checklist = new HomeChecklist(
                 chatModelProvider, toolSpecService, toolSpecPersistenceService,
-                vectorStoreDocumentService, chatHistoryService, environment);
+                offlineEtlPipelineService, chatHistoryService, environment);
         HomeRecentActivity recentActivity = new HomeRecentActivity(
                 toolSpecService, toolSpecPersistenceService,
-                mcpServerInfoService, vectorStoreDocumentService, chatHistoryService);
+                mcpServerInfoService, offlineEtlPipelineService, chatHistoryService);
 
         content.add(
                 this.alertBannerSlot,
@@ -261,7 +261,7 @@ public class HomeInfoView extends Div {
                 .set("letter-spacing", "0.02em")
                 .set("vertical-align", "baseline");
         Span hintAfter = new Span(
-                " — a local test-run with your sample arguments. "
+                " - a local test-run with your sample arguments. "
                         + "Only passing tools go live on the built-in MCP server "
                         + "and become callable from chat.");
         mottoHint.add(hintBefore, localPassBadge, hintAfter);

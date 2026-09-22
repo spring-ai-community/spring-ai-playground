@@ -36,6 +36,7 @@ import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
 import java.util.function.BiFunction;
 
 @Component
@@ -96,8 +97,7 @@ public class McpServerHitlToolGate {
         try {
             result = exchange.createElicitation(elicitRequest(promptTemplate, riskLevel, request));
         } catch (RuntimeException e) {
-            logger.warn("hitl.server.elicit-failed tool={} error={}", request.name(), e.getMessage());
-            countDecision("elicit-failed");
+            countElicitError(request.name(), e);
             return denied(request.name());
         }
         if (!isApproved(result)) {
@@ -133,8 +133,7 @@ public class McpServerHitlToolGate {
                     return delegate.apply(exchange, request);
                 })
                 .onErrorResume(e -> {
-                    logger.warn("hitl.server.elicit-failed tool={} error={}", request.name(), e.getMessage());
-                    countDecision("elicit-failed");
+                    countElicitError(request.name(), e);
                     return Mono.just(denied(request.name()));
                 });
     }
@@ -194,6 +193,23 @@ public class McpServerHitlToolGate {
                         + "manually if it is still needed.")
                 .isError(true)
                 .build();
+    }
+
+    private void countElicitError(String toolName, Throwable error) {
+        if (isTimeout(error)) {
+            logger.info("hitl.server.timeout tool={}", toolName);
+            countDecision("timeout");
+        } else {
+            logger.warn("hitl.server.elicit-failed tool={} error={}", toolName, error.getMessage());
+            countDecision("elicit-failed");
+        }
+    }
+
+    private static boolean isTimeout(Throwable error) {
+        for (Throwable cause = error; cause != null; cause = cause.getCause() == cause ? null : cause.getCause()) {
+            if (cause instanceof TimeoutException) return true;
+        }
+        return false;
     }
 
     private void countDecision(String outcome) {

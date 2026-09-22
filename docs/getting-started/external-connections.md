@@ -71,11 +71,68 @@ url = "http://localhost:8282/mcp"
 }
 ```
 
-Cline, Windsurf, Zed, and other MCP hosts follow the same pattern - add a Streamable HTTP (or SSE) server pointing at `http://localhost:8282/mcp`. Check your client's MCP docs for the exact field names.
+Cline, Windsurf, Zed, and other MCP hosts follow the same pattern - add a Streamable HTTP server pointing at `http://localhost:8282/mcp`. Check your client's MCP docs for the exact field names.
 
 > ![Claude](../assets/images/icons/claude.svg){ .provider-icon } **Claude Desktop.** Its custom connectors (**Settings -> Connectors**) connect from Anthropic's cloud, so they cannot reach a `localhost` server. To use the playground from Claude Desktop, either run it as a stdio server with the `mcp-stdio` profile and add it to `claude_desktop_config.json`, or expose the HTTP endpoint through a tunnel. See [Build custom connectors via remote MCP](https://support.claude.com/en/articles/11503834-build-custom-connectors-via-remote-mcp-servers).
 
 Once connected, the client sees your Local-Pass tools - and any proxied or composed external tools - in its `tools/list`.
+
+### Require a bearer token { #bearer-token }
+
+By default the built-in server answers anyone who can reach the port, which is fine on loopback and wrong anywhere else. A shared-secret bearer token closes it, and there are two ways to set one.
+
+**In the app.** Open **MCP Server**, click the gear icon, and under **Authentication** switch from **None** to **Bearer token**. A 256-bit token is generated for you (the eye reveals it, **Generate** rotates it, **Copy** puts it on the clipboard); **Apply** turns the gate on immediately, with no restart. Switching back to **None** reopens the endpoint. The token is stored encrypted under `.security/` in the app home, bound to this machine and user, and the section can only be viewed and changed from a browser on the machine that runs the app.
+
+![The Built-in MCP Server drawer with Authentication set to Bearer token - a masked generated token with the reveal eye, Generate and Copy buttons, and the Composed Tools section below](../assets/images/mcp-server/builtin-auth-drawer.png){ loading=lazy }
+
+**By configuration.** Set `spring.ai.playground.mcp-server.auth-token` - the declarative route for Docker and shared deployments. Configuration wins: while the property is set, the Authentication section is read-only and says so. Generate a token once:
+
+```bash
+openssl rand -hex 32
+```
+
+Then supply it through whichever launch mode you use. The environment-variable name is the relaxed-binding form of the property:
+
+| Mode | How |
+|---|---|
+| **Desktop app** | Launcher -> environment-variable editor: `SPRING_AI_PLAYGROUND_MCP_SERVER_AUTH_TOKEN=<token>`. Or in the YAML editor: `spring.ai.playground.mcp-server.auth-token: <token>`. |
+| **Docker** | `docker run -e SPRING_AI_PLAYGROUND_MCP_SERVER_AUTH_TOKEN=<token> ...` |
+| **Source / JAR** | `export SPRING_AI_PLAYGROUND_MCP_SERVER_AUTH_TOKEN=<token>`, or `java -Dspring.ai.playground.mcp-server.auth-token=<token> -jar ...` |
+
+Prefer the environment variable over YAML so the token stays out of files you might share.
+
+What changes once it is set:
+
+- `/mcp` requires `Authorization: Bearer <token>`. A missing or wrong token gets `401` with `WWW-Authenticate: Bearer`.
+- The web UI is not gated. The app's own loopback client picks the token up automatically, so Tool Studio, the Inspector, and Agentic Chat keep working with no extra setup.
+- While no token is set the app logs a startup warning that the built-in server is unauthenticated, and on a non-loopback bind the Home status pill reads `no auth`; with a token it reads `token required`.
+
+Every external client then has to send the header:
+
+```bash
+claude mcp add --transport http spring-ai-playground http://localhost:8282/mcp --header "Authorization: Bearer <token>"
+```
+
+```json
+{
+  "mcpServers": {
+    "spring-ai-playground": {
+      "url": "http://localhost:8282/mcp",
+      "headers": { "Authorization": "Bearer <token>" }
+    }
+  }
+}
+```
+
+The `headers` map sits next to `url` in Cursor, VS Code, and most JSON-configured hosts; check your client's MCP docs for the exact field. Verify from a shell:
+
+```bash
+curl -i -X POST http://localhost:8282/mcp -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"curl","version":"0"}}}'
+```
+
+Without the `Authorization` header this returns `401`; with it, `200` and an `Mcp-Session-Id`.
+
+This is a static shared secret, not OAuth: one token, no expiry, rotated with **Generate** and **Apply** (or by changing the configured value and restarting). It is meant for a server you run for yourself or a small team behind TLS. The stdio transport needs no token because the client spawns the process itself. For per-user identity on the built-in server, the [OWASP MCP07 notes](../mcp-owasp-top-10.md) describe adding an OAuth2 resource server yourself; the app does not bundle one.
 
 ## Connect model providers
 
@@ -87,7 +144,7 @@ The default profile is `ollama` - it serves both chat and embeddings locally, wi
 
 - chat model: `qwen3.5:4b`
 - embedding model: `qwen3-embedding:0.6b`
-- selectable chat models: `qwen3.5:2b/4b/9b`, `qwen3.6:27b/35b`, `gemma4:e2b/e4b/12b/31b`, `gpt-oss:20b`, `deepseek-r1:8b`
+- selectable chat models: `qwen3.5:2b/4b/9b`, `qwen3.6:27b/35b`, `qwen3.8:27b`, `gemma4:e2b/e4b/12b/31b`, `gpt-oss:20b`, `deepseek-r1:8b`
 
 Missing models are pulled automatically when first used; the selectable list controls the in-app model picker. In Docker, point at a host Ollama with `SPRING_AI_OLLAMA_BASE_URL`.
 

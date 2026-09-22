@@ -42,6 +42,7 @@
     "getPublicHolidays" : "6c0b63dd8b9aedd57a36d1a77c9e3e507180ee5b63eef96df9b8fd7c1edbd354",
     "getRecentEarthquakes" : "4428b2966f7c33eceb5889d87ddd94a114bcecd898e24d5b48a9d1d964a77e99",
     "getSunriseSunset" : "3968d3aa82894838a4f2704cc116438e66a2dae58c39df7d86ae33f7e6339c0d",
+    "getTrafficAccidentHotspots" : "dd7cc6b0c84ded252076397d141d1f2b9d441deb06d34892b820c00ece0b50bc",
     "getUpbitCandles" : "6ab7b03985aafce083159dba67b64b67b8d2ffb5934d7fb8c6d3b15173cdccb0",
     "getUpbitOrderbook" : "4b0a67ced75be93ad9e264df8cda5fa3e40e8bf4e820afaa6e8263d1f2673894",
     "getUpbitTicker" : "99a181b1b6e40cb4ab08b451dd984cd6e0c40a1d2c7317ad7dd2e338c5bd2977",

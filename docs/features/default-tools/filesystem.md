@@ -48,8 +48,8 @@ Reports which directories the filesystem tools may touch: the readable roots (yo
 /**
  * Reports the filesystem boundaries these tools operate within.
  *
- * - readRoots         — absolute roots that may be READ (recursively).
- * - workingDirectory  — the single writable dir; relative paths resolve here.
+ * - readRoots         - absolute roots that may be READ (recursively).
+ * - workingDirectory  - the single writable dir; relative paths resolve here.
  *
  * Uses host helpers: safety.fs.readRoots, safety.fs.workspace.
  */
@@ -58,7 +58,6 @@ return {
   readRoots: Array.from(safety.fs.readRoots()),
   workingDirectory: safety.fs.workspace(),
 };
-
 ```
 
 </details>
@@ -604,6 +603,15 @@ Answers "which files mention X" or "where is Y used" in one call. Binary / non-U
 <summary>JS source</summary>
 
 ```javascript
+/**
+ * Recursively searches file CONTENTS for a regex and returns { file, line, text } hits.
+ *
+ * Opens each regular file under `dir` whose name matches `glob` and scans its
+ * lines. Non-UTF-8 (binary) files are skipped. `limit` caps total matches.
+ *
+ * Uses host helper: safety.fs.searchInFiles.
+ */
+
 if (pattern == null || pattern === '') throw new Error('pattern required');
 const target = (dir == null || dir === '') ? '.' : dir;
 const g = (glob == null || glob === '') ? '*' : glob;
@@ -646,6 +654,15 @@ Appends UTF-8 text to the **end** of a file, creating it if absent. Unlike `writ
 <summary>JS source</summary>
 
 ```javascript
+/**
+ * Appends UTF-8 text to the end of a file (creating it if absent).
+ *
+ * - Confined to the workspace; escape attempts are rejected.
+ * - Needs the `fileWrite` sandbox permission.
+ *
+ * Uses host helper: safety.fs.appendText.
+ */
+
 if (path == null || path === '') throw new Error('path required');
 if (content == null)             throw new Error('content required');
 const writtenPath = safety.fs.appendText(path, String(content));
@@ -690,6 +707,16 @@ Use this instead of `writeTextFile` whenever you only need to change part of a f
 <summary>JS source</summary>
 
 ```javascript
+/**
+ * Replaces an exact substring in an existing workspace file.
+ *
+ * - Default: `oldString` must occur exactly once (else rejected as ambiguous).
+ * - replaceAll=true replaces every occurrence.
+ * - Confined to the workspace; needs the `fileWrite` sandbox permission.
+ *
+ * Uses host helper: safety.fs.editText.
+ */
+
 if (path == null || path === '')           throw new Error('path required');
 if (oldString == null || oldString === '') throw new Error('oldString required');
 const result = safety.fs.editText(path, String(oldString), newString == null ? '' : String(newString), !!replaceAll);
@@ -732,6 +759,13 @@ Parent directories are created automatically and an existing destination is over
 <summary>JS source</summary>
 
 ```javascript
+/**
+ * Copies a file. Source = any readable root; destination = workspace only.
+ * Overwrites an existing destination and leaves the source intact.
+ *
+ * Uses host helper: safety.fs.copy.
+ */
+
 if (from == null || from === '') throw new Error('from required');
 if (to == null || to === '')     throw new Error('to required');
 const path = safety.fs.copy(String(from), String(to));
@@ -770,6 +804,13 @@ Moves or renames a file within the working directory. **Destructive**: the sourc
 <summary>JS source</summary>
 
 ```javascript
+/**
+ * Moves or renames a file. Both source and destination are workspace-only.
+ * Overwrites an existing destination. Destructive: the source is removed.
+ *
+ * Uses host helper: safety.fs.move.
+ */
+
 if (from == null || from === '') throw new Error('from required');
 if (to == null || to === '')     throw new Error('to required');
 const path = safety.fs.move(String(from), String(to));
@@ -807,6 +848,13 @@ Permanently deletes a single file from the working directory. **Destructive** an
 <summary>JS source</summary>
 
 ```javascript
+/**
+ * Permanently deletes a single file inside the workspace.
+ * Directories are rejected (use deleteDir). Irreversible.
+ *
+ * Uses host helper: safety.fs.delete.
+ */
+
 if (path == null || path === '') throw new Error('path required');
 const deleted = safety.fs.delete(String(path));
 return { ok: true, deleted, path: String(path) };
@@ -843,6 +891,13 @@ Permanently deletes a directory **and all of its contents** (recursive) from the
 <summary>JS source</summary>
 
 ```javascript
+/**
+ * Permanently deletes a directory and ALL its contents (recursive).
+ * Workspace-only; the workspace root and plain files are rejected. Irreversible.
+ *
+ * Uses host helper: safety.fs.deleteDir.
+ */
+
 if (path == null || path === '') throw new Error('path required');
 const removed = safety.fs.deleteDir(String(path));
 return { ok: true, removed, path: String(path) };

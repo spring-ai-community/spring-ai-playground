@@ -21,9 +21,13 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.SerializationFeature;
 import tools.jackson.databind.json.JsonMapper;
 import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.ModalityMode;
 import com.vaadin.flow.component.Key;
 import com.vaadin.flow.component.KeyDownEvent;
 import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.button.ButtonVariant;
+import com.vaadin.flow.component.combobox.ComboBox;
+import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.grid.ColumnRendering;
 import com.vaadin.flow.component.grid.Grid;
@@ -40,6 +44,8 @@ import com.vaadin.flow.router.BeforeEnterEvent;
 import com.vaadin.flow.router.BeforeEnterObserver;
 import com.vaadin.flow.router.BeforeLeaveEvent;
 import com.vaadin.flow.router.BeforeLeaveObserver;
+import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentInfo;
+import org.springaicommunity.playground.service.vectorstore.OfflineEtlPipelineService;
 import org.springaicommunity.playground.service.vectorstore.VectorStoreService;
 import org.springaicommunity.playground.webui.PersistentUiDataStorage;
 import org.springaicommunity.playground.webui.VaadinUtils;
@@ -52,11 +58,15 @@ import org.vaadin.crudui.form.CrudFormFactory;
 import org.vaadin.crudui.form.impl.form.factory.DefaultCrudFormFactory;
 import org.vaadin.crudui.layout.CrudLayout;
 
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static com.vaadin.flow.component.grid.GridVariant.LUMO_NO_BORDER;
 import static com.vaadin.flow.component.grid.GridVariant.LUMO_ROW_STRIPES;
@@ -70,7 +80,7 @@ public class VectorStoreContentView extends VerticalLayout implements BeforeEnte
     private static final String LAST_SEARCH_REQUEST_OPTION = "lastSearchRequestOption";
     private record SearchRequestOption(String query, String searchFilter) {}
 
-    public static final String CUSTOM_ADD_DOC_INFO_ID = "docInfoId-custom";
+    public static final String DEFAULT_CUSTOM_DOCUMENT_NAME = "custom-document";
     private static final ObjectMapper ObjectMapper =
             JsonMapper.builder().findAndAddModules()
                     .enable(SerializationFeature.INDENT_OUTPUT).build();
@@ -79,6 +89,9 @@ public class VectorStoreContentView extends VerticalLayout implements BeforeEnte
 
     private final PersistentUiDataStorage persistentUiDataStorage;
     private final VectorStoreService vectorStoreService;
+    private final OfflineEtlPipelineService offlineEtlPipelineService;
+    private final Consumer<VectorStoreDocumentInfo> onCustomDocumentCreated;
+    private final Supplier<Collection<VectorStoreDocumentInfo>> selectedDocumentsSupplier;
     private final GridCrud<VectorStoreContentItem> gridCrud;
     private final GridDataView<VectorStoreContentItem> dataView;
     private final TextField userPromptTextField;
@@ -104,9 +117,14 @@ public class VectorStoreContentView extends VerticalLayout implements BeforeEnte
     }
 
     public VectorStoreContentView(PersistentUiDataStorage persistentUiDataStorage,
-            VectorStoreService vectorStoreService) {
+            VectorStoreService vectorStoreService, OfflineEtlPipelineService offlineEtlPipelineService,
+            Consumer<VectorStoreDocumentInfo> onCustomDocumentCreated,
+            Supplier<Collection<VectorStoreDocumentInfo>> selectedDocumentsSupplier) {
         this.persistentUiDataStorage = persistentUiDataStorage;
         this.vectorStoreService = vectorStoreService;
+        this.offlineEtlPipelineService = offlineEtlPipelineService;
+        this.onCustomDocumentCreated = onCustomDocumentCreated;
+        this.selectedDocumentsSupplier = selectedDocumentsSupplier;
 
         setSizeFull();
 
@@ -135,15 +153,7 @@ public class VectorStoreContentView extends VerticalLayout implements BeforeEnte
 
             @Override
             protected void addButtonClicked() {
-                VectorStoreContentItem domainObject = crudFormFactory.getNewInstanceSupplier().get();
-                showForm(CrudOperation.ADD, domainObject, false, savedMessage, event -> {
-                    try {
-                        VectorStoreContentItem addedObject = addOperation.perform(domainObject);
-                        afterRefreshGrid(addedObject);
-                    } catch (Exception e) {
-                        VaadinUtils.showErrorNotification(e.getMessage());
-                    }
-                });
+                openCustomChunkDialog();
             }
 
             private void afterRefreshGrid(VectorStoreContentItem vectorStoreContentItem) {
@@ -233,10 +243,13 @@ public class VectorStoreContentView extends VerticalLayout implements BeforeEnte
         this.gridCrud.setOperations(
                 () -> (Objects.isNull(this.searchRequest) ?
                         vectorStoreService.search(this.userPromptTextField.getValue(),
-                                filterExpressionTextField.getValue()) : vectorStoreService.search(
+                                filterExpressionTextField.getValue(),
+                                offlineEtlPipelineService.getChatOriginDocInfoIds()) : vectorStoreService.search(
                         this.searchRequest)).stream()
                         .map(this::convertToViewDocument).toList(),
-                item -> convertToViewDocument(this.vectorStoreService.add(List.of(buildCustomChunk(item))).getFirst()),
+                item -> {
+                    throw new UnsupportedOperationException("Use openCustomChunkDialog() instead");
+                },
                 item -> convertToViewDocument(this.vectorStoreService.update(convertToDocument(item))),
                 item -> vectorStoreService.delete(
                         grid.getSelectedItems().stream().map(VectorStoreContentItem::getId).toList()));
@@ -281,10 +294,86 @@ public class VectorStoreContentView extends VerticalLayout implements BeforeEnte
             searchButton.click();
     }
 
-    private Document buildCustomChunk(VectorStoreContentItem item) {
-        Document document = convertToDocument(item);
-        document.getMetadata().put(DOC_INFO_ID, CUSTOM_ADD_DOC_INFO_ID);
-        return document;
+    private void openCustomChunkDialog() {
+        Dialog dialog = VaadinUtils.headerDialog("Add chunk to a document");
+        dialog.setModality(ModalityMode.STRICT);
+        dialog.setWidth("520px");
+
+        List<VectorStoreDocumentInfo> existingDocs = this.offlineEtlPipelineService.getVisibleDocumentList();
+
+        ComboBox<String> nameCombo = new ComboBox<>("Document name");
+        nameCombo.setItems(existingDocs.stream().map(VectorStoreDocumentInfo::title).toList());
+        nameCombo.setAllowCustomValue(true);
+        nameCombo.addCustomValueSetListener(event -> nameCombo.setValue(event.getDetail()));
+        nameCombo.setWidthFull();
+        Optional<VectorStoreDocumentInfo> sidebarSelected = Objects.isNull(this.selectedDocumentsSupplier) ?
+                Optional.empty() : this.selectedDocumentsSupplier.get().stream().findFirst();
+        sidebarSelected.ifPresentOrElse(selected -> {
+            nameCombo.setValue(selected.title());
+            nameCombo.setHelperText("Adding to the document selected on the left. Pick another or type a new name.");
+        }, () -> {
+            nameCombo.setValue(DEFAULT_CUSTOM_DOCUMENT_NAME);
+            nameCombo.setHelperText("No document selected on the left, pick an existing one or type a new name "
+                    + "(default: " + DEFAULT_CUSTOM_DOCUMENT_NAME + ").");
+        });
+
+        TextArea textArea = new TextArea("Text");
+        textArea.setWidthFull();
+        textArea.setMinHeight("8em");
+
+        TextArea metadataArea = new TextArea("Metadata (JSON, optional)");
+        metadataArea.setWidthFull();
+        metadataArea.setPlaceholder("Example JSON object:\n{ \"key\": \"value\" }");
+
+        VerticalLayout body = new VerticalLayout(nameCombo, textArea, metadataArea);
+        body.setPadding(true);
+        body.setSpacing(false);
+        dialog.add(body);
+
+        Button save = new Button("Add", event -> {
+            String name = Optional.ofNullable(nameCombo.getValue()).map(String::trim).orElse("");
+            String text = Optional.ofNullable(textArea.getValue()).orElse("");
+            if (name.isBlank() || text.isBlank()) {
+                VaadinUtils.showErrorNotification("Document name and text are required");
+                return;
+            }
+            try {
+                Document raw = buildSimpleDocument(text, metadataArea.getValue());
+                addChunkToDocument(name, raw, existingDocs);
+                showAllDocuments();
+                dialog.close();
+            } catch (Exception ex) {
+                VaadinUtils.showErrorNotification(ex.getMessage());
+            }
+        });
+        save.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        Button cancel = new Button("Cancel", event -> dialog.close());
+        dialog.getFooter().add(save, cancel);
+
+        dialog.open();
+        nameCombo.focus();
+    }
+
+    private Document buildSimpleDocument(String text, String metadataJson) {
+        Map<String, Object> metadata = new HashMap<>();
+        if (Objects.nonNull(metadataJson) && !metadataJson.isBlank())
+            metadata.putAll(readToObject(metadataJson, MAP_TYPE_REFERENCE));
+        return new Document(text, metadata);
+    }
+
+    private void addChunkToDocument(String name, Document raw, List<VectorStoreDocumentInfo> existingDocs) {
+        VectorStoreDocumentInfo existing =
+                existingDocs.stream().filter(document -> name.equals(document.title())).findFirst().orElse(null);
+        if (Objects.nonNull(existing)) {
+            Map<String, Object> withDocInfo = new HashMap<>(raw.getMetadata());
+            withDocInfo.put(DOC_INFO_ID, existing.docInfoId());
+            this.vectorStoreService.add(List.of(new Document(raw.getText(), withDocInfo)));
+            return;
+        }
+        VectorStoreDocumentInfo created = this.offlineEtlPipelineService.loadDocument(name, List.of(raw));
+        this.vectorStoreService.add(created);
+        if (Objects.nonNull(this.onCustomDocumentCreated))
+            this.onCustomDocumentCreated.accept(created);
     }
 
     private VectorStoreContentItem convertToViewDocument(Document document) {
@@ -331,8 +420,7 @@ public class VectorStoreContentView extends VerticalLayout implements BeforeEnte
 
     public void showAllDocuments() {
         this.searchRequest =
-                new SearchRequest.Builder().similarityThreshold(ALL_SEARCH_REQUEST_OPTION.similarityThreshold())
-                        .topK(ALL_SEARCH_REQUEST_OPTION.topK()).build();
+                VectorStoreService.searchAllRequest(offlineEtlPipelineService.getChatOriginDocInfoIds());
         refreshGrid();
     }
 
@@ -352,7 +440,7 @@ public class VectorStoreContentView extends VerticalLayout implements BeforeEnte
     }
 
     private static class VectorStoreContentContextMenu extends GridContextMenu<VectorStoreContentItem> {
-        public VectorStoreContentContextMenu(GridCrud<VectorStoreContentItem> gridCrud) {
+        VectorStoreContentContextMenu(GridCrud<VectorStoreContentItem> gridCrud) {
             super(gridCrud.getGrid());
             Grid<VectorStoreContentItem> grid = gridCrud.getGrid();
             addItem("Edit", e -> e.getItem().ifPresent(item -> {
