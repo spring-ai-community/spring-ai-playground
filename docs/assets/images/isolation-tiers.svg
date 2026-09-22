@@ -50,5 +50,5 @@
 
   <rect class="box" x="150" y="470" width="660" height="74" rx="6" ry="6"/>
   <text class="box-label" x="480" y="500">Layer 3 - MCP transport (/mcp, /sse)</text>
-  <text class="box-sub" x="480" y="520">unauthenticated by default (permitAll) · add Spring Security to gate</text>
+  <text class="box-sub" x="480" y="520">unauthenticated by default (permitAll) · set a bearer token to gate</text>
 </svg>

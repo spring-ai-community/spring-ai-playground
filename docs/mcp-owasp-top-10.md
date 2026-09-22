@@ -23,7 +23,7 @@ Each category is rated on what the runtime does, not on intent:
 |---|---|
 | **Enforced** | A runtime control blocks or caps the risk by default (deny by default, hard ceiling, or tamper-reject). |
 | **Partial** | A control exists but is advisory, covers a subset, or depends on operator configuration. |
-| **Opt-in** | The full control is available and one module away, shipped off by default for the local-first single-user model. |
+| **Opt-in** | The control ships in the build and is one setting away, off by default for the local-first single-user model. |
 | **Gap (mitigated)** | No dedicated control; blast-radius limits reduce impact instead. |
 
 !!! note "Scope and threat model"
@@ -41,7 +41,7 @@ The table is the summary; each row links to its section below. Detailed mechanic
 | **MCP04** | Supply Chain & Dependency Tampering | Pinned default-tool integrity manifest (hard gate) | Partial |
 | **MCP05** | Command Injection & Execution | GraalJS sandbox + SafeFs + SafeHttpFetch | **Enforced** (in-process) |
 | **MCP06** | Intent Flow Subversion | HITL gates resulting actions; capability ceiling bounds blast radius | Gap (mitigated) |
-| **MCP07** | Insufficient Authentication & Authorization | Outbound OAuth 2.1 client (shipped); inbound `/mcp` auth via opt-in `mcp-security` module | Opt-in |
+| **MCP07** | Insufficient Authentication & Authorization | Outbound OAuth 2.1 client (shipped); inbound `/mcp` bearer token (shipped, off by default), OAuth2 via the `mcp-security` module | Opt-in |
 | **MCP08** | Lack of Audit and Telemetry | Risk-signal sink + metrics + MDC + structured logs | **Enforced** |
 | **MCP09** | Shadow MCP Servers | No auto-discovery + TOFU change-detection + L5 floor | Partial |
 | **MCP10** | Context Injection & Over-Sharing | `sendsUserData` scoring + exposure controls + HITL | Partial |
@@ -133,7 +133,7 @@ The table is the summary; each row links to its section below. Detailed mechanic
 Stated together so the coverage above is not read as completeness:
 
 - **Intent flow subversion ([MCP06](#mcp06))** - no detector for instructions injected through retrieved content or tool results; the playground gates the resulting actions (HITL) and bounds blast radius rather than detecting the injection.
-- **Built-in server authentication ([MCP07](#mcp07))** - inbound auth on `/mcp` is shipped **off by default** for the local-first model, not absent: the [`mcp-security`](https://github.com/spring-ai-community/mcp-security) module gates it as an OAuth2 resource server when added. Harden a deployed instance with `server.address=127.0.0.1`.
+- **Built-in server authentication ([MCP07](#mcp07))** - inbound auth on `/mcp` is shipped **off by default** for the local-first model, not absent: a bearer token (`spring.ai.playground.mcp-server.auth-token`, or MCP Server -> gear -> Authentication) gates `/mcp` and `/sse`, and the [`mcp-security`](https://github.com/spring-ai-community/mcp-security) module adds an OAuth2 resource server for deployed scenarios. Harden a deployed instance with `server.address=127.0.0.1`.
 - **Supply chain depth ([MCP04](#mcp04))** - integrity pinning covers built-in tool definitions, not external server code or the runtime's own dependencies.
 - **In-process boundary ([MCP05](#mcp05))** - the sandbox is the innermost tier, not an adversarial kernel boundary; OS and container isolation are the outer tiers.
 

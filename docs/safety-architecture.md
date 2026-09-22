@@ -68,7 +68,7 @@ flowchart TB
         B1["SandboxOverrides"] --> B2["Posture calculator"] --> B3["Risk badge<br/>L0 · L3 · L4 · L5"]
     end
     subgraph L3["Layer 3 - MCP transport (opt-in auth)"]
-        C1["/mcp, /sse<br/>permitAll by default"] --> C2["add Spring Security<br/>(OAuth2 / API key) to gate"]
+        C1["/mcp, /sse<br/>permitAll by default"] --> C2["set a bearer token to gate<br/>(MCP Security for OAuth2)"]
     end
     L1 == widens (cannot weaken) ==> L2
     L2 == publishes through ==> L3
