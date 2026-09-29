@@ -55,7 +55,9 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Objects;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
@@ -149,18 +151,20 @@ public class OfflineEtlPipelineService implements SharedDataReader<List<VectorSt
     private final TokenTextSplitter defaultTokenTextSplitter;
     private final ObjectProvider<VectorStoreDocumentPersistenceService> vectorStoreDocumentPersistenceServiceProvider;
     private final ObjectProvider<ChatModel> chatModelProvider;
+    private final ObjectProvider<VectorStoreService> vectorStoreServiceProvider;
     private final Map<String, VectorStoreDocumentInfo> documentInfos;
     private final ThreadLocal<Boolean> skipPersist = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
     public OfflineEtlPipelineService(Path springAiPlaygroundHomeDir,
             @Value("${spring.servlet.multipart.max-file-size}") DataSize maxUploadSize, ResourceLoader resourceLoader,
             ObjectProvider<VectorStoreDocumentPersistenceService> vectorStoreDocumentPersistenceServiceProvider,
-            ObjectProvider<ChatModel> chatModelProvider)
+            ObjectProvider<ChatModel> chatModelProvider, ObjectProvider<VectorStoreService> vectorStoreServiceProvider)
             throws IOException {
         this.uploadDir = springAiPlaygroundHomeDir.resolve("vectorstore").resolve("docs");
         this.resourceLoader = resourceLoader;
         this.vectorStoreDocumentPersistenceServiceProvider = vectorStoreDocumentPersistenceServiceProvider;
         this.chatModelProvider = chatModelProvider;
+        this.vectorStoreServiceProvider = vectorStoreServiceProvider;
         Files.createDirectories(uploadDir);
         this.maxUploadSize = maxUploadSize;
         this.splitters = new WeakHashMap<>();
@@ -216,6 +220,52 @@ public class OfflineEtlPipelineService implements SharedDataReader<List<VectorSt
         if (!Boolean.TRUE.equals(this.skipPersist.get()))
             this.vectorStoreDocumentPersistenceServiceProvider.getObject().saveAsync(vectorStoreDocumentInfo);
         return vectorStoreDocumentInfo;
+    }
+
+    public record IngestRequest(List<String> uploadedFileNames, Map<String, List<Document>> chunksByFile,
+            String title, String description) {
+
+        public IngestRequest {
+            uploadedFileNames = uploadedFileNames == null ? List.of() : List.copyOf(uploadedFileNames);
+            chunksByFile = chunksByFile == null ? Map.of() : Map.copyOf(chunksByFile);
+        }
+    }
+
+    public List<VectorStoreDocumentInfo> ingest(IngestRequest request) {
+        List<VectorStoreDocumentInfo> documents = request.uploadedFileNames().stream()
+                .map(fileName -> {
+                    List<Document> chunks = request.chunksByFile().getOrDefault(fileName, List.of());
+                    return chunks.isEmpty() ? null
+                            : loadDocument(fileName, request.title(), request.description(), chunks);
+                })
+                .filter(Objects::nonNull)
+                .toList();
+        VectorStoreService vectorStoreService = this.vectorStoreServiceProvider.getObject();
+        documents.forEach(vectorStoreService::add);
+        return documents;
+    }
+
+    public Map<String, List<Document>> enrichByFile(Map<String, List<Document>> chunksByFile, EnrichOptions options,
+            BiConsumer<Integer, Integer> progress, BooleanSupplier cancelled) {
+        List<Document> flat = chunksByFile.values().stream().flatMap(List::stream).toList();
+        List<Document> enriched = enrich(flat, options, progress, cancelled);
+        Map<String, List<Document>> enrichedByFile = new LinkedHashMap<>();
+        int offset = 0;
+        for (Map.Entry<String, List<Document>> entry : chunksByFile.entrySet()) {
+            int size = entry.getValue().size();
+            enrichedByFile.put(entry.getKey(), enriched.subList(offset, offset + size));
+            offset += size;
+        }
+        return enrichedByFile;
+    }
+
+    public VectorStoreDocumentInfo deleteDocument(String docInfoId) {
+        VectorStoreDocumentInfo documentInfo = this.documentInfos.get(docInfoId);
+        if (documentInfo == null) throw new IllegalArgumentException("Document not found: " + docInfoId);
+        List<String> chunkIds = documentInfo.documentListSupplier().get().stream().map(Document::getId).toList();
+        this.vectorStoreServiceProvider.getObject().delete(chunkIds);
+        deleteDocumentInfo(documentInfo);
+        return documentInfo;
     }
 
     public VectorStoreDocumentInfo promoteToKnowledgeBase(VectorStoreDocumentInfo vectorStoreDocumentInfo) {

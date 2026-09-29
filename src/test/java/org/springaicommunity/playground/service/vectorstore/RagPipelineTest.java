@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -148,5 +149,33 @@ class RagPipelineTest {
                 new RagPipeline.PreRetrievalConfig(true, null, true, null, true, "english", null, true, 3, true, null),
                 null, null, null, 0L, 0L);
         assertEquals(4, allPre.extraLlmCallCount());
+    }
+
+    @Test
+    void templateOrNullDropsBlankAndLibraryDefaultTemplates() {
+        assertNull(RagPipeline.templateOrNull(null, RagPipeline.PreRetrievalConfig.DEFAULT_REWRITE_TEMPLATE));
+        assertNull(RagPipeline.templateOrNull("  ", RagPipeline.PreRetrievalConfig.DEFAULT_REWRITE_TEMPLATE));
+        assertNull(RagPipeline.templateOrNull(RagPipeline.PreRetrievalConfig.DEFAULT_REWRITE_TEMPLATE,
+                RagPipeline.PreRetrievalConfig.DEFAULT_REWRITE_TEMPLATE));
+        assertEquals("custom {query}", RagPipeline.templateOrNull("custom {query}",
+                RagPipeline.PreRetrievalConfig.DEFAULT_REWRITE_TEMPLATE));
+    }
+
+    @Test
+    void effectiveTemplatesFallBackToTheDefaults() {
+        RagPipeline.PreRetrievalConfig pre = RagPipeline.PreRetrievalConfig.defaults();
+        assertEquals(RagPipeline.PreRetrievalConfig.DEFAULT_REWRITE_TEMPLATE, pre.effectiveRewritePromptTemplate());
+        assertEquals(RagPipeline.PreRetrievalConfig.DEFAULT_COMPRESSION_TEMPLATE,
+                pre.effectiveCompressionPromptTemplate());
+        assertEquals(RagPipeline.PreRetrievalConfig.DEFAULT_TRANSLATION_TEMPLATE,
+                pre.effectiveTranslationPromptTemplate());
+        assertEquals(RagPipeline.PreRetrievalConfig.DEFAULT_MULTI_QUERY_TEMPLATE,
+                pre.effectiveMultiQueryPromptTemplate());
+        assertEquals(RagPipeline.PreRetrievalConfig.DEFAULT_REWRITE_TARGET, pre.effectiveRewriteTargetSearchSystem());
+        RagPipeline.GenerationConfig gen = new RagPipeline.GenerationConfig(false, "mine {context} {query}", null,
+                false);
+        assertEquals("mine {context} {query}", gen.effectivePromptTemplate());
+        assertEquals(RagPipeline.GenerationConfig.DEFAULT_EMPTY_CONTEXT_TEMPLATE,
+                gen.effectiveEmptyContextPromptTemplate());
     }
 }

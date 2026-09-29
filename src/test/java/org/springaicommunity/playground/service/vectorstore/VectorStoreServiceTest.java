@@ -17,6 +17,8 @@ package org.springaicommunity.playground.service.vectorstore;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springaicommunity.playground.service.vectorstore.VectorStoreService.AddChunkRequest;
+import org.springaicommunity.playground.service.vectorstore.VectorStoreService.AddChunkResult;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.vectorstore.SearchRequest;
@@ -32,6 +34,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -49,6 +53,9 @@ class VectorStoreServiceTest {
 
     @Autowired
     private VectorStoreService vectorStoreService;
+
+    @Autowired
+    private OfflineEtlPipelineService offlineEtlPipelineService;
 
 
     @Test
@@ -146,7 +153,8 @@ class VectorStoreServiceTest {
         ObjectProvider<VectorStoreDocumentPersistenceService> persistenceProvider = mock(ObjectProvider.class);
         when(persistenceProvider.getObject()).thenReturn(mock(VectorStoreDocumentPersistenceService.class));
         VectorStoreService service = new VectorStoreService(mock(EmbeddingModel.class), mock(VectorStore.class),
-                mock(ApplicationContext.class), persistenceProvider, ragPipelineService, 0.35, 4);
+                mock(ApplicationContext.class), persistenceProvider, ragPipelineService, mock(ObjectProvider.class),
+                0.35, 4);
 
         service.add(new VectorStoreDocumentInfo("chat-doc", "attached.txt", null, 0L, 0L, "attached.txt", "", true,
                 List::of));
@@ -167,4 +175,37 @@ class VectorStoreServiceTest {
         assertEquals(new Filter.Key(VectorStoreService.DOC_INFO_ID), exclusion.left());
     }
 
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void addChunkJoinsAnExistingDocumentOrCreatesOne() {
+        assertThatThrownBy(() -> vectorStoreService.addChunk(new AddChunkRequest(" ", "text", Map.of())))
+                .isInstanceOf(IllegalArgumentException.class).hasMessage("Document name and text are required");
+        assertThatThrownBy(() -> vectorStoreService.addChunk(new AddChunkRequest("Notes", "", null)))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        AddChunkResult created = vectorStoreService.addChunk(new AddChunkRequest(" chunk-target ", "first chunk",
+                Map.of("k", "v")));
+        try {
+            assertThat(created.created()).isTrue();
+            assertThat(created.document().title()).isEqualTo("chunk-target");
+            ArgumentCaptor<List<Document>> firstAdd = ArgumentCaptor.forClass(List.class);
+            verify(vectorStore).add(firstAdd.capture());
+            assertThat(firstAdd.getValue()).singleElement().satisfies(chunk -> assertThat(chunk.getMetadata())
+                    .containsEntry("k", "v")
+                    .containsEntry(VectorStoreService.DOC_INFO_ID, created.document().docInfoId()));
+
+            AddChunkResult joined = vectorStoreService.addChunk(new AddChunkRequest("chunk-target", "second chunk",
+                    Map.of()));
+            assertThat(joined.created()).isFalse();
+            assertThat(joined.document().docInfoId()).isEqualTo(created.document().docInfoId());
+            ArgumentCaptor<List<Document>> adds = ArgumentCaptor.forClass(List.class);
+            verify(vectorStore, times(2)).add(adds.capture());
+            assertThat(adds.getAllValues().getLast()).singleElement()
+                    .satisfies(chunk -> assertThat(chunk.getMetadata())
+                            .containsEntry(VectorStoreService.DOC_INFO_ID, created.document().docInfoId()));
+        } finally {
+            offlineEtlPipelineService.deleteDocumentInfo(created.document());
+        }
+    }
 }

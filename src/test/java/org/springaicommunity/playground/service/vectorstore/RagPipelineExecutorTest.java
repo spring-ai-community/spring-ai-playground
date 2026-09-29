@@ -415,4 +415,28 @@ class RagPipelineExecutorTest {
         assertEquals(TraceEvent.Level.WARN, skipEvent.level(),
                 "Expected WARN-level skip event for " + expectedStage + " (no ChatClient.Builder available)");
     }
+
+    @Test
+    void sessionKeepsTheConversationAcrossRuns() {
+        VectorStore vs = mock(VectorStore.class);
+        when(vs.similaritySearch(any(SearchRequest.class))).thenReturn(List.of(
+                doc("d1", 0.84, "Spring AI provides a vector store abstraction.", "doc1")));
+        SharedDataReader<List<VectorStoreDocumentInfo>> reader = List::of;
+        RagPipelineExecutor executor = new RagPipelineExecutor(vs, mockVectorStoreService(0.5, 4),
+                emptyProvider(), reader);
+        RagPipelineExecutor.Session session = executor.newSession();
+
+        RagPipelineExecutor.RunResult first = session.run(naivePipeline(0), "what is a vector store?",
+                event -> { });
+        RagPipelineExecutor.RunResult second = session.run(naivePipeline(0), "and how is it queried?",
+                event -> { });
+
+        assertNotNull(first.finalPrompt());
+        assertNotNull(second.finalPrompt());
+        assertNull(second.llmAnswer());
+        assertEquals(2, session.history().size());
+        assertTrue(session.history().stream().allMatch(message -> message instanceof UserMessage));
+        session.clear();
+        assertTrue(session.history().isEmpty());
+    }
 }

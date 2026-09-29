@@ -27,6 +27,8 @@ import org.springaicommunity.playground.service.chat.ChatHistoryService;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
 import org.springaicommunity.playground.service.mcp.catalog.McpCatalogService;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
+import org.springaicommunity.playground.service.chat.ProviderReadinessService;
+import org.springaicommunity.playground.service.home.ReleaseCheckService;
 import org.springaicommunity.playground.service.tool.ToolActivationCalculator;
 import org.springaicommunity.playground.service.tool.ToolSpecPersistenceService;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
@@ -34,12 +36,9 @@ import org.springaicommunity.playground.service.vectorstore.OfflineEtlPipelineSe
 import org.springaicommunity.playground.webui.SpringAiPlaygroundAppLayout;
 import org.springaicommunity.playground.webui.common.ContentWorkspaceView;
 import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.embedding.EmbeddingModel;
-import org.springframework.ai.embedding.EmbeddingOptions;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.env.Environment;
 
-import java.util.Optional;
 
 @SpringComponent
 @UIScope
@@ -57,17 +56,17 @@ public class HomeView extends ContentWorkspaceView {
             ToolSpecPersistenceService toolSpecPersistenceService,
             ToolActivationCalculator toolActivationCalculator,
             ObjectProvider<ChatModel> chatModelProvider,
-            ObjectProvider<EmbeddingModel> embeddingModelProvider,
-            Optional<EmbeddingOptions> embeddingOptions,
+            ProviderReadinessService providerReadinessService,
             ObservabilityTimeSeries observabilityTimeSeries,
             SystemMetricsSnapshot systemMetricsSnapshot,
             McpRiskEventRingBuffer mcpRiskEventRingBuffer,
+            ReleaseCheckService releaseCheckService,
             Environment environment) {
         configureSidebar(new HomeItemView(), "Links");
         setHeaderLabel("Welcome");
         setContent(new HomeInfoView(toolSpecService, mcpServerInfoService, mcpClientService, mcpCatalogService,
                 offlineEtlPipelineService, chatHistoryService, toolSpecPersistenceService, toolActivationCalculator,
-                chatModelProvider, embeddingModelProvider, embeddingOptions,
-                observabilityTimeSeries, systemMetricsSnapshot, mcpRiskEventRingBuffer, environment));
+                chatModelProvider, providerReadinessService,
+                observabilityTimeSeries, systemMetricsSnapshot, mcpRiskEventRingBuffer, releaseCheckService, environment));
     }
 }

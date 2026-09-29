@@ -15,6 +15,7 @@
  */
 package org.springaicommunity.playground.service.mcp.risk;
 
+import org.springaicommunity.playground.SpringAiPlaygroundOptions;
 import org.springaicommunity.playground.service.mcp.catalog.McpCatalogEntry;
 import org.springaicommunity.playground.service.mcp.catalog.McpCatalogService;
 import org.springaicommunity.playground.service.mcp.catalog.McpRiskFactors;
@@ -34,10 +35,53 @@ public class McpRegistrationRiskPreview {
 
     private final McpCatalogService catalogService;
     private final McpServerRiskCalculator serverCalc;
+    private final String builtInServerName;
 
-    public McpRegistrationRiskPreview(McpCatalogService catalogService, McpServerRiskCalculator serverCalc) {
+    public McpRegistrationRiskPreview(McpCatalogService catalogService, McpServerRiskCalculator serverCalc,
+            SpringAiPlaygroundOptions playgroundOptions) {
         this.catalogService = catalogService;
         this.serverCalc = serverCalc;
+        this.builtInServerName = playgroundOptions.builtInMcpServer().name();
+    }
+
+    public record RegistrationInput(
+            String serverName,
+            McpTransportType transport,
+            String url,
+            Map<String, String> headers,
+            boolean oauthEnabled) {
+
+        public RegistrationInput {
+            headers = headers == null ? Map.of() : new LinkedHashMap<>(headers);
+        }
+    }
+
+    public record RegistrationPreview(RiskLevel level, String floorTrigger, Map<String, String> rationale,
+            boolean builtIn) {
+
+        public RegistrationPreview {
+            if (level == null) level = RiskLevel.L1;
+            rationale = rationale == null ? Map.of() : new LinkedHashMap<>(rationale);
+        }
+
+        public boolean requiresConfirmation() {
+            return this.level.ordinal() >= RiskLevel.L4.ordinal();
+        }
+    }
+
+    public RegistrationPreview preview(RegistrationInput input) {
+        if (isBuiltIn(input.serverName())) return new RegistrationPreview(RiskLevel.L0, null, Map.of(), true);
+        String url = input.transport() == McpTransportType.STDIO ? null : input.url();
+        WizardInput wizard = new WizardInput(input.serverName(), input.transport(), url,
+                McpAuthClassifier.fromHeaders(input.headers(), input.oauthEnabled()),
+                null, null, null, true, true, null, List.of());
+        PreviewResult result = preview(wizard);
+        return new RegistrationPreview(result.serverResult().level(), result.serverResult().floorTrigger(),
+                result.rationale(), false);
+    }
+
+    public boolean isBuiltIn(String serverName) {
+        return this.builtInServerName != null && this.builtInServerName.equalsIgnoreCase(serverName);
     }
 
     public record WizardInput(
@@ -93,7 +137,6 @@ public class McpRegistrationRiskPreview {
     }
 
     Optional<McpCatalogEntry> findCatalogMatch(WizardInput input) {
-        // STDIO carries no host, so match by server name like the runtime resolver does.
         if (input.transport() == McpTransportType.STDIO) {
             return notBlank(input.displayName())
                     ? catalogService.findByServerName(input.displayName().trim())

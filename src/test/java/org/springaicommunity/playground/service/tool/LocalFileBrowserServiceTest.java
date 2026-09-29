@@ -13,14 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.springaicommunity.playground.webui.chat;
+package org.springaicommunity.playground.service.tool;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions.FsConfig;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions.ToolStudio;
-import org.springaicommunity.playground.service.tool.ToolWorkspace;
 
 import java.io.File;
 import java.io.IOException;
@@ -64,10 +63,10 @@ class LocalFileBrowserServiceTest {
 
     @Test
     void resolveRejectsNullBlankAndUnparseable(@TempDir Path workspace) {
-        LocalFileBrowserService s = service(workspace);
-        assertThat(s.resolveRevealTarget(null)).isNull();
-        assertThat(s.resolveRevealTarget("   ")).isNull();
-        assertThat(s.resolveRevealTarget("foo\0bar")).isNull();
+        LocalFileBrowserService browser = service(workspace);
+        assertThat(browser.resolveRevealTarget(null)).isNull();
+        assertThat(browser.resolveRevealTarget("   ")).isNull();
+        assertThat(browser.resolveRevealTarget("foo\0bar")).isNull();
     }
 
     @Test

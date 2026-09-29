@@ -33,43 +33,24 @@ import com.vaadin.flow.component.virtuallist.VirtualList;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.data.value.ValueChangeMode;
 import org.springaicommunity.playground.observability.Window;
+import org.springaicommunity.playground.observability.logs.LogQueryService;
+import org.springaicommunity.playground.observability.logs.LogQueryService.LogFilter;
+import org.springaicommunity.playground.observability.logs.LogQueryService.LogLine;
+import org.springaicommunity.playground.observability.logs.LogQueryService.LogQueryResult;
 import org.springaicommunity.playground.webui.VaadinUtils;
 import org.springaicommunity.playground.webui.observability.components.BaseDashboardTab;
 import org.springaicommunity.playground.webui.observability.components.ObservabilityGlobalSettings;
 import org.springaicommunity.playground.webui.observability.components.ObservabilityNavLinks;
 
-import java.io.IOException;
-import java.io.RandomAccessFile;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.function.Function;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.regex.PatternSyntaxException;
 
 public class LogsTab extends BaseDashboardTab {
 
-    private static final int TAIL_BYTES = 4 * 1024 * 1024;
-    private static final DateTimeFormatter LOG_TIME_FMT =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
-
-    private static final Pattern LINE_PATTERN = Pattern.compile(
-            "^(?<time>\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3})\\s+"
-                    + "\\[(?<thread>[^\\]]+)\\]\\s+"
-                    + "(?<level>[A-Z]+)\\s+"
-                    + "(?<logger>\\S+)\\s+"
-                    + "\\[user=(?<user>[^ ]*) sid=(?<sid>[^ ]*) conv=(?<conv>[^ ]*) msg=(?<msg>[^ ]*) "
-                    + "traceId=(?<traceId>[^ ]*) spanId=(?<spanId>[^\\]]*)\\]\\s+-\\s+"
-                    + "(?<rest>.*)$");
-
-    private final Path logFile;
+    private final LogQueryService logQueryService;
     private final ObservabilityGlobalSettings globalSettings;
     private final Span matchCountChip = new Span();
     private final ComboBox<String> levelFilter = new ComboBox<>();
@@ -84,9 +65,9 @@ public class LogsTab extends BaseDashboardTab {
     private List<LogLine> currentFiltered = List.of();
     private boolean refreshing;
 
-    public LogsTab(Path springAiPlaygroundHomeDir, ObservabilityGlobalSettings globalSettings) {
+    public LogsTab(LogQueryService logQueryService, ObservabilityGlobalSettings globalSettings) {
         super();
-        this.logFile = springAiPlaygroundHomeDir.resolve("logs").resolve("spring-ai-playground.log");
+        this.logQueryService = logQueryService;
         this.globalSettings = globalSettings;
 
         matchCountChip.getStyle().set("font-size", "var(--lumo-font-size-xs)")
@@ -194,8 +175,8 @@ public class LogsTab extends BaseDashboardTab {
         combo.setValue(values.contains(current) ? current : "ALL");
     }
 
-    private static boolean notAll(String v) {
-        return v != null && !v.isBlank() && !"ALL".equals(v);
+    private static boolean isSpecificFilterValue(String value) {
+        return LogQueryService.isSpecificFilterValue(value);
     }
 
     private Div renderRow(LogLine line) {
@@ -358,47 +339,12 @@ public class LogsTab extends BaseDashboardTab {
     }
 
     private void doRefresh(Window window) {
-        if (!Files.isRegularFile(logFile)) {
-            setStatus("Log file not found: " + logFile);
-            list.setItems(List.of());
-            return;
-        }
-        String tail = readTail(logFile);
-        if (tail == null) {
-            setStatus("Failed to read log file");
-            return;
-        }
-        String[] rawLines = tail.split("\\R");
-        List<LogLine> all = new ArrayList<>(rawLines.length);
-        for (String r : rawLines) {
-            LogLine ln = parse(r);
-            if (ln != null) all.add(ln);
-        }
-        populateDynamicFilter(sessionFilter, all, LogLine::sessionId);
-
         String levelVal = levelFilter.getValue();
         String sessionVal = sessionFilter.getValue();
-        String contains = textFilter.getValue() == null ? "" : textFilter.getValue().trim();
         boolean ci = Boolean.TRUE.equals(caseInsensitive.getValue());
-        boolean useRegex = Boolean.TRUE.equals(regexMode.getValue()) && !contains.isEmpty();
-
-        Pattern pattern = null;
-        String regexError = null;
-        if (useRegex) {
-            try {
-                pattern = ci
-                        ? Pattern.compile(contains, Pattern.CASE_INSENSITIVE)
-                        : Pattern.compile(contains);
-            } catch (PatternSyntaxException ex) {
-                regexError = ex.getDescription();
-                useRegex = false;
-            }
-        }
-        String containsLc = contains.toLowerCase();
-
+        boolean customRange = globalSettings.hasCustomRange();
         LocalDateTime fromInstant;
         LocalDateTime toInstant;
-        boolean customRange = globalSettings.hasCustomRange();
         if (customRange) {
             fromInstant = globalSettings.customFrom();
             toInstant = globalSettings.customTo();
@@ -407,46 +353,40 @@ public class LogsTab extends BaseDashboardTab {
             fromInstant = LocalDateTime.now().minusMinutes(effective.minutes);
             toInstant = null;
         }
-
-        List<LogLine> filtered = new ArrayList<>(all.size());
-        for (LogLine ln : all) {
-            if (levelVal != null && !"ALL".equals(levelVal) && !levelVal.equals(ln.level())) continue;
-            if (notAll(sessionVal) && !sessionVal.equals(ln.sessionId())) continue;
-
-            LocalDateTime lt = parseLogTime(ln.time());
-            if (lt == null) continue;
-            if (fromInstant != null && lt.isBefore(fromInstant)) continue;
-            if (toInstant != null && lt.isAfter(toInstant)) continue;
-
-            if (!contains.isEmpty()) {
-                if (useRegex) {
-                    if (!pattern.matcher(ln.raw()).find()) continue;
-                } else {
-                    String hay = ci ? ln.raw().toLowerCase() : ln.raw();
-                    String needle = ci ? containsLc : contains;
-                    if (!hay.contains(needle)) continue;
-                }
-            }
-            filtered.add(ln);
+        LogFilter filter = new LogFilter(levelVal, sessionVal, textFilter.getValue(), ci,
+                Boolean.TRUE.equals(regexMode.getValue()), fromInstant, toInstant);
+        LogQueryResult result = logQueryService.query(filter);
+        if (result.status() == LogQueryService.Status.FILE_MISSING) {
+            setStatus("Log file not found: " + logQueryService.logFile());
+            list.setItems(List.of());
+            return;
         }
-
-        filtered.sort(Comparator.comparing(LogLine::time, Comparator.nullsFirst(Comparator.naturalOrder())));
+        if (result.status() == LogQueryService.Status.READ_FAILED) {
+            setStatus("Failed to read log file");
+            return;
+        }
+        List<LogLine> all = result.all();
+        populateDynamicFilter(sessionFilter, all, LogLine::sessionId);
+        List<LogLine> filtered = result.matched();
+        String contains = filter.trimmedText();
+        String regexError = result.regexError();
 
         list.setItems(filtered);
         currentFiltered = filtered;
 
         boolean hasFilter = !contains.isEmpty() || customRange
                 || (levelVal != null && !"ALL".equals(levelVal))
-                || notAll(sessionVal);
+                || isSpecificFilterValue(sessionVal);
         matchCountChip.setText(hasFilter
                 ? ("matched " + filtered.size() + " / " + all.size())
                 : ("showing " + filtered.size() + " lines"));
 
         StringBuilder status = new StringBuilder();
-        status.append(logFile).append(" · ");
+        status.append(logQueryService.logFile()).append(" · ");
         status.append(filtered.size()).append(" of ").append(all.size()).append(" lines · ")
-                .append(tail.length() / 1024).append(" KB tail");
-        status.append(" · mode: ").append(useRegex ? "regex" : (regexError != null ? "literal (regex error)" : "literal"));
+                .append(result.tailChars() / 1024).append(" KB tail");
+        status.append(" · mode: ").append(result.regexUsed() ? "regex"
+                : (regexError != null ? "literal (regex error)" : "literal"));
         status.append(" · follow tail ")
                 .append(Boolean.TRUE.equals(followTail.getValue()) ? "ON" : "OFF");
         if (customRange) {
@@ -492,54 +432,4 @@ public class LogsTab extends BaseDashboardTab {
         VaadinUtils.showInfoNotification(
                 "Exported " + currentFiltered.size() + " lines → " + filename);
     }
-
-    private LocalDateTime parseLogTime(String s) {
-        if (s == null || s.isEmpty()) return null;
-        try {
-            return LocalDateTime.parse(s, LOG_TIME_FMT);
-        } catch (DateTimeParseException e) {
-            return null;
-        }
-    }
-
-    private String readTail(Path path) {
-        try (RandomAccessFile raf = new RandomAccessFile(path.toFile(), "r")) {
-            long len = raf.length();
-            long start = Math.max(0, len - TAIL_BYTES);
-            raf.seek(start);
-            byte[] buf = new byte[(int) Math.min(TAIL_BYTES, len - start)];
-            raf.readFully(buf);
-            return new String(buf, StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            return null;
-        }
-    }
-
-    static LogLine parse(String raw) {
-        if (raw == null || raw.isBlank()) return null;
-        Matcher m = LINE_PATTERN.matcher(raw);
-        if (!m.matches()) {
-            return new LogLine("", "", "", "", "", "", "", "", "", raw, raw);
-        }
-        return new LogLine(
-                m.group("time"),
-                m.group("level"),
-                m.group("logger"),
-                m.group("user"),
-                m.group("sid"),
-                m.group("conv"),
-                m.group("msg"),
-                m.group("traceId"),
-                m.group("spanId"),
-                m.group("rest"),
-                raw);
-    }
-
-    public record LogLine(
-            String time, String level, String logger,
-            String userId, String sessionId,
-            String conv, String userMessageId,
-            String traceId, String spanId,
-            String message, String raw
-    ) {}
 }

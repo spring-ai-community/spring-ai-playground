@@ -21,9 +21,12 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import tools.jackson.databind.ObjectMapper;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
+import org.springaicommunity.playground.service.mcp.McpServerInfoService.ExternalServerSummary;
+import org.springaicommunity.playground.service.mcp.McpServerInfoService.McpServerRegistration;
 import org.springaicommunity.playground.service.mcp.catalog.McpCatalogService;
 import org.springaicommunity.playground.service.mcp.client.McpClientPropertiesService;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
+import org.springaicommunity.playground.service.mcp.client.McpClientService.ServerStatus;
 import org.springaicommunity.playground.service.mcp.client.McpTransportType;
 import org.springaicommunity.playground.service.oauth.McpClientRegistrationRepository;
 import org.springaicommunity.playground.service.oauth.OAuthTokenEncryptor;
@@ -39,18 +42,30 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest
 class McpServerInfoServiceTest {
 
     @Autowired
     private McpServerInfoService mcpServerInfoService;
+
+    @Autowired
+    private McpClientService mcpClientService;
 
     @Test
     public void testMcpServerInfoService() {
@@ -139,6 +154,168 @@ class McpServerInfoServiceTest {
     }
 
     @Test
+    void updateRejectsServerNamesThatCouldEscapeTheSaveDirectory() {
+        long now = System.currentTimeMillis();
+        for (String unsafeName : List.of("has space", "../escape", "slash/name", "")) {
+            McpServerInfo unsafe = new McpServerInfo(McpTransportType.SSE, unsafeName, "d", now, now, "{}");
+            assertThatThrownBy(() -> mcpServerInfoService.updateMcpServerInfo(McpTransportType.SSE, unsafeName, unsafe))
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
+        assertThat(McpServerInfoService.serverNameError("has space")).contains("Server name cannot contain spaces");
+        assertThat(McpServerInfoService.serverNameError("../escape"))
+                .contains("Server name may only contain letters, digits, '.', '_', '-'");
+        assertThat(McpServerInfoService.serverNameError("")).contains("Server name cannot be empty");
+        assertThat(McpServerInfoService.serverNameError(null)).contains("Server name cannot be empty");
+        assertThat(McpServerInfoService.serverNameError("ok.name_1-a")).isEmpty();
+        assertThat(mcpServerInfoService.getMcpServerInfos().get(McpTransportType.SSE))
+                .extracting(McpServerInfo::serverName).doesNotContain("has space", "../escape", "slash/name", "");
+    }
+
+    @Test
+    void deleteGuardsTheBuiltInServerCatalogGhostsAndUnknownNames() {
+        String builtin = mcpServerInfoService.getDefaultMcpServerInfo().serverName();
+
+        assertThat(mcpServerInfoService.deleteBlocker(builtin)).contains("Built-in MCP server cannot be deleted.");
+        assertThat(mcpServerInfoService.deleteBlocker("GitHub"))
+                .contains("Inactive (catalog) MCP servers cannot be deleted.");
+        assertThat(mcpServerInfoService.deleteBlocker("no-such-server"))
+                .contains("MCP server not found: no-such-server");
+        assertThatThrownBy(() -> mcpServerInfoService.delete(builtin))
+                .isInstanceOf(IllegalStateException.class).hasMessage("Built-in MCP server cannot be deleted.");
+        assertThatThrownBy(() -> mcpServerInfoService.delete("GitHub")).isInstanceOf(IllegalStateException.class);
+        assertThat(mcpServerInfoService.getDefaultMcpServerInfo().serverName()).isEqualTo(builtin);
+    }
+
+    @Test
+    void deleteRemovesARegisteredServer() {
+        long now = System.currentTimeMillis();
+        McpServerInfo info = new McpServerInfo(McpTransportType.SSE, "delete-me", "d", now, now,
+                "{\"url\":\"https://delete-me.example.com\"}");
+        mcpServerInfoService.updateMcpServerInfo(McpTransportType.SSE, "delete-me", info);
+        assertThat(mcpServerInfoService.deleteBlocker("delete-me")).isEmpty();
+
+        McpServerInfo deleted = mcpServerInfoService.delete("delete-me");
+
+        assertThat(deleted.serverName()).isEqualTo("delete-me");
+        assertThat(mcpServerInfoService.findByServerName("delete-me")).isEmpty();
+        assertThat(mcpServerInfoService.deleteBlocker("delete-me")).contains("MCP server not found: delete-me");
+    }
+
+    @Test
+    void uninstalledCatalogServersSkipRegisteredNamesAndCatalogStatusReflectsMissingEnv() {
+        assertThat(mcpServerInfoService.uninstalledCatalogServers()).extracting(McpServerInfo::serverName)
+                .contains("GitHub", "Notion");
+        long now = System.currentTimeMillis();
+        McpServerInfo installed = new McpServerInfo(McpTransportType.STREAMABLE_HTTP, "GitHub", "d", now, now,
+                "{\"url\":\"https://api.githubcopilot.com/mcp/\"}");
+        mcpServerInfoService.updateMcpServerInfo(installed.mcpTransportType(), installed.serverName(), installed);
+        try {
+            assertThat(mcpServerInfoService.uninstalledCatalogServers()).extracting(McpServerInfo::serverName)
+                    .doesNotContain("GitHub").contains("Notion");
+        } finally {
+            mcpServerInfoService.deleteMcpServerInfo(installed.mcpTransportType(), installed.serverName());
+        }
+
+        McpServerInfo needsEnv = new McpServerInfo(McpTransportType.STREAMABLE_HTTP, "ghost-env", "d", now, now,
+                "{\"url\":\"https://x.example.com/${QA_MISSING_ENV_20260928}\"}");
+        assertThat(mcpClientService.catalogStatus(needsEnv).status()).isEqualTo(ServerStatus.MISSING_CONFIG);
+        McpServerInfo plain = new McpServerInfo(McpTransportType.STREAMABLE_HTTP, "ghost-plain", "d", now, now,
+                "{\"url\":\"https://x.example.com\"}");
+        assertThat(mcpClientService.catalogStatus(plain).status()).isEqualTo(ServerStatus.OFFLINE);
+    }
+
+    @Test
+    void saveAndConnectRejectsDuplicatesUrlAndOAuthBeforeConnecting() throws IOException {
+        McpClientService clientService = mock(McpClientService.class);
+        McpServerInfoService service = newServiceForSave(clientService, mock(McpServerInfoPersistenceService.class));
+        McpServerInfo taken = new McpServerInfo(McpTransportType.STDIO, "taken", "d", 1L, 1L, "{\"command\":\"x\"}");
+        service.loadAll(() -> service.updateMcpServerInfo(taken.mcpTransportType(), taken.serverName(), taken));
+
+        assertThatThrownBy(() -> service.saveAndConnect(new McpServerRegistration(null, "New MCP Server",
+                McpTransportType.STDIO, "taken", "d", null, null, "{\"command\":\"y\"}")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Failed to save : MCP connection already exists with name taken");
+        assertThatThrownBy(() -> service.saveAndConnect(new McpServerRegistration(null, null,
+                McpTransportType.STREAMABLE_HTTP, "no-url", "d", null, null, "{\"endpoint\":\"/mcp\"}")))
+                .isInstanceOf(IllegalArgumentException.class).hasMessage("URL is required for HTTP/SSE transport");
+        assertThatThrownBy(() -> service.saveAndConnect(new McpServerRegistration(null, null,
+                McpTransportType.STREAMABLE_HTTP, "bad-oauth", "d", null, null,
+                "{\"url\":\"https://u\",\"oauth\":{\"issuer-uri\":\"http://plain\"}}")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Client ID is required for OAuth.")
+                .hasMessageContaining("Issuer URI must use HTTPS.");
+        assertThatThrownBy(() -> service.saveAndConnect(new McpServerRegistration(null, null,
+                McpTransportType.STDIO, "bad name", "d", null, null, "{}")))
+                .isInstanceOf(IllegalArgumentException.class).hasMessage("Server name cannot contain spaces");
+        verify(clientService, never()).startMcpClient(any());
+    }
+
+    @Test
+    void saveAndConnectStartsTheClientThenPersistsAndKeepsCreateTimestampOnEdit() throws IOException {
+        McpClientService clientService = mock(McpClientService.class);
+        McpServerInfoPersistenceService persistence = mock(McpServerInfoPersistenceService.class);
+        McpServerInfoService service = newServiceForSave(clientService, persistence);
+
+        McpServerInfo saved = service.saveAndConnect(new McpServerRegistration(McpTransportType.STREAMABLE_HTTP,
+                "New MCP Server", McpTransportType.STDIO, "fresh", "desc", " ", Set.of(" tag ", "", "x"),
+                "{\"command\":\"npx\"}"));
+
+        assertThat(saved.serverName()).isEqualTo("fresh");
+        assertThat(saved.category()).isEqualTo(McpServerInfo.DEFAULT_CATEGORY);
+        assertThat(saved.tags()).containsExactlyInAnyOrder("tag", "x");
+        assertThat(saved.createTimestamp()).isEqualTo(saved.updateTimestamp());
+        verify(clientService).startMcpClient(saved);
+        verify(persistence).saveAsync(saved);
+        assertThat(service.findByServerName("fresh")).contains(saved);
+
+        McpServerInfo edited = service.saveAndConnect(new McpServerRegistration(McpTransportType.STDIO, "fresh",
+                McpTransportType.STDIO, "fresh", "new desc", "CUSTOM", Set.of(), "{\"command\":\"uvx\"}"));
+        assertThat(edited.createTimestamp()).isEqualTo(saved.createTimestamp());
+        assertThat(edited.description()).isEqualTo("new desc");
+        assertThat(service.findByServerName("fresh")).contains(edited);
+
+        McpServerInfo renamed = service.saveAndConnect(new McpServerRegistration(McpTransportType.STDIO, "fresh",
+                McpTransportType.STDIO, "renamed", "new desc", "CUSTOM", Set.of(), "{\"command\":\"uvx\"}"));
+        assertThat(renamed.createTimestamp()).isEqualTo(saved.createTimestamp());
+        assertThat(service.findByServerName("fresh")).isPresent();
+        assertThat(service.findByServerName("renamed")).contains(renamed);
+    }
+
+    @Test
+    void saveAndConnectWrapsConnectionFailuresAndSavesNothing() throws IOException {
+        McpClientService clientService = mock(McpClientService.class);
+        McpServerInfoPersistenceService persistence = mock(McpServerInfoPersistenceService.class);
+        McpServerInfoService service = newServiceForSave(clientService, persistence);
+        doThrow(new RuntimeException("connect refused")).when(clientService).startMcpClient(any());
+
+        assertThatThrownBy(() -> service.saveAndConnect(new McpServerRegistration(null, null,
+                McpTransportType.STDIO, "broken", "d", null, null, "{\"command\":\"nope\"}")))
+                .isInstanceOf(IllegalStateException.class).hasMessage("Failed to connect : connect refused");
+        assertThat(service.findByServerName("broken")).isEmpty();
+        verify(persistence, never()).saveAsync(any());
+    }
+
+    private static McpServerInfoService newServiceForSave(McpClientService clientService,
+            McpServerInfoPersistenceService persistence) throws IOException {
+        McpClientPropertiesService<?> stdio = mock(McpClientPropertiesService.class);
+        when(stdio.getTransportType()).thenReturn(McpTransportType.STDIO);
+        doReturn(Map.of()).when(stdio).getDefaultConnections();
+        McpClientPropertiesService<?> streamable = mock(McpClientPropertiesService.class);
+        when(streamable.getTransportType()).thenReturn(McpTransportType.STREAMABLE_HTTP);
+        doReturn(Map.of()).when(streamable).getDefaultConnections();
+        Path homeDir = Files.createTempDirectory("saip-mcp-save-test");
+        SpringAiPlaygroundOptions playgroundOptions = new SpringAiPlaygroundOptions(null, false, null, null, null,
+                new SpringAiPlaygroundOptions.McpServer(null, null, null));
+        ObjectProvider<McpServerInfoPersistenceService> provider = mock();
+        when(provider.getObject()).thenReturn(persistence);
+        return new McpServerInfoService(new ObjectMapper(),
+                new McpClientPropertiesService<?>[] {stdio, streamable}, clientService,
+                mock(McpCatalogService.class), provider, mock(McpClientRegistrationRepository.class), 8282,
+                new McpServerProperties(), playgroundOptions, new McpServerAuthTokenService(playgroundOptions,
+                        homeDir, new OAuthTokenEncryptor(homeDir), event -> { }));
+    }
+
+    @Test
     void warnsAtStartupWhenTheBuiltInServerHasNoAuthToken() throws IOException {
         Logger serviceLogger = (Logger) LoggerFactory.getLogger(McpServerInfoService.class);
         ListAppender<ILoggingEvent> appender = new ListAppender<>();
@@ -172,4 +349,25 @@ class McpServerInfoServiceTest {
                         new OAuthTokenEncryptor(homeDir), event -> { }));
     }
 
+    @Test
+    void externalServerSummaryCountsAwaitingAuthorizationSeparately() throws IOException {
+        McpClientService clientService = mock(McpClientService.class);
+        McpServerInfoService service = newServiceForSave(clientService, mock(McpServerInfoPersistenceService.class));
+        McpServerInfo ready = new McpServerInfo(McpTransportType.STDIO, "ready", "d", 1L, 1L, "{\"command\":\"x\"}");
+        McpServerInfo waiting = new McpServerInfo(McpTransportType.STREAMABLE_HTTP, "waiting", "d", 1L, 1L,
+                "{\"url\":\"https://u\"}");
+        service.loadAll(() -> {
+            service.updateMcpServerInfo(ready.mcpTransportType(), ready.serverName(), ready);
+            service.updateMcpServerInfo(waiting.mcpTransportType(), waiting.serverName(), waiting);
+        });
+        when(clientService.getStatus(ready)).thenReturn(McpClientService.StatusEntry.ok());
+        when(clientService.getStatus(waiting))
+                .thenReturn(McpClientService.StatusEntry.awaitingAuthorization("https://auth"));
+
+        ExternalServerSummary summary = service.externalServerSummary();
+
+        assertThat(summary.total()).isEqualTo(2);
+        assertThat(summary.awaitingAuthorization()).isEqualTo(1);
+        assertThat(summary.connected()).isEqualTo(1);
+    }
 }

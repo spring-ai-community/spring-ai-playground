@@ -15,6 +15,9 @@
  */
 package org.springaicommunity.playground.service.tool;
 
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
@@ -40,7 +43,9 @@ import org.springaicommunity.playground.service.tool.policy.EffectivePolicyResol
 import org.springaicommunity.playground.service.tool.policy.EffectivePolicyResolver.EffectivePolicy;
 import org.springaicommunity.playground.service.tool.policy.EffectivePolicyResolver.Overrides;
 import org.springaicommunity.playground.service.tool.policy.SandboxPostureCalculator;
+import org.springaicommunity.playground.service.tool.ToolActivationCalculator.State;
 import org.springaicommunity.playground.service.tool.ToolManifest.Sandbox.RiskLevel;
+import org.springaicommunity.playground.service.tool.ToolSpec.JsonSchemaType;
 import org.springaicommunity.playground.service.tool.ToolSpec.ToolParamSpec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -65,6 +70,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.TreeMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -72,6 +78,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -100,6 +107,8 @@ public class ToolSpecService {
     }
 
     private static final Logger logger = LoggerFactory.getLogger(ToolSpecService.class);
+    private static final Pattern TOOL_NAME_PATTERN = Pattern.compile("^[A-Za-z][A-Za-z0-9_]*$");
+    private static final ObjectMapper TEST_VALUE_MAPPER = new ObjectMapper();
     private static final ParameterizedTypeReference<Map<String, Object>>
             MAP_PARAMETERIZED_TYPE_REFERENCE = new ParameterizedTypeReference<>() {};
     private static final ToolManifest.HumanInTheLoop REQUIRED_HITL =
@@ -118,6 +127,7 @@ public class ToolSpecService {
     private final ObservationRegistry observationRegistry;
     private final DefaultIntegrityVerifier integrityVerifier;
     private final ToolCategoryCatalog categoryCatalog;
+    private final ToolActivationCalculator activationCalculator;
     private final ThreadLocal<Boolean> skipPersist = ThreadLocal.withInitial(() -> Boolean.FALSE);
     private final Map<String, ToolSpec> externalToolSpecs = new ConcurrentHashMap<>();
     private final Map<String, String> externalToolRiskLevels = new ConcurrentHashMap<>();
@@ -133,7 +143,7 @@ public class ToolSpecService {
             SandboxPostureCalculator postureCalculator,
             ObservationRegistry observationRegistry,
             DefaultIntegrityVerifier integrityVerifier, ToolCategoryCatalog categoryCatalog,
-            ToolWorkspace toolWorkspace)
+            ToolWorkspace toolWorkspace, ToolActivationCalculator activationCalculator)
             throws ClassNotFoundException {
         this.mcpSyncServer = syncServerProvider.getIfAvailable();
         this.mcpAsyncServer = asyncServerProvider.getIfAvailable();
@@ -149,8 +159,225 @@ public class ToolSpecService {
         this.observationRegistry = observationRegistry;
         this.integrityVerifier = integrityVerifier;
         this.categoryCatalog = categoryCatalog;
+        this.activationCalculator = activationCalculator;
         this.jsToolExecutor = new JsToolExecutor(playgroundOptions.toolStudio().timeoutSeconds(),
                 this.sandboxBaseline, toolWorkspace.base());
+    }
+
+    public record ToolDraftInput(
+            String toolId,
+            String name,
+            String description,
+            List<Map.Entry<String, String>> staticVariables,
+            List<ToolParamSpec> params,
+            String code,
+            String category,
+            Set<String> tags,
+            ToolSpec.SandboxOverrides sandboxOverrides,
+            ToolManifest.HumanInTheLoop humanInTheLoop) {
+
+        public ToolDraftInput {
+            staticVariables = staticVariables == null ? List.of() : List.copyOf(staticVariables);
+            params = params == null ? List.of() : List.copyOf(params);
+            tags = tags == null ? Set.of() : Set.copyOf(tags);
+        }
+    }
+
+    public record ToolTestResult(JsExecutionResult result, long startedAtMs, long endedAtMs) {
+
+        public boolean ok() {
+            return this.result != null && this.result.isOk();
+        }
+    }
+
+    public record ToolSaveResult(ToolSpec spec, ToolTestResult test) {
+
+        public boolean saved() {
+            return this.spec != null;
+        }
+    }
+
+    public record ExposureSelection(boolean autoAdd, Set<String> customSelectedIds, Set<String> builtinSelectedIds) {
+
+        public ExposureSelection {
+            customSelectedIds = customSelectedIds == null ? Set.of() : Set.copyOf(customSelectedIds);
+            builtinSelectedIds = builtinSelectedIds == null ? Set.of() : Set.copyOf(builtinSelectedIds);
+        }
+    }
+
+    public static Optional<String> toolNameError(String toolName) {
+        if (toolName == null || toolName.isBlank()) return Optional.of("Tool Name is required.");
+        if (!TOOL_NAME_PATTERN.matcher(toolName).matches()) {
+            return Optional.of("Use letters, numbers, and '_' only. Must start with a letter.");
+        }
+        return Optional.empty();
+    }
+
+    public ToolTestResult testRun(ToolDraftInput input) {
+        long start = System.currentTimeMillis();
+        try {
+            LinkedHashMap<String, Object> toolParams = new LinkedHashMap<>();
+            List<String> declaredNames = new ArrayList<>();
+            for (ToolParamSpec spec : input.params()) {
+                if (spec.name() != null && !spec.name().isBlank()) declaredNames.add(spec.name());
+                if (spec.testValue() == null || spec.testValue().isBlank()) continue;
+                toolParams.put(spec.name(), convertTestValue(spec.testValue(), spec.type()));
+            }
+            String resolvedName = input.name() == null || input.name().isBlank() ? "draft" : input.name();
+            JsExecutionResult result = executeTool(resolvedName, input.staticVariables(), input.code(), toolParams,
+                    input.sandboxOverrides(), declaredNames);
+            return new ToolTestResult(result, start, System.currentTimeMillis());
+        } catch (RuntimeException e) {
+            throw new IllegalStateException("Exception: " + e.getMessage(), e);
+        }
+    }
+
+    static Object convertTestValue(String testValue, JsonSchemaType type) {
+        try {
+            return switch (type) {
+                case STRING -> testValue;
+                case NUMBER -> Double.parseDouble(testValue);
+                case INTEGER -> Long.parseLong(testValue);
+                case BOOLEAN -> Boolean.parseBoolean(testValue);
+                case ARRAY -> TEST_VALUE_MAPPER.readValue(testValue, new TypeReference<List<Object>>() { });
+                case OBJECT -> TEST_VALUE_MAPPER.readValue(testValue, new TypeReference<Map<String, Object>>() { });
+            };
+        } catch (JacksonException e) {
+            throw new IllegalArgumentException(e.getMessage(), e);
+        }
+    }
+
+    public ToolSaveResult saveDraft(ToolDraftInput input) {
+        validateDraft(input);
+        return new ToolSaveResult(persistDraft(input, true), null);
+    }
+
+    public ToolSaveResult testAndPublish(ToolDraftInput input) {
+        validateDraft(input);
+        ToolTestResult test = testRun(input);
+        if (!test.ok()) return new ToolSaveResult(null, test);
+        return new ToolSaveResult(persistDraft(input, false), test);
+    }
+
+    private void validateDraft(ToolDraftInput input) {
+        toolNameError(input.name()).ifPresent(error -> {
+            throw new IllegalArgumentException(error);
+        });
+        if (input.toolId() == null && getToolSpecAsOpt(input.name()).isPresent()) {
+            throw new IllegalStateException("A tool with this name already exists.");
+        }
+    }
+
+    private ToolSpec persistDraft(ToolDraftInput input, boolean draftRequested) {
+        ToolSpec existing = input.toolId() == null ? null : this.toolIdSpecs.get(input.toolId());
+        boolean startedAsPublished = existing != null && !existing.draft();
+        boolean nameChanged = existing != null && !Objects.equals(existing.name(), input.name());
+        boolean targetDraft = draftRequested || (startedAsPublished && nameChanged);
+        String toolId = input.toolId() != null ? input.toolId() : UUID.randomUUID().toString();
+        ToolSpec formSpec = new ToolSpec(toolId, input.name(), input.description(), input.staticVariables(),
+                input.params(), input.code(), ToolSpec.CodeType.Javascript, null)
+                .withCategory(input.category())
+                .withTags(input.tags())
+                .withSandboxOverrides(input.sandboxOverrides())
+                .withHumanInTheLoop(input.humanInTheLoop())
+                .withDraft(targetDraft);
+        return update(formSpec);
+    }
+
+    public Set<String> defaultToolIds() {
+        ToolSpecPersistenceService persistenceService = this.toolSpecPersistenceServiceProvider.getIfAvailable();
+        return persistenceService == null ? Set.of() : persistenceService.getDefaultToolIds();
+    }
+
+    public List<ToolSpec> customTools() {
+        Set<String> defaultIds = defaultToolIds();
+        return getToolSpecList().stream().filter(spec -> !defaultIds.contains(spec.toolId())).toList();
+    }
+
+    public List<ToolSpec> exposableBuiltins() {
+        Set<String> defaultIds = defaultToolIds();
+        return getToolSpecList().stream()
+                .filter(spec -> defaultIds.contains(spec.toolId()))
+                .filter(spec -> !spec.draft())
+                .filter(spec -> this.activationCalculator.calculate(spec) != State.MISSING_REQUIREMENTS)
+                .toList();
+    }
+
+    public enum ToolReadiness { READY, NOT_EXPOSED, NEEDS_SETUP, NOT_ENABLED }
+
+    public record BuiltinEnvSnapshot(int totalTools, long blockedTools, long exposedBuiltins,
+            Map<String, List<String>> toolsByVar, Set<String> missingVars) {
+
+        public int totalVars() {
+            return this.toolsByVar.size();
+        }
+
+        public int setVars() {
+            return totalVars() - this.missingVars.size();
+        }
+
+        public long localPassed() {
+            return this.totalTools - this.blockedTools;
+        }
+    }
+
+    public record CustomToolSummary(int totalTools, int customTools, long needConfiguration) {}
+
+    public BuiltinEnvSnapshot builtinEnvSnapshot() {
+        ToolSpecPersistenceService persistenceService = this.toolSpecPersistenceServiceProvider.getIfAvailable();
+        List<ToolSpec> defaults = persistenceService == null ? List.of() : persistenceService.getDefaultToolSpecs();
+        Map<String, List<String>> toolsByVar = new TreeMap<>();
+        Set<String> missingVars = new LinkedHashSet<>();
+        long blockedTools = 0;
+        for (ToolSpec spec : defaults) {
+            List<String> missing = this.activationCalculator.missingEnvVars(spec);
+            if (!missing.isEmpty()) blockedTools++;
+            missingVars.addAll(missing);
+            for (String envVar : this.activationCalculator.declaredEnvVars(spec)) {
+                toolsByVar.computeIfAbsent(envVar, key -> new ArrayList<>()).add(spec.name());
+            }
+        }
+        Set<String> defaultIds = defaultToolIds();
+        long exposed = getToolMcpServerSetting().exposedToolIds().stream().filter(defaultIds::contains).count();
+        return new BuiltinEnvSnapshot(defaults.size(), blockedTools, exposed, toolsByVar, missingVars);
+    }
+
+    public CustomToolSummary customToolSummary() {
+        List<ToolSpec> all = getToolSpecList();
+        List<ToolSpec> customs = customTools();
+        long needConfiguration = customs.stream().filter(ToolSpecService::hasUnsetStaticVariable).count();
+        return new CustomToolSummary(all.size(), customs.size(), needConfiguration);
+    }
+
+    private static boolean hasUnsetStaticVariable(ToolSpec spec) {
+        if (spec.staticVariables() == null) return false;
+        return spec.staticVariables().stream()
+                .anyMatch(entry -> entry.getValue() == null || entry.getValue().isBlank());
+    }
+
+    public List<ToolSpec> defaultTools() {
+        ToolSpecPersistenceService persistenceService = this.toolSpecPersistenceServiceProvider.getIfAvailable();
+        if (persistenceService == null) return List.of();
+        return persistenceService.getDefaultToolSpecs().stream().filter(spec -> spec.name() != null).toList();
+    }
+
+    public ToolReadiness readiness(String toolName) {
+        return getToolSpecAsOpt(toolName).map(this::readiness).orElse(ToolReadiness.NOT_ENABLED);
+    }
+
+    public ToolReadiness readiness(ToolSpec spec) {
+        if (this.activationCalculator.calculate(spec) != State.ACTIVE) return ToolReadiness.NEEDS_SETUP;
+        return getToolMcpServerSetting().exposedToolIds().contains(spec.toolId())
+                ? ToolReadiness.READY : ToolReadiness.NOT_EXPOSED;
+    }
+
+    public ToolMcpServerSetting updateExposure(ExposureSelection selection) {
+        Set<String> exposed = new HashSet<>(selection.customSelectedIds());
+        exposed.addAll(selection.builtinSelectedIds());
+        Set<String> excluded = exposableBuiltins().stream().map(ToolSpec::toolId)
+                .filter(id -> !selection.builtinSelectedIds().contains(id)).collect(Collectors.toSet());
+        updateToolMcpServerSetting(new ToolMcpServerSetting(selection.autoAdd(), exposed, excluded));
+        return getToolMcpServerSetting();
     }
 
     public void loadAll(Runnable loadAction) {
@@ -174,6 +401,8 @@ public class ToolSpecService {
 
     public ToolSpec update(ToolSpec toolSpec) {
         boolean targetDraft = toolSpec.draft();
+        ToolSpec existing = toolSpec.toolId() == null ? null : this.toolIdSpecs.get(toolSpec.toolId());
+        boolean metadataChanged = existing != null && !sameMetadata(existing, toolSpec);
         ToolSpec result = update(toolSpec.toolId(), toolSpec.name(), toolSpec.description(),
                 toolSpec.staticVariables(), toolSpec.params(), toolSpec.code(), toolSpec.codeType());
         result.withCategory(toolSpec.category())
@@ -181,8 +410,15 @@ public class ToolSpecService {
                 .withSandboxOverrides(toolSpec.sandboxOverrides())
                 .withHumanInTheLoop(toolSpec.humanInTheLoop())
                 .withDraft(targetDraft);
+        if (result == existing && metadataChanged) persistAsync();
         syncMcpExposureForDraft(result, targetDraft);
         return result;
+    }
+
+    private static boolean sameMetadata(ToolSpec left, ToolSpec right) {
+        return Objects.equals(left.category(), right.category()) && Objects.equals(left.tags(), right.tags())
+                && Objects.equals(left.sandboxOverrides(), right.sandboxOverrides())
+                && Objects.equals(left.humanInTheLoop(), right.humanInTheLoop()) && left.draft() == right.draft();
     }
 
     private void syncMcpExposureForDraft(ToolSpec spec, boolean targetDraft) {

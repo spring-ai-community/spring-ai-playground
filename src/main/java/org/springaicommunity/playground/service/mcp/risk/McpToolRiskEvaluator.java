@@ -15,6 +15,7 @@
  */
 package org.springaicommunity.playground.service.mcp.risk;
 
+import io.modelcontextprotocol.spec.McpSchema;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
@@ -80,6 +81,23 @@ public class McpToolRiskEvaluator {
                 entry.isEmpty(), false);
         McpServerRiskCalculator.Result result = this.serverCalc.compute(inputs);
         return new ServerRiskView(result.level(), result.axisScores(), result.floorTrigger());
+    }
+
+    public ToolRiskView evaluateTool(McpServerInfo info, McpSchema.Tool tool) {
+        if (tool == null) return evaluateTool(info, null, null, null);
+        return evaluateTool(info, tool.name(), tool.description(), propertySchemas(tool.inputSchema()));
+    }
+
+    @SuppressWarnings("unchecked")
+    static Map<String, Map<String, Object>> propertySchemas(Map<String, Object> inputSchema) {
+        if (inputSchema == null || !(inputSchema.get("properties") instanceof Map<?, ?> properties)) return Map.of();
+        Map<String, Map<String, Object>> out = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> property : properties.entrySet()) {
+            Map<String, Object> propertySchema = property.getValue() instanceof Map<?, ?> map
+                    ? (Map<String, Object>) map : Map.of();
+            out.put(String.valueOf(property.getKey()), propertySchema);
+        }
+        return out;
     }
 
     public ToolRiskView evaluateTool(McpServerInfo info, String toolName, String description,

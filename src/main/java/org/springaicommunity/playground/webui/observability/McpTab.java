@@ -21,16 +21,13 @@ import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H3;
 import com.vaadin.flow.component.icon.VaadinIcon;
-import org.springaicommunity.playground.observability.ObservabilityRingBuffer;
-import org.springaicommunity.playground.observability.ObservabilityTimeSeries;
+import org.springaicommunity.playground.observability.query.ObservabilityQueryService;
+import org.springaicommunity.playground.observability.query.ObservabilityQueryService.McpBreakdown;
+import org.springaicommunity.playground.observability.query.ObservabilityQueryService.OAuthSummary;
+import org.springaicommunity.playground.observability.query.ObservabilityQueryService.ServerStatusSummary;
 import org.springaicommunity.playground.observability.Window;
-import org.springaicommunity.playground.observability.SpanRecord;
 import org.springaicommunity.playground.observability.system.SystemMetricsSnapshot;
-import org.springaicommunity.playground.observability.TraceRecord;
-import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.service.mcp.client.McpClientService.OAuthSnapshot;
-import org.springaicommunity.playground.service.mcp.client.McpClientService.ServerStatus;
-import org.springaicommunity.playground.service.mcp.client.McpClientService.StatusEntry;
 import org.springaicommunity.playground.webui.observability.components.BaseDashboardTab;
 import org.springaicommunity.playground.webui.observability.components.ChartCanvas;
 import org.springaicommunity.playground.webui.observability.components.ChartCanvas.LineSeries;
@@ -40,13 +37,11 @@ import org.springaicommunity.playground.webui.observability.components.Dashboard
 import org.springaicommunity.playground.webui.observability.components.FormatUtils;
 import org.springaicommunity.playground.webui.observability.components.KpiCard;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -56,10 +51,8 @@ public class McpTab extends BaseDashboardTab {
     private static final DateTimeFormatter SHORT_FMT =
             DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault());
 
-    private final ObservabilityRingBuffer buffer;
-    private final ObservabilityTimeSeries timeSeries;
+    private final ObservabilityQueryService queryService;
     private final SystemMetricsSnapshot systemMetrics;
-    private final McpClientService mcpClientService;
 
     private final KpiCard activeServersCard = new KpiCard("MCP servers");
     private final KpiCard serversUpCard = new KpiCard("Servers up");
@@ -82,13 +75,10 @@ public class McpTab extends BaseDashboardTab {
     private final ChartCanvas serverStatusBar = new ChartCanvas();
     private final ChartCanvas lifecycleStacked = new ChartCanvas();
 
-    public McpTab(ObservabilityRingBuffer buffer, ObservabilityTimeSeries timeSeries,
-            SystemMetricsSnapshot systemMetrics, McpClientService mcpClientService) {
+    public McpTab(ObservabilityQueryService queryService, SystemMetricsSnapshot systemMetrics) {
         super();
-        this.buffer = buffer;
-        this.timeSeries = timeSeries;
+        this.queryService = queryService;
         this.systemMetrics = systemMetrics;
-        this.mcpClientService = mcpClientService;
 
         Div serverKpis = DashboardLayout.kpiGrid(activeServersCard, serversUpCard, mcpCallsCard,
                 distinctToolsCard, p95LatencyCard, errorRateCard);
@@ -176,23 +166,23 @@ public class McpTab extends BaseDashboardTab {
 
     @Override
     public void refresh(Window window) {
-        McpBreakdown b = breakdown(window);
+        McpBreakdown breakdown = queryService.mcpBreakdown(window);
         long windowStart = Instant.now().toEpochMilli() - window.totalMs();
         List<String> labels = DashboardData.bucketLabelsFromWindow(windowStart, window.bucketMs(), window.buckets());
 
-        long total = b.ok + b.error;
-        activeServersCard.setValue(String.valueOf(b.serverCounts.size()),
+        long total = breakdown.ok() + breakdown.error();
+        activeServersCard.setValue(String.valueOf(breakdown.serverCounts().size()),
                 "Distinct saip.mcp.server values invoked in window (external MCP only, self-loopback excluded)");
         mcpCallsCard.setValue(String.valueOf(total),
                 "Σ spring.ai.tool span count where network.transport ≠ in-process and saip.mcp.server ≠ self-loopback");
-        distinctToolsCard.setValue(String.valueOf(b.toolCounts.size()),
+        distinctToolsCard.setValue(String.valueOf(breakdown.toolCounts().size()),
                 "Distinct spring.ai.tool.definition.name values invoked through external MCP servers");
         if (total == 0) {
             errorRateCard.setValue("0.0%", "no external MCP calls in window");
         } else {
             errorRateCard.setValue(
-                    String.format(Locale.ROOT, "%.1f%%", b.error * 100.0 / total),
-                    b.error + " errors of " + total + " MCP tool calls · spring.ai.tool span status");
+                    String.format(Locale.ROOT, "%.1f%%", breakdown.error() * 100.0 / total),
+                    breakdown.error() + " errors of " + total + " MCP tool calls · spring.ai.tool span status");
         }
 
         int buckets = window.buckets();
@@ -201,7 +191,7 @@ public class McpTab extends BaseDashboardTab {
         double[] p99 = new double[buckets];
         List<Long> allLatencies = new ArrayList<>();
         for (int i = 0; i < buckets; i++) {
-            long[] arr = b.latencyPerBucket[i].stream().mapToLong(Long::longValue).sorted().toArray();
+            long[] arr = breakdown.latencyPerBucket().get(i).stream().mapToLong(Long::longValue).sorted().toArray();
             if (arr.length > 0) {
                 p50[i] = DashboardData.percentile(arr, 50);
                 p95[i] = DashboardData.percentile(arr, 95);
@@ -221,10 +211,10 @@ public class McpTab extends BaseDashboardTab {
         List<LineSeries> stackedSeries = new ArrayList<>();
         String[] palette = ChartCanvas.DEFAULT_PALETTE;
         int idx = 0;
-        List<Map.Entry<String, long[]>> transportEntries = new ArrayList<>(b.callsByTransportPerBucket.entrySet());
+        List<Map.Entry<String, long[]>> transportEntries = new ArrayList<>(breakdown.callsByTransportPerBucket().entrySet());
         transportEntries.sort((a, e) -> Long.compare(
-                b.transportCounts.getOrDefault(e.getKey(), 0L),
-                b.transportCounts.getOrDefault(a.getKey(), 0L)));
+                breakdown.transportCounts().getOrDefault(e.getKey(), 0L),
+                breakdown.transportCounts().getOrDefault(a.getKey(), 0L)));
         for (Map.Entry<String, long[]> e : transportEntries) {
             if (idx >= 4) break;
             double[] vals = new double[e.getValue().length];
@@ -243,58 +233,29 @@ public class McpTab extends BaseDashboardTab {
                 new LineSeries("p99", p99, DashboardPalette.ERROR)
         ), " ms");
 
-        topServersBar.horizontalBarChart(b.serverCounts, DashboardPalette.PRIMARY, 8);
-        topToolsBar.horizontalBarChart(b.toolCounts, DashboardPalette.SUCCESS, 8);
-        transportDonut.donutChart(b.transportCounts, ChartCanvas.DEFAULT_PALETTE);
+        topServersBar.horizontalBarChart(breakdown.serverCounts(), DashboardPalette.PRIMARY, 8);
+        topToolsBar.horizontalBarChart(breakdown.toolCounts(), DashboardPalette.SUCCESS, 8);
+        transportDonut.donutChart(breakdown.transportCounts(), ChartCanvas.DEFAULT_PALETTE);
 
-        Map<String, StatusEntry> statuses = mcpClientService.snapshotStatuses();
-        Map<String, Long> statusCounts = new LinkedHashMap<>();
-        long up = 0;
-        for (Map.Entry<String, StatusEntry> e : statuses.entrySet()) {
-            String status = e.getValue().status().name();
-            statusCounts.merge(status, 1L, Long::sum);
-            if (e.getValue().status() == ServerStatus.OK) up++;
-        }
-        serversUpCard.setValue(up + " / " + statuses.size(),
+        ServerStatusSummary servers = queryService.serverStatusSummary();
+        long up = servers.up();
+        serversUpCard.setValue(up + " / " + servers.total(),
                 "External MCP servers currently OK / total configured · from McpClientService.snapshotStatuses()");
-        serverStatusBar.horizontalBarChart(statusCounts, DashboardPalette.INFO, 6);
+        serverStatusBar.horizontalBarChart(servers.statusCounts(), DashboardPalette.INFO, 6);
 
         SystemMetricsSnapshot.Snapshot snap = systemMetrics.capture();
-        Map<String, long[]> lifecycleByTransportClass = new LinkedHashMap<>();
-        for (Map.Entry<String, Long> e : snap.mcpLifecycleByServer.entrySet()) {
-            String key = e.getKey();
-            int colonIdx = key.indexOf(':');
-            int slashIdx = key.indexOf(" / ");
-            if (colonIdx <= 0 || slashIdx <= colonIdx) continue;
-            String transport = key.substring(0, colonIdx);
-            String outcomeName = key.substring(slashIdx + 3);
-            int classIdx = transportIsStdio(transport) ? 0 : 1;
-            lifecycleByTransportClass.computeIfAbsent(outcomeName, k -> new long[2])[classIdx] += e.getValue();
-        }
-        if (lifecycleByTransportClass.isEmpty()) {
-            for (Map.Entry<String, Long> e : snap.mcpLifecycleByOutcome.entrySet()) {
-                lifecycleByTransportClass.put(e.getKey(), new long[] { e.getValue(), 0L });
-            }
-        }
+        Map<String, long[]> lifecycleByTransportClass = ObservabilityQueryService.lifecycleByTransportClass(
+                snap.mcpLifecycleByServer, snap.mcpLifecycleByOutcome);
         lifecycleStacked.horizontalStackedBar(lifecycleByTransportClass,
                 List.of("STDIO (process)", "Remote (HTTP/SSE)"),
                 List.of(DashboardPalette.INFO, DashboardPalette.SUCCESS));
 
-        List<OAuthSnapshot> oauthRows = mcpClientService.snapshotOAuthState();
-        long authorized = oauthRows.stream()
-                .filter(r -> "OK".equals(r.status()))
-                .filter(r -> r.accessTokenExpiresAtMs() != null || r.hasRefreshToken())
-                .count();
-        long awaiting = oauthRows.stream().filter(r -> "AWAITING_AUTHORIZATION".equals(r.status())).count();
-        long errored = oauthRows.stream()
-                .filter(r -> "ERROR".equals(r.status()) || "OFFLINE".equals(r.status()))
-                .count();
-        long expiringSoon = oauthRows.stream()
-                .filter(r -> r.accessTokenExpiresAtMs() != null)
-                .filter(r -> r.accessTokenExpiresAtMs() - System.currentTimeMillis()
-                        < Duration.ofMinutes(5).toMillis()
-                        && r.accessTokenExpiresAtMs() > System.currentTimeMillis())
-                .count();
+        List<OAuthSnapshot> oauthRows = queryService.oauthSnapshots();
+        OAuthSummary oauth = queryService.oauthSummary(oauthRows);
+        long authorized = oauth.authorized();
+        long awaiting = oauth.awaiting();
+        long errored = oauth.errored();
+        long expiringSoon = oauth.expiringSoon();
         oauthAuthorizedCard.setValue(String.valueOf(authorized),
                 "MCP servers with OAuth status = OK and an actual access/refresh token bound. " +
                         "Servers without OAuth config (self-loopback, unauthenticated HTTP) are excluded.");
@@ -306,8 +267,8 @@ public class McpTab extends BaseDashboardTab {
                 "MCP OAuth access tokens that will expire in less than 5 minutes (likely needs refresh)");
         oauthGrid.setItems(oauthRows);
 
-        setStatus(total + " MCP calls · " + b.serverCounts.size() + " active servers · "
-                + statuses.size() + " configured · " + up + " up · "
+        setStatus(total + " MCP calls · " + breakdown.serverCounts().size() + " active servers · "
+                + servers.total() + " configured · " + up + " up · "
                 + authorized + " OAuth authorized · " + awaiting + " awaiting · "
                 + "window: " + window.minutes + "m");
     }
@@ -331,55 +292,5 @@ public class McpTab extends BaseDashboardTab {
         return d + "d " + (h % 24) + "h";
     }
 
-    private static boolean transportIsStdio(String transport) {
-        return transport != null && transport.toUpperCase(Locale.ROOT).startsWith("STDIO");
-    }
-
-    @SuppressWarnings("unchecked")
-    private McpBreakdown breakdown(Window window) {
-        long now = Instant.now().toEpochMilli();
-        long windowStart = now - window.totalMs();
-        int buckets = window.buckets();
-        McpBreakdown b = new McpBreakdown();
-        b.latencyPerBucket = new ArrayList[buckets];
-        for (int i = 0; i < buckets; i++) b.latencyPerBucket[i] = new ArrayList<>();
-        for (TraceRecord t : buffer.snapshot()) {
-            if (t.startEpochMs() < windowStart) continue;
-            if (t.spans() == null) continue;
-            for (SpanRecord span : t.spans()) {
-                if (!"spring.ai.tool".equals(span.name())) continue;
-                Map<String, String> attrs = span.attributes();
-                if (attrs == null) continue;
-                String transport = attrs.get("network.transport");
-                if (transport == null || "in-process".equalsIgnoreCase(transport)) continue;
-                String tool = attrs.getOrDefault("spring.ai.tool.definition.name", "(unnamed)");
-                String server = attrs.getOrDefault("saip.mcp.server", "(unknown)");
-                if (this.mcpClientService.isSelfLoopback(server)) continue;
-                b.toolCounts.merge(tool, 1L, Long::sum);
-                b.serverCounts.merge(server, 1L, Long::sum);
-                b.transportCounts.merge(transport, 1L, Long::sum);
-                int bk = (int) Math.min(buckets - 1,
-                        Math.max(0, (span.startEpochMs() - windowStart) / window.bucketMs()));
-                b.latencyPerBucket[bk].add(span.durationMs());
-                b.callsByTransportPerBucket.computeIfAbsent(transport, k -> new long[buckets])[bk]++;
-                if ("ERROR".equals(span.status())) {
-                    b.error++;
-                } else {
-                    b.ok++;
-                }
-            }
-        }
-        return b;
-    }
-
-    private static final class McpBreakdown {
-        Map<String, Long> toolCounts = new LinkedHashMap<>();
-        Map<String, Long> serverCounts = new LinkedHashMap<>();
-        Map<String, Long> transportCounts = new LinkedHashMap<>();
-        Map<String, long[]> callsByTransportPerBucket = new LinkedHashMap<>();
-        long ok;
-        long error;
-        List<Long>[] latencyPerBucket;
-    }
 
 }

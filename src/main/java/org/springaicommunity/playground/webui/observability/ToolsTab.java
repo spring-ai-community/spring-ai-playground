@@ -16,13 +16,10 @@
 package org.springaicommunity.playground.webui.observability;
 
 import com.vaadin.flow.component.html.Div;
-import org.springaicommunity.playground.observability.ObservabilityRingBuffer;
-import org.springaicommunity.playground.observability.ObservabilityTimeSeries;
+import org.springaicommunity.playground.observability.query.ObservabilityQueryService;
+import org.springaicommunity.playground.observability.query.ObservabilityQueryService.ToolBreakdown;
 import org.springaicommunity.playground.observability.Window;
-import org.springaicommunity.playground.observability.SpanRecord;
 import org.springaicommunity.playground.observability.system.SystemMetricsSnapshot;
-import org.springaicommunity.playground.observability.TraceRecord;
-import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.webui.observability.components.BaseDashboardTab;
 import org.springaicommunity.playground.webui.observability.components.ChartCanvas;
 import org.springaicommunity.playground.webui.observability.components.ChartCanvas.LineSeries;
@@ -37,7 +34,6 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -47,10 +43,8 @@ public class ToolsTab extends BaseDashboardTab {
     private static final DateTimeFormatter SHORT_FMT =
             DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault());
 
-    private final ObservabilityRingBuffer buffer;
-    private final ObservabilityTimeSeries timeSeries;
+    private final ObservabilityQueryService queryService;
     private final SystemMetricsSnapshot systemMetrics;
-    private final McpClientService mcpClientService;
 
     private final KpiCard tracesWithToolsCard = new KpiCard("Traces with tools");
     private final KpiCard totalToolCallsCard = new KpiCard("Total tool calls");
@@ -65,13 +59,10 @@ public class ToolsTab extends BaseDashboardTab {
     private final ChartCanvas sandboxLevelBar = new ChartCanvas();
     private final ChartCanvas guardBlocksBar = new ChartCanvas();
 
-    public ToolsTab(ObservabilityRingBuffer buffer, ObservabilityTimeSeries timeSeries,
-            SystemMetricsSnapshot systemMetrics, McpClientService mcpClientService) {
+    public ToolsTab(ObservabilityQueryService queryService, SystemMetricsSnapshot systemMetrics) {
         super();
-        this.buffer = buffer;
-        this.timeSeries = timeSeries;
+        this.queryService = queryService;
         this.systemMetrics = systemMetrics;
-        this.mcpClientService = mcpClientService;
 
         Div intro = buildIntro(
                 "Built-in tools — JS sandbox functions and local @Tool methods, including " +
@@ -114,23 +105,23 @@ public class ToolsTab extends BaseDashboardTab {
 
     @Override
     public void refresh(Window window) {
-        ToolBreakdown b = breakdown(window);
+        ToolBreakdown breakdown = queryService.toolBreakdown(window);
         long windowStart = Instant.now().toEpochMilli() - window.totalMs();
         List<String> labels = DashboardData.bucketLabelsFromWindow(windowStart, window.bucketMs(), window.buckets());
 
-        long total = b.toolOk + b.toolError;
-        tracesWithToolsCard.setValue(String.valueOf(b.distinctTraces),
+        long total = breakdown.ok() + breakdown.error();
+        tracesWithToolsCard.setValue(String.valueOf(breakdown.distinctTraces()),
                 "Distinct trace IDs containing at least one spring.ai.tool span (in-process or self-loopback)");
         totalToolCallsCard.setValue(String.valueOf(total),
                 "Σ spring.ai.tool span count (in-process + self-loopback only — external MCP excluded)");
-        distinctToolsCard.setValue(String.valueOf(b.toolNameCounts.size()),
+        distinctToolsCard.setValue(String.valueOf(breakdown.toolNameCounts().size()),
                 "Distinct spring.ai.tool.definition.name values invoked in window");
         if (total == 0) {
             errorRateCard.setValue("0.0%", "no tool calls in window");
         } else {
             errorRateCard.setValue(
-                    String.format(Locale.ROOT, "%.1f%%", b.toolError * 100.0 / total),
-                    b.toolError + " errors of " + total + " tool calls · spring.ai.tool span status");
+                    String.format(Locale.ROOT, "%.1f%%", breakdown.error() * 100.0 / total),
+                    breakdown.error() + " errors of " + total + " tool calls · spring.ai.tool span status");
         }
 
         int buckets = window.buckets();
@@ -142,7 +133,7 @@ public class ToolsTab extends BaseDashboardTab {
         long[] allLatenciesAcc = new long[(int) Math.min(Integer.MAX_VALUE, total)];
         int allIdx = 0;
         for (int i = 0; i < buckets; i++) {
-            long[] arr = b.latencyPerBucket[i].stream().mapToLong(Long::longValue).sorted().toArray();
+            long[] arr = breakdown.latencyPerBucket().get(i).stream().mapToLong(Long::longValue).sorted().toArray();
             if (arr.length > 0) {
                 p50[i] = DashboardData.percentile(arr, 50);
                 p95[i] = DashboardData.percentile(arr, 95);
@@ -167,10 +158,10 @@ public class ToolsTab extends BaseDashboardTab {
         List<LineSeries> stackedSeries = new ArrayList<>();
         String[] palette = ChartCanvas.DEFAULT_PALETTE;
         int idx = 0;
-        List<Map.Entry<String, long[]>> topEntries = new ArrayList<>(b.callsByToolPerBucket.entrySet());
+        List<Map.Entry<String, long[]>> topEntries = new ArrayList<>(breakdown.callsByToolPerBucket().entrySet());
         topEntries.sort((a, e) -> Long.compare(
-                b.toolNameCounts.getOrDefault(e.getKey(), 0L),
-                b.toolNameCounts.getOrDefault(a.getKey(), 0L)));
+                breakdown.toolNameCounts().getOrDefault(e.getKey(), 0L),
+                breakdown.toolNameCounts().getOrDefault(a.getKey(), 0L)));
         for (Map.Entry<String, long[]> e : topEntries) {
             if (idx >= 4) break;
             double[] vals = new double[e.getValue().length];
@@ -189,8 +180,8 @@ public class ToolsTab extends BaseDashboardTab {
                 new LineSeries("p99", p99, DashboardPalette.ERROR)
         ), " ms");
 
-        topToolsBar.horizontalBarChart(b.toolNameCounts, DashboardPalette.SUCCESS, 8);
-        sandboxLevelBar.horizontalBarChart(b.sandboxLevelCounts, DashboardPalette.PRIMARY, 6);
+        topToolsBar.horizontalBarChart(breakdown.toolNameCounts(), DashboardPalette.SUCCESS, 8);
+        sandboxLevelBar.horizontalBarChart(breakdown.sandboxLevelCounts(), DashboardPalette.PRIMARY, 6);
 
         SystemMetricsSnapshot.Snapshot snap = systemMetrics.capture();
         long totalBlocks = snap.sandboxGuardBlocked.values().stream().mapToLong(Long::longValue).sum();
@@ -198,63 +189,11 @@ public class ToolsTab extends BaseDashboardTab {
                 "Σ sandbox.guard.blocked counter — FetchPolicyException + FsPolicyException blocked attempts (lifetime)");
         guardBlocksBar.horizontalBarChart(snap.sandboxGuardBlocked, DashboardPalette.ERROR, 8);
 
-        setStatus(total + " tool calls · " + b.toolNameCounts.size() + " distinct tools · "
-                + b.distinctTraces + " traces · " + totalBlocks + " guard blocks · window: "
+        setStatus(total + " tool calls · " + breakdown.toolNameCounts().size() + " distinct tools · "
+                + breakdown.distinctTraces() + " traces · " + totalBlocks + " guard blocks · window: "
                 + window.minutes + "m");
     }
 
 
-    @SuppressWarnings("unchecked")
-    private ToolBreakdown breakdown(Window window) {
-        long now = Instant.now().toEpochMilli();
-        long windowStart = now - window.totalMs();
-        int buckets = window.buckets();
-        ToolBreakdown b = new ToolBreakdown();
-        b.latencyPerBucket = new ArrayList[buckets];
-        for (int i = 0; i < buckets; i++) b.latencyPerBucket[i] = new ArrayList<>();
-        for (TraceRecord t : buffer.snapshot()) {
-            if (t.startEpochMs() < windowStart) continue;
-            if (t.spans() == null) continue;
-            boolean traceCounted = false;
-            for (SpanRecord span : t.spans()) {
-                if (!"spring.ai.tool".equals(span.name())) continue;
-                Map<String, String> attrs = span.attributes();
-                String transport = attrs == null ? null : attrs.get("network.transport");
-                String server = attrs == null ? null : attrs.get("saip.mcp.server");
-                boolean directInProcess = transport == null || "in-process".equalsIgnoreCase(transport);
-                boolean viaSelfLoopback = this.mcpClientService.isSelfLoopback(server);
-                if (!directInProcess && !viaSelfLoopback) continue;
-                String name = attrs == null ? "(unnamed)"
-                        : attrs.getOrDefault("spring.ai.tool.definition.name", "(unnamed)");
-                b.toolNameCounts.merge(name, 1L, Long::sum);
-                int bk = (int) Math.min(buckets - 1,
-                        Math.max(0, (span.startEpochMs() - windowStart) / window.bucketMs()));
-                b.latencyPerBucket[bk].add(span.durationMs());
-                b.callsByToolPerBucket.computeIfAbsent(name, k -> new long[buckets])[bk]++;
-                if ("ERROR".equals(span.status())) {
-                    b.toolError++;
-                } else {
-                    b.toolOk++;
-                }
-                if (!traceCounted) {
-                    b.distinctTraces++;
-                    traceCounted = true;
-                }
-                String level = attrs == null ? null : attrs.get("sandbox.level");
-                b.sandboxLevelCounts.merge(level == null ? "unknown" : level, 1L, Long::sum);
-            }
-        }
-        return b;
-    }
-
-    private static final class ToolBreakdown {
-        Map<String, Long> toolNameCounts = new LinkedHashMap<>();
-        Map<String, Long> sandboxLevelCounts = new LinkedHashMap<>();
-        Map<String, long[]> callsByToolPerBucket = new LinkedHashMap<>();
-        long toolOk;
-        long toolError;
-        long distinctTraces;
-        List<Long>[] latencyPerBucket;
-    }
 
 }

@@ -18,6 +18,7 @@ package org.springaicommunity.playground.service.mcp.risk;
 import org.springaicommunity.playground.service.mcp.catalog.McpCatalogEntry;
 
 import java.util.Locale;
+import java.util.Map;
 
 public final class McpAuthClassifier {
 
@@ -33,6 +34,25 @@ public final class McpAuthClassifier {
             case "OAUTH_CUSTOM", "OAUTH-CUSTOM" -> McpAuthMode.OAUTH_CUSTOM;
             default -> McpAuthMode.NONE;
         };
+    }
+
+    public static McpAuthMode fromHeaders(Map<String, String> headers, boolean oauthEnabled) {
+        if (oauthEnabled) return McpAuthMode.OAUTH_STANDARD;
+        if (headers == null) return McpAuthMode.NONE;
+        for (Map.Entry<String, String> header : headers.entrySet()) {
+            String key = header.getKey();
+            if (key == null) continue;
+            String lower = key.toLowerCase(Locale.ROOT);
+            if (lower.equals("authorization")) {
+                String value = header.getValue();
+                return value != null && value.toLowerCase(Locale.ROOT).startsWith("bearer")
+                        ? McpAuthMode.BEARER : McpAuthMode.API_KEY;
+            }
+            if (lower.contains("api-key") || lower.contains("apikey") || lower.contains("x-api-key")) {
+                return McpAuthMode.API_KEY;
+            }
+        }
+        return McpAuthMode.NONE;
     }
 
     static boolean isStandardOauth(McpCatalogEntry.OAuthDefaults oauthDefaults) {

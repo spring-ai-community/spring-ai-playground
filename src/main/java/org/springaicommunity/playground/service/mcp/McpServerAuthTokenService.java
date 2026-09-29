@@ -39,6 +39,8 @@ public class McpServerAuthTokenService {
 
     public static final String PROPERTY_NAME = "spring.ai.playground.mcp-server.auth-token";
     public static final String ENV_NAME = "SPRING_AI_PLAYGROUND_MCP_SERVER_AUTH_TOKEN";
+    public static final String REMOTE_CALLER_MESSAGE =
+            "Authentication can only be viewed and changed from the machine that runs the app.";
 
     private static final Logger logger = LoggerFactory.getLogger(McpServerAuthTokenService.class);
     private static final String SECURITY_DIR_NAME = ".security";
@@ -50,6 +52,17 @@ public class McpServerAuthTokenService {
     public enum Source { NONE, CONFIGURATION, STORED, UNREADABLE }
 
     public record AuthTokenChangedEvent(AccessMode accessMode) {}
+
+    public record AccessSettings(AccessMode mode, String token) {
+
+        public AccessSettings {
+            if (mode == null) throw new IllegalArgumentException("access mode must not be null");
+        }
+    }
+
+    public enum AccessChange { UNCHANGED, TOKEN_REQUIRED, OPENED }
+
+    public record AccessResult(AccessChange change, String token) {}
 
     private record State(Source source, String token) {}
 
@@ -80,6 +93,19 @@ public class McpServerAuthTokenService {
         return new State(Source.UNREADABLE, null);
     }
 
+    public enum PostureKind { LOCALHOST_ONLY, TOKEN_REQUIRED, OPEN }
+
+    public record ExposurePosture(PostureKind kind, String boundAddress) {}
+
+    public ExposurePosture exposurePosture(String serverAddress) {
+        String address = serverAddress == null ? "" : serverAddress.trim();
+        if (address.equals("localhost") || address.equals("127.0.0.1") || address.equals("::1"))
+            return new ExposurePosture(PostureKind.LOCALHOST_ONLY, address);
+        String boundAddress = address.isEmpty() ? "0.0.0.0" : address;
+        return new ExposurePosture(accessMode() == AccessMode.BEARER_TOKEN
+                ? PostureKind.TOKEN_REQUIRED : PostureKind.OPEN, boundAddress);
+    }
+
     public AccessMode accessMode() {
         return this.state.source() == Source.NONE ? AccessMode.NONE : AccessMode.BEARER_TOKEN;
     }
@@ -107,6 +133,23 @@ public class McpServerAuthTokenService {
         byte[] tokenBytes = new byte[GENERATED_TOKEN_BYTES];
         this.secureRandom.nextBytes(tokenBytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(tokenBytes);
+    }
+
+    public synchronized AccessResult apply(AccessSettings settings, boolean callerIsLocal) {
+        if (!callerIsLocal) throw new IllegalStateException(REMOTE_CALLER_MESSAGE);
+        assertEditable();
+        if (settings.mode() == AccessMode.NONE) {
+            if (accessMode() == AccessMode.NONE) return new AccessResult(AccessChange.UNCHANGED, null);
+            open();
+            return new AccessResult(AccessChange.OPENED, null);
+        }
+        String token = settings.token() == null || settings.token().isBlank()
+                ? generate() : settings.token().strip();
+        if (accessMode() == AccessMode.BEARER_TOKEN && currentToken().filter(token::equals).isPresent()) {
+            return new AccessResult(AccessChange.UNCHANGED, token);
+        }
+        requireToken(token);
+        return new AccessResult(AccessChange.TOKEN_REQUIRED, token);
     }
 
     public synchronized void requireToken(String token) {

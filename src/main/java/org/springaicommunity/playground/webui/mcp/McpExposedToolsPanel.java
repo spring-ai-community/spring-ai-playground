@@ -33,7 +33,6 @@ import com.vaadin.flow.component.textfield.TextArea;
 import com.vaadin.flow.component.textfield.TextField;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
-import org.springaicommunity.playground.service.mcp.McpServerInfoService;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.service.mcp.risk.McpComposition;
 import org.springaicommunity.playground.service.mcp.risk.McpCompositionService;
@@ -44,7 +43,7 @@ import org.springaicommunity.playground.service.tool.ToolManifest.Sandbox.RiskLe
 import org.springaicommunity.playground.service.tool.ToolSpecService;
 import org.springaicommunity.playground.service.tool.ToolSpecService.ExposureMode;
 import org.springaicommunity.playground.webui.UsageEventTracker;
-import org.springaicommunity.playground.webui.mcp.inspector.InspectorHelpers;
+import org.springaicommunity.playground.webui.VaadinUtils;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -56,7 +55,6 @@ public class McpExposedToolsPanel {
 
     private final McpExposedToolService exposedToolService;
     private final McpCompositionService compositionService;
-    private final McpServerInfoService serverInfoService;
     private final McpClientService clientService;
     private final McpToolRiskEvaluator riskEvaluator;
     private final ToolSpecService toolSpecService;
@@ -68,11 +66,10 @@ public class McpExposedToolsPanel {
     private VerticalLayout exposedArea;
 
     public McpExposedToolsPanel(McpExposedToolService exposedToolService, McpCompositionService compositionService,
-            McpServerInfoService serverInfoService, McpClientService clientService, McpToolRiskEvaluator riskEvaluator,
-            ToolSpecService toolSpecService, UsageEventTracker usageEventTracker) {
+            McpClientService clientService, McpToolRiskEvaluator riskEvaluator, ToolSpecService toolSpecService,
+            UsageEventTracker usageEventTracker) {
         this.exposedToolService = exposedToolService;
         this.compositionService = compositionService;
-        this.serverInfoService = serverInfoService;
         this.clientService = clientService;
         this.riskEvaluator = riskEvaluator;
         this.toolSpecService = toolSpecService;
@@ -132,14 +129,18 @@ public class McpExposedToolsPanel {
         return root;
     }
 
-    public void apply() {
-        // The drawer footer (and its Apply button) outlives the lazily-built body; ignore Apply until build() ran.
+    public boolean apply() {
         if (this.modeField == null) {
-            return;
+            return true;
         }
         ExposureMode mode = this.modeField.getValue();
-        this.toolSpecService.setExposureMode(mode);
-        this.exposedToolService.apply(new ArrayList<>(this.selected.values()), this.capField.getValue());
+        try {
+            this.exposedToolService.apply(new McpExposedToolService.ExposureRequest(mode,
+                    new ArrayList<>(this.selected.values()), this.capField.getValue()));
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            VaadinUtils.showErrorNotification(e.getMessage());
+            return false;
+        }
         String composed = mode.includesComposed()
                 ? this.selected.size() + " composed tool(s) exposed" : "composed tools off";
         Notification.show("Built-in server exposure: " + modeLabel(mode) + " - " + composed, 3000,
@@ -149,6 +150,7 @@ public class McpExposedToolsPanel {
                 "builtin_count", this.toolSpecService.getMcpToolList().size(),
                 "composed_count", this.selected.size(),
                 "max_risk", this.capField.getValue().name()));
+        return true;
     }
 
     private static String modeLabel(ExposureMode mode) {
@@ -159,7 +161,6 @@ public class McpExposedToolsPanel {
         };
     }
 
-    // Lazy build: tools/list is a network round-trip and each tool runs a risk scan, so defer to first expand.
     private Details buildServerAccordion(McpServerInfo server) {
         McpToolRiskEvaluator.ServerRiskView serverRisk = this.riskEvaluator.evaluateServer(server);
 
@@ -222,10 +223,8 @@ public class McpExposedToolsPanel {
     private Component buildToolRow(McpServerInfo server, McpSchema.Tool tool, Span count, List<Checkbox> rowChecks,
             int toolTotal, Runnable refreshServerSummary) {
         String rowKey = key(server.serverName(), tool.name());
-        InspectorHelpers.ToolInfo toolInfo = InspectorHelpers.toToolInfo(tool);
         String originalDescription = tool.description() == null ? "" : tool.description();
-        McpToolRiskEvaluator.ToolRiskView risk = this.riskEvaluator.evaluateTool(server, tool.name(),
-                tool.description(), toolInfo.propertySchemas());
+        McpToolRiskEvaluator.ToolRiskView risk = this.riskEvaluator.evaluateTool(server, tool);
         RiskLevel baseLevel = risk.inherentLevel();
         McpComposition.Member existing = this.selected.get(rowKey);
 
@@ -338,14 +337,10 @@ public class McpExposedToolsPanel {
 
     private McpComposition.Member memberOf(McpServerInfo server, McpSchema.Tool tool, String aliasValue,
             String descriptionValue, String originalDescription, boolean hitl) {
-        String alias = aliasValue == null || aliasValue.isBlank()
-                ? McpComposition.Member.defaultAlias(server.serverName(), tool.name()) : aliasValue.trim();
-        String override = descriptionValue == null || descriptionValue.equals(originalDescription)
-                ? null : descriptionValue;
-        return new McpComposition.Member(server.serverName(), tool.name(), alias, override, hitl, "");
+        return McpComposition.Member.of(server.serverName(), tool.name(), aliasValue, descriptionValue,
+                originalDescription, hitl);
     }
 
-    // Open accordion rows aren't re-synced live; the selected set is authoritative on Apply.
     private void applyHitlToAllSelected(boolean hitl) {
         this.selected.replaceAll((rowKey, member) -> new McpComposition.Member(member.serverId(), member.toolName(),
                 member.exposedAlias(), member.descriptionOverride(), hitl, member.contentHash()));
@@ -392,11 +387,7 @@ public class McpExposedToolsPanel {
     }
 
     private List<McpServerInfo> activeServers() {
-        McpServerInfo builtin = this.serverInfoService.getDefaultMcpServerInfo();
-        return this.serverInfoService.read().stream()
-                .filter(this.clientService::isConnecting)
-                .filter(info -> builtin == null || !info.serverName().equals(builtin.serverName()))
-                .toList();
+        return this.exposedToolService.composableServers();
     }
 
     static Span sectionLabel(String text) {

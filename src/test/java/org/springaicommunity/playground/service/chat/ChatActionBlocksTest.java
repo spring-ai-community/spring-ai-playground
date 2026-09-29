@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.springaicommunity.playground.webui.chat;
+package org.springaicommunity.playground.service.chat;
 
 import org.junit.jupiter.api.Test;
 
@@ -21,19 +21,19 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class ChatContentViewActionBlockTest {
+class ChatActionBlocksTest {
 
     @Test
     void noMarkerReturnsEmpty() {
-        assertThat(ChatContentView.extractActionBlocks("just a normal reply")).isEmpty();
-        assertThat(ChatContentView.extractActionBlocks(null)).isEmpty();
+        assertThat(ChatActionBlocks.extract("just a normal reply")).isEmpty();
+        assertThat(ChatActionBlocks.extract(null)).isEmpty();
     }
 
     @Test
     void extractsPlainAndReturnDirectBlocks() {
         String text = "a\n\n```saip-action\n{\"type\":\"email\"}\n```\nb\n\n"
                 + "```saip-action-return-direct\n{\"type\":\"map\"}\n```";
-        List<String> blocks = ChatContentView.extractActionBlocks(text);
+        List<String> blocks = ChatActionBlocks.extract(text);
         assertThat(blocks).containsExactly(
                 "```saip-action\n{\"type\":\"email\"}\n```",
                 "```saip-action-return-direct\n{\"type\":\"map\"}\n```");
@@ -43,7 +43,7 @@ class ChatContentViewActionBlockTest {
     void literalBacktickInFieldDoesNotTruncateBlock() {
         String text = "Ready.\n\n```saip-action-return-direct\n"
                 + "{\"type\":\"email\",\"body\":\"see ```code``` here\"}\n```";
-        List<String> blocks = ChatContentView.extractActionBlocks(text);
+        List<String> blocks = ChatActionBlocks.extract(text);
         assertThat(blocks).hasSize(1);
         assertThat(blocks.get(0)).endsWith("\n```");
         assertThat(blocks.get(0)).contains("see ```code``` here");
@@ -52,7 +52,7 @@ class ChatContentViewActionBlockTest {
     @Test
     void unwrapsJsonQuotedOutput() {
         String text = "\"Ready.\\n\\n```saip-action\\n{\\\"type\\\":\\\"email\\\"}\\n```\"";
-        List<String> blocks = ChatContentView.extractActionBlocks(text);
+        List<String> blocks = ChatActionBlocks.extract(text);
         assertThat(blocks).hasSize(1);
         assertThat(blocks.get(0)).contains("\"type\":\"email\"");
     }
@@ -61,35 +61,17 @@ class ChatContentViewActionBlockTest {
     void unwrapsMcpContentEnvelope() {
         String text = "[{\"type\":\"text\",\"text\":\"Shown.\\n\\n```saip-action-return-direct\\n"
                 + "{\\\"type\\\":\\\"map\\\"}\\n```\"}]";
-        List<String> blocks = ChatContentView.extractActionBlocks(text);
+        List<String> blocks = ChatActionBlocks.extract(text);
         assertThat(blocks).containsExactly("```saip-action-return-direct\n{\"type\":\"map\"}\n```");
     }
 
     @Test
     void actionBlocksToAppendSkipsBlocksAlreadyInText() {
         String block = "```saip-action\n{\"type\":\"pointmap\"}\n```";
-        assertThat(ChatContentView.actionBlocksToAppend(null, List.of(block))).containsExactly(block);
-        assertThat(ChatContentView.actionBlocksToAppend("prose only", List.of(block))).containsExactly(block);
-        assertThat(ChatContentView.actionBlocksToAppend("prose\n\n" + block + "\n", List.of(block))).isEmpty();
-        assertThat(ChatContentView.actionBlocksToAppend("prose", List.of())).isEmpty();
-        assertThat(ChatContentView.actionBlocksToAppend("prose", null)).isEmpty();
-    }
-
-    @Test
-    void textWithActionBlocksAppendsMissingBlocks() {
-        String block = "```saip-action\n{\"type\":\"pointmap\"}\n```";
-        assertThat(ChatContentView.textWithActionBlocks("done.", List.of(block)))
-                .isEqualTo("done.\n\n" + block + "\n");
-        assertThat(ChatContentView.textWithActionBlocks(null, List.of(block)))
-                .isEqualTo("\n\n" + block + "\n");
-        assertThat(ChatContentView.textWithActionBlocks("done.\n\n" + block + "\n", List.of(block)))
-                .isEqualTo("done.\n\n" + block + "\n");
-    }
-
-    @Test
-    void textWithActionBlocksLeavesTextWithoutBlockList() {
-        assertThat(ChatContentView.textWithActionBlocks("done.", null)).isEqualTo("done.");
-        assertThat(ChatContentView.textWithActionBlocks("done.", "not-a-list")).isEqualTo("done.");
-        assertThat(ChatContentView.textWithActionBlocks(null, List.of())).isNull();
+        assertThat(ChatActionBlocks.missingFrom(null, List.of(block))).containsExactly(block);
+        assertThat(ChatActionBlocks.missingFrom("prose only", List.of(block))).containsExactly(block);
+        assertThat(ChatActionBlocks.missingFrom("prose\n\n" + block + "\n", List.of(block))).isEmpty();
+        assertThat(ChatActionBlocks.missingFrom("prose", List.of())).isEmpty();
+        assertThat(ChatActionBlocks.missingFrom("prose", null)).isEmpty();
     }
 }

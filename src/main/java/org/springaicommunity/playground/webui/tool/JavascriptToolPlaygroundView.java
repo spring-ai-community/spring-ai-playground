@@ -16,7 +16,6 @@
 package org.springaicommunity.playground.webui.tool;
 
 import tools.jackson.core.JacksonException;
-import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 import com.hilerio.ace.AceEditor;
 import com.hilerio.ace.AceMode;
@@ -38,7 +37,6 @@ import org.springaicommunity.playground.SpringAiPlaygroundOptions;
 import org.springaicommunity.playground.service.tool.runtime.JsToolExecutor.JsExecutionResult;
 import org.springaicommunity.playground.service.tool.ToolManifest.HumanInTheLoop;
 import org.springaicommunity.playground.service.tool.ToolSpec;
-import org.springaicommunity.playground.service.tool.ToolSpec.JsonSchemaType;
 import org.springaicommunity.playground.service.tool.ToolSpec.ToolParamSpec;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
 import org.springaicommunity.playground.service.tool.policy.SandboxPostureCalculator;
@@ -340,21 +338,6 @@ public class JavascriptToolPlaygroundView extends VerticalLayout {
         );
     }
 
-    private Object convertValueForType(Object testValue, JsonSchemaType type) throws JacksonException {
-        if (Objects.nonNull(testValue) && testValue instanceof String strValue && !strValue.isBlank()) {
-            return switch (type) {
-                case STRING -> strValue;
-                case NUMBER -> Double.parseDouble(strValue);
-                case INTEGER -> Long.parseLong(strValue);
-                case BOOLEAN -> Boolean.parseBoolean(strValue);
-                case ARRAY -> this.objectMapper.readValue(strValue,
-                        new TypeReference<List<Object>>() {});
-                case OBJECT -> this.objectMapper.readValue(strValue,
-                        new TypeReference<Map<String, Object>>() {});
-            };
-        }
-        return testValue;
-    }
 
     public boolean runTest() {
         return this.testRunButton.isEnabled() && runTestJavascript();
@@ -364,45 +347,29 @@ public class JavascriptToolPlaygroundView extends VerticalLayout {
         this.testRunButton.setEnabled(false);
         consoleTextArea.clear();
         this.consoleStatusRow.setVisible(false);
-        long start = System.currentTimeMillis();
-
         try {
             Optional<List<ToolParamSpec>> specsOpt = this.currentToolParamsSupplier.get();
             if (specsOpt.isEmpty()) {
                 return false;
             }
-            LinkedHashMap<String, Object> toolParams = new LinkedHashMap<>();
-            List<String> declaredNames = new ArrayList<>();
-            for (ToolParamSpec spec : specsOpt.get()) {
-                if (spec.name() != null && !spec.name().isBlank()) {
-                    declaredNames.add(spec.name());
-                }
-                if (spec.testValue() == null || spec.testValue().isBlank()) {
-                    continue;
-                }
-                toolParams.put(spec.name(), convertValueForType(spec.testValue(), spec.type()));
-            }
-            String resolvedName = this.currentToolNameSupplier.get();
-            if (resolvedName == null || resolvedName.isBlank()) {
-                resolvedName = "draft";
-            }
-            JsExecutionResult jsExecutionResult =
-                    toolSpecService.executeTool(resolvedName, getStaticVariables(), getCurrentJsCode(),
-                            toolParams, currentSandboxOverrides(), declaredNames);
-            VaadinUtils.getUi(this).access(() -> {
-                long end = System.currentTimeMillis();
-                consoleTextArea.setValue(buildResultString(jsExecutionResult));
-                updateConsoleStatusRow(jsExecutionResult.isOk(), start, end);
-                if (!jsExecutionResult.isOk()) {
-                    VaadinUtils.showErrorNotification("Error Details:\n" + jsExecutionResult.error());
-                }
-            });
-            return jsExecutionResult.isOk();
-        } catch (Exception ex) {
-            VaadinUtils.showErrorNotification("Exception: " + ex.getMessage());
+            ToolSpecService.ToolTestResult testResult = toolSpecService.testRun(new ToolSpecService.ToolDraftInput(
+                    null, this.currentToolNameSupplier.get(), null, getStaticVariables(), specsOpt.get(),
+                    getCurrentJsCode(), null, null, currentSandboxOverrides(), null));
+            VaadinUtils.getUi(this).access(() -> showTestResult(testResult));
+            return testResult.ok();
+        } catch (IllegalStateException | IllegalArgumentException ex) {
+            VaadinUtils.showErrorNotification(ex.getMessage());
             return false;
         } finally {
             this.testRunButton.setEnabled(true);
+        }
+    }
+
+    public void showTestResult(ToolSpecService.ToolTestResult testResult) {
+        consoleTextArea.setValue(buildResultString(testResult.result()));
+        updateConsoleStatusRow(testResult.ok(), testResult.startedAtMs(), testResult.endedAtMs());
+        if (!testResult.ok()) {
+            VaadinUtils.showErrorNotification("Error Details:\n" + testResult.result().error());
         }
     }
 

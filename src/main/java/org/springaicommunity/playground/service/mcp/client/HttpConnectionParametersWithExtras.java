@@ -20,6 +20,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 public final class HttpConnectionParametersWithExtras {
@@ -54,11 +55,6 @@ public final class HttpConnectionParametersWithExtras {
         }
     }
 
-    /**
-     * OAuth 2.1 Authorization Code configuration. {@code null} means the server uses no OAuth (just static headers
-     * or a stdio transport). {@code clientSecret} accepts the {@code ${ENV_VAR}} substitution syntax used elsewhere
-     * so secrets never persist to disk; an empty/null secret implies a public PKCE-only client.
-     */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record OAuth(
             @JsonProperty("issuer-uri") String issuerUri,
@@ -71,6 +67,29 @@ public final class HttpConnectionParametersWithExtras {
 
         public OAuth {
             scopes = scopes == null ? List.of() : List.copyOf(scopes);
+        }
+
+        public static final String CLIENT_ID_FIELD = "clientId";
+        public static final String AUTHORIZATION_URI_FIELD = "authorizationUri";
+        public static final String ISSUER_URI_FIELD = "issuerUri";
+
+        public Map<String, String> validationErrors() {
+            Map<String, String> errors = new LinkedHashMap<>();
+            if (!hasText(this.clientId)) errors.put(CLIENT_ID_FIELD, "Client ID is required for OAuth.");
+            boolean hasIssuer = hasText(this.issuerUri);
+            boolean hasManualPair = hasText(this.authorizationUri) && hasText(this.tokenUri);
+            if (!hasIssuer && !hasManualPair) {
+                errors.put(AUTHORIZATION_URI_FIELD,
+                        "Provide either Issuer URI, or both Authorization and Token URIs.");
+            }
+            if (hasIssuer && !this.issuerUri.trim().toLowerCase(Locale.ROOT).startsWith("https://")) {
+                errors.put(ISSUER_URI_FIELD, "Issuer URI must use HTTPS.");
+            }
+            return errors;
+        }
+
+        private static boolean hasText(String value) {
+            return value != null && !value.trim().isEmpty();
         }
     }
 }

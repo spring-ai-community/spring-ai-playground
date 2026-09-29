@@ -182,7 +182,7 @@ public class VectorStoreDocumentView extends WorkspaceSidebar implements BeforeE
 
         Button deleteButton = new Button("Delete", e -> {
             for (VectorStoreDocumentInfo documentInfo : selectedItems)
-                this.offlineEtlPipelineService.deleteDocumentInfo(documentInfo);
+                this.offlineEtlPipelineService.deleteDocument(documentInfo.docInfoId());
             this.updateDocumentContent();
             this.documentInfoChangeSupport.firePropertyChange(DOCUMENTS_DELETE_EVENT, null, selectedItems);
             dialog.close();
@@ -201,12 +201,8 @@ public class VectorStoreDocumentView extends WorkspaceSidebar implements BeforeE
 
     public void addDocumentContent(List<String> fileNames, Map<String, List<Document>> uploadedDocumentItems,
             String title, String description) {
-        List<VectorStoreDocumentInfo> newDocumentInfos = fileNames.stream()
-                .map(fileName -> {
-                    List<Document> documents = uploadedDocumentItems.get(fileName);
-                    return documents.isEmpty() ? null
-                            : this.offlineEtlPipelineService.loadDocument(fileName, title, description, documents);
-                }).filter(Objects::nonNull).toList();
+        List<VectorStoreDocumentInfo> newDocumentInfos = this.offlineEtlPipelineService.ingest(
+                new OfflineEtlPipelineService.IngestRequest(fileNames, uploadedDocumentItems, title, description));
         updateDocumentContent();
         this.documentInfoChangeSupport.firePropertyChange(DOCUMENT_ADDING_EVENT, null, newDocumentInfos);
     }

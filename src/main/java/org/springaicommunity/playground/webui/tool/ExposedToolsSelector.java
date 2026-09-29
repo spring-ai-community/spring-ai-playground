@@ -21,17 +21,12 @@ import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
-import org.springaicommunity.playground.service.tool.ToolActivationCalculator;
-import org.springaicommunity.playground.service.tool.ToolActivationCalculator.State;
 import org.springaicommunity.playground.service.tool.ToolSpec;
-import org.springaicommunity.playground.service.tool.ToolSpecService.ToolMcpServerSetting;
 
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 public final class ExposedToolsSelector {
 
@@ -128,17 +123,7 @@ public final class ExposedToolsSelector {
         return badge;
     }
 
-    public static List<ToolSpec> customsFrom(List<ToolSpec> allToolSpecs, Set<String> defaultIds) {
-        return allToolSpecs.stream().filter(spec -> !defaultIds.contains(spec.toolId())).toList();
-    }
 
-    public static List<ToolSpec> exposableBuiltinsFrom(List<ToolSpec> allToolSpecs, Set<String> defaultIds,
-            ToolActivationCalculator activationCalculator) {
-        return allToolSpecs.stream()
-                .filter(spec -> defaultIds.contains(spec.toolId()))
-                .filter(spec -> !spec.draft())
-                .filter(spec -> activationCalculator.calculate(spec) != State.MISSING_REQUIREMENTS).toList();
-    }
 
     public static void applyEmptyState(MultiSelectComboBox<ToolSpec> selector, boolean isEmpty,
             String emptyPlaceholder, String filledPlaceholder) {
@@ -146,14 +131,6 @@ public final class ExposedToolsSelector {
         selector.setPlaceholder(isEmpty ? emptyPlaceholder : filledPlaceholder);
     }
 
-    public static ToolMcpServerSetting computeSetting(boolean autoAdd, Set<String> customSelectedIds,
-            Set<String> builtinSelectedIds, Set<String> exposableBuiltinIds) {
-        HashSet<String> exposed = new HashSet<>(customSelectedIds);
-        exposed.addAll(builtinSelectedIds);
-        Set<String> excluded = exposableBuiltinIds.stream()
-                .filter(id -> !builtinSelectedIds.contains(id)).collect(Collectors.toSet());
-        return new ToolMcpServerSetting(autoAdd, exposed, excluded);
-    }
 
     public static Set<ToolSpec> resolveBuiltinSelection(List<ToolSpec> exposableBuiltins, Set<String> exposedToolIds) {
         LinkedHashSet<ToolSpec> result = new LinkedHashSet<>();

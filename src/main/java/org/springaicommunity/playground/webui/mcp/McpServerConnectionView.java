@@ -204,7 +204,7 @@ public class McpServerConnectionView extends WorkspaceSidebar implements BeforeE
         this.mcpServerInfoService.getMcpServerInfos().values().stream().flatMap(List::stream).forEach(info -> {
             userIds.add(info.serverName());
             if (builtinName != null && builtinName.equals(info.serverName())) return;
-            userByCategory.computeIfAbsent(info.category(), k -> new ArrayList<>()).add(info);
+            userByCategory.computeIfAbsent(info.category(), category -> new ArrayList<>()).add(info);
         });
 
         int totalCount = userIds.size();
@@ -214,15 +214,10 @@ public class McpServerConnectionView extends WorkspaceSidebar implements BeforeE
                         || this.filterBar.getCategorySelection().contains(builtinInfo.category()));
 
         Map<String, List<McpServerInfo>> catalogByCategory = new LinkedHashMap<>();
-        for (McpCatalogEntry entry : this.mcpCatalogService.getCatalog()) {
-            if (userIds.contains(McpCatalogService.stripOsSuffix(entry.id()))) continue;
-            try {
-                McpServerInfo ghost = this.mcpCatalogService.instantiate(entry, null, Map.of());
-                catalogByCategory.computeIfAbsent(entry.category(), k -> new ArrayList<>()).add(ghost);
-                this.ghostNames.add(ghost.serverName());
-                totalCount++;
-            } catch (RuntimeException ignore) {
-            }
+        for (McpServerInfo ghost : this.mcpServerInfoService.uninstalledCatalogServers()) {
+            catalogByCategory.computeIfAbsent(ghost.category(), category -> new ArrayList<>()).add(ghost);
+            this.ghostNames.add(ghost.serverName());
+            totalCount++;
         }
 
         Map<String, List<McpServerInfo>> userFiltered = filterByCategory(userByCategory);
@@ -544,9 +539,7 @@ public class McpServerConnectionView extends WorkspaceSidebar implements BeforeE
     }
 
     private StatusEntry recomputeGhostStatus(McpServerInfo ghost) {
-        Set<String> missing = mcpClientService.findMissingEnv(ghost);
-        if (!missing.isEmpty()) return StatusEntry.missingConfig(missing);
-        return StatusEntry.OFFLINE;
+        return this.mcpClientService.catalogStatus(ghost);
     }
 
     private String listBoxKeyFor(McpServerInfo info) {
@@ -608,13 +601,9 @@ public class McpServerConnectionView extends WorkspaceSidebar implements BeforeE
             VaadinUtils.showErrorNotification("No MCP server selected.");
             return;
         }
-        McpServerInfo builtin = this.mcpServerInfoService.getDefaultMcpServerInfo();
-        if (builtin != null && builtin.serverName().equals(target.serverName())) {
-            VaadinUtils.showErrorNotification("Built-in MCP server cannot be deleted.");
-            return;
-        }
-        if (this.ghostNames.contains(target.serverName())) {
-            VaadinUtils.showErrorNotification("Inactive (catalog) MCP servers cannot be deleted.");
+        Optional<String> blocker = this.mcpServerInfoService.deleteBlocker(target.serverName());
+        if (blocker.isPresent()) {
+            VaadinUtils.showErrorNotification(blocker.get());
             return;
         }
         ConfirmDialog dialog = new ConfirmDialog();
@@ -624,8 +613,12 @@ public class McpServerConnectionView extends WorkspaceSidebar implements BeforeE
         dialog.setConfirmText("Delete");
         dialog.setConfirmButtonTheme("error primary");
         dialog.addConfirmListener(e -> {
-            this.mcpClientService.deleteConnectingMcpServer(target);
-            this.mcpServerInfoService.deleteMcpServerInfo(target.mcpTransportType(), target.serverName());
+            try {
+                this.mcpServerInfoService.delete(target.serverName());
+            } catch (IllegalStateException ex) {
+                VaadinUtils.showErrorNotification(ex.getMessage());
+                return;
+            }
             this.mcpServerInfoChangeSupport.firePropertyChange(McpServerView.MCP_CONNECTION_DELETE_EVENT, null, target);
         });
         dialog.open();

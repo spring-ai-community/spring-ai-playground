@@ -160,6 +160,9 @@ public class ChatDocumentIntakeService {
     }
 
     public ChatDocumentAttachment attach(String conversationId, String fileName, byte[] bytes, String mimeType) {
+        long active = list(conversationId).stream().filter(item -> item.status() != Status.FAILED).count();
+        if (active >= MAX_ATTACHMENTS)
+            throw new IllegalStateException("You can attach up to " + MAX_ATTACHMENTS + " documents.");
         long maxBytes = this.offlineEtlPipelineService.getMaxUploadSize().toBytes();
         long now = System.currentTimeMillis();
         String attachId = UUID.randomUUID().toString().substring(0, 8);

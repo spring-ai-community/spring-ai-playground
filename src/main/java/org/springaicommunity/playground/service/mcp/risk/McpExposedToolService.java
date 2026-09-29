@@ -15,10 +15,15 @@
  */
 package org.springaicommunity.playground.service.mcp.risk;
 
+import io.modelcontextprotocol.spec.McpSchema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springaicommunity.playground.service.mcp.McpServerInfo;
+import org.springaicommunity.playground.service.mcp.McpServerInfoService;
+import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.service.tool.ToolManifest.Sandbox.RiskLevel;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
+import org.springaicommunity.playground.service.tool.ToolSpecService.ExposureMode;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
@@ -27,10 +32,12 @@ import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Service;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -42,25 +49,77 @@ public class McpExposedToolService {
     private final McpCompositionToolCallbackProvider compositionProvider;
     private final ToolSpecService toolSpecService;
     private final McpToolHashLedger hashLedger;
+    private final McpServerInfoService serverInfoService;
+    private final McpClientService clientService;
+    private final McpToolRiskEvaluator riskEvaluator;
 
     public McpExposedToolService(McpCompositionService compositionService,
             McpCompositionToolCallbackProvider compositionProvider, ToolSpecService toolSpecService,
-            McpToolHashLedger hashLedger) {
+            McpToolHashLedger hashLedger, McpServerInfoService serverInfoService, McpClientService clientService,
+            McpToolRiskEvaluator riskEvaluator) {
         this.compositionService = compositionService;
         this.compositionProvider = compositionProvider;
         this.toolSpecService = toolSpecService;
         this.hashLedger = hashLedger;
+        this.serverInfoService = serverInfoService;
+        this.clientService = clientService;
+        this.riskEvaluator = riskEvaluator;
+    }
+
+    public record ExposureRequest(ExposureMode mode, List<McpComposition.Member> members, RiskLevel maxRisk) {
+
+        public ExposureRequest {
+            if (mode == null) throw new IllegalArgumentException("exposure mode must not be null");
+            members = members == null ? List.of() : List.copyOf(members);
+            if (maxRisk == null) maxRisk = RiskLevel.L5;
+        }
+    }
+
+    public synchronized McpComposition apply(ExposureRequest request) {
+        assertMembersWithinCap(request.members(), request.maxRisk());
+        this.toolSpecService.setExposureMode(request.mode());
+        return apply(request.members(), request.maxRisk());
+    }
+
+    public List<McpServerInfo> composableServers() {
+        McpServerInfo builtin = this.serverInfoService.getDefaultMcpServerInfo();
+        return this.serverInfoService.read().stream()
+                .filter(this.clientService::isConnecting)
+                .filter(info -> builtin == null || !info.serverName().equals(builtin.serverName()))
+                .toList();
+    }
+
+    private void assertMembersWithinCap(List<McpComposition.Member> members, RiskLevel cap) {
+        Map<String, McpServerInfo> serversByName = this.serverInfoService.read().stream()
+                .collect(Collectors.toMap(McpServerInfo::serverName, Function.identity(),
+                        (first, second) -> first));
+        Map<String, Optional<List<McpSchema.Tool>>> toolsByServer = new HashMap<>();
+        for (McpComposition.Member member : members) {
+            McpServerInfo server = serversByName.get(member.serverId());
+            if (server == null || !this.clientService.isConnecting(server)) continue;
+            Optional<McpSchema.Tool> tool = toolsByServer
+                    .computeIfAbsent(member.serverId(), serverName -> this.clientService.getToolListAsOpt(server))
+                    .stream().flatMap(List::stream)
+                    .filter(candidate -> member.toolName().equals(candidate.name()))
+                    .findFirst();
+            if (tool.isEmpty()) continue;
+            RiskLevel inherent = this.riskEvaluator.evaluateTool(server, tool.get()).inherentLevel();
+            // inherent risk, not hitl-lowered: hitl has no runtime gate so it must not lift the cap
+            if (inherent.ordinal() > cap.ordinal()) {
+                throw new IllegalArgumentException("Tool '" + member.toolName() + "' on '" + member.serverId()
+                        + "' has inherent risk " + inherent + " above the cap " + cap
+                        + " (HITL does not lift the cap)");
+            }
+        }
     }
 
     public synchronized McpComposition apply(List<McpComposition.Member> members, RiskLevel maxRiskLevel) {
         McpComposition exposed = this.compositionService.upsertExposed(members, maxRiskLevel);
-        // Re-applying the exposure selection is an explicit human re-review — clear any awaiting-re-review hold.
         exposed.members().forEach(m -> this.hashLedger.approveRereview(m.serverId(), m.toolName()));
         sync();
         return exposed;
     }
 
-    // Offline servers' tools don't resolve to a callback, so they register later (re-apply or restart).
     public synchronized void sync() {
         if (!this.toolSpecService.exposureMode().includesComposed()) {
             Set<String> current = this.toolSpecService.getExternalMcpToolNames();
@@ -92,7 +151,6 @@ public class McpExposedToolService {
         logger.info("Exposed-tool sync complete: exposedToolCount={}", desired.size());
     }
 
-    // Re-register a tool whose hitl flag flipped — the flag is baked into registration, so it must be redone.
     private boolean needsRemoval(String name, Set<String> desired, Map<String, Boolean> hitlByName) {
         if (!desired.contains(name)) return true;
         boolean registeredHitl = this.toolSpecService.humanInTheLoopFor(name) != null;

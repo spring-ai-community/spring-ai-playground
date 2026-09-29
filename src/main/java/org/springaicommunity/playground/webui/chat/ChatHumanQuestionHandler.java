@@ -39,7 +39,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
-// Sequential per-question dialogs would stack their blocking waits past the stream timeout.
 public final class ChatHumanQuestionHandler implements HumanQuestionHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(ChatHumanQuestionHandler.class);
@@ -59,7 +58,7 @@ public final class ChatHumanQuestionHandler implements HumanQuestionHandler {
         CompletableFuture<Map<String, String>> decision = new CompletableFuture<>();
         AtomicReference<Dialog> dialogRef = new AtomicReference<>();
         AtomicReference<ConfirmDialog> confirmRef = new AtomicReference<>();
-        this.pendingCancel.set(() -> decision.complete(defaultAnswers(questions)));
+        this.pendingCancel.set(() -> decision.complete(HumanQuestionHandler.defaultAnswers(questions)));
         try {
             this.ui.access(() -> open(questions, decision, dialogRef, confirmRef));
         } catch (RuntimeException e) {
@@ -69,7 +68,7 @@ public final class ChatHumanQuestionHandler implements HumanQuestionHandler {
         }
         try {
             return DialogInteractions.await(decision, this.decisionTimeoutSeconds,
-                    () -> timeoutAnswers(questions));
+                    () -> HumanQuestionHandler.timeoutAnswers(questions));
         } finally {
             this.pendingCancel.set(null);
             closeQuietly(dialogRef.get());
@@ -103,7 +102,7 @@ public final class ChatHumanQuestionHandler implements HumanQuestionHandler {
         dialog.setCancelable(true);
         dialog.setCancelText(options.get(1).label());
         dialog.addCancelListener(e -> decision.complete(singleAnswer(question, options.get(1).label())));
-        if (question.riskLevel() == RiskLevel.L5) {
+        if (question.requiresAcknowledgement()) {
             dialog.setConfirmButton(acknowledgedApprove(question, options.get(0).label(), body, decision, dialog));
         } else {
             dialog.setConfirmText(options.get(0).label());
@@ -153,11 +152,10 @@ public final class ChatHumanQuestionHandler implements HumanQuestionHandler {
             dialog.close();
         });
         confirm.getElement().getThemeList().add(ButtonVariant.LUMO_PRIMARY.getVariantName());
-        if (questions.stream().map(HumanQuestion::riskLevel)
-                .anyMatch(level -> level == RiskLevel.L4 || level == RiskLevel.L5)) {
+        if (questions.stream().anyMatch(HumanQuestion::isElevatedRisk)) {
             confirm.getElement().getThemeList().add(ButtonVariant.LUMO_ERROR.getVariantName());
         }
-        if (questions.stream().anyMatch(question -> question.riskLevel() == RiskLevel.L5)) {
+        if (questions.stream().anyMatch(HumanQuestion::requiresAcknowledgement)) {
             Checkbox acknowledge = new Checkbox("I reviewed the arguments and accept the risk");
             acknowledge.getStyle().set("margin-top", "var(--lumo-space-xs)");
             body.add(acknowledge);
@@ -169,7 +167,7 @@ public final class ChatHumanQuestionHandler implements HumanQuestionHandler {
         }
         dialog.getFooter().add(confirm);
         dialog.addOpenedChangeListener(e -> {
-            if (!e.isOpened() && !decision.isDone()) decision.complete(defaultAnswers(questions));
+            if (!e.isOpened() && !decision.isDone()) decision.complete(HumanQuestionHandler.defaultAnswers(questions));
         });
         dialog.open();
         return dialog;
@@ -181,22 +179,18 @@ public final class ChatHumanQuestionHandler implements HumanQuestionHandler {
         List<HumanQuestion.Option> options = question.options() == null ? List.of() : question.options();
         RadioButtonGroup<String> choice = new RadioButtonGroup<>();
         choice.setItems(options.stream().map(HumanQuestion.Option::label).toList());
-        choice.setValue(defaultAnswer(question));
+        choice.setValue(question.defaultAnswer());
         choice.addValueChangeListener(e -> revalidate.get().run());
         row.add(choice);
         selections.put(question.id(),
-                () -> choice.getValue() == null ? defaultAnswer(question) : choice.getValue());
+                () -> choice.getValue() == null ? question.defaultAnswer() : choice.getValue());
         return row;
     }
 
     private static boolean criticalApproved(List<HumanQuestion> questions, Map<String, Supplier<String>> selections) {
         return questions.stream()
-                .filter(question -> question.riskLevel() == RiskLevel.L5)
-                .anyMatch(question -> {
-                    List<HumanQuestion.Option> options = question.options();
-                    return options != null && !options.isEmpty()
-                            && options.get(0).label().equals(selections.get(question.id()).get());
-                });
+                .filter(HumanQuestion::requiresAcknowledgement)
+                .anyMatch(question -> question.isApproval(selections.get(question.id()).get()));
     }
 
     private VerticalLayout body(HumanQuestion question) {
@@ -212,7 +206,7 @@ public final class ChatHumanQuestionHandler implements HumanQuestionHandler {
         Span text = new Span(question.question());
         text.getStyle().set("font-size", "var(--lumo-font-size-s)");
         body.add(text);
-        String caution = cautionFor(level);
+        String caution = question.caution();
         if (caution != null) {
             Span cautionText = new Span(caution);
             cautionText.getStyle()
@@ -226,41 +220,10 @@ public final class ChatHumanQuestionHandler implements HumanQuestionHandler {
         return body;
     }
 
-    private static String cautionFor(RiskLevel level) {
-        if (level == RiskLevel.L5) {
-            return "Critical risk: may be irreversible or destroy data. Review the arguments.";
-        }
-        if (level == RiskLevel.L4) {
-            return "High risk: can modify files, spend money, or change external state.";
-        }
-        return null;
-    }
-
     private static Map<String, String> singleAnswer(HumanQuestion question, String label) {
         Map<String, String> answers = new LinkedHashMap<>();
         answers.put(question.id(), label);
         return answers;
-    }
-
-    private static Map<String, String> defaultAnswers(List<HumanQuestion> questions) {
-        Map<String, String> answers = new LinkedHashMap<>();
-        for (HumanQuestion question : questions) {
-            answers.put(question.id(), defaultAnswer(question));
-        }
-        return answers;
-    }
-
-    private static Map<String, String> timeoutAnswers(List<HumanQuestion> questions) {
-        Map<String, String> answers = new LinkedHashMap<>();
-        for (HumanQuestion question : questions) {
-            answers.put(question.id(), TIMEOUT_ANSWER);
-        }
-        return answers;
-    }
-
-    private static String defaultAnswer(HumanQuestion question) {
-        List<HumanQuestion.Option> options = question.options();
-        return options == null || options.isEmpty() ? "" : options.get(options.size() - 1).label();
     }
 
     private void closeQuietly(Object dialog) {

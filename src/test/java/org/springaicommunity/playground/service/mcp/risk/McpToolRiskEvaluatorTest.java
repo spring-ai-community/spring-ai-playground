@@ -15,6 +15,7 @@
  */
 package org.springaicommunity.playground.service.mcp.risk;
 
+import io.modelcontextprotocol.spec.McpSchema;
 import tools.jackson.databind.json.JsonMapper;
 import org.junit.jupiter.api.Test;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
@@ -27,6 +28,7 @@ import org.springaicommunity.playground.service.tool.ToolSpecService;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -145,5 +147,38 @@ class McpToolRiskEvaluatorTest {
 
         assertEquals(RiskLevel.L3, risk.finalLevel());
         assertEquals(RiskLevel.L3, risk.inherentLevel());
+    }
+
+    @Test
+    void toolOverloadExtractsPropertySchemasFromTheInputSchema() {
+        Map<String, Object> inputSchema = Map.of("type", "object",
+                "properties", Map.of("path", Map.of("type", "string"), "loose", "not-a-map"),
+                "required", List.of("path"));
+
+        Map<String, Map<String, Object>> schemas = McpToolRiskEvaluator.propertySchemas(inputSchema);
+
+        assertEquals(Map.of("type", "string"), schemas.get("path"));
+        assertEquals(Map.of(), schemas.get("loose"));
+        assertTrue(McpToolRiskEvaluator.propertySchemas(null).isEmpty());
+        assertTrue(McpToolRiskEvaluator.propertySchemas(Map.of("type", "object")).isEmpty());
+    }
+
+    @Test
+    void toolOverloadMatchesTheExplodedFormForTheBuiltInServer() {
+        ToolSpecService toolSpecService = mock(ToolSpecService.class);
+        when(toolSpecService.getSandboxRiskLevel("weather")).thenReturn(RiskLevel.L2);
+        McpToolRiskEvaluator evaluator = evaluatorForBuiltin("builtin", toolSpecService);
+        McpSchema.Tool tool = McpSchema.Tool.builder().name("weather").description("Forecast lookup")
+                .inputSchema(Map.of("type", "object", "properties", Map.of("city", Map.of("type", "string"))))
+                .build();
+
+        McpToolRiskEvaluator.ToolRiskView fromTool = evaluator.evaluateTool(serverInfo("builtin"), tool);
+        McpToolRiskEvaluator.ToolRiskView exploded = evaluator.evaluateTool(serverInfo("builtin"), "weather",
+                "Forecast lookup", Map.of("city", Map.of("type", "string")));
+
+        assertEquals(exploded.inherentLevel(), fromTool.inherentLevel());
+        assertEquals(exploded.finalLevel(), fromTool.finalLevel());
+        assertEquals(RiskLevel.L2, fromTool.inherentLevel());
+        assertEquals(RiskLevel.L1, evaluator.evaluateTool(serverInfo("builtin"), null).inherentLevel());
     }
 }

@@ -19,6 +19,7 @@ import com.vaadin.browserless.SpringBrowserlessTest;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.Icon;
+import com.vaadin.flow.component.notification.Notification;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springaicommunity.playground.service.chat.ChatDocumentIntakeService;
@@ -125,6 +126,25 @@ class ChatViewDocumentAttachTest extends SpringBrowserlessTest {
         test(removeControls(view, "notes.md").getFirst()).click();
         assertThat(removeControls(view, "notes.md")).isEmpty();
         assertThat(this.documentIntakeService.list(conversationId)).isEmpty();
+    }
+
+    @Test
+    void sixthAttachmentShowsTheServiceLimitAndAddsNoChip() {
+        ChatView view = navigate(ChatView.class);
+        String conversationId = $(ChatContentView.class, view).single().getConversationId();
+        for (int i = 0; i < ChatDocumentIntakeService.MAX_ATTACHMENTS; i++)
+            this.documentIntakeService.attach(conversationId, "seed" + i + ".md",
+                    "seed note".getBytes(StandardCharsets.UTF_8), "text/markdown");
+
+        chatAttach(view).receiveDocument("extra.md", base64Of("one too many"), "text/markdown");
+        roundTrip();
+
+        assertThat($(Notification.class).all())
+                .extracting(notification -> notification.getElement().getProperty("text"))
+                .contains("You can attach up to 5 documents.");
+        assertThat(removeControls(view, "extra.md")).isEmpty();
+        assertThat(this.documentIntakeService.list(conversationId))
+                .hasSize(ChatDocumentIntakeService.MAX_ATTACHMENTS);
     }
 
     @Test

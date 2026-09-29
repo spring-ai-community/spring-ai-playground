@@ -18,13 +18,22 @@ package org.springaicommunity.playground.webui.mcp;
 import com.vaadin.browserless.SpringBrowserlessTest;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.textfield.TextField;
 import org.junit.jupiter.api.Test;
+import org.springaicommunity.playground.service.mcp.McpServerInfo;
+import org.springaicommunity.playground.service.mcp.McpServerInfoService;
+import org.springaicommunity.playground.service.mcp.client.McpTransportType;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
 class McpServerAddFlowTest extends SpringBrowserlessTest {
+
+    @Autowired
+    private McpServerInfoService mcpServerInfoService;
 
     @Test
     void addCustomServerShowsBlankConfigForm() {
@@ -38,6 +47,42 @@ class McpServerAddFlowTest extends SpringBrowserlessTest {
 
         McpServerConfigView configView = $(McpServerConfigView.class, view).first();
         assertThat(configView).isNotNull();
+    }
+
+    @Test
+    void saveAndConnectSurfacesTheServiceDuplicateNameRefusal() {
+        long now = System.currentTimeMillis();
+        McpServerInfo taken = new McpServerInfo(McpTransportType.STREAMABLE_HTTP, "dup-ui", "d", now, now,
+                "{\"url\":\"https://dup.example.com\"}");
+        this.mcpServerInfoService.updateMcpServerInfo(taken.mcpTransportType(), taken.serverName(), taken);
+        try {
+            McpServerView view = navigate(McpServerView.class);
+            Button addServer = $(Button.class, view)
+                    .withCondition(button -> "Add Custom Server".equals(button.getTooltip().getText()))
+                    .first();
+            test(addServer).click();
+            roundTrip();
+            McpServerConfigView configView = $(McpServerConfigView.class, view).first();
+            TextField nameField = $(TextField.class, configView)
+                    .withCondition(field -> "Server name".equals(field.getLabel())).first();
+            test(nameField).setValue("dup-ui");
+            Button save = $(Button.class, configView)
+                    .withCondition(button -> "Save & Connect".equals(button.getText())).first();
+            assertThat(save.isEnabled()).isTrue();
+
+            test(save).click();
+            roundTrip();
+            Button proceed = $(Button.class)
+                    .withCondition(button -> "I understand, proceed".equals(button.getText())).first();
+            test(proceed).click();
+            roundTrip();
+
+            assertThat($(Notification.class).all())
+                    .extracting(notification -> notification.getElement().getProperty("text"))
+                    .contains("Failed to save : MCP connection already exists with name dup-ui");
+        } finally {
+            this.mcpServerInfoService.deleteMcpServerInfo(taken.mcpTransportType(), taken.serverName());
+        }
     }
 
     @Test

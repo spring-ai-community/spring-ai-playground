@@ -18,7 +18,9 @@ package org.springaicommunity.playground.service.mcp.risk;
 import org.junit.jupiter.api.Test;
 import org.springaicommunity.playground.service.mcp.catalog.McpCatalogEntry.OAuthDefaults;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -60,5 +62,19 @@ class McpAuthClassifierTest {
     @Test
     void explicitOauthCustomLabel() {
         assertEquals(McpAuthMode.OAUTH_CUSTOM, McpAuthClassifier.fromCatalogAuth("OAUTH_CUSTOM", null));
+    }
+
+    @Test
+    void headersClassifyBearerApiKeyAndNone() {
+        assertEquals(McpAuthMode.OAUTH_STANDARD, McpAuthClassifier.fromHeaders(Map.of(), true));
+        assertEquals(McpAuthMode.NONE, McpAuthClassifier.fromHeaders(null, false));
+        assertEquals(McpAuthMode.NONE, McpAuthClassifier.fromHeaders(Map.of("Accept", "text/event-stream"), false));
+        assertEquals(McpAuthMode.BEARER, McpAuthClassifier.fromHeaders(Map.of("Authorization", "bearer x"), false));
+        assertEquals(McpAuthMode.API_KEY, McpAuthClassifier.fromHeaders(Map.of("authorization", "Basic x"), false));
+        assertEquals(McpAuthMode.API_KEY, McpAuthClassifier.fromHeaders(Map.of("X-API-Key", "k"), false));
+        assertEquals(McpAuthMode.API_KEY, McpAuthClassifier.fromHeaders(Map.of("ApiKey", "k"), false));
+        Map<String, String> nullValue = new LinkedHashMap<>();
+        nullValue.put("Authorization", null);
+        assertEquals(McpAuthMode.API_KEY, McpAuthClassifier.fromHeaders(nullValue, false));
     }
 }

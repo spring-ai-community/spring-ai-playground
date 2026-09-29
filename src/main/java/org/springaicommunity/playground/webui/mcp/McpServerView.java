@@ -112,15 +112,11 @@ public class McpServerView extends ContentWorkspaceView {
             switch (event.getPropertyName()) {
                 case MCP_CONNECTION_SELECT_EVENT -> this.selectMcpServerInfo(newMcpServerInfo);
                 case MCP_CONNECTION_CHANGE_EVENT -> {
-                    McpServerInfo oldValue = (McpServerInfo) event.getOldValue();
-                    McpServerInfo updateMcpServerInfo =
-                            mcpServerInfoService.updateMcpServerInfo(oldValue.mcpTransportType(), oldValue.serverName(),
-                                    newMcpServerInfo);
                     this.mcpServerConnectionView.updateMcpConnections();
-                    this.mcpServerConnectionView.selectMcpConnectionContent(updateMcpServerInfo);
+                    this.mcpServerConnectionView.selectMcpConnectionContent(newMcpServerInfo);
                     VaadinUtils.showInfoNotification("MCP Connection Saved!");
                     this.usageEventTracker.track(UI.getCurrent(), "mcp_server_added",
-                            this.usageAnalyticsService.mcpServerAddedParams(updateMcpServerInfo));
+                            this.usageAnalyticsService.mcpServerAddedParams(newMcpServerInfo));
                 }
                 case MCP_CONNECTION_DELETE_EVENT -> {
                     this.mcpServerConnectionView.updateMcpConnections();
@@ -141,8 +137,8 @@ public class McpServerView extends ContentWorkspaceView {
                 "Built-in MCP server settings - who can call it, and which tools it exposes");
         McpServerAccessPanel accessPanel = new McpServerAccessPanel(mcpServerAuthTokenService);
         McpExposedToolsPanel exposeToolsPanel = new McpExposedToolsPanel(this.mcpExposedToolService,
-                this.mcpCompositionService, this.mcpServerInfoService, this.mcpClientService,
-                this.mcpToolRiskEvaluator, this.toolSpecService, this.usageEventTracker);
+                this.mcpCompositionService, this.mcpClientService, this.mcpToolRiskEvaluator, this.toolSpecService,
+                this.usageEventTracker);
         builtInServerDrawer.setBodyFactory(() -> {
             VerticalLayout drawerBody = new VerticalLayout(accessPanel.build(), new Hr(),
                     McpExposedToolsPanel.sectionLabel("Composed Tools"), exposeToolsPanel.build());
@@ -151,7 +147,7 @@ public class McpServerView extends ContentWorkspaceView {
         });
         builtInServerDrawer.setApplyButton("Apply", () -> {
             if (!accessPanel.apply()) return;
-            exposeToolsPanel.apply();
+            if (!exposeToolsPanel.apply()) return;
             builtInServerDrawer.close();
         }, false);
 

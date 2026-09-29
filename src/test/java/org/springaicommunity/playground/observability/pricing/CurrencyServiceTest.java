@@ -18,6 +18,7 @@ package org.springaicommunity.playground.observability.pricing;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springaicommunity.playground.observability.pricing.CurrencyService.CurrencyInput;
 import org.junit.jupiter.api.io.TempDir;
 import org.springaicommunity.playground.observability.pricing.CurrencyService.CurrencyRate;
 import org.springaicommunity.playground.service.PersistenceExecutor;
@@ -29,6 +30,7 @@ import java.time.Duration;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class CurrencyServiceTest {
 
@@ -136,30 +138,24 @@ class CurrencyServiceTest {
     }
 
     @Test
-    void flagForMapsKnownCurrenciesToFlags() {
-        assertThat(CurrencyService.flagFor("KRW")).isEqualTo("🇰🇷");
-        assertThat(CurrencyService.flagFor("USD")).isEqualTo("🇺🇸");
-        assertThat(CurrencyService.flagFor("EUR")).isEqualTo("🇪🇺");
-        assertThat(CurrencyService.flagFor("BHD")).isEqualTo("🇧🇭");
-    }
+    void addAndActivateValidatesNormalisesAndSwitchesTheActiveCurrency() {
+        CurrencyService service = newInitializedService();
 
-    @Test
-    void flagForMapsEverySeededCurrencyToASpecificFlag() {
-        for (CurrencyRate rate : newInitializedService().all()) {
-            assertThat(CurrencyService.flagFor(rate.code())).isNotEqualTo("🏳");
-        }
-    }
+        assertThatThrownBy(() -> service.addAndActivate(new CurrencyInput(" ", "A$", BigDecimal.ONE)))
+                .isInstanceOf(IllegalArgumentException.class).hasMessage("ID is required (1-8 characters)");
+        assertThatThrownBy(() -> service.addAndActivate(new CurrencyInput("TOOLONGCODE", "A$", BigDecimal.ONE)))
+                .isInstanceOf(IllegalArgumentException.class).hasMessage("ID is required (1-8 characters)");
+        assertThatThrownBy(() -> service.addAndActivate(new CurrencyInput("mycur", " ", BigDecimal.ONE)))
+                .isInstanceOf(IllegalArgumentException.class).hasMessage("Symbol is required (e.g. A$)");
+        assertThatThrownBy(() -> service.addAndActivate(new CurrencyInput("mycur", "M$", BigDecimal.ZERO)))
+                .isInstanceOf(IllegalArgumentException.class).hasMessage("Rate must be > 0");
+        assertThat(service.getActiveCurrency()).isEqualTo("USD");
 
-    @Test
-    void flagForDerivesRegionalIndicatorsForUnknownCodes() {
-        assertThat(CurrencyService.flagFor("BND")).isEqualTo("🇧🇳");
-    }
+        CurrencyRate added = service.addAndActivate(new CurrencyInput(" mycur ", " M$ ", new BigDecimal("1.52")));
 
-    @Test
-    void flagForFallsBackToWhiteFlagOnInvalidInput() {
-        assertThat(CurrencyService.flagFor(null)).isEqualTo("🏳");
-        assertThat(CurrencyService.flagFor("US")).isEqualTo("🏳");
-        assertThat(CurrencyService.flagFor("12X")).isEqualTo("🏳");
+        assertThat(added).isEqualTo(new CurrencyRate("MYCUR", "M$", new BigDecimal("1.52")));
+        assertThat(service.getActiveCurrency()).isEqualTo("MYCUR");
+        assertThat(service.getActiveRate()).isEqualTo(added);
+        assertThat(service.all()).contains(added);
     }
-
 }

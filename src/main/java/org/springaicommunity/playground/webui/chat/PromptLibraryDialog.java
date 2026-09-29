@@ -44,12 +44,14 @@ import org.springaicommunity.playground.service.chat.ChatSystemPromptPresetCatal
 import org.springaicommunity.playground.service.chat.ChatSystemPromptPresetService;
 import org.springaicommunity.playground.service.chat.ChatSystemPromptTemplateRenderer;
 import org.springaicommunity.playground.service.chat.ChatSystemPromptTemplateRenderer.VariableSpec;
+import org.springaicommunity.playground.service.chat.ChatSystemPromptTemplateRenderer.VariableType;
+import org.springaicommunity.playground.service.chat.ChatSystemPromptPresetService.TemplateInput;
+import org.springaicommunity.playground.service.tool.ToolSpecService.ToolReadiness;
 import org.springaicommunity.playground.service.tool.ToolSpec;
 import org.springaicommunity.playground.webui.VaadinUtils;
 import org.springaicommunity.playground.webui.tool.ExposedToolsSelector;
 import org.springframework.util.StringUtils;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -66,9 +68,7 @@ import java.util.stream.Collectors;
 
 public class PromptLibraryDialog extends Dialog {
 
-    public enum ToolReadiness { READY, NOT_EXPOSED, NEEDS_SETUP, NOT_ENABLED }
-
-    private static final Pattern TOKEN = Pattern.compile("\\{\\{[^}]*\\}\\}");
+    private static final Pattern VARIABLE_TOKEN_PATTERN = Pattern.compile("\\{\\{[^}]*\\}\\}");
 
     private static final Set<String> FS_TOOLS = Set.of("readTextFile", "listDir", "statFile", "lineCount",
             "sliceFile", "sortFile", "grepFile", "findFiles", "cutFileFields", "writeTextFile");
@@ -282,7 +282,7 @@ public class PromptLibraryDialog extends Dialog {
                 .set("border-radius", "var(--lumo-border-radius-m)").set("padding", "0.7em 0.9em")
                 .set("font-size", "var(--lumo-font-size-s)").set("white-space", "pre-wrap")
                 .set("line-height", "1.55").set("width", "100%").set("box-sizing", "border-box");
-        Matcher matcher = TOKEN.matcher(prompt);
+        Matcher matcher = VARIABLE_TOKEN_PATTERN.matcher(prompt);
         int last = 0;
         while (matcher.find()) {
             if (matcher.start() > last) box.add(new Span(prompt.substring(last, matcher.start())));
@@ -322,7 +322,7 @@ public class PromptLibraryDialog extends Dialog {
                 if (spec.min() != null) number.setMin(spec.min());
                 if (spec.max() != null) number.setMax(spec.max());
                 if (spec.min() != null || spec.max() != null)
-                    number.setHelperText(numberText(spec.min()) + " - " + numberText(spec.max()));
+                    number.setHelperText(ChatSystemPromptTemplateRenderer.numberText(spec.min()) + " - " + ChatSystemPromptTemplateRenderer.numberText(spec.max()));
                 if (StringUtils.hasText(spec.defaultValue())) {
                     try {
                         number.setValue(Double.valueOf(spec.defaultValue()));
@@ -332,7 +332,7 @@ public class PromptLibraryDialog extends Dialog {
                 }
                 number.setValueChangeMode(ValueChangeMode.EAGER);
                 number.addValueChangeListener(event -> onChange.run());
-                values.put(spec.name(), () -> numberText(number.getValue()));
+                values.put(spec.name(), () -> ChatSystemPromptTemplateRenderer.numberText(number.getValue()));
                 yield number;
             }
             case SELECT -> {
@@ -548,10 +548,15 @@ public class PromptLibraryDialog extends Dialog {
                 promptArea.setErrorMessage("Prompt is required");
                 return;
             }
-            Preset saved = this.presetService.save(nameField.getValue(), promptArea.getValue(), PresetKind.TEMPLATE,
-                    dynamicTools.getValue() ? List.of() : orderedSelection(toolsPicker), dynamicTools.getValue());
-            if (existing != null && isUserOwned(existing) && !existing.id().equals(saved.id()))
-                this.presetService.delete(existing.id());
+            Preset saved;
+            try {
+                saved = this.presetService.saveTemplate(new TemplateInput(existing == null ? null : existing.id(),
+                        nameField.getValue(), promptArea.getValue(), orderedSelection(toolsPicker),
+                        dynamicTools.getValue()));
+            } catch (IllegalArgumentException e) {
+                VaadinUtils.showErrorNotification(e.getMessage());
+                return;
+            }
             this.selectedId = saved.id();
             buildList();
             showDetail(saved);
@@ -595,8 +600,12 @@ public class PromptLibraryDialog extends Dialog {
                 nameField.setErrorMessage("Letters, digits, and _ only");
                 return;
             }
-            String token = variableToken(name, typeSelect.getValue(), optionsField.getValue(),
-                    minField.getValue(), maxField.getValue(), limitField.getValue(), defaultField.getValue());
+            List<String> options = !StringUtils.hasText(optionsField.getValue()) ? List.of()
+                    : Arrays.stream(optionsField.getValue().split(",")).map(String::trim)
+                            .filter(part -> !part.isEmpty()).toList();
+            String token = this.templateRenderer.token(new VariableSpec(name,
+                    VariableType.valueOf(typeSelect.getValue().toUpperCase(Locale.ROOT)), options,
+                    minField.getValue(), maxField.getValue(), limitField.getValue(), defaultField.getValue()));
             String current = promptArea.getValue();
             promptArea.setValue(current.isBlank() ? token : current + " " + token);
             dialog.close();
@@ -613,30 +622,6 @@ public class PromptLibraryDialog extends Dialog {
         dialog.add(form);
         dialog.getFooter().add(cancel, insert);
         dialog.open();
-    }
-
-    private String variableToken(String name, String type, String options, Double min, Double max, Integer limit,
-            String defaultValue) {
-        StringBuilder token = new StringBuilder("{{").append(name);
-        switch (type) {
-            case "multiline" -> token.append(":multiline");
-            case "number" -> {
-                token.append(":number");
-                if (min != null || max != null)
-                    token.append('(').append(numberText(min)).append(',').append(numberText(max)).append(')');
-            }
-            case "select" -> token.append(":select(").append(options == null ? "" : options.trim()).append(')');
-            case "list" -> {
-                token.append(":list");
-                List<String> parts = new ArrayList<>();
-                if (StringUtils.hasText(options)) parts.add(options.trim());
-                if (limit != null) parts.add("max=" + limit);
-                if (!parts.isEmpty()) token.append('(').append(String.join(", ", parts)).append(')');
-            }
-            default -> { }
-        }
-        if (StringUtils.hasText(defaultValue)) token.append('=').append(defaultValue.trim());
-        return token.append("}}").toString();
     }
 
     private HorizontalLayout titleRow(Preset preset, Span kindBadge) {
@@ -737,7 +722,7 @@ public class PromptLibraryDialog extends Dialog {
     }
 
     private boolean isUserOwned(Preset preset) {
-        return this.presetService.userPresets().stream().anyMatch(p -> p.id().equals(preset.id()));
+        return this.presetService.isUserOwned(preset.id());
     }
 
     private Span badge(String text) {
@@ -769,8 +754,4 @@ public class PromptLibraryDialog extends Dialog {
         return row;
     }
 
-    private static String numberText(Double value) {
-        if (value == null) return "";
-        return value % 1 == 0 ? String.valueOf(value.longValue()) : String.valueOf(value);
-    }
 }

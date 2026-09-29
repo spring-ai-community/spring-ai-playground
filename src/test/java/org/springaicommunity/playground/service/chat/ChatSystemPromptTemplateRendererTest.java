@@ -16,8 +16,11 @@
 package org.springaicommunity.playground.service.chat;
 
 import org.junit.jupiter.api.Test;
+import org.springaicommunity.playground.service.chat.ChatSystemPromptTemplateRenderer.VariableSpec;
+import org.springaicommunity.playground.service.chat.ChatSystemPromptTemplateRenderer.VariableType;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -104,5 +107,24 @@ class ChatSystemPromptTemplateRendererTest {
         var specs = renderer.variableSpecs("{{x:fancy(1,2)}}");
         assertThat(specs).hasSize(1);
         assertThat(specs.get(0).type()).isEqualTo(ChatSystemPromptTemplateRenderer.VariableType.TEXT);
+    }
+
+    @Test
+    void tokenRoundTripsThroughVariableSpecs() {
+        List<VariableSpec> specs = List.of(
+                new VariableSpec("name", VariableType.TEXT, List.of(), null, null, null, null),
+                new VariableSpec("notes", VariableType.MULTILINE, List.of(), null, null, null, "none"),
+                new VariableSpec("count", VariableType.NUMBER, List.of(), 1.0, 2.5, null, "2"),
+                new VariableSpec("free", VariableType.NUMBER, List.of(), null, null, null, null),
+                new VariableSpec("tone", VariableType.SELECT, List.of("formal", "casual"), null, null, null,
+                        "formal"),
+                new VariableSpec("tags", VariableType.LIST, List.of("a", "b"), null, null, 3, null));
+
+        List<String> tokens = specs.stream().map(renderer::token).toList();
+
+        assertThat(tokens).containsExactly("{{name}}", "{{notes:multiline=none}}", "{{count:number(1,2.5)=2}}",
+                "{{free:number}}", "{{tone:select(formal,casual)=formal}}", "{{tags:list(a,b, max=3)}}");
+        assertThat(renderer.variableSpecs(String.join(" ", tokens))).containsExactlyElementsOf(specs);
+        assertThat(ChatSystemPromptTemplateRenderer.numberText(null)).isEmpty();
     }
 }

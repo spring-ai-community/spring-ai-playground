@@ -38,6 +38,8 @@ import org.springaicommunity.playground.observability.ObservabilityTimeSeries;
 import org.springaicommunity.playground.observability.system.SystemMetricsSnapshot;
 import org.springaicommunity.playground.service.chat.ChatHistory;
 import org.springaicommunity.playground.service.chat.ChatHistoryService;
+import org.springaicommunity.playground.service.chat.ProviderReadinessService;
+import org.springaicommunity.playground.service.home.ReleaseCheckService;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
 import org.springaicommunity.playground.service.mcp.catalog.McpCatalogService;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
@@ -47,54 +49,25 @@ import org.springaicommunity.playground.service.tool.ToolSpecService;
 import org.springaicommunity.playground.service.vectorstore.OfflineEtlPipelineService;
 import org.springaicommunity.playground.webui.chat.ChatView;
 import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.embedding.EmbeddingModel;
-import org.springframework.ai.embedding.EmbeddingOptions;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.env.Environment;
 
-import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
-import java.time.Instant;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class HomeInfoView extends Div {
 
     private static final Logger logger = LoggerFactory.getLogger(HomeInfoView.class);
 
-    private static final String DEV_VERSION = "dev";
-    private static final String CURRENT_VERSION = loadCurrentVersion();
-    private static final String RELEASES_API =
-            "https://api.github.com/repos/spring-ai-community/spring-ai-playground/releases/latest";
-    private static final String RELEASES_PAGE =
-            "https://github.com/spring-ai-community/spring-ai-playground/releases/latest";
-    private static final String DOWNLOAD_GUIDE =
-            "https://spring-ai-community.github.io/spring-ai-playground/#1-download-the-desktop-app";
     private static final String CONFIGURE_URL =
             "https://spring-ai-community.github.io/spring-ai-playground/getting-started/";
-
-    private static final Pattern PRE_RELEASE_SUFFIX = Pattern.compile("(?i)(M|RC)(\\d+)");
-    private static final int STAGE_UNKNOWN = 0;
-    private static final int STAGE_MILESTONE = 1;
-    private static final int STAGE_RC = 2;
-    private static final int STAGE_GA = 3;
-
-    private static volatile LatestRelease cachedRelease;
-    private static volatile Instant cachedAt;
 
     private final Div updateBannerSlot;
     private final Div alertBannerSlot;
     private final HomeChecklist checklist;
-    private final boolean desktopManagedUpdates;
+    private final ReleaseCheckService releaseCheckService;
 
     public HomeInfoView(ToolSpecService toolSpecService,
             McpServerInfoService mcpServerInfoService,
@@ -105,15 +78,14 @@ public class HomeInfoView extends Div {
             ToolSpecPersistenceService toolSpecPersistenceService,
             ToolActivationCalculator toolActivationCalculator,
             ObjectProvider<ChatModel> chatModelProvider,
-            ObjectProvider<EmbeddingModel> embeddingModelProvider,
-            Optional<EmbeddingOptions> embeddingOptions,
+            ProviderReadinessService providerReadinessService,
             ObservabilityTimeSeries observabilityTimeSeries,
             SystemMetricsSnapshot systemMetricsSnapshot,
             McpRiskEventRingBuffer mcpRiskEventRingBuffer,
+            ReleaseCheckService releaseCheckService,
             Environment environment) {
         setSizeFull();
-        this.desktopManagedUpdates = environment.getProperty(
-                "spring.ai.playground.desktop.managed-updates", Boolean.class, false);
+        this.releaseCheckService = releaseCheckService;
 
         VerticalLayout content = new VerticalLayout();
         content.setWidthFull();
@@ -137,17 +109,16 @@ public class HomeInfoView extends Div {
         }
 
         HomeSystemPanel systemPanel = new HomeSystemPanel(
-                chatModelProvider, embeddingModelProvider, embeddingOptions, environment,
-                toolSpecService, toolSpecPersistenceService, toolActivationCalculator,
-                mcpServerInfoService, mcpClientService,
+                providerReadinessService, environment,
+                toolSpecService, mcpServerInfoService,
                 observabilityTimeSeries, systemMetricsSnapshot, mcpRiskEventRingBuffer);
         HomeSurfaceCards surfaceCards = new HomeSurfaceCards(
-                toolSpecService, toolSpecPersistenceService,
-                mcpServerInfoService, mcpClientService, offlineEtlPipelineService, mcpCatalogService,
+                toolSpecService,
+                mcpServerInfoService, offlineEtlPipelineService, mcpCatalogService,
                 chatHistoryService);
         this.checklist = new HomeChecklist(
-                chatModelProvider, toolSpecService, toolSpecPersistenceService,
-                offlineEtlPipelineService, chatHistoryService, environment);
+                providerReadinessService, toolSpecService, toolSpecPersistenceService,
+                offlineEtlPipelineService, chatHistoryService);
         HomeRecentActivity recentActivity = new HomeRecentActivity(
                 toolSpecService, toolSpecPersistenceService,
                 mcpServerInfoService, offlineEtlPipelineService, chatHistoryService);
@@ -178,27 +149,12 @@ public class HomeInfoView extends Div {
                         + "$0.$server.onClientEnvironment(checklistCollapsed);",
                 getElement());
 
-        if (!desktopManagedUpdates && !DEV_VERSION.equals(CURRENT_VERSION)) {
-            CompletableFuture.supplyAsync(HomeInfoView::fetchLatestRelease)
-                    .thenAccept(release -> {
-                        if (release == null) {
-                            logger.info("Update check: could not fetch latest release");
-                            return;
-                        }
-                        if (!isNewer(release.tagName(), CURRENT_VERSION)) {
-                            logger.info("Update up-to-date: current={} latest={}",
-                                    CURRENT_VERSION, release.tagName());
-                            return;
-                        }
-                        logger.info("Update available: current={} latest={}",
-                                CURRENT_VERSION, release.tagName());
-                        ui.access(() -> renderUpdateBanner(release));
-                    })
-                    .exceptionally(ex -> {
-                        logger.debug("Update check failed", ex);
-                        return null;
-                    });
-        }
+        CompletableFuture.supplyAsync(this.releaseCheckService::availableUpdate)
+                .thenAccept(release -> release.ifPresent(update -> ui.access(() -> renderUpdateBanner(update))))
+                .exceptionally(ex -> {
+                    logger.debug("Update check failed", ex);
+                    return null;
+                });
     }
 
     @ClientCallable
@@ -381,7 +337,7 @@ public class HomeInfoView extends Div {
     }
 
 
-    private void renderUpdateBanner(LatestRelease release) {
+    private void renderUpdateBanner(ReleaseCheckService.LatestRelease release) {
         Div banner = new Div();
         banner.getStyle()
                 .set("display", "flex")
@@ -439,7 +395,7 @@ public class HomeInfoView extends Div {
 
         textBlock.add(headline, detailLine);
 
-        Anchor downloadLink = new Anchor(DOWNLOAD_GUIDE, "Download");
+        Anchor downloadLink = new Anchor(ReleaseCheckService.DOWNLOAD_GUIDE, "Download");
         downloadLink.setTarget("_blank");
         downloadLink.getElement().setAttribute("rel", "noopener");
         downloadLink.getStyle()
@@ -471,127 +427,4 @@ public class HomeInfoView extends Div {
     }
 
 
-    static boolean isNewer(String latest, String current) {
-        int[] l = parseVersion(latest);
-        int[] c = parseVersion(current);
-        if (l == null || c == null) return false;
-        for (int i = 0; i < l.length; i++) {
-            if (l[i] != c[i]) return l[i] > c[i];
-        }
-        return false;
-    }
-
-    static int[] parseVersion(String version) {
-        String v = normalizeVersion(version);
-        if (v.isEmpty()) return null;
-        int dash = v.indexOf('-');
-        String core = dash < 0 ? v : v.substring(0, dash);
-        String suffix = dash < 0 ? "" : v.substring(dash + 1);
-        String[] parts = core.split("\\.");
-        int[] out = { 0, 0, 0, STAGE_GA, 0 };
-        try {
-            for (int i = 0; i < 3 && i < parts.length; i++) out[i] = Integer.parseInt(parts[i].trim());
-            if (!suffix.isEmpty()) {
-                Matcher preRelease = PRE_RELEASE_SUFFIX.matcher(suffix);
-                if (preRelease.matches()) {
-                    out[3] = "M".equalsIgnoreCase(preRelease.group(1)) ? STAGE_MILESTONE : STAGE_RC;
-                    out[4] = Integer.parseInt(preRelease.group(2));
-                } else {
-                    out[3] = STAGE_UNKNOWN;
-                }
-            }
-        } catch (NumberFormatException e) {
-            return null;
-        }
-        return out;
-    }
-
-    private static String normalizeVersion(String version) {
-        if (version == null) return "";
-        String trimmed = version.trim();
-        if (trimmed.isEmpty()) return "";
-        char first = trimmed.charAt(0);
-        if (first == 'v' || first == 'V') {
-            return trimmed.substring(1);
-        }
-        return trimmed;
-    }
-
-    private static String loadCurrentVersion() {
-        try (var is = HomeInfoView.class.getClassLoader()
-                .getResourceAsStream("META-INF/build-info.properties")) {
-            if (is == null) return DEV_VERSION;
-            Properties props = new Properties();
-            props.load(is);
-            String version = props.getProperty("build.version");
-            return version != null && !version.isBlank() ? version : DEV_VERSION;
-        } catch (IOException e) {
-            logger.debug("Could not load build-info.properties", e);
-            return DEV_VERSION;
-        }
-    }
-
-    private static LatestRelease fetchLatestRelease() {
-        LatestRelease cached = cachedRelease;
-        Instant fetchedAt = cachedAt;
-        if (cached != null && fetchedAt != null
-                && Duration.between(fetchedAt, Instant.now()).toHours() < 6) {
-            return cached;
-        }
-        try {
-            HttpClient client = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofSeconds(5))
-                    .build();
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(RELEASES_API))
-                    .timeout(Duration.ofSeconds(10))
-                    .header("Accept", "application/vnd.github+json")
-                    .GET()
-                    .build();
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() != 200) {
-                logger.debug("GitHub releases API returned status {}", response.statusCode());
-                return null;
-            }
-            String body = response.body();
-            String tag = extractJsonField(body, "tag_name");
-            String url = extractJsonField(body, "html_url");
-            String name = extractJsonField(body, "name");
-            String publishedAt = extractJsonField(body, "published_at");
-            Long publishedAtMs = null;
-            if (publishedAt != null && !publishedAt.isBlank()) {
-                try {
-                    publishedAtMs = Instant.parse(publishedAt).toEpochMilli();
-                } catch (Exception ignored) {
-                    // leave null
-                }
-            }
-            if (tag == null || tag.isBlank()) return null;
-            LatestRelease release = new LatestRelease(tag,
-                    url != null ? url : RELEASES_PAGE,
-                    name,
-                    publishedAtMs);
-            cachedRelease = release;
-            cachedAt = Instant.now();
-            return release;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return null;
-        } catch (Exception e) {
-            logger.debug("Failed to fetch latest release", e);
-            return null;
-        }
-    }
-
-    private static String extractJsonField(String json, String field) {
-        String marker = "\"" + field + "\":\"";
-        int idx = json.indexOf(marker);
-        if (idx < 0) return null;
-        int start = idx + marker.length();
-        int end = json.indexOf('"', start);
-        if (end < 0) return null;
-        return json.substring(start, end);
-    }
-
-    private record LatestRelease(String tagName, String htmlUrl, String name, Long publishedAtEpochMs) {}
 }

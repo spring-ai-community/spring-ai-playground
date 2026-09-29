@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class McpCompositionMemberTest {
@@ -62,5 +63,21 @@ class McpCompositionMemberTest {
         assertEquals("server_tool", McpComposition.Member.defaultAlias("server", "tool"));
         assertEquals("special_chars_t", McpComposition.Member.defaultAlias("special.chars!", "t"),
                 "'.' and '!' sanitized to '_', trailing underscores trimmed, single '_' separator added");
+    }
+
+    @Test
+    void ofDefaultsTheAliasAndDropsAnUnchangedDescriptionOverride() {
+        McpComposition.Member defaulted = McpComposition.Member.of("My Server", "echo", "  ", "Echoes input",
+                "Echoes input", true);
+        assertEquals("my_server_echo", defaulted.exposedAlias());
+        assertNull(defaulted.descriptionOverride());
+        assertTrue(defaulted.hitl());
+        assertEquals("", defaulted.contentHash());
+
+        McpComposition.Member overridden = McpComposition.Member.of("srv", "echo", " alias ", "Custom text",
+                "Echoes input", false);
+        assertEquals("alias", overridden.exposedAlias());
+        assertEquals("Custom text", overridden.descriptionOverride());
+        assertNull(McpComposition.Member.of("srv", "echo", null, null, "Echoes input", false).descriptionOverride());
     }
 }

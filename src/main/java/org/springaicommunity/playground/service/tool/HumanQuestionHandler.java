@@ -15,6 +15,7 @@
  */
 package org.springaicommunity.playground.service.tool;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -26,4 +27,20 @@ public interface HumanQuestionHandler extends PendingInteraction {
     String TIMEOUT_ANSWER = "Timeout";
 
     Map<String, String> ask(List<HumanQuestion> questions);
+
+    static Map<String, String> defaultAnswers(List<HumanQuestion> questions) {
+        Map<String, String> answers = new LinkedHashMap<>();
+        for (HumanQuestion question : questions) {
+            answers.put(question.id(), question.defaultAnswer());
+        }
+        return answers;
+    }
+
+    static Map<String, String> timeoutAnswers(List<HumanQuestion> questions) {
+        Map<String, String> answers = new LinkedHashMap<>();
+        for (HumanQuestion question : questions) {
+            answers.put(question.id(), TIMEOUT_ANSWER);
+        }
+        return answers;
+    }
 }

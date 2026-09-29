@@ -240,34 +240,23 @@ public class SandboxCapabilitiesView extends Details {
     }
 
     public ToolSpec.SandboxOverrides currentOverrides() {
-        Set<String> userAllow = this.allowClassesField.getValue();
-        Set<String> userDeny = this.denyClassesField.getValue();
-        Set<String> addAllow = diff(userAllow, this.yamlBaselineAllow);
-        Set<String> removeAllow = diff(this.yamlBaselineAllow, userAllow);
-        Set<String> addDeny = diff(userDeny, this.yamlBaselineDeny);
-        Set<String> removeDeny = diff(this.yamlBaselineDeny, userDeny);
-        String networkMode = this.networkModeField.getValue();
-        Set<String> hosts = this.hostsField.getValue();
         String fileMode = this.fileModeField.getValue();
         Boolean fileRead = fileMode == null ? null : !"off".equals(fileMode);
         Boolean fileWrite = fileMode == null ? null : "read+write".equals(fileMode);
-        String fsBasePath = this.fsBasePathField.getValue();
-        return new ToolSpec.SandboxOverrides(addAllow, removeAllow, addDeny, removeDeny, networkMode, hosts,
-                fileRead, fileWrite, fsBasePath, this.destructive);
+        return ToolSpec.SandboxOverrides.fromEffective(this.yamlBaselineAllow, this.yamlBaselineDeny,
+                this.allowClassesField.getValue(), this.denyClassesField.getValue(),
+                this.networkModeField.getValue(), this.hostsField.getValue(), fileRead, fileWrite,
+                this.fsBasePathField.getValue(), this.destructive);
     }
 
     public void applyOverrides(ToolSpec.SandboxOverrides overrides) {
         if (overrides == null) return;
         this.destructive = overrides.destructive();
-        Set<String> resolvedAllow = new LinkedHashSet<>(this.yamlBaselineAllow);
-        if (overrides.removeAllowClasses() != null) resolvedAllow.removeAll(overrides.removeAllowClasses());
-        if (overrides.addAllowClasses() != null) resolvedAllow.addAll(overrides.addAllowClasses());
+        Set<String> resolvedAllow = overrides.resolveAllowClasses(this.yamlBaselineAllow);
         this.allowClassesField.setItems(resolvedAllow);
         this.allowClassesField.setValue(resolvedAllow);
 
-        Set<String> resolvedDeny = new LinkedHashSet<>(this.yamlBaselineDeny);
-        if (overrides.removeDenyClasses() != null) resolvedDeny.removeAll(overrides.removeDenyClasses());
-        if (overrides.addDenyClasses() != null) resolvedDeny.addAll(overrides.addDenyClasses());
+        Set<String> resolvedDeny = overrides.resolveDenyClasses(this.yamlBaselineDeny);
         this.denyClassesField.setItems(resolvedDeny);
         this.denyClassesField.setValue(resolvedDeny);
 
@@ -449,8 +438,8 @@ public class SandboxCapabilitiesView extends Details {
         String fileMode = this.fileModeField.getValue();
         boolean fileRead = !"off".equals(fileMode);
         boolean fileWrite = "read+write".equals(fileMode);
-        boolean customClasses = !diff(this.allowClassesField.getValue(), this.yamlBaselineAllow).isEmpty()
-                || !diff(this.denyClassesField.getValue(), this.yamlBaselineDeny).isEmpty();
+        ToolSpec.SandboxOverrides current = currentOverrides();
+        boolean customClasses = !current.addAllowClasses().isEmpty() || !current.addDenyClasses().isEmpty();
         return new PostureSignals(mode, fileRead, fileWrite, Boolean.TRUE.equals(this.destructive), customClasses);
     }
 
@@ -546,9 +535,4 @@ public class SandboxCapabilitiesView extends Details {
         }
     }
 
-    private static Set<String> diff(Set<String> a, Set<String> b) {
-        Set<String> out = new LinkedHashSet<>(a == null ? Set.of() : a);
-        if (b != null) out.removeAll(b);
-        return out;
-    }
 }

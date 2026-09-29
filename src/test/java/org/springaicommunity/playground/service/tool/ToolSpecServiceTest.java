@@ -30,6 +30,13 @@ import org.springaicommunity.playground.service.tool.runtime.JsToolExecutor.JsEx
 import org.springaicommunity.playground.service.tool.ToolSpec.CodeType;
 import org.springaicommunity.playground.service.tool.ToolSpec.JsonSchemaType;
 import org.springaicommunity.playground.service.tool.ToolSpec.ToolParamSpec;
+import org.springaicommunity.playground.service.tool.ToolSpecService.BuiltinEnvSnapshot;
+import org.springaicommunity.playground.service.tool.ToolSpecService.CustomToolSummary;
+import org.springaicommunity.playground.service.tool.ToolSpecService.ExposureSelection;
+import org.springaicommunity.playground.service.tool.ToolSpecService.ToolDraftInput;
+import org.springaicommunity.playground.service.tool.ToolSpecService.ToolMcpServerSetting;
+import org.springaicommunity.playground.service.tool.ToolSpecService.ToolSaveResult;
+import org.springaicommunity.playground.service.tool.ToolSpecService.ToolTestResult;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,6 +51,10 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -51,6 +62,8 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.awaitility.Awaitility.await;
 
 @SpringBootTest
 @TestPropertySource(properties = "logging.level.com.example=DEBUG")
@@ -572,5 +585,168 @@ class ToolSpecServiceTest {
 
         assertThat(toolSpecService.gatingRiskLevel("riskyDeleteTool")).isEqualTo(RiskLevel.L5);
         assertThat(toolSpecService.gatingRiskLevel("noSuchTool")).isNull();
+    }
+
+    private static ToolDraftInput draft(String toolId, String name, String code, List<ToolParamSpec> params) {
+        return new ToolDraftInput(toolId, name, "desc " + name, List.of(), params, code, "CUSTOM", Set.of("qa"),
+                null, null);
+    }
+
+    private void cleanup(String... names) {
+        for (String name : names) {
+            toolSpecService.getToolSpecAsOpt(name).ifPresent(spec -> toolSpecService.deleteToolSpec(spec.toolId()));
+        }
+    }
+
+    @Test
+    void toolNameErrorMirrorsTheFormRules() {
+        assertThat(ToolSpecService.toolNameError(null)).contains("Tool Name is required.");
+        assertThat(ToolSpecService.toolNameError("  ")).contains("Tool Name is required.");
+        assertThat(ToolSpecService.toolNameError("1abc"))
+                .contains("Use letters, numbers, and '_' only. Must start with a letter.");
+        assertThat(ToolSpecService.toolNameError("get-weather")).isPresent();
+        assertThat(ToolSpecService.toolNameError("get_weather2")).isEmpty();
+    }
+
+    @Test
+    void testRunConvertsTypedTestValuesAndReportsTiming() {
+        List<ToolParamSpec> params = List.of(
+                new ToolParamSpec("count", "n", true, JsonSchemaType.INTEGER, "4"),
+                new ToolParamSpec("flag", "b", false, JsonSchemaType.BOOLEAN, "true"),
+                new ToolParamSpec("items", "a", false, JsonSchemaType.ARRAY, "[1,2,3]"),
+                new ToolParamSpec("blank", "s", false, JsonSchemaType.STRING, ""));
+
+        ToolTestResult result = toolSpecService.testRun(draft(null, "qa_test_run",
+                "return count * 2 + (flag ? 1 : 0) + items.length;", params));
+
+        assertThat(result.ok()).isTrue();
+        assertThat(String.valueOf(result.result().result())).isIn("12", "12.0");
+        assertThat(result.endedAtMs()).isGreaterThanOrEqualTo(result.startedAtMs());
+        assertThatThrownBy(() -> toolSpecService.testRun(draft(null, "qa_bad_value", "return 1;",
+                List.of(new ToolParamSpec("count", "n", true, JsonSchemaType.INTEGER, "four")))))
+                .isInstanceOf(IllegalStateException.class).hasMessageStartingWith("Exception: ");
+        assertThat(toolSpecService.getToolSpecAsOpt("qa_test_run")).isEmpty();
+    }
+
+    @Test
+    void saveDraftAndTestAndPublishFollowTheStudioRules() {
+        cleanup("qa_flow", "qa_flow_renamed");
+        try {
+            assertThatThrownBy(() -> toolSpecService.saveDraft(draft(null, "9bad", "return 1;", List.of())))
+                    .isInstanceOf(IllegalArgumentException.class);
+
+            ToolSaveResult draftResult = toolSpecService.saveDraft(draft(null, "qa_flow", "return 'x';", List.of()));
+            assertThat(draftResult.saved()).isTrue();
+            assertThat(draftResult.test()).isNull();
+            ToolSpec draftSpec = draftResult.spec();
+            assertThat(draftSpec.draft()).isTrue();
+            assertThat(draftSpec.toolId()).isNotBlank();
+            assertThat(draftSpec.tags()).containsExactly("qa");
+
+            assertThatThrownBy(() -> toolSpecService.saveDraft(draft(null, "qa_flow", "return 1;", List.of())))
+                    .isInstanceOf(IllegalStateException.class).hasMessage("A tool with this name already exists.");
+
+            ToolSaveResult failed = toolSpecService.testAndPublish(draft(draftSpec.toolId(), "qa_flow",
+                    "throw new Error('boom');", List.of()));
+            assertThat(failed.saved()).isFalse();
+            assertThat(failed.test().ok()).isFalse();
+            assertThat(toolSpecService.getToolSpecAsOpt("qa_flow")).map(ToolSpec::draft).contains(true);
+
+            ToolSaveResult published = toolSpecService.testAndPublish(draft(draftSpec.toolId(), "qa_flow",
+                    "return 'ok';", List.of()));
+            assertThat(published.saved()).isTrue();
+            assertThat(published.test().ok()).isTrue();
+            assertThat(published.spec().draft()).isFalse();
+            assertThat(published.spec().toolId()).isEqualTo(draftSpec.toolId());
+
+            ToolSaveResult renamed = toolSpecService.testAndPublish(draft(draftSpec.toolId(), "qa_flow_renamed",
+                    "return 'ok';", List.of()));
+            assertThat(renamed.spec().draft()).as("renaming a published tool forces a draft").isTrue();
+            assertThat(renamed.spec().name()).isEqualTo("qa_flow_renamed");
+        } finally {
+            cleanup("qa_flow", "qa_flow_renamed");
+        }
+    }
+
+    @Test
+    void sandboxOnlyEditsOfAnUnchangedToolAreStillPersisted() {
+        cleanup("qa_sandbox_only");
+        Path saveFile = toolSpecPersistenceService.getSaveDir().resolve("toolSpecsMcpSetting.json");
+        try {
+            ToolSpec spec = toolSpecService.saveDraft(draft(null, "qa_sandbox_only", "return 1;", List.of())).spec();
+            await().atMost(Duration.ofSeconds(5)).untilAsserted(() ->
+                    assertThat(Files.readString(saveFile)).contains("qa_sandbox_only"));
+
+            SandboxOverrides allowlist = new SandboxOverrides(Set.of(), Set.of("java.text.*"), Set.of(), Set.of(),
+                    "allowlist", Set.of("api.example.com"), null, null, null, null);
+            ToolSpec updated = toolSpecService.saveDraft(new ToolDraftInput(spec.toolId(), "qa_sandbox_only",
+                    "desc qa_sandbox_only", List.of(), List.of(), "return 1;", "CUSTOM", Set.of("qa"), allowlist,
+                    null)).spec();
+
+            assertThat(updated).as("unchanged core fields keep the registered instance").isSameAs(spec);
+            assertThat(updated.sandboxOverrides()).isEqualTo(allowlist);
+            await().atMost(Duration.ofSeconds(5)).untilAsserted(() ->
+                    assertThat(Files.readString(saveFile)).contains("api.example.com").contains("java.text.*"));
+        } finally {
+            cleanup("qa_sandbox_only");
+        }
+    }
+
+    @Test
+    void builtinEnvSnapshotAndCustomToolSummaryDescribeReadiness() throws IOException {
+        toolSpecPersistenceService.onStart();
+        toolSpecPersistenceService.onApplicationEvent(null);
+        cleanup("qa_needs_config");
+        try {
+            BuiltinEnvSnapshot snapshot = toolSpecService.builtinEnvSnapshot();
+            assertThat(snapshot.totalTools()).isEqualTo(toolSpecPersistenceService.getDefaultToolSpecs().size());
+            assertThat(snapshot.blockedTools()).isBetween(0L, (long) snapshot.totalTools());
+            assertThat(snapshot.localPassed()).isEqualTo(snapshot.totalTools() - snapshot.blockedTools());
+            assertThat(snapshot.totalVars()).isEqualTo(snapshot.toolsByVar().size());
+            assertThat(snapshot.setVars()).isEqualTo(snapshot.totalVars() - snapshot.missingVars().size());
+            assertThat(snapshot.toolsByVar().keySet()).allMatch(var -> var.matches("[A-Z][A-Z0-9_]*"));
+            assertThat(snapshot.exposedBuiltins()).isLessThanOrEqualTo(snapshot.totalTools());
+
+            CustomToolSummary before = toolSpecService.customToolSummary();
+            toolSpecService.saveDraft(new ToolDraftInput(null, "qa_needs_config", "desc",
+                    List.of(Map.entry("API_KEY", " ")), List.of(), "return 1;", "CUSTOM", Set.of(), null, null));
+            CustomToolSummary after = toolSpecService.customToolSummary();
+            assertThat(after.customTools()).isEqualTo(before.customTools() + 1);
+            assertThat(after.totalTools()).isEqualTo(before.totalTools() + 1);
+            assertThat(after.needConfiguration()).isEqualTo(before.needConfiguration() + 1);
+        } finally {
+            cleanup("qa_needs_config");
+        }
+    }
+
+    @Test
+    void exposureHelpersSplitCustomsFromExposableBuiltinsAndRecordExclusions() throws IOException {
+        toolSpecPersistenceService.onStart();
+        toolSpecPersistenceService.onApplicationEvent(null);
+        ToolMcpServerSetting before = toolSpecService.getToolMcpServerSetting();
+        cleanup("qa_exposed_custom");
+        try {
+            Set<String> defaultIds = toolSpecPersistenceService.getDefaultToolIds();
+            assertThat(toolSpecService.exposableBuiltins()).isNotEmpty()
+                    .allMatch(spec -> defaultIds.contains(spec.toolId()) && !spec.draft());
+            ToolSpec custom = toolSpecService.testAndPublish(draft(null, "qa_exposed_custom", "return 1;",
+                    List.of())).spec();
+            assertThat(toolSpecService.customTools()).extracting(ToolSpec::toolId).contains(custom.toolId())
+                    .doesNotContainAnyElementsOf(defaultIds);
+
+            List<ToolSpec> exposable = toolSpecService.exposableBuiltins();
+            String keptBuiltin = exposable.getFirst().toolId();
+            ToolMcpServerSetting setting = toolSpecService.updateExposure(
+                    new ExposureSelection(false, Set.of(custom.toolId()), Set.of(keptBuiltin)));
+
+            assertThat(setting.autoAdd()).isFalse();
+            assertThat(setting.exposedToolIds()).containsExactlyInAnyOrder(custom.toolId(), keptBuiltin);
+            assertThat(setting.excludedToolIds()).containsExactlyInAnyOrderElementsOf(
+                    exposable.stream().map(ToolSpec::toolId).filter(id -> !id.equals(keptBuiltin)).toList());
+            assertThat(toolSpecService.getToolMcpServerSetting()).isEqualTo(setting);
+        } finally {
+            cleanup("qa_exposed_custom");
+            toolSpecService.updateToolMcpServerSetting(before);
+        }
     }
 }

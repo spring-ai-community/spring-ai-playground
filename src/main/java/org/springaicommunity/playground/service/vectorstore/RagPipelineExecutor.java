@@ -17,7 +17,9 @@ package org.springaicommunity.playground.service.vectorstore;
 
 import org.springaicommunity.playground.service.SharedDataReader;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.rag.Query;
@@ -66,6 +68,30 @@ public class RagPipelineExecutor {
         this.vectorStoreService = vectorStoreService;
         this.chatClientBuilderProvider = chatClientBuilderProvider;
         this.documentInfosReader = documentInfosReader;
+    }
+
+    public final class Session {
+
+        private final List<Message> history = new ArrayList<>();
+
+        public synchronized RunResult run(RagPipeline pipeline, String userQuery, Consumer<TraceEvent> traceConsumer) {
+            RunResult result = execute(pipeline, userQuery, List.copyOf(this.history), traceConsumer);
+            this.history.add(new UserMessage(userQuery));
+            if (result.llmAnswer() != null) this.history.add(new AssistantMessage(result.llmAnswer()));
+            return result;
+        }
+
+        public synchronized void clear() {
+            this.history.clear();
+        }
+
+        public synchronized List<Message> history() {
+            return List.copyOf(this.history);
+        }
+    }
+
+    public Session newSession() {
+        return new Session();
     }
 
     public RunResult execute(RagPipeline pipeline, String userQuery, Consumer<TraceEvent> traceConsumer) {

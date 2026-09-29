@@ -122,16 +122,15 @@ public class ToolStudioView extends ContentWorkspaceView {
         this.toolMcpServerSettingView = new ToolMcpServerSettingView(
                 this.toolSpecService.getToolSpecList(),
                 this.toolSpecService.getToolMcpServerSetting(),
-                toolSpecPersistenceService, toolActivationCalculator, toolSpecService);
+                toolSpecPersistenceService, toolSpecService);
         this.mcpServerSettingsDrawer = installSettingsDrawer(VaadinIcon.COG_O, mcpTitle, mcpTitle);
         this.mcpServerSettingsDrawer.setBody(this.toolMcpServerSettingView);
         this.mcpServerSettingsDrawer.setOnOpen(() -> this.toolMcpServerSettingView.update(
                 this.toolSpecService.getToolSpecList(),
                 this.toolSpecService.getToolMcpServerSetting()));
         this.mcpServerSettingsDrawer.setApplyButton("Confirm", () -> {
-            this.toolSpecService.updateToolMcpServerSetting(
-                    this.toolMcpServerSettingView.getUiToolMcpServerSetting());
-            this.toolMcpServerSettingView.markConfirmed(this.toolSpecService.getToolMcpServerSetting());
+            this.toolMcpServerSettingView.markConfirmed(
+                    this.toolSpecService.updateExposure(this.toolMcpServerSettingView.selection()));
         });
 
         toolChangeSupport.addPropertyChangeListener(TOOL_CHANGE_EVENT, event -> {

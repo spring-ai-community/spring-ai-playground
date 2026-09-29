@@ -53,14 +53,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.UUID;
-import java.util.regex.Pattern;
 
 import static org.springaicommunity.playground.webui.tool.ToolStudioView.TOOL_CHANGE_EVENT;
 
 public class ToolBuilderView extends VerticalLayout {
-
-    private static final Pattern TOOL_NAME_PATTERN = Pattern.compile("^[A-Za-z][A-Za-z0-9_]*$");
 
     private enum SaveAction { SAVE_DRAFT, PUBLISH, UPDATE }
 
@@ -108,20 +104,9 @@ public class ToolBuilderView extends VerticalLayout {
         this.toolNameField.addValueChangeListener(e -> {
             String value = e.getValue();
 
-            if (value == null || value.isBlank()) {
-                this.toolNameField.setInvalid(true);
-                this.toolNameField.setErrorMessage("Tool Name is required.");
-                return;
-            }
-
-            if (!TOOL_NAME_PATTERN.matcher(value).matches()) {
-                this.toolNameField.setInvalid(true);
-                this.toolNameField.setErrorMessage(
-                        "Use letters, numbers, and '_' only. Must start with a letter.");
-                return;
-            }
-
-            this.toolNameField.setInvalid(false);
+            Optional<String> nameError = ToolSpecService.toolNameError(value);
+            this.toolNameField.setInvalid(nameError.isPresent());
+            this.toolNameField.setErrorMessage(nameError.orElse(null));
         });
 
         this.toolDescriptionField = new TextArea("Tool Description");
@@ -333,18 +318,6 @@ public class ToolBuilderView extends VerticalLayout {
             this.toolNameField.focus();
             return;
         }
-        if (Objects.isNull(this.toolSpec) && toolSpecService.getToolSpecAsOpt(toolName).isPresent()) {
-            VaadinUtils.showErrorNotification("A tool with this name already exists.");
-            this.toolNameField.focus();
-            return;
-        }
-
-        boolean startedAsPublished = this.toolSpec != null && !this.toolSpec.draft();
-        boolean nameChanged = this.toolSpec != null && !Objects.equals(this.toolSpec.name(), toolName);
-        boolean forceDraftDueToRename = startedAsPublished && nameChanged;
-        boolean targetDraft = (action == SaveAction.SAVE_DRAFT) || forceDraftDueToRename;
-
-        String toolDescription = descriptionField.getValue();
         List<ToolParamSpec> toolParamSpecs;
         if (action == SaveAction.SAVE_DRAFT) {
             toolParamSpecs = getCurrentToolParamsLenient();
@@ -352,24 +325,29 @@ public class ToolBuilderView extends VerticalLayout {
             Optional<List<ToolParamSpec>> paramsOpt = getCurrentToolParamsAsOpt();
             if (paramsOpt.isEmpty()) return;
             toolParamSpecs = paramsOpt.get();
-            if (!this.javascriptToolPlaygroundView.runTest()) {
-                VaadinUtils.showErrorNotification("Test run failed. Fix the code and retry.");
-                return;
-            }
         }
-
-        String toolId = Optional.ofNullable(this.toolSpec).map(ToolSpec::toolId)
-                .orElseGet(() -> UUID.randomUUID().toString());
-
-        ToolSpec formSpec = new ToolSpec(toolId, toolName, toolDescription,
-                this.javascriptToolPlaygroundView.getStaticVariables(), toolParamSpecs,
-                this.javascriptToolPlaygroundView.getCurrentJsCode(), ToolSpec.CodeType.Javascript, null)
-                .withCategory(this.categoryField.getValue())
-                .withTags(this.tagsField.getValue() == null ? Set.of() : this.tagsField.getValue())
-                .withSandboxOverrides(this.javascriptToolPlaygroundView.currentSandboxOverrides())
-                .withHumanInTheLoop(this.javascriptToolPlaygroundView.currentHumanInTheLoop())
-                .withDraft(targetDraft);
-        ToolSpec registeredToolSpec = toolSpecService.update(formSpec);
+        ToolSpecService.ToolDraftInput input = new ToolSpecService.ToolDraftInput(
+                Optional.ofNullable(this.toolSpec).map(ToolSpec::toolId).orElse(null), toolName,
+                descriptionField.getValue(), this.javascriptToolPlaygroundView.getStaticVariables(), toolParamSpecs,
+                this.javascriptToolPlaygroundView.getCurrentJsCode(), this.categoryField.getValue(),
+                this.tagsField.getValue(), this.javascriptToolPlaygroundView.currentSandboxOverrides(),
+                this.javascriptToolPlaygroundView.currentHumanInTheLoop());
+        ToolSpecService.ToolSaveResult result;
+        try {
+            result = action == SaveAction.SAVE_DRAFT
+                    ? toolSpecService.saveDraft(input) : toolSpecService.testAndPublish(input);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            VaadinUtils.showErrorNotification(e.getMessage());
+            this.toolNameField.focus();
+            return;
+        }
+        if (result.test() != null) this.javascriptToolPlaygroundView.showTestResult(result.test());
+        if (!result.saved()) {
+            VaadinUtils.showErrorNotification("Test run failed. Fix the code and retry.");
+            return;
+        }
+        ToolSpec registeredToolSpec = result.spec();
+        boolean targetDraft = registeredToolSpec.draft();
         String stateLabel = targetDraft ? "saved as Draft" : "published";
         VaadinUtils.showInfoNotification("Tool '" + toolName + "' " + stateLabel + ".");
         this.usageEventTracker.track(UI.getCurrent(), "tool_authored", Map.of(

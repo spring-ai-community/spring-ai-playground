@@ -34,9 +34,6 @@ import org.springaicommunity.playground.service.vectorstore.RagPipeline;
 import org.springaicommunity.playground.service.vectorstore.RagPipelineExecutor;
 import org.springaicommunity.playground.service.vectorstore.TraceEvent;
 import org.springaicommunity.playground.webui.VaadinUtils;
-import org.springframework.ai.chat.messages.AssistantMessage;
-import org.springframework.ai.chat.messages.Message;
-import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.document.Document;
 
 import java.util.ArrayList;
@@ -57,13 +54,14 @@ public class VectorStorePipelineRunView extends VerticalLayout {
     private final Button runButton = new Button("Run", VaadinIcon.PLAY.create());
     private final Button clearButton = new Button(VaadinIcon.ERASER.create());
     private final List<TraceEvent> currentRunEvents = new CopyOnWriteArrayList<>();
-    private final List<Message> conversationHistory = new ArrayList<>();
+    private final RagPipelineExecutor.Session runSession;
 
     private RagPipeline currentPipeline;
     private Consumer<RagPipeline> onEditRequest;
 
     public VectorStorePipelineRunView(RagPipelineExecutor ragPipelineExecutor) {
         this.ragPipelineExecutor = ragPipelineExecutor;
+        this.runSession = ragPipelineExecutor.newSession();
         addClassName("vstore-pipeline-run");
         setSizeFull();
         setSpacing(false);
@@ -114,7 +112,7 @@ public class VectorStorePipelineRunView extends VerticalLayout {
         this.runButton.setEnabled(false);
         this.clearButton.setEnabled(false);
         this.summary.setVisible(false);
-        this.conversationHistory.clear();
+        this.runSession.clear();
         this.messagesArea.removeAll();
         this.body.removeAll();
         this.body.add(this.placeholder);
@@ -135,7 +133,7 @@ public class VectorStorePipelineRunView extends VerticalLayout {
         this.runButton.setEnabled(true);
         this.clearButton.setEnabled(true);
         if (!samePipeline) {
-            this.conversationHistory.clear();
+            this.runSession.clear();
             this.messagesArea.removeAll();
         }
 
@@ -295,7 +293,7 @@ public class VectorStorePipelineRunView extends VerticalLayout {
     }
 
     private void clearConversation() {
-        this.conversationHistory.clear();
+        this.runSession.clear();
         this.messagesArea.removeAll();
     }
 
@@ -313,19 +311,15 @@ public class VectorStorePipelineRunView extends VerticalLayout {
 
         appendUserBubble(query);
         Div pending = appendPendingBubble();
-        List<Message> historySnapshot = List.copyOf(this.conversationHistory);
 
         UI ui = UI.getCurrent();
         new Thread(() -> {
             try {
-                RagPipelineExecutor.RunResult result = this.ragPipelineExecutor.execute(
-                        this.currentPipeline, query, historySnapshot, this.currentRunEvents::add);
+                RagPipelineExecutor.RunResult result = this.runSession.run(this.currentPipeline, query,
+                        this.currentRunEvents::add);
                 ui.access(() -> {
                     this.messagesArea.remove(pending);
                     appendAssistantBubble(result);
-                    this.conversationHistory.add(new UserMessage(query));
-                    if (result.llmAnswer() != null)
-                        this.conversationHistory.add(new AssistantMessage(result.llmAnswer()));
                 });
             } catch (Exception ex) {
                 ui.access(() -> {

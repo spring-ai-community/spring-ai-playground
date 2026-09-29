@@ -64,14 +64,12 @@ import java.beans.PropertyChangeSupport;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.IdentityHashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.springaicommunity.playground.webui.VaadinUtils.styledButton;
@@ -447,9 +445,9 @@ public class VectorStoreView extends ContentWorkspaceView {
 
         UI ui = UI.getCurrent();
         new Thread(() -> {
-            List<Document> enriched;
+            Map<String, List<Document>> enrichedByFile;
             try {
-                enriched = this.offlineEtlPipelineService.enrich(chunks, enrichOptions,
+                enrichedByFile = this.offlineEtlPipelineService.enrichByFile(uploadedDocumentItems, enrichOptions,
                         (done, total) -> ui.access(() -> {
                             progressBar.setIndeterminate(false);
                             progressBar.setMin(0);
@@ -468,13 +466,7 @@ public class VectorStoreView extends ContentWorkspaceView {
                 });
                 return;
             }
-            Map<String, List<Document>> enrichedByFile = new LinkedHashMap<>();
-            int offset = 0;
-            for (Map.Entry<String, List<Document>> entry : uploadedDocumentItems.entrySet()) {
-                int size = entry.getValue().size();
-                enrichedByFile.put(entry.getKey(), enriched.subList(offset, offset + size));
-                offset += size;
-            }
+            List<Document> enriched = enrichedByFile.values().stream().flatMap(List::stream).toList();
             ui.access(() -> {
                 progressDialog.close();
                 openChunkConfirmationDialog(uploadedFileNames, enrichedByFile, enriched, resolvedTitle,
@@ -732,7 +724,6 @@ public class VectorStoreView extends ContentWorkspaceView {
     }
 
     private void handleDocumentAdding(Collection<VectorStoreDocumentInfo> newEventDocumentInfos) {
-        newEventDocumentInfos.forEach(this.vectorStoreService::add);
         this.vectorStorePipelineListView.refreshPipelines();
         newEventDocumentInfos.forEach(docInfo -> this.usageEventTracker.track(UI.getCurrent(),
                 "rag_document_indexed", this.usageAnalyticsService.documentIndexedParams(
@@ -747,9 +738,6 @@ public class VectorStoreView extends ContentWorkspaceView {
     }
 
     private void handleDocumentDeleting(Collection<VectorStoreDocumentInfo> newEventDocumentInfos) {
-        this.vectorStoreService.delete(
-                newEventDocumentInfos.stream().map(VectorStoreDocumentInfo::documentListSupplier).map(Supplier::get)
-                        .flatMap(List::stream).map(Document::getId).toList());
         vectorStoreContentView.showAllDocuments();
     }
 

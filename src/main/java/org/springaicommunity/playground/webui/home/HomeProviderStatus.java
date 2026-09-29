@@ -21,19 +21,11 @@ import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
 import org.slf4j.Logger;
+import org.springaicommunity.playground.service.chat.ProviderReadinessService;
+import org.springaicommunity.playground.service.chat.ProviderReadinessService.ChatProviderStatus;
+import org.springaicommunity.playground.service.chat.ProviderReadinessService.EmbeddingStatus;
 import org.slf4j.LoggerFactory;
-import org.springaicommunity.playground.config.AbsentModelFallbackConfig;
-import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.embedding.EmbeddingModel;
-import org.springframework.ai.embedding.EmbeddingOptions;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.core.env.Environment;
 
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
@@ -43,26 +35,14 @@ class HomeProviderStatus extends Div {
     private static final String CONFIGURE_URL =
             "https://spring-ai-community.github.io/spring-ai-playground/getting-started/";
 
-    private static volatile Integer cachedEmbeddingDimensions;
-    private static volatile boolean embeddingProbeAttempted;
-
-    private final ObjectProvider<ChatModel> chatModelProvider;
-    private final ObjectProvider<EmbeddingModel> embeddingModelProvider;
-    private final Optional<EmbeddingOptions> embeddingOptions;
-    private final Environment environment;
+    private final ProviderReadinessService readinessService;
 
     private Div chatReadinessDot;
     private Span chatReadinessLabel;
     private Span embeddingDimensionsLabel;
 
-    HomeProviderStatus(ObjectProvider<ChatModel> chatModelProvider,
-            ObjectProvider<EmbeddingModel> embeddingModelProvider,
-            Optional<EmbeddingOptions> embeddingOptions,
-            Environment environment) {
-        this.chatModelProvider = chatModelProvider;
-        this.embeddingModelProvider = embeddingModelProvider;
-        this.embeddingOptions = embeddingOptions;
-        this.environment = environment;
+    HomeProviderStatus(ProviderReadinessService readinessService) {
+        this.readinessService = readinessService;
 
         getStyle()
                 .set("display", "flex")
@@ -92,10 +72,9 @@ class HomeProviderStatus extends Div {
 
     private Div buildChatPill() {
         Div pill = pillContainer();
-        ChatModel chatModel = chatModelProvider.getIfAvailable();
-        if (chatModel instanceof AbsentModelFallbackConfig.AbsentChatModel) chatModel = null;
+        ChatProviderStatus status = readinessService.chatProvider();
 
-        if (chatModel == null) {
+        if (!status.configured()) {
             pill.add(statusDot("var(--lumo-error-color)"));
             Span warn = new Span("No model provider configured");
             warn.getStyle().set("font-weight", "500");
@@ -117,12 +96,11 @@ class HomeProviderStatus extends Div {
         this.chatReadinessDot = statusDot("var(--lumo-contrast-30pct)");
         pill.add(this.chatReadinessDot);
 
-        String provider = humanProvider(chatModel.getClass().getSimpleName(), "ChatModel");
-        Span providerLabel = new Span(provider);
+        Span providerLabel = new Span(status.provider());
         providerLabel.getStyle().set("font-weight", "600");
         pill.add(providerLabel);
 
-        String model = safeGetChatModel(chatModel);
+        String model = status.model();
         if (model != null && !model.isBlank()) {
             pill.add(HomeUi.divider(), HomeUi.mutedLabel(model));
         }
@@ -133,11 +111,8 @@ class HomeProviderStatus extends Div {
     }
 
     private Div buildEmbeddingPill() {
-        EmbeddingModel embeddingModel = embeddingModelProvider.getIfAvailable();
-        if (embeddingModel instanceof AbsentModelFallbackConfig.AbsentEmbeddingModel) return null;
-        if (embeddingModel == null && embeddingOptions.isEmpty()) {
-            return null;
-        }
+        Optional<EmbeddingStatus> embedding = readinessService.embeddingProvider();
+        if (embedding.isEmpty()) return null;
         Div pill = pillContainer();
         pill.add(statusDot("var(--lumo-primary-color)"));
 
@@ -145,70 +120,21 @@ class HomeProviderStatus extends Div {
         label.getStyle().set("font-weight", "600");
         pill.add(label);
 
-        String model = resolveEmbeddingModel();
+        String model = embedding.get().model();
         if (model != null && !model.isBlank()) {
             pill.add(HomeUi.divider(), HomeUi.mutedLabel(model));
         }
 
-        this.embeddingDimensionsLabel = HomeUi.mutedLabel(cachedEmbeddingDimensions != null
-                ? cachedEmbeddingDimensions + "d"
-                : "…d");
+        this.embeddingDimensionsLabel = HomeUi.mutedLabel(readinessService.cachedEmbeddingDimensions()
+                .map(dimensions -> dimensions + "d").orElse("…d"));
         pill.add(HomeUi.divider(), this.embeddingDimensionsLabel);
         return pill;
     }
 
-    private String resolveEmbeddingModel() {
-        String name = embeddingOptions.map(EmbeddingOptions::getModel).orElse(null);
-        if (name != null && !name.isBlank()) return name;
-
-        EmbeddingModel em = embeddingModelProvider.getIfAvailable();
-        if (em != null) {
-            try {
-                Object opts = em.getClass().getMethod("getDefaultOptions").invoke(em);
-                if (opts != null) {
-                    Object model = opts.getClass().getMethod("getModel").invoke(opts);
-                    if (model != null) {
-                        String str = model.toString();
-                        if (!str.isBlank()) return str;
-                    }
-                }
-            } catch (Exception ignored) {
-                // fall through to property lookup
-            }
-            String className = em.getClass().getSimpleName().toLowerCase();
-            String[] keys;
-            if (className.contains("ollama")) {
-                keys = new String[] {"spring.ai.ollama.embedding.options.model"};
-            } else if (className.contains("openai")) {
-                keys = new String[] {"spring.ai.openai.embedding.options.model"};
-            } else {
-                keys = new String[0];
-            }
-            for (String key : keys) {
-                String value = environment.getProperty(key);
-                if (value != null && !value.isBlank()) return value;
-            }
-        }
-        return null;
-    }
-
     private void probeChatReadiness(UI ui) {
-        ChatModel chatModel = chatModelProvider.getIfAvailable();
-        if (chatModel == null || chatModel instanceof AbsentModelFallbackConfig.AbsentChatModel) return;
-        String className = chatModel.getClass().getSimpleName().toLowerCase();
-
-        CompletableFuture.supplyAsync(() -> {
-            if (className.contains("ollama")) {
-                String baseUrl = environment.getProperty("spring.ai.ollama.base-url",
-                        "http://localhost:11434");
-                return ping(baseUrl);
-            }
-            if (className.contains("openai")) {
-                String apiKey = environment.getProperty("spring.ai.openai.api-key", "");
-                return apiKey != null && !apiKey.isBlank();
-            }
-            return true;
-        }).thenAccept(ready -> ui.access(() -> applyChatReadiness(ready)))
+        if (!readinessService.chatProvider().configured()) return;
+        CompletableFuture.supplyAsync(readinessService::isChatProviderReady)
+                .thenAccept(ready -> ui.access(() -> applyChatReadiness(ready)))
                 .exceptionally(ex -> {
                     logger.debug("chat readiness probe failed", ex);
                     ui.access(() -> applyChatReadiness(false));
@@ -224,45 +150,15 @@ class HomeProviderStatus extends Div {
     }
 
     private void probeEmbeddingDimensions(UI ui) {
-        if (cachedEmbeddingDimensions != null) return;
-        if (embeddingProbeAttempted) return;
-        EmbeddingModel em = embeddingModelProvider.getIfAvailable();
-        if (em == null || em instanceof AbsentModelFallbackConfig.AbsentEmbeddingModel) return;
-        embeddingProbeAttempted = true;
-        CompletableFuture.supplyAsync(() -> {
-            try {
-                return em.dimensions();
-            } catch (Exception e) {
-                logger.debug("embedding dimensions probe failed", e);
-                return null;
-            }
-        }).thenAccept(dims -> {
-            if (dims != null) {
-                cachedEmbeddingDimensions = dims;
-            }
-            ui.access(() -> {
-                if (embeddingDimensionsLabel != null) {
-                    embeddingDimensionsLabel.setText(dims != null ? dims + "d" : "dim n/a");
-                }
-            });
-        });
-    }
-
-    private static boolean ping(String baseUrl) {
-        try {
-            HttpClient client = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofSeconds(2))
-                    .build();
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(baseUrl))
-                    .timeout(Duration.ofSeconds(3))
-                    .GET()
-                    .build();
-            HttpResponse<Void> response = client.send(request, HttpResponse.BodyHandlers.discarding());
-            return response.statusCode() < 500;
-        } catch (Exception e) {
-            return false;
-        }
+        if (readinessService.cachedEmbeddingDimensions().isPresent() || readinessService.embeddingProbeAttempted())
+            return;
+        if (readinessService.embeddingProvider().isEmpty()) return;
+        CompletableFuture.supplyAsync(readinessService::probeEmbeddingDimensions).thenAccept(dims ->
+                ui.access(() -> {
+                    if (embeddingDimensionsLabel != null) {
+                        embeddingDimensionsLabel.setText(dims.map(value -> value + "d").orElse("dim n/a"));
+                    }
+                }));
     }
 
     private static Div pillContainer() {
@@ -293,18 +189,4 @@ class HomeProviderStatus extends Div {
         return dot;
     }
 
-    private static String humanProvider(String simpleName, String suffix) {
-        String base = simpleName.replace(suffix, "");
-        if (base.equalsIgnoreCase("OpenAi")) return "OpenAI";
-        return base;
-    }
-
-    private static String safeGetChatModel(ChatModel chatModel) {
-        try {
-            var options = chatModel.getOptions();
-            return options != null ? options.getModel() : null;
-        } catch (Exception e) {
-            return null;
-        }
-    }
 }

@@ -25,9 +25,9 @@ import com.vaadin.flow.component.html.H3;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
-import org.springaicommunity.playground.config.AbsentModelFallbackConfig;
 import org.springaicommunity.playground.service.chat.ChatHistory;
 import org.springaicommunity.playground.service.chat.ChatHistoryService;
+import org.springaicommunity.playground.service.chat.ProviderReadinessService;
 import org.springaicommunity.playground.service.tool.ToolSpecPersistenceService;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
 import org.springaicommunity.playground.service.vectorstore.OfflineEtlPipelineService;
@@ -36,9 +36,6 @@ import org.springaicommunity.playground.webui.tool.ToolStudioView;
 import org.springaicommunity.playground.webui.vectorstore.VectorStoreView;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.MessageType;
-import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.core.env.Environment;
 
 import java.util.List;
 import java.util.Map;
@@ -46,33 +43,28 @@ import java.util.Set;
 
 class HomeChecklist extends Div {
 
-    // Assistant message metadata key written by ChatContentView when an MCP tool
-    // trace is captured during a turn. Presence = that chat invoked a tool.
     private static final String MCP_TOOL_PROCESS_MESSAGES_KEY = "mcpToolProcessMessages";
 
-    private final ObjectProvider<ChatModel> chatModelProvider;
+    private final ProviderReadinessService readinessService;
     private final ToolSpecService toolSpecService;
     private final ToolSpecPersistenceService toolSpecPersistenceService;
     private final OfflineEtlPipelineService offlineEtlPipelineService;
     private final ChatHistoryService chatHistoryService;
-    private final Environment environment;
 
     private boolean expanded = true;
     private Button toggleButton;
     private Div itemsContainer;
 
-    HomeChecklist(ObjectProvider<ChatModel> chatModelProvider,
+    HomeChecklist(ProviderReadinessService readinessService,
             ToolSpecService toolSpecService,
             ToolSpecPersistenceService toolSpecPersistenceService,
             OfflineEtlPipelineService offlineEtlPipelineService,
-            ChatHistoryService chatHistoryService,
-            Environment environment) {
-        this.chatModelProvider = chatModelProvider;
+            ChatHistoryService chatHistoryService) {
+        this.readinessService = readinessService;
         this.toolSpecService = toolSpecService;
         this.toolSpecPersistenceService = toolSpecPersistenceService;
         this.offlineEtlPipelineService = offlineEtlPipelineService;
         this.chatHistoryService = chatHistoryService;
-        this.environment = environment;
 
         setWidthFull();
         setVisible(false);
@@ -230,14 +222,7 @@ class HomeChecklist extends Div {
     }
 
     private boolean isProviderLikelyReady() {
-        ChatModel chatModel = chatModelProvider.getIfAvailable();
-        if (chatModel == null || chatModel instanceof AbsentModelFallbackConfig.AbsentChatModel) return false;
-        String className = chatModel.getClass().getSimpleName().toLowerCase();
-        if (className.contains("openai")) {
-            String apiKey = environment.getProperty("spring.ai.openai.api-key", "");
-            return apiKey != null && !apiKey.isBlank();
-        }
-        return true;
+        return readinessService.isChatProviderLikelyReady();
     }
 
     private static Component renderRow(ChecklistItem item) {

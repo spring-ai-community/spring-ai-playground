@@ -19,12 +19,11 @@ import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridVariant;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H3;
-import org.springaicommunity.playground.observability.conversation.ConversationAggregator;
 import org.springaicommunity.playground.observability.conversation.ConversationAggregator.ConversationSummary;
 import org.springaicommunity.playground.observability.ObservabilityRingBuffer;
+import org.springaicommunity.playground.observability.query.ObservabilityQueryService;
+import org.springaicommunity.playground.observability.query.ObservabilityQueryService.ConversationStats;
 import org.springaicommunity.playground.observability.Window;
-import org.springaicommunity.playground.observability.TraceRecord;
-import org.springaicommunity.playground.observability.pricing.ModelPricingService;
 import org.springaicommunity.playground.webui.observability.components.BaseDashboardTab;
 import org.springaicommunity.playground.webui.observability.components.DashboardData;
 import org.springaicommunity.playground.webui.observability.components.ChartCanvas;
@@ -35,12 +34,9 @@ import org.springaicommunity.playground.webui.observability.components.FormatUti
 import org.springaicommunity.playground.webui.observability.components.KpiCard;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -53,8 +49,8 @@ public class AgenticChatTab extends BaseDashboardTab {
     private static final DateTimeFormatter LIST_FMT =
             DateTimeFormatter.ofPattern("MM-dd HH:mm").withZone(ZoneId.systemDefault());
 
+    private final ObservabilityQueryService queryService;
     private final ObservabilityRingBuffer buffer;
-    private final ModelPricingService pricingService;
 
     private final KpiCard activeConversationsCard = new KpiCard("Conversations");
     private final KpiCard avgMessagesCard = new KpiCard("Avg messages / conv");
@@ -76,10 +72,10 @@ public class AgenticChatTab extends BaseDashboardTab {
 
     private final Grid<ConversationSummary> conversationsGrid = new Grid<>(ConversationSummary.class, false);
 
-    public AgenticChatTab(ObservabilityRingBuffer buffer, ModelPricingService pricingService) {
+    public AgenticChatTab(ObservabilityQueryService queryService, ObservabilityRingBuffer buffer) {
         super();
+        this.queryService = queryService;
         this.buffer = buffer;
-        this.pricingService = pricingService;
 
         Div kpiGrid = DashboardLayout.kpiGrid(activeConversationsCard, avgMessagesCard, avgCostCard,
                 avgDurationCard, multiTurnRateCard, toolUsingRateCard, ragUsingRateCard,
@@ -172,11 +168,9 @@ public class AgenticChatTab extends BaseDashboardTab {
 
     @Override
     public void refresh(Window window) {
-        long now = Instant.now().toEpochMilli();
-        long windowStart = now - window.totalMs();
-        List<TraceRecord> traces = buffer.snapshot();
-        List<ConversationSummary> conversations = ConversationAggregator.aggregate(
-                traces, pricingService, windowStart);
+        long windowStart = Instant.now().toEpochMilli() - window.totalMs();
+        ConversationStats stats = queryService.conversationStats(window);
+        List<ConversationSummary> conversations = stats.conversations();
 
         activeConversationsCard.setValue(String.valueOf(conversations.size()),
                 "Unique conversation.id values with at least one trace in window");
@@ -190,148 +184,51 @@ public class AgenticChatTab extends BaseDashboardTab {
             ragUsingRateCard.setValue("—", "No conversations in window");
             maxLoopDepthCard.setValue("—", "No conversations in window");
         } else {
-            double avgMsgs = conversations.stream().mapToLong(ConversationSummary::messageCount).average().orElse(0);
-            avgMessagesCard.setValue(String.format(Locale.ROOT, "%.1f", avgMsgs),
+            avgMessagesCard.setValue(String.format(Locale.ROOT, "%.1f", stats.avgMessages()),
                     "Mean number of messages per conversation in window");
-
-            BigDecimal totalCost = BigDecimal.ZERO;
-            for (ConversationSummary c : conversations) totalCost = totalCost.add(c.cost());
-            BigDecimal avgCost = totalCost.divide(BigDecimal.valueOf(conversations.size()), 6, RoundingMode.HALF_UP);
-            avgCostCard.setValue(formatUsd(avgCost),
+            avgCostCard.setValue(formatUsd(stats.avgCost()),
                     "Mean ModelPricingService.cost(model, in, out) summed per conversation. "
                             + "Free Ollama models = $0.");
-
-            double avgDur = conversations.stream().mapToLong(ConversationSummary::durationMs).average().orElse(0);
-            avgDurationCard.setValue(FormatUtils.formatLatencyMs(avgDur),
+            avgDurationCard.setValue(FormatUtils.formatLatencyMs(stats.avgDurationMs()),
                     "Mean span from first to last message in each conversation");
-
-            long multiTurn = conversations.stream().filter(ConversationSummary::hasMultipleTurns).count();
             multiTurnRateCard.setValue(String.format(Locale.ROOT, "%.0f%%",
-                    multiTurn * 100.0 / conversations.size()),
-                    multiTurn + " of " + conversations.size() + " conversations had >1 message");
-
-            long toolUsing = conversations.stream().filter(ConversationSummary::usedTools).count();
+                    stats.multiTurn() * 100.0 / conversations.size()),
+                    stats.multiTurn() + " of " + conversations.size() + " conversations had >1 message");
             toolUsingRateCard.setValue(String.format(Locale.ROOT, "%.0f%%",
-                    toolUsing * 100.0 / conversations.size()),
-                    toolUsing + " of " + conversations.size()
+                    stats.toolUsing() * 100.0 / conversations.size()),
+                    stats.toolUsing() + " of " + conversations.size()
                             + " conversations invoked at least one tool");
-
-            long ragUsing = conversations.stream().filter(ConversationSummary::usedRag).count();
             ragUsingRateCard.setValue(String.format(Locale.ROOT, "%.0f%%",
-                    ragUsing * 100.0 / conversations.size()),
-                    ragUsing + " of " + conversations.size()
+                    stats.ragUsing() * 100.0 / conversations.size()),
+                    stats.ragUsing() + " of " + conversations.size()
                             + " conversations queried a vector store");
-
-            int[] depths = conversations.stream().mapToInt(ConversationSummary::maxLoopDepth).sorted().toArray();
-            int p95Depth = depths.length == 0 ? 0 : depths[Math.min(depths.length - 1, (int) Math.ceil(0.95 * (depths.length - 1)))];
-            maxLoopDepthCard.setValue(String.valueOf(p95Depth),
+            maxLoopDepthCard.setValue(String.valueOf(stats.p95LoopDepth()),
                     "p95 of max tool-call count per message across all conversations");
         }
 
-        int buckets = window.buckets();
-        long bucketMs = window.bucketMs();
-        List<String> labels = DashboardData.bucketLabelsFromWindow(windowStart, bucketMs, buckets);
-
-        double[] direct = new double[buckets];
-        double[] lightAgentic = new double[buckets];
-        double[] deepLoop = new double[buckets];
-        double[] newConvPerBucket = new double[buckets];
-
-        Map<String, Long> firstSeen = new LinkedHashMap<>();
-        for (TraceRecord t : traces) {
-            if (t.startEpochMs() < windowStart) continue;
-            int bk = (int) Math.min(buckets - 1, Math.max(0, (t.startEpochMs() - windowStart) / bucketMs));
-            int depth = t.toolCallCount();
-            if (depth == 0) direct[bk]++;
-            else if (depth <= 2) lightAgentic[bk]++;
-            else deepLoop[bk]++;
-
-            if (t.conversationId() != null && !t.conversationId().isBlank()) {
-                Long prev = firstSeen.get(t.conversationId());
-                if (prev == null || t.startEpochMs() < prev) {
-                    firstSeen.put(t.conversationId(), t.startEpochMs());
-                }
-            }
-        }
-        for (Long ts : firstSeen.values()) {
-            int bk = (int) Math.min(buckets - 1, Math.max(0, (ts - windowStart) / bucketMs));
-            newConvPerBucket[bk]++;
-        }
-
+        List<String> labels = DashboardData.bucketLabelsFromWindow(windowStart, window.bucketMs(), window.buckets());
         messagesOverTimeChart.multiStackedBar(labels, List.of(
-                new LineSeries("0 tools (direct)", direct, DashboardPalette.SUCCESS),
-                new LineSeries("1-2 tools (light)", lightAgentic, DashboardPalette.INFO),
-                new LineSeries("3+ tools (deep)", deepLoop, DashboardPalette.ERROR)
+                new LineSeries("0 tools (direct)", stats.direct(), DashboardPalette.SUCCESS),
+                new LineSeries("1-2 tools (light)", stats.lightAgentic(), DashboardPalette.INFO),
+                new LineSeries("3+ tools (deep)", stats.deepLoop(), DashboardPalette.ERROR)
         ));
-
-        conversationsStartedChart.lineChart(labels, "New conversations", newConvPerBucket, DashboardPalette.PRIMARY, "");
-
-        Map<String, Long> depthBins = new LinkedHashMap<>();
-        depthBins.put("0", 0L);
-        depthBins.put("1", 0L);
-        depthBins.put("2", 0L);
-        depthBins.put("3-5", 0L);
-        depthBins.put("6+", 0L);
-        for (TraceRecord t : traces) {
-            if (t.startEpochMs() < windowStart) continue;
-            int d = t.toolCallCount();
-            String key = d == 0 ? "0" : d == 1 ? "1" : d == 2 ? "2" : d <= 5 ? "3-5" : "6+";
-            depthBins.merge(key, 1L, Long::sum);
-        }
-        loopDepthHistogram.horizontalBarChart(depthBins, DashboardPalette.ERROR, 5);
-
-        Map<String, Long> durationBins = new LinkedHashMap<>();
-        durationBins.put("< 5s", 0L);
-        durationBins.put("5-30s", 0L);
-        durationBins.put("30s-2m", 0L);
-        durationBins.put("2-10m", 0L);
-        durationBins.put("10m+", 0L);
-        for (ConversationSummary c : conversations) {
-            long d = c.durationMs() / 1000;
-            String key = d < 5 ? "< 5s" : d < 30 ? "5-30s" : d < 120 ? "30s-2m" : d < 600 ? "2-10m" : "10m+";
-            durationBins.merge(key, 1L, Long::sum);
-        }
-        durationHistogram.horizontalBarChart(durationBins, DashboardPalette.INFO, 5);
-
-        Map<String, Long> toolCounts = new LinkedHashMap<>();
-        for (ConversationSummary c : conversations) {
-            for (String tool : c.toolsUsed()) {
-                toolCounts.merge(tool, 1L, Long::sum);
-            }
-        }
-        topToolsBar.horizontalBarChart(toolCounts, DashboardPalette.SUCCESS, 8);
-
-        Map<String, Long> modelCounts = new LinkedHashMap<>();
-        for (ConversationSummary c : conversations) {
-            for (String m : c.modelsUsed()) {
-                modelCounts.merge(m, 1L, Long::sum);
-            }
-        }
-        modelsBar.horizontalBarChart(modelCounts, DashboardPalette.PRIMARY, 8);
-
-        List<ConversationSummary> topByCost = new ArrayList<>(conversations);
-        topByCost.sort(Comparator.comparing(ConversationSummary::cost).reversed());
-        Map<String, Long> costMap = new LinkedHashMap<>();
-        for (int i = 0; i < Math.min(10, topByCost.size()); i++) {
-            ConversationSummary c = topByCost.get(i);
-            costMap.put(shorten(c.conversationId(), 12),
-                    c.cost().setScale(6, RoundingMode.HALF_UP).movePointRight(6).longValueExact());
-        }
-        costPerConvBar.horizontalBarChart(costMap, DashboardPalette.WARN, 10);
-
-        Map<String, Long> statusCounts = new LinkedHashMap<>();
-        for (ConversationSummary c : conversations) {
-            statusCounts.merge(c.worstStatus(), 1L, Long::sum);
-        }
-        statusDonut.donutChart(statusCounts, ChartCanvas.DEFAULT_PALETTE);
+        conversationsStartedChart.lineChart(labels, "New conversations", stats.newConversationsPerBucket(),
+                DashboardPalette.PRIMARY, "");
+        loopDepthHistogram.horizontalBarChart(stats.depthBins(), DashboardPalette.ERROR, 5);
+        durationHistogram.horizontalBarChart(stats.durationBins(), DashboardPalette.INFO, 5);
+        topToolsBar.horizontalBarChart(stats.toolCounts(), DashboardPalette.SUCCESS, 8);
+        modelsBar.horizontalBarChart(stats.modelCounts(), DashboardPalette.PRIMARY, 8);
+        Map<String, Long> costByConversation = new LinkedHashMap<>();
+        stats.topCostMicros().forEach((conversationId, micros) ->
+                costByConversation.merge(shortConversationId(conversationId), micros, Long::sum));
+        costPerConvBar.horizontalBarChart(costByConversation, DashboardPalette.WARN, 10);
+        statusDonut.donutChart(stats.statusCounts(), ChartCanvas.DEFAULT_PALETTE);
 
         conversationsGrid.setItems(conversations);
 
-        long totalToolCalls = conversations.stream().mapToInt(ConversationSummary::toolCalls).sum();
-        long totalRagCalls = conversations.stream().mapToInt(ConversationSummary::ragCalls).sum();
         setStatus(conversations.size() + " conversations · "
-                + (conversations.stream().mapToLong(ConversationSummary::messageCount).sum()) + " messages · "
-                + totalToolCalls + " tool calls · " + totalRagCalls + " RAG retrievals · "
+                + stats.totalMessages() + " messages · "
+                + stats.totalToolCalls() + " tool calls · " + stats.totalRagCalls() + " RAG retrievals · "
                 + "window: " + window.minutes + "m");
     }
 
@@ -346,5 +243,10 @@ public class AgenticChatTab extends BaseDashboardTab {
             return String.format(Locale.ROOT, "$%.6f", v.doubleValue());
         }
         return String.format(Locale.ROOT, "$%.4f", v.doubleValue());
+    }
+
+    private static String shortConversationId(String conversationId) {
+        if (ObservabilityQueryService.UNKNOWN.equals(conversationId)) return "\u2014";
+        return conversationId.length() <= 12 ? conversationId : conversationId.substring(0, 12) + "\u2026";
     }
 }

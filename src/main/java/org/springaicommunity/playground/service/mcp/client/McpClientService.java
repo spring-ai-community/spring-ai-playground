@@ -383,6 +383,11 @@ public class McpClientService {
         return SecretMasking.mask(msg, SecretMasking.collectFromTemplate(info.connectionAsJson()));
     }
 
+    public StatusEntry catalogStatus(McpServerInfo mcpServerInfo) {
+        Set<String> missing = findMissingEnv(mcpServerInfo);
+        return missing.isEmpty() ? StatusEntry.OFFLINE : StatusEntry.missingConfig(missing);
+    }
+
     public Set<String> findMissingEnv(McpServerInfo mcpServerInfo) {
         McpClientPropertiesService<?> propertiesService =
                 this.typeMcpClientPropertiesServiceMap.get(mcpServerInfo.mcpTransportType());

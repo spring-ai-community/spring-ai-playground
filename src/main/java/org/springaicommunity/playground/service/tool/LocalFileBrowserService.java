@@ -13,11 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.springaicommunity.playground.webui.chat;
+package org.springaicommunity.playground.service.tool;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springaicommunity.playground.service.tool.ToolWorkspace;
+import org.springaicommunity.playground.service.chat.ChatClientAction;
 import org.springframework.stereotype.Service;
 
 import java.awt.Desktop;

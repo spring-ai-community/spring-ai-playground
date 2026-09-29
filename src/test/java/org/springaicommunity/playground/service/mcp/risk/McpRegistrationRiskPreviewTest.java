@@ -18,17 +18,21 @@ package org.springaicommunity.playground.service.mcp.risk;
 import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springaicommunity.playground.SpringAiPlaygroundOptions;
 import org.springaicommunity.playground.service.mcp.catalog.McpCatalogService;
 import org.springaicommunity.playground.service.mcp.catalog.McpRiskFactors;
 import org.springaicommunity.playground.service.mcp.client.McpTransportType;
 import org.springaicommunity.playground.service.tool.ToolManifest.Sandbox.RiskLevel;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class McpRegistrationRiskPreviewTest {
 
@@ -38,7 +42,9 @@ class McpRegistrationRiskPreviewTest {
     void setUp() {
         McpCatalogService catalogService = new McpCatalogService(new ObjectMapper());
         McpServerRiskCalculator calc = new McpServerRiskCalculator(McpRiskSignalSink.NOOP);
-        this.preview = new McpRegistrationRiskPreview(catalogService, calc);
+        SpringAiPlaygroundOptions options = mock(SpringAiPlaygroundOptions.class);
+        when(options.builtInMcpServer()).thenReturn(new SpringAiPlaygroundOptions.BuiltInMcpServer("builtin", null, null));
+        this.preview = new McpRegistrationRiskPreview(catalogService, calc, options);
     }
 
     @Test
@@ -128,5 +134,40 @@ class McpRegistrationRiskPreviewTest {
                 "loopback no-auth + user-typed unknown: transport=0, auth=0, trust=+2 (unknown), "
                         + "doc=+2 (cap, no catalog → docsUrl absent + docsAdequate false) → score 4 → L5. "
                         + "To get lower, register via catalog (vendor-official → trust 0, docsAdequate set).");
+    }
+
+    @Test
+    void registrationPreviewBypassesTheRiskModelForTheBuiltInServer() {
+        McpRegistrationRiskPreview.RegistrationPreview result = preview.preview(
+                new McpRegistrationRiskPreview.RegistrationInput("BUILTIN", McpTransportType.STREAMABLE_HTTP,
+                        "http://127.0.0.1:8282", Map.of(), false));
+
+        assertTrue(result.builtIn());
+        assertEquals(RiskLevel.L0, result.level());
+        assertFalse(result.requiresConfirmation());
+        assertTrue(result.rationale().isEmpty());
+    }
+
+    @Test
+    void registrationPreviewClassifiesAuthFromHeadersAndFlagsHighRisk() {
+        McpRegistrationRiskPreview.RegistrationPreview unauthenticated = preview.preview(
+                new McpRegistrationRiskPreview.RegistrationInput("Random MCP", McpTransportType.STREAMABLE_HTTP,
+                        "https://random-host-not-in-catalog.example.com/mcp", Map.of(), false));
+        assertFalse(unauthenticated.builtIn());
+        assertEquals(RiskLevel.L5, unauthenticated.level());
+        assertTrue(unauthenticated.requiresConfirmation());
+        assertTrue(unauthenticated.rationale().get("auth").startsWith("none"));
+
+        McpRegistrationRiskPreview.RegistrationPreview bearer = preview.preview(
+                new McpRegistrationRiskPreview.RegistrationInput("Random MCP", McpTransportType.STREAMABLE_HTTP,
+                        "https://random-host-not-in-catalog.example.com/mcp",
+                        Map.of("Authorization", "Bearer x"), false));
+        assertTrue(bearer.rationale().get("auth").startsWith("bearer"));
+
+        McpRegistrationRiskPreview.RegistrationPreview stdio = preview.preview(
+                new McpRegistrationRiskPreview.RegistrationInput("local-tool", McpTransportType.STDIO,
+                        "ignored-for-stdio", Map.of(), false));
+        assertTrue(stdio.rationale().containsKey("transport"));
+        assertNotNull(stdio.level());
     }
 }
