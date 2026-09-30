@@ -713,13 +713,6 @@ public class ToolSpecService {
         return jsExecutionResult;
     }
 
-    public RiskLevel getSandboxRiskLevel(String toolName) {
-        return getToolSpecAsOpt(toolName)
-                .map(spec -> riskLevelFor(spec.sandboxOverrides()))
-                .map(RiskLevel::valueOf)
-                .orElse(RiskLevel.L0);
-    }
-
     public String riskLevelOf(ToolSpec spec) {
         if (spec != null) {
             String external = this.externalToolRiskLevels.get(spec.name());

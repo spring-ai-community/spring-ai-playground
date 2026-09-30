@@ -86,6 +86,38 @@ class McpServerAddFlowTest extends SpringBrowserlessTest {
     }
 
     @Test
+    void savingAServerWhoseEnvironmentVariableIsMissingNamesTheVariable() {
+        McpServerView view = navigate(McpServerView.class);
+        Button addServer = $(Button.class, view)
+                .withCondition(button -> "Add Custom Server".equals(button.getTooltip().getText()))
+                .first();
+        test(addServer).click();
+        roundTrip();
+        McpServerConfigView configView = $(McpServerConfigView.class, view).first();
+        test($(TextField.class, configView)
+                .withCondition(field -> "Server name".equals(field.getLabel())).first()).setValue("gated-ui");
+        test($(TextField.class, configView)
+                .withCondition(field -> "URL".equals(field.getLabel())).first())
+                .setValue("https://${QA_UNSET_MCP_HOST_VARIABLE}/");
+        try {
+            test($(Button.class, configView)
+                    .withCondition(button -> "Save & Connect".equals(button.getText())).first()).click();
+            roundTrip();
+            $(Button.class).withCondition(button -> "I understand, proceed".equals(button.getText())).all()
+                    .forEach(proceed -> test(proceed).click());
+            roundTrip();
+
+            assertThat($(Notification.class).all())
+                    .extracting(notification -> notification.getElement().getProperty("text"))
+                    .anyMatch(text -> text.startsWith("Saved, but not connected. Set QA_UNSET_MCP_HOST_VARIABLE"));
+            assertThat(this.mcpServerInfoService.externalServerSummary().connected()).isZero();
+        } finally {
+            this.mcpServerInfoService.findByServerName("gated-ui").ifPresent(saved ->
+                    this.mcpServerInfoService.deleteMcpServerInfo(saved.mcpTransportType(), saved.serverName()));
+        }
+    }
+
+    @Test
     void builtInServerDetailShowsNoManagedTokenHintWhileTheServerIsOpen() {
         McpServerView view = navigate(McpServerView.class);
         McpServerConfigView configView = $(McpServerConfigView.class, view).first();

@@ -50,26 +50,12 @@ public class SamplingRequestPrimitive extends Div {
 
         Button approve = new Button("Send", VaadinIcon.CHECK.create());
         approve.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_SMALL);
-        approve.addClickListener(e -> {
-            String text = responseArea.getValue() == null ? "" : responseArea.getValue();
-            McpSchema.CreateMessageResult result = McpSchema.CreateMessageResult.builder()
-                    .role(McpSchema.Role.ASSISTANT)
-                    .content(new McpSchema.TextContent(text))
-                    .stopReason(McpSchema.CreateMessageResult.StopReason.END_TURN)
-                    .build();
-            clientService.completeSampling(serverInfo, pending.id(), result);
-        });
+        approve.addClickListener(e -> clientService.respondToSampling(serverInfo, pending.id(),
+                responseArea.getValue()));
         Button decline = new Button("Decline", VaadinIcon.CLOSE_SMALL.create());
         decline.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL,
                 ButtonVariant.LUMO_ERROR);
-        decline.addClickListener(e -> {
-            McpSchema.CreateMessageResult result = McpSchema.CreateMessageResult.builder()
-                    .role(McpSchema.Role.ASSISTANT)
-                    .content(new McpSchema.TextContent("User declined."))
-                    .stopReason(McpSchema.CreateMessageResult.StopReason.STOP_SEQUENCE)
-                    .build();
-            clientService.completeSampling(serverInfo, pending.id(), result);
-        });
+        decline.addClickListener(e -> clientService.declineSampling(serverInfo, pending.id()));
 
         HorizontalLayout actions = new HorizontalLayout(approve, decline);
         actions.setPadding(false);

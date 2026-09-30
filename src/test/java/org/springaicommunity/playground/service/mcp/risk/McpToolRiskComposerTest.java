@@ -33,6 +33,7 @@ class McpToolRiskComposerTest {
         assertEquals(RiskLevel.L4, McpToolRiskComposer.applyHitlMitigation(RiskLevel.L5, true));
         assertEquals(RiskLevel.L2, McpToolRiskComposer.applyHitlMitigation(RiskLevel.L3, true));
         assertEquals(RiskLevel.L1, McpToolRiskComposer.applyHitlMitigation(RiskLevel.L1, true), "floored at L1");
+        assertEquals(RiskLevel.L0, McpToolRiskComposer.applyHitlMitigation(RiskLevel.L0, true), "L0 stays verified");
         assertEquals(RiskLevel.L5, McpToolRiskComposer.applyHitlMitigation(RiskLevel.L5, false), "no change without HITL");
     }
 

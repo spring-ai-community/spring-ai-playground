@@ -61,6 +61,8 @@ public class McpExposedToolsPanel {
     private final UsageEventTracker usageEventTracker;
 
     private final Map<String, McpComposition.Member> selected = new LinkedHashMap<>();
+    private final Map<String, Checkbox> hitlChecks = new LinkedHashMap<>();
+    private final List<Runnable> rowRefreshers = new ArrayList<>();
     private Select<ExposureMode> modeField;
     private Select<RiskLevel> capField;
     private VerticalLayout exposedArea;
@@ -78,6 +80,8 @@ public class McpExposedToolsPanel {
 
     public Component build() {
         this.selected.clear();
+        this.hitlChecks.clear();
+        this.rowRefreshers.clear();
         Optional<McpComposition> existing = this.compositionService.getExposed();
         existing.ifPresent(composition -> composition.members().forEach(member ->
                 this.selected.put(key(member.serverId(), member.toolName()), member)));
@@ -104,6 +108,10 @@ public class McpExposedToolsPanel {
         this.capField.setItems(RiskLevel.L1, RiskLevel.L2, RiskLevel.L3, RiskLevel.L4, RiskLevel.L5);
         this.capField.setValue(cap);
         this.capField.setWidthFull();
+        this.capField.addValueChangeListener(event -> {
+            this.rowRefreshers.forEach(Runnable::run);
+            refreshExposedArea();
+        });
 
         Checkbox hitlAll = new Checkbox("Mark all selected tools for human review (HITL, −1 risk band)");
         hitlAll.addValueChangeListener(event -> applyHitlToAllSelected(Boolean.TRUE.equals(event.getValue())));
@@ -242,6 +250,7 @@ public class McpExposedToolsPanel {
                 .set("color", "var(--lumo-secondary-text-color)");
         Checkbox hitl = new Checkbox("HITL");
         hitl.setValue(existing != null && existing.hitl());
+        this.hitlChecks.put(rowKey, hitl);
         hitl.setTooltipText("Marks this tool for human review and lowers its displayed risk by one band. "
                 + "Pauses the call for approval at runtime (chat approval dialog, or MCP elicitation for "
                 + "external clients), and does not let the tool exceed the risk cap.");
@@ -327,6 +336,7 @@ public class McpExposedToolsPanel {
         });
 
         refreshRow.run();
+        this.rowRefreshers.add(refreshRow);
         HorizontalLayout top = new HorizontalLayout(check, caret, name, chipHolder, hitl);
         top.setAlignItems(FlexComponent.Alignment.CENTER);
         VerticalLayout row = new VerticalLayout(top, editor);
@@ -342,8 +352,16 @@ public class McpExposedToolsPanel {
     }
 
     private void applyHitlToAllSelected(boolean hitl) {
-        this.selected.replaceAll((rowKey, member) -> new McpComposition.Member(member.serverId(), member.toolName(),
-                member.exposedAlias(), member.descriptionOverride(), hitl, member.contentHash()));
+        for (String rowKey : new ArrayList<>(this.selected.keySet())) {
+            Checkbox rowCheck = this.hitlChecks.get(rowKey);
+            if (rowCheck != null) {
+                rowCheck.setValue(hitl);
+                continue;
+            }
+            McpComposition.Member member = this.selected.get(rowKey);
+            this.selected.put(rowKey, new McpComposition.Member(member.serverId(), member.toolName(),
+                    member.exposedAlias(), member.descriptionOverride(), hitl, member.contentHash()));
+        }
         refreshExposedArea();
     }
 

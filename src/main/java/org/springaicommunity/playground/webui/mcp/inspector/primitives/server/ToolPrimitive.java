@@ -18,6 +18,8 @@ package org.springaicommunity.playground.webui.mcp.inspector.primitives.server;
 import tools.jackson.core.JacksonException;
 import com.vaadin.flow.component.AbstractField;
 import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.UI;
+import com.vaadin.flow.component.UIDetachedException;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.html.Div;
@@ -37,12 +39,12 @@ import org.springaicommunity.playground.webui.mcp.inspector.InspectorHelpers;
 import org.springaicommunity.playground.webui.mcp.inspector.InspectorHelpers.ToolInfo;
 import org.springaicommunity.playground.webui.mcp.inspector.primitives.InlineResultPanel;
 import org.springaicommunity.playground.webui.mcp.inspector.primitives.PrimitiveCardLayout;
+import org.slf4j.MDC;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 public class ToolPrimitive extends Div {
 
@@ -57,6 +59,9 @@ public class ToolPrimitive extends Div {
     private long lastElapsedMs;
     private String lastTimestamp;
     private boolean rawView = false;
+    private boolean running = false;
+    private final Span runningHint = new Span(
+            "Running... answer any Sampling or Elicitation request from its tab while this call waits.");
 
     public ToolPrimitive(ToolInfo tool, int displayIndex, McpServerInfo serverInfo,
             McpClientService clientService, McpToolRiskEvaluator.ToolRiskView risk) {
@@ -111,6 +116,10 @@ public class ToolPrimitive extends Div {
             add(argsLayout);
         }
 
+        runningHint.setVisible(false);
+        runningHint.getStyle().set("display", "block").set("margin", "0.5em 0 0 2.4em")
+                .set("color", "var(--lumo-secondary-text-color)").set("font-size", "var(--lumo-font-size-s)");
+        add(runningHint);
         inlineResultPanel.setOnDismiss(this::clearLastResultState);
         add(inlineResultPanel);
     }
@@ -143,23 +152,47 @@ public class ToolPrimitive extends Div {
             if (value != null) args.put(key, value);
         }
 
+        if (this.running) return;
+        UI ui = UI.getCurrent();
+        Map<String, String> callerMdc = MDC.getCopyOfContextMap();
+        setRunning(true);
         long startNs = System.nanoTime();
-        try {
-            Optional<McpSchema.CallToolResult> resultOpt = clientService.callTool(serverInfo, tool.name(), args,
-                    Map.of(McpServerHitlToolGate.INTERACTIVE_HITL_META_KEY, true));
-            lastArgs = args;
-            lastResult = resultOpt.orElse(null);
-            lastError = null;
-            lastElapsedMs = (System.nanoTime() - startNs) / 1_000_000L;
-            lastTimestamp = InspectorHelpers.now();
-        } catch (Exception ex) {
-            lastArgs = args;
-            lastResult = null;
-            lastError = ex.getMessage();
-            lastElapsedMs = (System.nanoTime() - startNs) / 1_000_000L;
-            lastTimestamp = InspectorHelpers.now();
-        }
+        Thread.ofVirtual().name("mcp-inspector-tool-call").start(() -> {
+            if (callerMdc != null) MDC.setContextMap(callerMdc);
+            McpSchema.CallToolResult result = null;
+            String error = null;
+            try {
+                result = this.clientService.callTool(this.serverInfo, this.tool.name(), args,
+                        Map.of(McpServerHitlToolGate.INTERACTIVE_HITL_META_KEY, true)).orElse(null);
+            } catch (Exception ex) {
+                error = ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage();
+            } finally {
+                MDC.clear();
+            }
+            long elapsedMs = (System.nanoTime() - startNs) / 1_000_000L;
+            McpSchema.CallToolResult finalResult = result;
+            String finalError = error;
+            try {
+                ui.access(() -> showCallOutcome(args, finalResult, finalError, elapsedMs));
+            } catch (UIDetachedException ignore) {
+            }
+        });
+    }
+
+    private void showCallOutcome(Map<String, Object> args, McpSchema.CallToolResult result, String error,
+            long elapsedMs) {
+        this.lastArgs = args;
+        this.lastResult = result;
+        this.lastError = error;
+        this.lastElapsedMs = elapsedMs;
+        this.lastTimestamp = InspectorHelpers.now();
+        setRunning(false);
         renderInline();
+    }
+
+    private void setRunning(boolean running) {
+        this.running = running;
+        this.runningHint.setVisible(running);
     }
 
     private void renderInline() {

@@ -111,6 +111,10 @@ public class McpClientService {
     public record McpToolSource(String serverName, String transport, String riskFinal) {}
 
     public static final String TEST_CLIENT_INFIX = " - test - ";
+    public static final String MANUAL_SAMPLING_MODEL = "manual-inspector-response";
+
+    private static final McpSchema.ClientCapabilities INTERACTIVE_CLIENT_CAPABILITIES =
+            McpSchema.ClientCapabilities.builder().roots(true).sampling().elicitation().build();
 
     private final McpSyncClientConfigurer mcpSyncClientConfigurer;
     private final McpAsyncClientConfigurer mcpAsyncClientConfigurer;
@@ -198,7 +202,7 @@ public class McpClientService {
                 .sampling(req -> awaitSampling(serverKey, req))
                 .elicitation(req -> awaitElicitation(serverKey, req));
         List<McpSchema.Root> roots = rootsByServer.getOrDefault(serverKey, List.of());
-        syncSpec = syncSpec.roots(roots);
+        syncSpec = syncSpec.capabilities(INTERACTIVE_CLIENT_CAPABILITIES).roots(roots);
         syncSpec = mcpSyncClientConfigurer.configure(namedClientMcpTransport.name(), syncSpec);
         McpSyncClient mcpSyncClient =
                 syncSpec.requestTimeout(this.mcpClientCommonProperties.getRequestTimeout()).build();
@@ -245,7 +249,7 @@ public class McpClientService {
                 .elicitation(req -> reactor.core.publisher.Mono.fromCallable(() -> awaitElicitation(serverKey, req))
                         .subscribeOn(reactor.core.scheduler.Schedulers.boundedElastic()));
         List<McpSchema.Root> roots = rootsByServer.getOrDefault(serverKey, List.of());
-        asyncSpec = asyncSpec.roots(roots);
+        asyncSpec = asyncSpec.capabilities(INTERACTIVE_CLIENT_CAPABILITIES).roots(roots);
         asyncSpec = mcpAsyncClientConfigurer.configure(namedClientMcpTransport.name(), asyncSpec);
         McpAsyncClient mcpAsyncClient =
                 asyncSpec.requestTimeout(this.mcpClientCommonProperties.getRequestTimeout()).build();
@@ -284,6 +288,7 @@ public class McpClientService {
             return McpSchema.CreateMessageResult.builder()
                     .role(McpSchema.Role.ASSISTANT)
                     .content(new McpSchema.TextContent("Timed out waiting for user response."))
+                    .model(MANUAL_SAMPLING_MODEL)
                     .stopReason(McpSchema.CreateMessageResult.StopReason.END_TURN)
                     .build();
         } catch (Exception e) {
@@ -291,6 +296,7 @@ public class McpClientService {
             return McpSchema.CreateMessageResult.builder()
                     .role(McpSchema.Role.ASSISTANT)
                     .content(new McpSchema.TextContent("Error: " + e.getMessage()))
+                    .model(MANUAL_SAMPLING_MODEL)
                     .stopReason(McpSchema.CreateMessageResult.StopReason.END_TURN)
                     .build();
         }
@@ -627,27 +633,28 @@ public class McpClientService {
 
     public void addRoot(McpServerInfo mcpServerInfo, McpSchema.Root root) {
         timePrimitive("roots.add", mcpServerInfo, () -> {
-            String key = mcpServerInfo.serverName();
-            rootsByServer.computeIfAbsent(key, k -> new CopyOnWriteArrayList<>()).add(root);
+            List<McpSchema.Root> roots = rootsByServer.computeIfAbsent(mcpServerInfo.serverName(),
+                    serverName -> new CopyOnWriteArrayList<>());
+            if (roots.stream().anyMatch(existing -> existing.uri().equals(root.uri()))) {
+                throw new IllegalArgumentException("A root with this URI is already configured: " + root.uri());
+            }
             McpClientOps ops = connectingMcpClientOpsMap.get(clientKey(mcpServerInfo));
             if (ops != null) {
                 ops.addRoot(root);
-                ops.notifyRootsListChanged();
             }
+            roots.add(root);
             return null;
         });
     }
 
-    public void removeRoot(McpServerInfo mcpServerInfo, String name) {
+    public void removeRoot(McpServerInfo mcpServerInfo, String rootUri) {
         timePrimitive("roots.remove", mcpServerInfo, () -> {
-            String key = mcpServerInfo.serverName();
-            List<McpSchema.Root> rs = rootsByServer.get(key);
-            if (rs != null) rs.removeIf(r -> name.equals(r.name()));
             McpClientOps ops = connectingMcpClientOpsMap.get(clientKey(mcpServerInfo));
             if (ops != null) {
-                ops.removeRoot(name);
-                ops.notifyRootsListChanged();
+                ops.removeRoot(rootUri);
             }
+            List<McpSchema.Root> roots = rootsByServer.get(mcpServerInfo.serverName());
+            if (roots != null) roots.removeIf(root -> rootUri.equals(root.uri()));
             return null;
         });
     }
@@ -680,6 +687,26 @@ public class McpClientService {
     public void completeSampling(McpServerInfo mcpServerInfo, String pendingId,
             McpSchema.CreateMessageResult result) {
         notificationStore.completeSampling(mcpServerInfo.serverName(), pendingId, result);
+    }
+
+    public void respondToSampling(McpServerInfo mcpServerInfo, String pendingId, String responseText) {
+        completeSampling(mcpServerInfo, pendingId, manualSamplingResult(responseText == null ? "" : responseText,
+                McpSchema.CreateMessageResult.StopReason.END_TURN));
+    }
+
+    public void declineSampling(McpServerInfo mcpServerInfo, String pendingId) {
+        completeSampling(mcpServerInfo, pendingId, manualSamplingResult("User declined.",
+                McpSchema.CreateMessageResult.StopReason.STOP_SEQUENCE));
+    }
+
+    private static McpSchema.CreateMessageResult manualSamplingResult(String text,
+            McpSchema.CreateMessageResult.StopReason stopReason) {
+        return McpSchema.CreateMessageResult.builder()
+                .role(McpSchema.Role.ASSISTANT)
+                .content(new McpSchema.TextContent(text))
+                .model(MANUAL_SAMPLING_MODEL)
+                .stopReason(stopReason)
+                .build();
     }
 
     public void completeElicitation(McpServerInfo mcpServerInfo, String pendingId,

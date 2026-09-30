@@ -22,14 +22,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
-import org.springaicommunity.playground.service.mcp.catalog.McpCatalogEntry;
-import org.springaicommunity.playground.service.mcp.catalog.McpCatalogService;
-import org.springaicommunity.playground.service.mcp.catalog.McpToolDescriptor;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.service.util.SecretMasking;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.tool.definition.ToolDefinition;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -45,27 +43,18 @@ public class McpCompositionToolCallbackProvider implements ToolCallbackProvider 
     private final McpCompositionService compositionService;
     private final McpServerInfoService serverInfoService;
     private final McpClientService mcpClientService;
-    private final McpCatalogService catalogService;
-    private final McpRiskInputsResolver inputsResolver;
-    private final McpServerRiskCalculator serverCalc;
-    private final McpToolPublishRiskCalculator publishCalc;
-    private final McpToolRiskComposer composer;
+    private final ObjectProvider<McpToolRiskEvaluator> riskEvaluatorProvider;
     private final McpToolHashLedger hashLedger;
     private final ObjectMapper objectMapper;
 
     public McpCompositionToolCallbackProvider(McpCompositionService compositionService,
             McpServerInfoService serverInfoService, McpClientService mcpClientService,
-            McpCatalogService catalogService, McpRiskInputsResolver inputsResolver,
-            McpServerRiskCalculator serverCalc, McpToolPublishRiskCalculator publishCalc,
-            McpToolRiskComposer composer, McpToolHashLedger hashLedger, ObjectMapper objectMapper) {
+            ObjectProvider<McpToolRiskEvaluator> riskEvaluatorProvider, McpToolHashLedger hashLedger,
+            ObjectMapper objectMapper) {
         this.compositionService = compositionService;
         this.serverInfoService = serverInfoService;
         this.mcpClientService = mcpClientService;
-        this.catalogService = catalogService;
-        this.inputsResolver = inputsResolver;
-        this.serverCalc = serverCalc;
-        this.publishCalc = publishCalc;
-        this.composer = composer;
+        this.riskEvaluatorProvider = riskEvaluatorProvider;
         this.hashLedger = hashLedger;
         this.objectMapper = objectMapper;
     }
@@ -144,19 +133,10 @@ public class McpCompositionToolCallbackProvider implements ToolCallbackProvider 
 
     private McpToolRiskComposer.Composed computeRisk(McpServerInfo serverInfo, McpComposition.Member member,
             ToolCallback upstream) {
-        Optional<McpCatalogEntry> entry = this.catalogService.findByServerName(serverInfo.serverName());
-        McpServerRiskCalculator.Inputs serverInputs = this.inputsResolver.resolveServerInputs(
-                serverInfo, entry.orElse(null), entry.isEmpty(), false);
-        McpServerRiskCalculator.Result serverResult = this.serverCalc.compute(serverInputs);
-
-        Optional<McpToolDescriptor> catalogTool = entry.flatMap(e ->
-                e.tools().stream().filter(t -> member.toolName().equals(t.name())).findFirst());
-        String description = upstream.getToolDefinition() == null ? "" : upstream.getToolDefinition().description();
-        McpToolPublishRiskCalculator.Inputs toolInputs = this.inputsResolver.resolveToolInputs(
-                serverInfo.serverName(), member.toolName(), description, null, catalogTool);
-        McpToolPublishRiskCalculator.Result toolResult = this.publishCalc.compute(toolInputs);
-
-        return this.composer.composeWrappedExternal(serverResult, toolResult);
+        ToolDefinition definition = upstream.getToolDefinition();
+        String description = definition == null ? "" : definition.description();
+        JsonNode schema = parseSchema(definition == null ? null : definition.inputSchema());
+        return this.riskEvaluatorProvider.getObject().composedRisk(serverInfo, member.toolName(), description, schema);
     }
 
     // TOFU: a re-published tool whose definition changed is withheld (AWAITING_REREVIEW) until explicit re-review.

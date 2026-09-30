@@ -29,10 +29,12 @@ import org.springaicommunity.playground.service.tool.ToolSpecService;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -109,7 +111,7 @@ class McpToolRiskEvaluatorTest {
     @Test
     void selfBuiltinHitlOnCleanToolLowersEffectiveOneBand() {
         ToolSpecService toolSpecService = mock(ToolSpecService.class);
-        when(toolSpecService.getSandboxRiskLevel("deleteFile")).thenReturn(RiskLevel.L5);
+        when(toolSpecService.gatingRiskLevel("deleteFile")).thenReturn(RiskLevel.L5);
         when(toolSpecService.requiresApproval("deleteFile")).thenReturn(true);
         McpToolRiskEvaluator evaluator = evaluatorForBuiltin("builtin", toolSpecService);
 
@@ -124,7 +126,7 @@ class McpToolRiskEvaluatorTest {
     @Test
     void selfBuiltinPoisonedDescriptionGetsNoHitlCredit() {
         ToolSpecService toolSpecService = mock(ToolSpecService.class);
-        when(toolSpecService.getSandboxRiskLevel("deleteFile")).thenReturn(RiskLevel.L5);
+        when(toolSpecService.gatingRiskLevel("deleteFile")).thenReturn(RiskLevel.L5);
         when(toolSpecService.requiresApproval("deleteFile")).thenReturn(true);
         McpToolRiskEvaluator evaluator = evaluatorForBuiltin("builtin", toolSpecService);
 
@@ -138,7 +140,7 @@ class McpToolRiskEvaluatorTest {
     @Test
     void selfBuiltinWithoutApprovalKeepsInherentLevel() {
         ToolSpecService toolSpecService = mock(ToolSpecService.class);
-        when(toolSpecService.getSandboxRiskLevel("grepFile")).thenReturn(RiskLevel.L3);
+        when(toolSpecService.gatingRiskLevel("grepFile")).thenReturn(RiskLevel.L3);
         when(toolSpecService.requiresApproval("grepFile")).thenReturn(false);
         McpToolRiskEvaluator evaluator = evaluatorForBuiltin("builtin", toolSpecService);
 
@@ -147,6 +149,34 @@ class McpToolRiskEvaluatorTest {
 
         assertEquals(RiskLevel.L3, risk.finalLevel());
         assertEquals(RiskLevel.L3, risk.inherentLevel());
+    }
+
+    @Test
+    void selfBuiltinProxiedToolKeepsItsComposedLevel() {
+        ToolSpecService toolSpecService = mock(ToolSpecService.class);
+        when(toolSpecService.gatingRiskLevel("mcp_everything_echo")).thenReturn(RiskLevel.L2);
+        when(toolSpecService.requiresApproval("mcp_everything_echo")).thenReturn(false);
+        McpToolRiskEvaluator evaluator = evaluatorForBuiltin("builtin", toolSpecService);
+
+        McpToolRiskEvaluator.ToolRiskView risk = evaluator.evaluateTool(serverInfo("builtin"),
+                "mcp_everything_echo", "Echoes back the input.", null);
+
+        assertEquals(RiskLevel.L2, risk.finalLevel());
+        assertEquals(RiskLevel.L2, risk.inherentLevel());
+    }
+
+    @Test
+    void selfBuiltinHitlNeverLiftsAVerifiedTool() {
+        ToolSpecService toolSpecService = mock(ToolSpecService.class);
+        when(toolSpecService.gatingRiskLevel("currentTime")).thenReturn(RiskLevel.L0);
+        when(toolSpecService.requiresApproval("currentTime")).thenReturn(true);
+        McpToolRiskEvaluator evaluator = evaluatorForBuiltin("builtin", toolSpecService);
+
+        McpToolRiskEvaluator.ToolRiskView risk = evaluator.evaluateTool(serverInfo("builtin"), "currentTime",
+                "Returns the current time.", null);
+
+        assertEquals(RiskLevel.L0, risk.finalLevel());
+        assertEquals(RiskLevel.L0, risk.inherentLevel());
     }
 
     @Test
@@ -166,7 +196,7 @@ class McpToolRiskEvaluatorTest {
     @Test
     void toolOverloadMatchesTheExplodedFormForTheBuiltInServer() {
         ToolSpecService toolSpecService = mock(ToolSpecService.class);
-        when(toolSpecService.getSandboxRiskLevel("weather")).thenReturn(RiskLevel.L2);
+        when(toolSpecService.gatingRiskLevel("weather")).thenReturn(RiskLevel.L2);
         McpToolRiskEvaluator evaluator = evaluatorForBuiltin("builtin", toolSpecService);
         McpSchema.Tool tool = McpSchema.Tool.builder().name("weather").description("Forecast lookup")
                 .inputSchema(Map.of("type", "object", "properties", Map.of("city", Map.of("type", "string"))))
@@ -181,4 +211,30 @@ class McpToolRiskEvaluatorTest {
         assertEquals(RiskLevel.L2, fromTool.inherentLevel());
         assertEquals(RiskLevel.L1, evaluator.evaluateTool(serverInfo("builtin"), null).inherentLevel());
     }
+    @Test
+    void theChipAndTheExposedToolUseTheSameComposedRisk() {
+        McpCatalogService catalog = mock(McpCatalogService.class);
+        when(catalog.findByServerName("DeepWiki")).thenReturn(Optional.empty());
+        McpRiskInputsResolver resolver = mock(McpRiskInputsResolver.class);
+        McpToolRiskComposer composer = mock(McpToolRiskComposer.class);
+        McpToolRiskComposer.Composed composed = new McpToolRiskComposer.Composed(RiskLevel.L2, RiskLevel.L1,
+                RiskLevel.L2, null);
+        when(composer.composeWrappedExternal(any(), any()))
+                .thenReturn(composed);
+        SpringAiPlaygroundOptions options = mock(SpringAiPlaygroundOptions.class);
+        when(options.builtInMcpServer()).thenReturn(new BuiltInMcpServer("built-in", null, null));
+        McpToolRiskEvaluator evaluator = new McpToolRiskEvaluator(catalog, resolver,
+                mock(McpServerRiskCalculator.class), mock(McpToolPublishRiskCalculator.class), composer,
+                new McpToolPoisoningScanner(), JsonMapper.builder().build(), mock(ToolSpecService.class), options,
+                sink);
+        McpServerInfo info = new McpServerInfo(McpTransportType.STREAMABLE_HTTP, "DeepWiki", "", 0L, 0L, "{}");
+
+        McpToolRiskEvaluator.ToolRiskView chip = evaluator.evaluateTool(info, "read", "Reads a page",
+                Map.of("repoName", Map.of("type", "string", "description", "Repository")));
+        McpToolRiskComposer.Composed exposed = evaluator.composedRisk(info, "read", "Reads a page", null);
+
+        assertEquals(exposed.finalLevel(), chip.finalLevel());
+        assertEquals(exposed.publishLevel(), chip.publishLevel());
+    }
+
 }

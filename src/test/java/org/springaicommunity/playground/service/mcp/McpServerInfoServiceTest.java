@@ -37,6 +37,9 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
+import org.springframework.core.annotation.Order;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springaicommunity.playground.service.mcp.risk.McpExposedToolService;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -295,6 +298,17 @@ class McpServerInfoServiceTest {
         verify(persistence, never()).saveAsync(any());
     }
 
+    @Test
+    void persistedServersStartBeforeTheExposedToolsAreSynced() throws NoSuchMethodException {
+        Order startOrder = McpServerInfoService.class.getMethod("onApplicationReady", ApplicationReadyEvent.class)
+                .getAnnotation(Order.class);
+        Order syncOrder = McpExposedToolService.class.getMethod("onApplicationReady")
+                .getAnnotation(Order.class);
+
+        assertThat(startOrder).isNotNull();
+        assertThat(startOrder.value()).isLessThan(syncOrder.value());
+    }
+
     private static McpServerInfoService newServiceForSave(McpClientService clientService,
             McpServerInfoPersistenceService persistence) throws IOException {
         McpClientPropertiesService<?> stdio = mock(McpClientPropertiesService.class);
@@ -360,13 +374,18 @@ class McpServerInfoServiceTest {
             service.updateMcpServerInfo(ready.mcpTransportType(), ready.serverName(), ready);
             service.updateMcpServerInfo(waiting.mcpTransportType(), waiting.serverName(), waiting);
         });
+        McpServerInfo gated = new McpServerInfo(McpTransportType.STREAMABLE_HTTP, "gated", "d", 1L, 1L,
+                "{\"url\":\"https://g\"}");
+        service.loadAll(() -> service.updateMcpServerInfo(gated.mcpTransportType(), gated.serverName(), gated));
         when(clientService.getStatus(ready)).thenReturn(McpClientService.StatusEntry.ok());
         when(clientService.getStatus(waiting))
                 .thenReturn(McpClientService.StatusEntry.awaitingAuthorization("https://auth"));
+        when(clientService.getStatus(gated))
+                .thenReturn(McpClientService.StatusEntry.missingConfig(Set.of("GITHUB_PERSONAL_ACCESS_TOKEN")));
 
         ExternalServerSummary summary = service.externalServerSummary();
 
-        assertThat(summary.total()).isEqualTo(2);
+        assertThat(summary.total()).isEqualTo(3);
         assertThat(summary.awaitingAuthorization()).isEqualTo(1);
         assertThat(summary.connected()).isEqualTo(1);
     }

@@ -79,6 +79,7 @@ public class McpServerView extends ContentWorkspaceView {
     private final McpServerConnectionView mcpServerConnectionView;
     private final PropertyChangeSupport mcpServerInfoChangeSupport;
     private McpContentView mcpContentView;
+    private McpServerInfo selectedServerInfo;
 
     public McpServerView(PersistentUiDataStorage persistentUiDataStorage, McpServerInfoService mcpServerInfoService,
             McpClientService mcpClientService, McpCategoryService mcpCategoryService,
@@ -114,7 +115,7 @@ public class McpServerView extends ContentWorkspaceView {
                 case MCP_CONNECTION_CHANGE_EVENT -> {
                     this.mcpServerConnectionView.updateMcpConnections();
                     this.mcpServerConnectionView.selectMcpConnectionContent(newMcpServerInfo);
-                    VaadinUtils.showInfoNotification("MCP Connection Saved!");
+                    notifySaved(newMcpServerInfo);
                     this.usageEventTracker.track(UI.getCurrent(), "mcp_server_added",
                             this.usageAnalyticsService.mcpServerAddedParams(newMcpServerInfo));
                 }
@@ -149,6 +150,7 @@ public class McpServerView extends ContentWorkspaceView {
             if (!accessPanel.apply()) return;
             if (!exposeToolsPanel.apply()) return;
             builtInServerDrawer.close();
+            reloadInspectorIfBuiltInSelected();
         }, false);
 
         setHeaderLabel("MCP Server Info");
@@ -162,14 +164,34 @@ public class McpServerView extends ContentWorkspaceView {
         }
     }
 
+    private void notifySaved(McpServerInfo saved) {
+        McpClientService.StatusEntry status = this.mcpClientService.getStatus(saved);
+        if (status.status() == McpClientService.ServerStatus.MISSING_CONFIG) {
+            VaadinUtils.showErrorNotification("Saved, but not connected. Set "
+                    + String.join(", ", status.missingKeys())
+                    + " as an environment variable, restart the app, then Save & Connect again.");
+            return;
+        }
+        VaadinUtils.showInfoNotification("MCP Connection Saved!");
+    }
+
     private void addNewMcpServerDetails() {
         this.mcpServerConnectionView.clearSelectConnection();
         selectMcpServerInfo(this.mcpServerInfoService.createBlankMcpServerInfo());
     }
 
+    private void reloadInspectorIfBuiltInSelected() {
+        McpServerInfo builtIn = this.mcpServerInfoService.getDefaultMcpServerInfo();
+        if (Objects.isNull(builtIn) || Objects.isNull(this.selectedServerInfo))
+            return;
+        if (builtIn.serverName().equals(this.selectedServerInfo.serverName()))
+            selectMcpServerInfo(this.selectedServerInfo);
+    }
+
     private void selectMcpServerInfo(McpServerInfo mcpServerInfo) {
         if (Objects.isNull(mcpServerInfo))
             return;
+        this.selectedServerInfo = mcpServerInfo;
         this.mcpContentView =
                 new McpContentView(mcpServerInfo, this.mcpServerInfoService, this.mcpClientService,
                         this.mcpCategoryService, this.mcpTagSuggestionService,

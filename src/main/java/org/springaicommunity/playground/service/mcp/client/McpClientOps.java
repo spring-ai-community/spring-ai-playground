@@ -49,9 +49,7 @@ public interface McpClientOps {
 
     void addRoot(McpSchema.Root root);
 
-    void removeRoot(String name);
-
-    void notifyRootsListChanged();
+    void removeRoot(String rootUri);
 
     ToolCallbackProvider toolCallbackProvider();
 }

@@ -17,6 +17,7 @@ package org.springaicommunity.playground.service.mcp.client;
 
 import tools.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.Tool;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,6 +40,7 @@ import org.springframework.security.oauth2.core.AuthorizationGrantType;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -125,6 +127,34 @@ class McpClientServiceUnitTest {
                 .hasValueSatisfying(s -> assertThat(s.riskFinal()).isNull());
         assertThat(riskIndexing.lookupToolSource("good"))
                 .hasValueSatisfying(s -> assertThat(s.riskFinal()).isEqualTo("L3"));
+    }
+
+    @Test
+    void manualSamplingAnswersCarryTheModelTheProtocolRequires() {
+        McpNotificationStore notificationStore = new McpNotificationStore();
+        McpClientCommonProperties props = new McpClientCommonProperties();
+        McpClientService sampling = new McpClientService(null, null, props, new ObjectMapper(),
+                new McpClientPropertiesService<?>[] {}, null, oauthClientService,
+                presentProvider(serverInfoService), emptyProvider(), notificationStore, meterRegistry);
+        McpServerInfo server = new McpServerInfo(McpTransportType.STDIO, "sampling-server", "", 0L, 0L, "{}");
+        McpSchema.CreateMessageRequest request = McpSchema.CreateMessageRequest.builder()
+                .messages(List.of(new McpSchema.SamplingMessage(McpSchema.Role.USER,
+                        new McpSchema.TextContent("Say hello")))).maxTokens(50).build();
+
+        CompletableFuture<McpSchema.CreateMessageResult> answered =
+                notificationStore.awaitSamplingResponse(server.serverName(), request);
+        sampling.respondToSampling(server, sampling.snapshotPendingSamplings(server).getFirst().id(), "Hello.");
+        CompletableFuture<McpSchema.CreateMessageResult> declined =
+                notificationStore.awaitSamplingResponse(server.serverName(), request);
+        sampling.declineSampling(server, sampling.snapshotPendingSamplings(server).getFirst().id());
+
+        assertThat(answered.join().model()).isEqualTo(McpClientService.MANUAL_SAMPLING_MODEL);
+        assertThat(((McpSchema.TextContent) answered.join().content()).text()).isEqualTo("Hello.");
+        assertThat(answered.join().stopReason()).isEqualTo(McpSchema.CreateMessageResult.StopReason.END_TURN);
+        assertThat(declined.join().model()).isEqualTo(McpClientService.MANUAL_SAMPLING_MODEL);
+        assertThat(declined.join().stopReason())
+                .isEqualTo(McpSchema.CreateMessageResult.StopReason.STOP_SEQUENCE);
+        assertThat(sampling.snapshotPendingSamplings(server)).isEmpty();
     }
 
     @Test

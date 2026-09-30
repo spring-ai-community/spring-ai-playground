@@ -100,6 +100,9 @@ public class McpServerConfigView extends VerticalLayout {
     private final Span createdLabel = new Span();
     private final Span updatedLabel = new Span();
 
+    private static final String APP_MANAGED_HINT = "The built-in server connection is managed by the app and "
+            + "cannot be edited here. Use the gear icon for its access settings.";
+
     private final H4 connectionHeader = new H4("MCP Connection");
     private final RadioButtonGroup<McpTransportType> transportRadioButtonGroup = new RadioButtonGroup<>();
     private final Map<McpTransportType, JsonEditorWrapper> editors = new EnumMap<>(McpTransportType.class);
@@ -609,6 +612,11 @@ public class McpServerConfigView extends VerticalLayout {
         headerActionsRow.getStyle().set("gap", "var(--lumo-space-xs)");
 
         httpExtrasGroup.add(headersHeader, headersHelp, headerActionsRow, headersContainer);
+        if (isAppManagedBuiltIn()) {
+            headerActionsRow.setVisible(false);
+            headersHelp.setText(APP_MANAGED_HINT);
+            saveAndConnectButton.setTooltipText(APP_MANAGED_HINT);
+        }
     }
 
     private void buildOauthGroup() {
@@ -704,8 +712,12 @@ public class McpServerConfigView extends VerticalLayout {
                 || categoryChanged || tagsChanged;
         boolean isNewOrGhost = !isPersisted();
         boolean isValid = validateNameField();
-        saveAndConnectButton.setEnabled((hasChanges || isNewOrGhost) && isValid);
+        saveAndConnectButton.setEnabled((hasChanges || isNewOrGhost) && isValid && !isAppManagedBuiltIn());
         refreshRiskPreview();
+    }
+
+    private boolean isAppManagedBuiltIn() {
+        return this.mcpClientService.isSelfLoopback(this.mcpServerInfo.serverName());
     }
 
     private String normalizeCategory(String raw) {

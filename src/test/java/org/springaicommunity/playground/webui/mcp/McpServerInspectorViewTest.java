@@ -19,7 +19,9 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 import com.vaadin.browserless.SpringBrowserlessTest;
 import com.vaadin.flow.component.UI;
+import com.vaadin.flow.server.VaadinSession;
 import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.tabs.Tab;
 import com.vaadin.flow.component.tabs.TabSheet;
 import com.vaadin.flow.component.textfield.TextField;
@@ -122,8 +124,14 @@ class McpServerInspectorViewTest extends SpringBrowserlessTest {
                 .withCondition(button -> "Run tool".equals(button.getTooltip().getText()))
                 .first();
         test(runTool).click();
-        roundTrip();
-        assertThat(inspector.getElement().getTextRecursively()).contains("42000");
+        String toolOutput = pollUntil(() -> {
+            VaadinSession session = VaadinSession.getCurrent();
+            session.getService().runPendingAccessTasks(session);
+            return inspector.getElement().getTextRecursively();
+        }, text -> text.contains("42000"));
+        assertThat(toolOutput).contains("42000");
+        assertThat($(Span.class, inspector).withCondition(span -> span.getText().startsWith("Running..."))
+                .all()).isEmpty();
 
         selectTab(tabSheet, "Resources");
         ResourcePrimitive greeting = $(ResourcePrimitive.class, inspector)

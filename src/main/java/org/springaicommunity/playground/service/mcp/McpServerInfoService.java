@@ -41,6 +41,8 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.boot.web.server.context.WebServerInitializedEvent;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.event.EventListener;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.stereotype.Service;
 
@@ -130,6 +132,7 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
     }
 
     @EventListener
+    @Order(Ordered.LOWEST_PRECEDENCE - 2)
     public void onApplicationReady(ApplicationReadyEvent event) {
         this.applicationReady = true;
         updateDefaultMcpTool();
@@ -164,7 +167,10 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
                 .filter(info -> this.mcpClientService.getStatus(info).status()
                         == McpClientService.ServerStatus.AWAITING_AUTHORIZATION)
                 .count();
-        return new ExternalServerSummary(external.size(), awaiting, external.size() - awaiting);
+        long connected = external.stream()
+                .filter(info -> this.mcpClientService.getStatus(info).status() == McpClientService.ServerStatus.OK)
+                .count();
+        return new ExternalServerSummary(external.size(), awaiting, connected);
     }
 
     public McpServerAuthTokenService.ExposurePosture exposurePosture(String serverAddress) {
