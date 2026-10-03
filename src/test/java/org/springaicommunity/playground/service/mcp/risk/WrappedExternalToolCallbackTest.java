@@ -61,6 +61,20 @@ class WrappedExternalToolCallbackTest {
     }
 
     @Test
+    void upstreamDimensionsDescribeTheProxiedServerAndToolOutsideACall() {
+        WrappedExternalToolCallback wrapped = new WrappedExternalToolCallback(
+                delegate("create_issue", in -> "ok"), "comp-1", "dev-toolbox", "github__create_issue",
+                "github", "STREAMABLE_HTTP", composedL3(), Set.of());
+
+        assertEquals("github", wrapped.upstreamDimensions().get(McpRiskMdcKeys.UPSTREAM_SERVER));
+        assertEquals("create_issue", wrapped.upstreamDimensions().get(McpRiskMdcKeys.UPSTREAM_TOOL));
+        assertEquals("STREAMABLE_HTTP", wrapped.upstreamDimensions().get(McpRiskMdcKeys.UPSTREAM_TRANSPORT));
+        assertEquals("github__create_issue", wrapped.upstreamDimensions().get(McpRiskMdcKeys.EXPOSED_ALIAS));
+        assertEquals("L3", wrapped.upstreamDimensions().get(McpRiskMdcKeys.RISK_FINAL));
+        assertNull(MDC.get(McpRiskMdcKeys.ORIGIN));
+    }
+
+    @Test
     void aliasIsExposedInToolDefinition() {
         ToolCallback delegate = delegate("create_issue", in -> "ok");
         WrappedExternalToolCallback wrapped = new WrappedExternalToolCallback(

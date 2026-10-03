@@ -58,6 +58,8 @@ public class McpTab extends BaseDashboardTab {
     private final KpiCard serversUpCard = new KpiCard("Servers up");
     private final KpiCard mcpCallsCard = new KpiCard("MCP tool calls");
     private final KpiCard distinctToolsCard = new KpiCard("Distinct tools");
+    private final KpiCard proxiedCallsCard = new KpiCard("Proxied calls");
+    private final KpiCard deniedCallsCard = new KpiCard("Denied calls");
     private final KpiCard p95LatencyCard = new KpiCard("p95 latency");
     private final KpiCard errorRateCard = new KpiCard("Error rate");
     private final KpiCard oauthAuthorizedCard = new KpiCard("OAuth authorized");
@@ -74,6 +76,7 @@ public class McpTab extends BaseDashboardTab {
     private final ChartCanvas transportDonut = new ChartCanvas();
     private final ChartCanvas serverStatusBar = new ChartCanvas();
     private final ChartCanvas lifecycleStacked = new ChartCanvas();
+    private final ChartCanvas callersBar = new ChartCanvas();
 
     public McpTab(ObservabilityQueryService queryService, SystemMetricsSnapshot systemMetrics) {
         super();
@@ -81,7 +84,9 @@ public class McpTab extends BaseDashboardTab {
         this.systemMetrics = systemMetrics;
 
         Div serverKpis = DashboardLayout.kpiGrid(activeServersCard, serversUpCard, mcpCallsCard,
-                distinctToolsCard, p95LatencyCard, errorRateCard);
+                distinctToolsCard);
+        Div outcomeKpis = DashboardLayout.kpiGrid(proxiedCallsCard, deniedCallsCard, p95LatencyCard,
+                errorRateCard);
         Div oauthKpis = DashboardLayout.kpiGrid(oauthAuthorizedCard, oauthAwaitingCard,
                 oauthErroredCard, oauthExpiringCard);
         Div cardRow = new Div();
@@ -89,7 +94,8 @@ public class McpTab extends BaseDashboardTab {
                 .set("flex-direction", "column")
                 .set("gap", "var(--lumo-space-xs)")
                 .set("width", "100%");
-        cardRow.add(DashboardLayout.kpiGroupHeader("Servers — volume & quality"), serverKpis);
+        cardRow.add(DashboardLayout.kpiGroupHeader("Servers — volume"), serverKpis);
+        cardRow.add(DashboardLayout.kpiGroupHeader("Calls — routing & outcome"), outcomeKpis);
         cardRow.add(DashboardLayout.kpiGroupHeader("OAuth state"), oauthKpis);
 
         configureOAuthGrid();
@@ -109,8 +115,9 @@ public class McpTab extends BaseDashboardTab {
         grid.add(
                 DashboardLayout.chartCard("MCP calls / minute",
                         "by transport — STDIO / HTTP / SSE",
-                        "Bar height = spring.ai.tool span count per bucket (external MCP only — " +
-                                "self-loopback excluded). Stacked by network.transport tag.",
+                        "Bar height = spring.ai.tool span count per bucket (external MCP only, direct or " +
+                                "proxied through the built-in server — self-loopback excluded). Stacked by " +
+                                "network.transport tag.",
                         mcpCallsStacked),
                 DashboardLayout.chartCard("Latency p50 / p95 / p99",
                         "ms — across transports",
@@ -122,7 +129,8 @@ public class McpTab extends BaseDashboardTab {
                         topServersBar),
                 DashboardLayout.chartCard("Top MCP tools",
                         "by call count",
-                        "Same MCP spans grouped by spring.ai.tool.definition.name (top 8).",
+                        "Same MCP spans grouped by the upstream tool name: saip.upstream.tool for proxied " +
+                                "calls, spring.ai.tool.definition.name otherwise (top 8).",
                         topToolsBar),
                 DashboardLayout.chartCard("Transport mix",
                         "STDIO / HTTP / SSE",
@@ -137,7 +145,13 @@ public class McpTab extends BaseDashboardTab {
                         "stdio (process) vs remote (network) — connect / disconnect / error / auth",
                         "Counter mcp.server.lifecycle aggregated per outcome × {STDIO, remote}. " +
                                 "STDIO failures are process crashes; remote are network drops + reconnects.",
-                        lifecycleStacked)
+                        lifecycleStacked),
+                DashboardLayout.chartCard("Callers",
+                        "Agentic Chat vs external MCP clients",
+                        "Who made the MCP tool calls. External MCP clients reaching a server through a tool " +
+                                "exposed on the built-in server are listed by client name (saip.mcp.client " +
+                                "where saip.via = mcp-server); everything else is Agentic Chat.",
+                        callersBar)
         );
 
         content.add(cardRow, grid, oauthHeader, oauthGridCard);
@@ -174,9 +188,21 @@ public class McpTab extends BaseDashboardTab {
         activeServersCard.setValue(String.valueOf(breakdown.serverCounts().size()),
                 "Distinct saip.mcp.server values invoked in window (external MCP only, self-loopback excluded)");
         mcpCallsCard.setValue(String.valueOf(total),
-                "Σ spring.ai.tool span count where network.transport ≠ in-process and saip.mcp.server ≠ self-loopback");
+                "Σ spring.ai.tool span count where network.transport ≠ in-process and saip.mcp.server ≠ " +
+                        "self-loopback. Proxied calls denied at the human-in-the-loop gate never reach the server; " +
+                        "they are shown as Denied calls, not here.");
         distinctToolsCard.setValue(String.valueOf(breakdown.toolCounts().size()),
-                "Distinct spring.ai.tool.definition.name values invoked through external MCP servers");
+                "Distinct upstream tool names invoked on external MCP servers");
+        proxiedCallsCard.setValue(String.valueOf(breakdown.proxied()),
+                "Part of MCP tool calls: calls that reached the server through a tool exposed on the built-in " +
+                        "MCP server (saip.tool.origin = wrapped_external), from Agentic Chat or an external " +
+                        "client. The same calls show on the Tool Studio tab under their exposed name; Overview " +
+                        "counts each call once.");
+        deniedCallsCard.setValue(String.valueOf(breakdown.denied()),
+                "Calls to external tools exposed on the built-in MCP server that this app refused at the " +
+                        "human-in-the-loop gate (saip.hitl.outcome), from Agentic Chat or an external client. " +
+                        "They never reached the external server, so they are not part of MCP tool calls, " +
+                        "latency, error rate or the per-server charts. Tool Studio and Safety show them too.");
         if (total == 0) {
             errorRateCard.setValue("0.0%", "no external MCP calls in window");
         } else {
@@ -236,6 +262,7 @@ public class McpTab extends BaseDashboardTab {
         topServersBar.horizontalBarChart(breakdown.serverCounts(), DashboardPalette.PRIMARY, 8);
         topToolsBar.horizontalBarChart(breakdown.toolCounts(), DashboardPalette.SUCCESS, 8);
         transportDonut.donutChart(breakdown.transportCounts(), ChartCanvas.DEFAULT_PALETTE);
+        callersBar.horizontalBarChart(breakdown.callerCounts(), DashboardPalette.INFO, 8);
 
         ServerStatusSummary servers = queryService.serverStatusSummary();
         long up = servers.up();
@@ -267,7 +294,9 @@ public class McpTab extends BaseDashboardTab {
                 "MCP OAuth access tokens that will expire in less than 5 minutes (likely needs refresh)");
         oauthGrid.setItems(oauthRows);
 
-        setStatus(total + " MCP calls · " + breakdown.serverCounts().size() + " active servers · "
+        setStatus(total + " MCP calls · " + breakdown.proxied() + " proxied · " + breakdown.denied() + " denied · "
+                + breakdown.externalClient() + " from external clients · "
+                + breakdown.serverCounts().size() + " active servers · "
                 + servers.total() + " configured · " + up + " up · "
                 + authorized + " OAuth authorized · " + awaiting + " awaiting · "
                 + "window: " + window.minutes + "m");

@@ -26,6 +26,8 @@ import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.springaicommunity.playground.service.mcp.McpServerHitlToolGate;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
+import org.springaicommunity.playground.service.mcp.risk.McpToolRiskComposer;
+import org.springaicommunity.playground.service.mcp.risk.WrappedExternalToolCallback;
 import org.springaicommunity.playground.service.tool.ToolManifest.Sandbox.RiskLevel;
 import org.springaicommunity.playground.service.tool.ToolSpec.SandboxOverrides;
 import org.springaicommunity.playground.service.tool.runtime.JsToolExecutor.JsExecutionResult;
@@ -419,6 +421,41 @@ class ToolSpecServiceTest {
         assertThat(currentMcpNames()).doesNotContain("nativeOne");
         assertThat(currentMcpNames()).contains("extTool");
         assertThat(toolSpecService.getExternalMcpToolNames()).contains("extTool");
+    }
+
+    @Test
+    void proxiedToolCallbackIsFoundByItsExposedNameOnly() {
+        WrappedExternalToolCallback proxied = new WrappedExternalToolCallback(externalCallback("upstreamEcho"),
+                "comp-1", "Exposed Tools", "proxiedEcho", "everything", "STDIO",
+                new McpToolRiskComposer.Composed(RiskLevel.L1, RiskLevel.L1, RiskLevel.L1, null), Set.of());
+        toolSpecService.addExternalMcpTool(proxied, false);
+        toolSpecService.addExternalMcpTool(externalCallback("plainExternal"), false);
+
+        assertThat(toolSpecService.proxiedToolCallback("proxiedEcho")).containsSame(proxied);
+        assertThat(toolSpecService.proxiedToolCallback("upstreamEcho")).isEmpty();
+        assertThat(toolSpecService.proxiedToolCallback("plainExternal")).isEmpty();
+        assertThat(toolSpecService.proxiedToolCallback(null)).isEmpty();
+
+        toolSpecService.removeExternalMcpTool("proxiedEcho");
+        toolSpecService.removeExternalMcpTool("plainExternal");
+        assertThat(toolSpecService.proxiedToolCallback("proxiedEcho")).isEmpty();
+    }
+
+    @Test
+    void gatingRiskLevelUsesTheComposedLevelOfProxiedTools() {
+        WrappedExternalToolCallback proxied = new WrappedExternalToolCallback(externalCallback("upstreamSum"),
+                "comp-1", "Exposed Tools", "proxiedSum", "everything", "STDIO",
+                new McpToolRiskComposer.Composed(RiskLevel.L2, RiskLevel.L1, RiskLevel.L2, null), Set.of());
+        toolSpecService.addExternalMcpTool(proxied, true);
+        toolSpecService.addExternalMcpTool(externalCallback("plainExternal"), false);
+
+        assertThat(toolSpecService.gatingRiskLevel("proxiedSum")).isEqualTo(RiskLevel.L2);
+        assertThat(toolSpecService.requiresApproval("proxiedSum")).isTrue();
+        assertThat(toolSpecService.gatingRiskLevel("plainExternal")).isEqualTo(RiskLevel.L0);
+
+        toolSpecService.removeExternalMcpTool("proxiedSum");
+        toolSpecService.removeExternalMcpTool("plainExternal");
+        assertThat(toolSpecService.gatingRiskLevel("proxiedSum")).isNull();
     }
 
     @Test

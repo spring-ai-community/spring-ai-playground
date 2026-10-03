@@ -23,6 +23,7 @@ import org.springaicommunity.playground.service.tool.FileUploadHandler;
 import org.springaicommunity.playground.service.tool.HumanQuestion;
 import org.springaicommunity.playground.service.tool.HumanQuestionHandler;
 import org.springaicommunity.playground.service.tool.ToolManifest;
+import org.springaicommunity.playground.service.mcp.DeniedToolCallRecorder;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.AssistantMessage.ToolCall;
@@ -46,9 +47,11 @@ import java.util.stream.Collectors;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 class AgentLoopManagerHitlTest {
@@ -65,7 +68,8 @@ class AgentLoopManagerHitlTest {
     private AgentLoopManager manager(int toolResultMaxChars) {
         ObjectProvider<ToolSpecService> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(toolSpecService);
-        return new AgentLoopManager(delegate, provider, meterRegistry, toolResultMaxChars);
+        return new AgentLoopManager(delegate, provider, meterRegistry, toolResultMaxChars,
+                mock(DeniedToolCallRecorder.class));
     }
 
     private Prompt promptWith(HumanQuestionHandler handler) {
@@ -151,6 +155,25 @@ class AgentLoopManagerHitlTest {
         ToolResponseMessage trm = (ToolResponseMessage) last;
         assertEquals(1, trm.getResponses().size());
         assertTrue(trm.getResponses().get(0).responseData().toLowerCase().contains("declined"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void declinedAndTimedOutToolsAreRecordedAsDeniedCallsAndApprovedOnesAreNot() {
+        DeniedToolCallRecorder recorder = mock(DeniedToolCallRecorder.class);
+        ObjectProvider<ToolSpecService> provider = mock(ObjectProvider.class);
+        when(provider.getIfAvailable()).thenReturn(toolSpecService);
+        AgentLoopManager manager = new AgentLoopManager(delegate, provider, meterRegistry, 12_000, recorder);
+        when(toolSpecService.requiresApproval(anyString())).thenReturn(true);
+        when(delegate.executeToolCalls(any(), any())).thenReturn(delegateResultFor(toolCall("3", "readFile")));
+
+        manager.executeToolCalls(promptWith(questions -> Map.of("1", "Decline", "2",
+                HumanQuestionHandler.TIMEOUT_ANSWER, "3", "Approve")),
+                responseWith(toolCall("1", "writeFile"), toolCall("2", "deleteFile"), toolCall("3", "readFile")));
+
+        verify(recorder).recordChatDenial("writeFile", "1", "{}", "declined");
+        verify(recorder).recordChatDenial("deleteFile", "2", "{}", "timeout");
+        verifyNoMoreInteractions(recorder);
     }
 
     @Test

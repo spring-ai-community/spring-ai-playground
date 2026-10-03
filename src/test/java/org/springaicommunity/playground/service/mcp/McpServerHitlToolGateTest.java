@@ -45,9 +45,11 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class McpServerHitlToolGateTest {
@@ -58,7 +60,9 @@ class McpServerHitlToolGateTest {
     private final ObjectProvider<McpClientService> mcpClientServiceProvider = mock(ObjectProvider.class);
     private final McpClientService mcpClientService = mock(McpClientService.class);
     private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
-    private final McpServerHitlToolGate gate = new McpServerHitlToolGate(mcpClientServiceProvider, meterRegistry);
+    private final DeniedToolCallRecorder deniedToolCallRecorder = mock(DeniedToolCallRecorder.class);
+    private final McpServerHitlToolGate gate = new McpServerHitlToolGate(mcpClientServiceProvider, meterRegistry,
+            deniedToolCallRecorder);
     private final AtomicInteger delegateCalls = new AtomicInteger();
     private final CallToolResult delegateResult =
             CallToolResult.builder().addTextContent("ok").isError(false).build();
@@ -67,6 +71,11 @@ class McpServerHitlToolGateTest {
     void setUp() {
         when(mcpClientServiceProvider.getIfAvailable()).thenReturn(mcpClientService);
         when(mcpClientService.selfLoopbackServerName()).thenReturn(LOOPBACK_NAME);
+        when(mcpClientService.isSelfLoopbackClient(any())).thenAnswer(invocation -> {
+            Implementation info = invocation.getArgument(0);
+            return info != null && info.name() != null && !info.name().contains(McpClientService.TEST_CLIENT_INFIX)
+                    && info.name().endsWith(LOOPBACK_NAME);
+        });
     }
 
     private final BiFunction<McpSyncServerExchange, CallToolRequest, CallToolResult> delegate = (exchange, request) -> {
@@ -131,6 +140,8 @@ class McpServerHitlToolGateTest {
         assertEquals(0, delegateCalls.get());
         assertTrue(result.isError());
         assertTrue(deniedText(result).contains("Do not call"));
+        Implementation client = exchange.getClientInfo();
+        verify(deniedToolCallRecorder).recordExternalClientDenial(any(), eq(client), eq("declined"));
     }
 
     private static String deniedText(CallToolResult result) {
@@ -177,6 +188,29 @@ class McpServerHitlToolGateTest {
         assertEquals(0, delegateCalls.get());
         assertTrue(result.isError());
         verify(exchange, never()).createElicitation(any());
+        Implementation client = exchange.getClientInfo();
+        verify(deniedToolCallRecorder).recordExternalClientDenial(any(), eq(client), eq("denied"));
+    }
+
+    @Test
+    void approvedCallIsNotRecordedAsDenied() {
+        McpSyncServerExchange exchange = exchange("cursor", true);
+        when(exchange.createElicitation(any())).thenReturn(new ElicitResult(ElicitResult.Action.ACCEPT, Map.of()));
+
+        invoke(decorated(required()), exchange);
+
+        verifyNoInteractions(deniedToolCallRecorder);
+    }
+
+    @Test
+    void loopbackInspectorDeclineIsNotRecordedAsAnExternalClientDenial() {
+        McpSyncServerExchange exchange = exchange("spring-ai-playground - " + LOOPBACK_NAME, true);
+        when(exchange.createElicitation(any())).thenReturn(new ElicitResult(ElicitResult.Action.DECLINE, Map.of()));
+
+        CallToolResult result = invokeInteractive(decorated(required()), exchange);
+
+        assertTrue(result.isError());
+        verifyNoInteractions(deniedToolCallRecorder);
     }
 
     @Test

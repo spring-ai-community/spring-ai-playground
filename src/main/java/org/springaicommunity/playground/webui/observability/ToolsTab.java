@@ -49,6 +49,8 @@ public class ToolsTab extends BaseDashboardTab {
     private final KpiCard tracesWithToolsCard = new KpiCard("Traces with tools");
     private final KpiCard totalToolCallsCard = new KpiCard("Total tool calls");
     private final KpiCard distinctToolsCard = new KpiCard("Distinct tools");
+    private final KpiCard proxiedCallsCard = new KpiCard("Proxied calls");
+    private final KpiCard deniedCallsCard = new KpiCard("Denied calls");
     private final KpiCard p95LatencyCard = new KpiCard("p95 latency");
     private final KpiCard errorRateCard = new KpiCard("Error rate");
     private final KpiCard guardBlocksCard = new KpiCard("Sandbox guard blocks");
@@ -58,6 +60,7 @@ public class ToolsTab extends BaseDashboardTab {
     private final ChartCanvas topToolsBar = new ChartCanvas();
     private final ChartCanvas sandboxLevelBar = new ChartCanvas();
     private final ChartCanvas guardBlocksBar = new ChartCanvas();
+    private final ChartCanvas callersBar = new ChartCanvas();
 
     public ToolsTab(ObservabilityQueryService queryService, SystemMetricsSnapshot systemMetrics) {
         super();
@@ -66,19 +69,30 @@ public class ToolsTab extends BaseDashboardTab {
 
         Div intro = buildIntro(
                 "Built-in tools — JS sandbox functions and local @Tool methods, including " +
-                "self-loopback through the in-process MCP server. External MCP server calls " +
-                "live in the MCP Servers tab.");
+                "self-loopback through the in-process MCP server, the external tools it proxies, and calls " +
+                "external MCP clients make to the built-in server. " +
+                "Direct external MCP server calls live in the MCP Servers tab; proxied calls show on both " +
+                "tabs and are counted once in Overview. Calls refused at the human-in-the-loop gate are " +
+                "counted as denied.");
 
-        Div cardRow = DashboardLayout.kpiGrid(tracesWithToolsCard, totalToolCallsCard,
-                distinctToolsCard, p95LatencyCard, errorRateCard, guardBlocksCard);
+        Div cardRow = new Div();
+        cardRow.getStyle().set("display", "flex")
+                .set("flex-direction", "column")
+                .set("gap", "var(--lumo-space-xs)")
+                .set("width", "100%");
+        cardRow.add(DashboardLayout.kpiGroupHeader("Calls — volume"), DashboardLayout.kpiGrid(
+                tracesWithToolsCard, totalToolCallsCard, distinctToolsCard, proxiedCallsCard));
+        cardRow.add(DashboardLayout.kpiGroupHeader("Outcome — quality & safety"), DashboardLayout.kpiGrid(
+                deniedCallsCard, p95LatencyCard, errorRateCard, guardBlocksCard));
 
         Div grid = DashboardLayout.chartGrid();
         grid.add(
                 DashboardLayout.chartCard("Tool calls / minute",
                         "top 4 tools over time",
                         "Bar height = tool call count per bucket. Stacked by tool name (top 4 by lifetime). " +
-                                "Source: spring.ai.tool spans where network.transport is null/in-process OR " +
-                                "saip.mcp.server is the self-loopback (Tool Studio's auto-exposure).",
+                                "Source: spring.ai.tool spans where network.transport is null/in-process, " +
+                                "saip.mcp.server is the self-loopback (Tool Studio's auto-exposure), OR " +
+                                "saip.tool.origin is wrapped_external (a proxied external tool).",
                         toolCallsStacked),
                 DashboardLayout.chartCard("Tool latency p50 / p95 / p99",
                         "ms per bucket",
@@ -97,7 +111,13 @@ public class ToolsTab extends BaseDashboardTab {
                         "lifetime — top reasons",
                         "Counter sandbox.guard.blocked — counts every FetchPolicyException / " +
                                 "FsPolicyException thrown in SafeHttpFetch and SafeFs, tagged by reason.",
-                        guardBlocksBar)
+                        guardBlocksBar),
+                DashboardLayout.chartCard("Callers",
+                        "Agentic Chat vs external MCP clients",
+                        "Who made the tool calls. External MCP clients calling the built-in server are listed " +
+                                "by client name (saip.mcp.client where saip.via = mcp-server); everything else " +
+                                "is Agentic Chat.",
+                        callersBar)
         );
 
         content.add(intro, cardRow, grid);
@@ -109,19 +129,31 @@ public class ToolsTab extends BaseDashboardTab {
         long windowStart = Instant.now().toEpochMilli() - window.totalMs();
         List<String> labels = DashboardData.bucketLabelsFromWindow(windowStart, window.bucketMs(), window.buckets());
 
-        long total = breakdown.ok() + breakdown.error();
+        long total = breakdown.total();
+        long executed = breakdown.executed();
         tracesWithToolsCard.setValue(String.valueOf(breakdown.distinctTraces()),
-                "Distinct trace IDs containing at least one spring.ai.tool span (in-process or self-loopback)");
+                "Distinct trace IDs containing at least one spring.ai.tool span " +
+                        "(in-process, self-loopback or proxied)");
         totalToolCallsCard.setValue(String.valueOf(total),
-                "Σ spring.ai.tool span count (in-process + self-loopback only — external MCP excluded)");
+                "Σ spring.ai.tool span count (in-process + self-loopback + proxied — direct external MCP " +
+                        "excluded). Includes calls denied at the human-in-the-loop gate.");
         distinctToolsCard.setValue(String.valueOf(breakdown.toolNameCounts().size()),
                 "Distinct spring.ai.tool.definition.name values invoked in window");
-        if (total == 0) {
-            errorRateCard.setValue("0.0%", "no tool calls in window");
+        proxiedCallsCard.setValue(String.valueOf(breakdown.proxied()),
+                "Part of Total tool calls: calls to external MCP tools exposed on the built-in server " +
+                        "(saip.tool.origin = wrapped_external). The same calls show on the MCP Servers tab under " +
+                        "their upstream server; Overview counts each call once.");
+        deniedCallsCard.setValue(String.valueOf(breakdown.denied()),
+                "Part of Total tool calls: calls that were requested but not run because human-in-the-loop " +
+                        "approval was declined, timed out or could not be asked (saip.hitl.outcome). They are " +
+                        "left out of latency and error rate; the Safety tab shows the decisions by side.");
+        if (executed == 0) {
+            errorRateCard.setValue("0.0%", "no executed tool calls in window");
         } else {
             errorRateCard.setValue(
-                    String.format(Locale.ROOT, "%.1f%%", breakdown.error() * 100.0 / total),
-                    breakdown.error() + " errors of " + total + " tool calls · spring.ai.tool span status");
+                    String.format(Locale.ROOT, "%.1f%%", breakdown.error() * 100.0 / executed),
+                    breakdown.error() + " errors of " + executed
+                            + " executed tool calls (denied calls excluded) · spring.ai.tool span status");
         }
 
         int buckets = window.buckets();
@@ -130,7 +162,7 @@ public class ToolsTab extends BaseDashboardTab {
         double[] p99 = new double[buckets];
         long sampleCountAll = 0;
         long sumAll = 0;
-        long[] allLatenciesAcc = new long[(int) Math.min(Integer.MAX_VALUE, total)];
+        long[] allLatenciesAcc = new long[(int) Math.min(Integer.MAX_VALUE, executed)];
         int allIdx = 0;
         for (int i = 0; i < buckets; i++) {
             long[] arr = breakdown.latencyPerBucket().get(i).stream().mapToLong(Long::longValue).sorted().toArray();
@@ -188,8 +220,11 @@ public class ToolsTab extends BaseDashboardTab {
         guardBlocksCard.setValue(String.valueOf(totalBlocks),
                 "Σ sandbox.guard.blocked counter — FetchPolicyException + FsPolicyException blocked attempts (lifetime)");
         guardBlocksBar.horizontalBarChart(snap.sandboxGuardBlocked, DashboardPalette.ERROR, 8);
+        callersBar.horizontalBarChart(breakdown.callerCounts(), DashboardPalette.INFO, 8);
 
-        setStatus(total + " tool calls · " + breakdown.toolNameCounts().size() + " distinct tools · "
+        setStatus(total + " tool calls · " + breakdown.proxied() + " proxied · " + breakdown.denied() + " denied · "
+                + breakdown.externalClient() + " from external clients · "
+                + breakdown.toolNameCounts().size() + " distinct tools · "
                 + breakdown.distinctTraces() + " traces · " + totalBlocks + " guard blocks · window: "
                 + window.minutes + "m");
     }

@@ -31,6 +31,7 @@ import io.modelcontextprotocol.spec.McpSchema;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
 import org.springaicommunity.playground.config.MdcIdentityFilter;
 import org.springaicommunity.playground.service.mcp.McpServerHitlToolGate;
+import org.springaicommunity.playground.service.mcp.ExternalClientToolCallObserver;
 import org.springaicommunity.playground.service.mcp.risk.WrappedExternalToolCallback;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
 import org.springaicommunity.playground.service.mcp.risk.DefaultIntegrityVerifier;
@@ -54,6 +55,7 @@ import org.springframework.ai.mcp.McpToolUtils;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.execution.ToolExecutionException;
 import org.springframework.ai.tool.definition.DefaultToolDefinition;
+import org.springframework.ai.tool.definition.ToolDefinition;
 import org.springframework.ai.tool.function.FunctionToolCallback;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.event.ContextClosedEvent;
@@ -119,6 +121,7 @@ public class ToolSpecService {
     private final McpAsyncServer mcpAsyncServer;
     private final McpServerInfoService mcpServerInfoService;
     private final McpServerHitlToolGate hitlGate;
+    private final ExternalClientToolCallObserver externalClientToolCallObserver;
     private final ObjectProvider<ToolSpecPersistenceService> toolSpecPersistenceServiceProvider;
     private final Map<String, ToolSpec> toolIdSpecs;
     private final JsToolExecutor jsToolExecutor;
@@ -139,6 +142,7 @@ public class ToolSpecService {
     public ToolSpecService(ObjectProvider<McpSyncServer> syncServerProvider,
             ObjectProvider<McpAsyncServer> asyncServerProvider, McpServerInfoService mcpServerInfoService,
             McpServerHitlToolGate hitlGate,
+            ExternalClientToolCallObserver externalClientToolCallObserver,
             ObjectProvider<ToolSpecPersistenceService> toolSpecPersistenceServiceProvider,
             SpringAiPlaygroundOptions playgroundOptions, EffectivePolicyResolver policyResolver,
             SandboxPostureCalculator postureCalculator,
@@ -150,6 +154,7 @@ public class ToolSpecService {
         this.mcpAsyncServer = asyncServerProvider.getIfAvailable();
         this.mcpServerInfoService = mcpServerInfoService;
         this.hitlGate = hitlGate;
+        this.externalClientToolCallObserver = externalClientToolCallObserver;
         this.toolSpecPersistenceServiceProvider = toolSpecPersistenceServiceProvider;
         this.toolMcpServerSetting = new ToolMcpServerSetting(true, Set.of());
         this.exposureMode = playgroundOptions.builtInMcpServer().exposureMode();
@@ -571,13 +576,13 @@ public class ToolSpecService {
         logger.info("Adding MCP tool to server: name={}", toolSpec.name());
         RiskLevel riskLevel = RiskLevel.valueOf(riskLevelOf(toolSpec));
         if (Objects.nonNull(this.mcpSyncServer)) {
-            this.mcpSyncServer.addTool(this.hitlGate.decorate(
-                    McpToolUtils.toSyncToolSpecification(toolSpec.toolCallback()), toolSpec.humanInTheLoop(),
-                    riskLevel));
+            this.mcpSyncServer.addTool(this.hitlGate.decorate(this.externalClientToolCallObserver.observe(
+                    McpToolUtils.toSyncToolSpecification(toolSpec.toolCallback()), toolSpec.toolCallback()),
+                    toolSpec.humanInTheLoop(), riskLevel));
         } else {
-            this.mcpAsyncServer.addTool(this.hitlGate.decorate(
-                    McpToolUtils.toAsyncToolSpecification(toolSpec.toolCallback()), toolSpec.humanInTheLoop(),
-                    riskLevel));
+            this.mcpAsyncServer.addTool(this.hitlGate.decorate(this.externalClientToolCallObserver.observe(
+                    McpToolUtils.toAsyncToolSpecification(toolSpec.toolCallback()), toolSpec.toolCallback()),
+                    toolSpec.humanInTheLoop(), riskLevel));
         }
         this.mcpServerInfoService.updateDefaultMcpTool();
     }
@@ -611,10 +616,12 @@ public class ToolSpecService {
                 ? wrapped.riskLevel() : null;
         try {
             if (Objects.nonNull(this.mcpSyncServer)) {
-                SyncToolSpecification spec = McpToolUtils.toSyncToolSpecification(callback);
+                SyncToolSpecification spec = this.externalClientToolCallObserver.observe(
+                        McpToolUtils.toSyncToolSpecification(callback), callback);
                 this.mcpSyncServer.addTool(hitl ? this.hitlGate.decorate(spec, REQUIRED_HITL, externalLevel) : spec);
             } else if (Objects.nonNull(this.mcpAsyncServer)) {
-                AsyncToolSpecification spec = McpToolUtils.toAsyncToolSpecification(callback);
+                AsyncToolSpecification spec = this.externalClientToolCallObserver.observe(
+                        McpToolUtils.toAsyncToolSpecification(callback), callback);
                 this.mcpAsyncServer.addTool(hitl ? this.hitlGate.decorate(spec, REQUIRED_HITL, externalLevel) : spec);
             }
             this.externalToolSpecs.put(name, externalSpec);
@@ -647,6 +654,18 @@ public class ToolSpecService {
 
     public List<ToolSpec> getExternalToolSpecs() {
         return List.copyOf(this.externalToolSpecs.values());
+    }
+
+    public Optional<ToolDefinition> toolDefinitionOf(String toolName) {
+        if (toolName == null) return Optional.empty();
+        return Optional.ofNullable(specForGating(toolName)).map(ToolSpec::toolCallback)
+                .map(ToolCallback::getToolDefinition);
+    }
+
+    public Optional<WrappedExternalToolCallback> proxiedToolCallback(String toolName) {
+        if (toolName == null) return Optional.empty();
+        return Optional.ofNullable(this.externalToolSpecs.get(toolName)).map(ToolSpec::toolCallback)
+                .filter(WrappedExternalToolCallback.class::isInstance).map(WrappedExternalToolCallback.class::cast);
     }
 
     public Optional<ToolSpec> getToolSpecAsOpt(String name) {

@@ -23,6 +23,9 @@ import org.springaicommunity.playground.observability.ObservabilityProperties;
 import org.springaicommunity.playground.observability.ObservabilityRingBuffer;
 import org.springaicommunity.playground.observability.SpanRecord;
 import org.springaicommunity.playground.observability.TraceRecord;
+import org.springaicommunity.playground.observability.VectorOperationLog;
+import org.springaicommunity.playground.observability.VectorOperationLog.RecentQuery;
+import org.springaicommunity.playground.observability.VectorOperationLog.VectorOperation;
 import org.springaicommunity.playground.observability.Window;
 import org.springaicommunity.playground.observability.pricing.ModelPricing;
 import org.springaicommunity.playground.observability.pricing.ModelPricingService;
@@ -71,7 +74,8 @@ class ObservabilityQueryServiceTest {
         pricing.upsert(new ModelPricing("paid", new BigDecimal("2"), new BigDecimal("4")));
         McpClientService mcpClientService = mock(McpClientService.class);
         when(mcpClientService.isSelfLoopback(anyString())).thenAnswer(inv -> LOOPBACK.equals(inv.getArgument(0)));
-        this.service = new ObservabilityQueryService(this.buffer, mcpClientService, pricing);
+        VectorOperationLog vectorOperationLog = new VectorOperationLog();
+        this.service = new ObservabilityQueryService(this.buffer, mcpClientService, pricing, vectorOperationLog);
 
         long recent = NOW - Duration.ofMinutes(1).toMillis();
         this.buffer.add(trace("t1", "c1", "paid", "openai", recent, 1000L, 500L, 1, List.of(
@@ -80,11 +84,11 @@ class ObservabilityQueryServiceTest {
                 span("s2", "spring.ai.tool", recent, 120, "ERROR", Map.of("spring.ai.tool.definition.name", "echo",
                         "network.transport", "http", "saip.mcp.server", "everything")),
                 span("s3", "spring.ai.tool", recent, 40, "OK", Map.of("spring.ai.tool.definition.name", "getTime",
-                        "network.transport", "http", "saip.mcp.server", LOOPBACK)),
-                span("s4", "db.vector.client.operation", recent, 15, "OK", Map.of("db.operation.name", "query",
-                        "db.system", "SimpleVectorStore", "db.vector.query.top_k", "4",
-                        "db.vector.query.similarity_threshold", "0.35",
-                        "db.vector.query.response.documents.count", "2")))));
+                        "network.transport", "http", "saip.mcp.server", LOOPBACK)))));
+        vectorOperationLog.record(new VectorOperation(recent, 15, "query", "simple", 4L, 0.35, 2, "c1", false),
+                "wifi password");
+        vectorOperationLog.record(new VectorOperation(NOW - Duration.ofHours(5).toMillis(), 9, "add", "simple",
+                null, null, null, null, false), null);
         long earlier = NOW - Duration.ofMinutes(3).toMillis();
         this.buffer.add(trace("t2", "c1", "free", "ollama", earlier, 10L, 20L, 4, List.of(
                 span("s5", "spring.ai.tool", earlier, 10, "OK", null))));
@@ -110,6 +114,106 @@ class ObservabilityQueryServiceTest {
     }
 
     @Test
+    void toolOnlyTraceFromAnExternalClientIsNotCostedAsAnLlmCall() {
+        long before = service.costBreakdown(Window.LAST_10M, NOW).totalCalls();
+        long recent = NOW - Duration.ofMinutes(2).toMillis();
+        this.buffer.add(new TraceRecord("local-ext", null, null, null, null, recent, 12L, TraceRecord.STATUS_OK,
+                null, null, null, null, true, 1, false, null, null, Set.of("team_echo"), Set.of("everything"),
+                List.of(span("x1", "spring.ai.tool", recent, 12, "OK", Map.of("spring.ai.tool.definition.name",
+                        "team_echo", "network.transport", "pipe", "saip.mcp.server", "everything",
+                        "saip.tool.origin", "wrapped_external", "saip.upstream.tool", "echo"))), Map.of()));
+
+        assertThat(service.costBreakdown(Window.LAST_10M, NOW).totalCalls()).isEqualTo(before);
+        assertThat(service.mcpBreakdown(Window.LAST_10M, NOW).proxied()).isEqualTo(1);
+    }
+
+    @Test
+    void deniedCallsCountAsToolCallsButNotAsExecutedOrMcpServerCalls() {
+        long recent = NOW - Duration.ofMinutes(2).toMillis();
+        this.buffer.add(trace("t-denied", "c9", "free", "ollama", recent, 1L, 1L, 2, List.of(
+                span("d1", "spring.ai.tool", recent, 0, "OK", Map.of("spring.ai.tool.definition.name", "team_sum",
+                        "network.transport", "pipe", "saip.mcp.server", "everything",
+                        "saip.tool.origin", "wrapped_external", "saip.upstream.tool", "get-sum",
+                        "saip.hitl.outcome", "declined")),
+                span("d2", "spring.ai.tool", recent, 0, "OK", Map.of("spring.ai.tool.definition.name", "writeFile",
+                        "saip.hitl.outcome", "timeout", "sandbox.level", "L4")))));
+
+        ToolBreakdown tools = service.toolBreakdown(Window.LAST_10M, NOW);
+        assertThat(tools.denied()).isEqualTo(2);
+        assertThat(tools.total()).isEqualTo(5);
+        assertThat(tools.executed()).isEqualTo(3);
+        assertThat(tools.proxied()).isZero();
+        assertThat(tools.toolNameCounts()).containsEntry("team_sum", 1L).containsEntry("writeFile", 1L);
+        assertThat(tools.sandboxLevelCounts()).doesNotContainKey("L4");
+        assertThat(tools.latencyPerBucket().stream().mapToInt(List::size).sum()).isEqualTo(3);
+
+        McpBreakdown mcp = service.mcpBreakdown(Window.LAST_10M, NOW);
+        assertThat(mcp.total()).isEqualTo(1);
+        assertThat(mcp.denied()).isEqualTo(1);
+        assertThat(mcp.toolCounts()).doesNotContainKey("get-sum");
+        assertThat(mcp.callerCounts()).containsExactly(Map.entry(ObservabilityQueryService.CHAT_CALLER, 1L));
+
+        ToolMcpBreakdown all = service.toolMcpBreakdown(Window.LAST_10M, NOW);
+        assertThat(all.toolCounts()).containsEntry("team_sum", 1L).containsEntry("writeFile", 1L);
+        assertThat(all.transportCounts()).doesNotContainKey("pipe");
+    }
+
+    @Test
+    void externalClientCallsAreAttributedToTheClientAndTheRestToAgenticChat() {
+        long recent = NOW - Duration.ofMinutes(2).toMillis();
+        this.buffer.add(new TraceRecord("local-js", null, null, null, null, recent, 9L, TraceRecord.STATUS_OK,
+                null, null, null, null, true, 1, false, null, null, Set.of("getCurrentTime"), Set.of(LOOPBACK),
+                List.of(span("j1", "spring.ai.tool", recent, 9, "OK", Map.of("spring.ai.tool.definition.name",
+                        "getCurrentTime", "network.transport", "tcp", "saip.mcp.server", LOOPBACK,
+                        "saip.via", "mcp-server", "saip.mcp.client", "curl-qa"))), Map.of()));
+        this.buffer.add(new TraceRecord("local-px", null, null, null, null, recent, 12L, TraceRecord.STATUS_OK,
+                null, null, null, null, true, 1, false, null, null, Set.of("team_echo"), Set.of("everything"),
+                List.of(span("x1", "spring.ai.tool", recent, 12, "OK", Map.of("spring.ai.tool.definition.name",
+                        "team_echo", "network.transport", "pipe", "saip.mcp.server", "everything",
+                        "saip.tool.origin", "wrapped_external", "saip.upstream.tool", "echo",
+                        "saip.via", "mcp-server"))), Map.of()));
+
+        ToolBreakdown tools = service.toolBreakdown(Window.LAST_10M, NOW);
+        assertThat(tools.toolNameCounts()).containsEntry("getCurrentTime", 1L).containsEntry("team_echo", 1L);
+        assertThat(tools.callerCounts()).containsOnly(Map.entry(ObservabilityQueryService.CHAT_CALLER, 3L),
+                Map.entry("curl-qa", 1L), Map.entry(ObservabilityQueryService.UNKNOWN_CLIENT, 1L));
+        assertThat(tools.externalClient()).isEqualTo(2);
+
+        McpBreakdown mcp = service.mcpBreakdown(Window.LAST_10M, NOW);
+        assertThat(mcp.callerCounts()).containsOnly(Map.entry(ObservabilityQueryService.CHAT_CALLER, 1L),
+                Map.entry(ObservabilityQueryService.UNKNOWN_CLIENT, 1L));
+        assertThat(mcp.externalClient()).isEqualTo(1);
+    }
+
+    @Test
+    void proxiedCallShowsOnBothBreakdownsAndIsCountedOnceOverall() {
+        long recent = NOW - Duration.ofMinutes(2).toMillis();
+        this.buffer.add(trace("t-proxy", "c9", "free", "ollama", recent, 1L, 1L, 1, List.of(
+                span("p1", "spring.ai.tool", recent, 25, "OK", Map.of("spring.ai.tool.definition.name", "team_sum",
+                        "network.transport", "pipe", "saip.mcp.server", "everything",
+                        "saip.tool.origin", "wrapped_external", "saip.upstream.tool", "get-sum",
+                        "saip.tool.exposed_alias", "team_sum")))));
+
+        McpBreakdown mcp = service.mcpBreakdown(Window.LAST_10M, NOW);
+        assertThat(mcp.toolCounts()).containsOnly(Map.entry("echo", 1L), Map.entry("get-sum", 1L));
+        assertThat(mcp.serverCounts()).containsExactly(Map.entry("everything", 2L));
+        assertThat(mcp.transportCounts()).containsOnly(Map.entry("http", 1L), Map.entry("pipe", 1L));
+        assertThat(mcp.total()).isEqualTo(2);
+        assertThat(mcp.proxied()).isEqualTo(1);
+
+        ToolBreakdown tools = service.toolBreakdown(Window.LAST_10M, NOW);
+        assertThat(tools.toolNameCounts()).containsEntry("team_sum", 1L).doesNotContainKey("get-sum")
+                .doesNotContainKey("echo");
+        assertThat(tools.total()).isEqualTo(4);
+        assertThat(tools.proxied()).isEqualTo(1);
+
+        ToolMcpBreakdown all = service.toolMcpBreakdown(Window.LAST_10M, NOW);
+        assertThat(all.toolCounts().values().stream().mapToLong(Long::longValue).sum()).isEqualTo(5);
+        assertThat(all.toolCounts()).containsEntry("team_sum", 1L);
+        assertThat(all.serverCounts()).containsEntry("everything", 2L);
+    }
+
+    @Test
     void mcpAndToolBreakdownsSplitExternalFromLocalCalls() {
         McpBreakdown mcp = service.mcpBreakdown(Window.LAST_10M, NOW);
         assertThat(mcp.toolCounts()).containsExactly(Map.entry("echo", 1L));
@@ -118,6 +222,9 @@ class ObservabilityQueryServiceTest {
         assertThat(mcp.error()).isEqualTo(1);
         assertThat(mcp.ok()).isZero();
         assertThat(mcp.total()).isEqualTo(1);
+        assertThat(mcp.proxied()).isZero();
+        assertThat(mcp.denied()).isZero();
+        assertThat(mcp.externalClient()).isZero();
         assertThat(mcp.callsByTransportPerBucket().get("http")).hasSize(Window.LAST_10M.buckets());
         assertThat(mcp.latencyPerBucket().stream().mapToInt(List::size).sum()).isEqualTo(1);
 
@@ -126,12 +233,34 @@ class ObservabilityQueryServiceTest {
                 Map.entry("(unnamed)", 1L));
         assertThat(tools.sandboxLevelCounts()).containsExactly(Map.entry("L0", 1L), Map.entry("unknown", 2L));
         assertThat(tools.total()).isEqualTo(3);
+        assertThat(tools.proxied()).isZero();
         assertThat(tools.distinctTraces()).isEqualTo(2);
 
         ToolMcpBreakdown all = service.toolMcpBreakdown(Window.LAST_10M, NOW);
         assertThat(all.toolCounts()).containsKeys("getWeather", "echo", "getTime", "(unnamed)");
         assertThat(all.transportCounts()).containsExactly(Map.entry("in-process", 2L), Map.entry("http", 2L));
         assertThat(all.serverCounts()).containsExactly(Map.entry("everything", 1L), Map.entry(LOOPBACK, 1L));
+    }
+
+    @Test
+    void vectorQueryLatencyLeavesOutAddAndDeleteOperations() {
+        VectorOperationLog vectorOperationLog = new VectorOperationLog();
+        ObservabilityQueryService vectorOnly = new ObservabilityQueryService(this.buffer,
+                mock(McpClientService.class), new ModelPricingService(this.home, this.executor), vectorOperationLog);
+        long recent = NOW - Duration.ofMinutes(1).toMillis();
+        vectorOperationLog.record(new VectorOperation(recent, 78, "query", "simple", 4L, 0.35, 4, null, false),
+                "hotel cap in London");
+        vectorOperationLog.record(new VectorOperation(recent, 258, "add", "simple", null, null, null, null, false),
+                null);
+        vectorOperationLog.record(new VectorOperation(recent, 40, "delete", "simple", null, null, null, null, false),
+                null);
+
+        VectorStats stats = vectorOnly.vectorStats(Window.LAST_10M, NOW);
+
+        assertThat(stats.totalOps()).isEqualTo(3);
+        assertThat(stats.totalLatencyMs()).isEqualTo(78);
+        assertThat(stats.latencySamples()).isEqualTo(1);
+        assertThat(stats.latencyPerBucket().stream().mapToInt(List::size).sum()).isEqualTo(1);
     }
 
     @Test
@@ -146,10 +275,11 @@ class ObservabilityQueryServiceTest {
         assertThat(stats.totalOps()).isEqualTo(1);
         assertThat(stats.topKDistribution()).containsExactly(Map.entry(4L, 1L));
         assertThat(stats.similarityBands()).containsExactly(Map.entry("[0.3, 0.5)", 1L));
-        assertThat(stats.avgReturnedDocs()).containsExactly(Map.entry("SimpleVectorStore", 2L));
-        assertThat(stats.dbSystems()).containsExactly(Map.entry("SimpleVectorStore", 1L));
+        assertThat(stats.avgReturnedDocs()).containsExactly(Map.entry("simple", 2L));
+        assertThat(stats.dbSystems()).containsExactly(Map.entry("simple", 1L));
         assertThat(stats.totalLatencyMs()).isEqualTo(15);
         assertThat(stats.latencySamples()).isEqualTo(1);
+        assertThat(service.recentVectorQueries()).extracting(RecentQuery::text).containsExactly("wifi password");
 
         assertThat(service.windowCost(Window.LAST_10M, NOW)).isEqualByComparingTo("0.004");
         assertThat(service.windowCost(Window.LAST_1M, NOW + Duration.ofHours(1).toMillis())).isZero();

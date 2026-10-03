@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
 import org.springaicommunity.playground.service.agent.AgentRoundInterceptor.Interception;
 import org.springaicommunity.playground.service.agent.AgentTurn.RoundVerdict;
+import org.springaicommunity.playground.service.mcp.DeniedToolCallRecorder;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.AssistantMessage.ToolCall;
@@ -70,19 +71,19 @@ public class AgentLoopManager implements ToolCallingManager {
     @Autowired
     public AgentLoopManager(ObservationRegistry observationRegistry,
             ObjectProvider<ToolSpecService> toolSpecServiceProvider, MeterRegistry meterRegistry,
-            SpringAiPlaygroundOptions options) {
+            SpringAiPlaygroundOptions options, DeniedToolCallRecorder deniedToolCallRecorder) {
         this(ToolCallingManager.builder().observationRegistry(observationRegistry).build(),
                 toolSpecServiceProvider, meterRegistry,
-                options.chat() == null ? 12_000 : options.chat().toolResultMaxChars());
+                options.chat() == null ? 12_000 : options.chat().toolResultMaxChars(), deniedToolCallRecorder);
     }
 
     AgentLoopManager(ToolCallingManager delegate, ObjectProvider<ToolSpecService> toolSpecServiceProvider,
-            MeterRegistry meterRegistry, int toolResultMaxChars) {
+            MeterRegistry meterRegistry, int toolResultMaxChars, DeniedToolCallRecorder deniedToolCallRecorder) {
         this.toolCallingManager = delegate;
         this.toolResultMaxChars = toolResultMaxChars;
         this.interceptors = List.of(
                 new LoopGuardInterceptor(meterRegistry),
-                new HitlApprovalInterceptor(toolSpecServiceProvider, meterRegistry),
+                new HitlApprovalInterceptor(toolSpecServiceProvider, meterRegistry, deniedToolCallRecorder),
                 new FileUploadInterceptor(meterRegistry),
                 new ImageReferenceInterceptor());
     }

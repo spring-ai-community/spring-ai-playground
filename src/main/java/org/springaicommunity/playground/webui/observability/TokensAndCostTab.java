@@ -121,8 +121,8 @@ public class TokensAndCostTab extends BaseDashboardTab {
         topExpensive.addThemeVariants(GridVariant.LUMO_COMPACT, GridVariant.LUMO_NO_BORDER);
         topExpensive.addColumn(trace -> HHMM.format(Instant.ofEpochMilli(trace.startEpochMs()))).setHeader("Time").setAutoWidth(true);
         topExpensive.addColumn(trace -> safe(trace.model())).setHeader("Model").setAutoWidth(true);
-        topExpensive.addColumn(trace -> FormatUtils.formatNumber(trace.inputTokens())).setHeader("In").setAutoWidth(true);
-        topExpensive.addColumn(trace -> FormatUtils.formatNumber(trace.outputTokens())).setHeader("Out").setAutoWidth(true);
+        topExpensive.addColumn(trace -> FormatUtils.formatNumberOrDash(trace.inputTokens())).setHeader("In").setAutoWidth(true);
+        topExpensive.addColumn(trace -> FormatUtils.formatNumberOrDash(trace.outputTokens())).setHeader("Out").setAutoWidth(true);
         topExpensive.addColumn(trace -> formatUsd(trace.cost())).setHeader("Cost").setAutoWidth(true);
         topExpensive.addColumn(trace -> shorten(trace.traceId())).setHeader("Trace").setAutoWidth(true);
         topExpensive.addItemClickListener(e -> {

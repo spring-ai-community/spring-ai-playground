@@ -97,12 +97,20 @@ public final class WrappedExternalToolCallback implements ToolCallback {
         return invoke(() -> this.delegate.call(toolInput, toolContext));
     }
 
-    private String invoke(Supplier<String> action) {
-        String cid = UUID.randomUUID().toString().substring(0, 8);
-        McpInvocationContext context = McpInvocationContext.forWrappedExternal(cid,
+    public Map<String, String> upstreamDimensions() {
+        return invocationContext(null).toMdc();
+    }
+
+    private McpInvocationContext invocationContext(String cid) {
+        return McpInvocationContext.forWrappedExternal(cid,
                 this.compositionId, this.compositionName, this.exposedAlias,
                 this.upstreamServerId, this.delegate.getToolDefinition().name(), this.upstreamTransport,
                 this.finalRiskLevel, this.serverRiskLevel, this.publishRiskLevel, this.floorTrigger);
+    }
+
+    private String invoke(Supplier<String> action) {
+        String cid = UUID.randomUUID().toString().substring(0, 8);
+        McpInvocationContext context = invocationContext(cid);
         Map<String, String> previousMdc = context.pushMdc();
         long startNs = System.nanoTime();
         try {

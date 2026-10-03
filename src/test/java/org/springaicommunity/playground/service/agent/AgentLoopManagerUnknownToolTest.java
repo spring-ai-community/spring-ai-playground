@@ -18,6 +18,7 @@ package org.springaicommunity.playground.service.agent;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springaicommunity.playground.service.mcp.DeniedToolCallRecorder;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.AssistantMessage.ToolCall;
@@ -54,7 +55,8 @@ class AgentLoopManagerUnknownToolTest {
     private AgentLoopManager manager() {
         ObjectProvider<ToolSpecService> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(mock(ToolSpecService.class));
-        return new AgentLoopManager(delegate, provider, new SimpleMeterRegistry(), 12_000);
+        return new AgentLoopManager(delegate, provider, new SimpleMeterRegistry(), 12_000,
+                mock(DeniedToolCallRecorder.class));
     }
 
     private static ToolCallback callbackNamed(String name) {

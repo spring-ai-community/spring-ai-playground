@@ -18,6 +18,7 @@ package org.springaicommunity.playground.service.agent;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
+import org.springaicommunity.playground.service.mcp.DeniedToolCallRecorder;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.AssistantMessage.ToolCall;
@@ -53,7 +54,8 @@ class AgentLoopManagerGuardTest {
     private AgentLoopManager manager() {
         ObjectProvider<ToolSpecService> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(null);
-        return new AgentLoopManager(delegate, provider, new SimpleMeterRegistry(), 12_000);
+        return new AgentLoopManager(delegate, provider, new SimpleMeterRegistry(), 12_000,
+                mock(DeniedToolCallRecorder.class));
     }
 
     private static AgentTurn turn(int soft, int hard, int identical) {

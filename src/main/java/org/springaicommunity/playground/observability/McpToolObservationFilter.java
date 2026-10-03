@@ -20,13 +20,19 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationFilter;
 import org.slf4j.MDC;
+import org.springaicommunity.playground.service.mcp.DeniedToolCallRecorder;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.service.mcp.client.McpClientService.McpToolSource;
 import org.springaicommunity.playground.service.mcp.risk.McpRiskMdcKeys;
+import org.springaicommunity.playground.service.mcp.risk.WrappedExternalToolCallback;
+import org.springaicommunity.playground.service.tool.ToolSpecService;
 import org.springframework.ai.tool.observation.ToolCallingObservationContext;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 
 @Component
 public class McpToolObservationFilter implements ObservationFilter {
@@ -36,6 +42,7 @@ public class McpToolObservationFilter implements ObservationFilter {
     public static final String NETWORK_PROTOCOL_NAME = "network.protocol.name";
     public static final String MCP_METHOD_NAME = "mcp.method.name";
     public static final String MCP_SERVER = "saip.mcp.server";
+    public static final String MCP_UPSTREAM_TOOL = McpRiskMdcKeys.UPSTREAM_TOOL;
     public static final String MCP_ORIGIN = McpRiskMdcKeys.ORIGIN;
     public static final String MCP_COMPOSITION_ID = McpRiskMdcKeys.COMPOSITION_ID;
     public static final String MCP_COMPOSITION_NAME = McpRiskMdcKeys.COMPOSITION_NAME;
@@ -49,10 +56,13 @@ public class McpToolObservationFilter implements ObservationFilter {
 
     private final McpClientService mcpClientService;
     private final MeterRegistry meterRegistry;
+    private final ObjectProvider<ToolSpecService> toolSpecServiceProvider;
 
-    public McpToolObservationFilter(McpClientService mcpClientService, MeterRegistry meterRegistry) {
+    public McpToolObservationFilter(McpClientService mcpClientService, MeterRegistry meterRegistry,
+            ObjectProvider<ToolSpecService> toolSpecServiceProvider) {
         this.mcpClientService = mcpClientService;
         this.meterRegistry = meterRegistry;
+        this.toolSpecServiceProvider = toolSpecServiceProvider;
     }
 
     @Override
@@ -68,12 +78,12 @@ public class McpToolObservationFilter implements ObservationFilter {
 
         String origin = MDC.get(McpRiskMdcKeys.ORIGIN);
         if (McpRiskMdcKeys.ORIGIN_WRAPPED_EXTERNAL.equals(origin)) {
-            context.addHighCardinalityKeyValue(KeyValue.of(MCP_METHOD_NAME, TOOLS_CALL_METHOD));
-            context.addHighCardinalityKeyValue(KeyValue.of(MCP_ORIGIN, origin));
-            addTransport(context, MDC.get(McpRiskMdcKeys.UPSTREAM_TRANSPORT));
-            addNonBlank(context, MCP_SERVER, MDC.get(McpRiskMdcKeys.UPSTREAM_SERVER));
-            addCompositionAndRiskDimensions(context);
-            countToolRisk(MDC.get(McpRiskMdcKeys.RISK_FINAL));
+            tagWrappedExternal(context, MDC::get);
+            return context;
+        }
+        Optional<Map<String, String>> proxied = proxiedUpstreamDimensions(toolName);
+        if (proxied.isPresent()) {
+            tagWrappedExternal(context, proxied.get()::get);
             return context;
         }
 
@@ -81,7 +91,7 @@ public class McpToolObservationFilter implements ObservationFilter {
         if (source.isEmpty()) {
             context.addHighCardinalityKeyValue(KeyValue.of(MCP_ORIGIN,
                     origin == null || origin.isBlank() ? McpRiskMdcKeys.ORIGIN_INTERNAL_JS : origin));
-            addCompositionAndRiskDimensions(context);
+            addCompositionAndRiskDimensions(context, MDC::get);
             return context;
         }
         McpToolSource s = source.get();
@@ -93,23 +103,41 @@ public class McpToolObservationFilter implements ObservationFilter {
         }
         String rf = TraceRecord.firstNonBlank(MDC.get(McpRiskMdcKeys.RISK_FINAL), s.riskFinal());
         addNonBlank(context, MCP_RISK_FINAL, rf);
-        addCompositionAndRiskDimensions(context);
-        countToolRisk(rf);
+        addCompositionAndRiskDimensions(context, MDC::get);
+        countToolRisk(context, rf);
         return context;
     }
 
-    private static void addCompositionAndRiskDimensions(Observation.Context context) {
-        addNonBlank(context, MCP_COMPOSITION_ID, MDC.get(McpRiskMdcKeys.COMPOSITION_ID));
-        addNonBlank(context, MCP_COMPOSITION_NAME, MDC.get(McpRiskMdcKeys.COMPOSITION_NAME));
-        addNonBlank(context, MCP_TOOL_EXPOSED_ALIAS, MDC.get(McpRiskMdcKeys.EXPOSED_ALIAS));
-        addNonBlank(context, MCP_RISK_FINAL, MDC.get(McpRiskMdcKeys.RISK_FINAL));
-        addNonBlank(context, MCP_RISK_SERVER, MDC.get(McpRiskMdcKeys.RISK_SERVER));
-        addNonBlank(context, MCP_RISK_PUBLISH, MDC.get(McpRiskMdcKeys.RISK_PUBLISH));
-        addNonBlank(context, MCP_RISK_FLOOR_TRIGGER, MDC.get(McpRiskMdcKeys.FLOOR_TRIGGER));
+    private Optional<Map<String, String>> proxiedUpstreamDimensions(String toolName) {
+        ToolSpecService toolSpecService = this.toolSpecServiceProvider.getIfAvailable();
+        if (toolSpecService == null) return Optional.empty();
+        return toolSpecService.proxiedToolCallback(toolName).map(WrappedExternalToolCallback::upstreamDimensions);
     }
 
-    private void countToolRisk(String level) {
+    private void tagWrappedExternal(Observation.Context context, UnaryOperator<String> dimension) {
+        context.addHighCardinalityKeyValue(KeyValue.of(MCP_METHOD_NAME, TOOLS_CALL_METHOD));
+        context.addHighCardinalityKeyValue(KeyValue.of(MCP_ORIGIN, McpRiskMdcKeys.ORIGIN_WRAPPED_EXTERNAL));
+        addTransport(context, dimension.apply(McpRiskMdcKeys.UPSTREAM_TRANSPORT));
+        addNonBlank(context, MCP_SERVER, dimension.apply(McpRiskMdcKeys.UPSTREAM_SERVER));
+        addNonBlank(context, MCP_UPSTREAM_TOOL, dimension.apply(McpRiskMdcKeys.UPSTREAM_TOOL));
+        addCompositionAndRiskDimensions(context, dimension);
+        countToolRisk(context, dimension.apply(McpRiskMdcKeys.RISK_FINAL));
+    }
+
+    private static void addCompositionAndRiskDimensions(Observation.Context context,
+            UnaryOperator<String> dimension) {
+        addNonBlank(context, MCP_COMPOSITION_ID, dimension.apply(McpRiskMdcKeys.COMPOSITION_ID));
+        addNonBlank(context, MCP_COMPOSITION_NAME, dimension.apply(McpRiskMdcKeys.COMPOSITION_NAME));
+        addNonBlank(context, MCP_TOOL_EXPOSED_ALIAS, dimension.apply(McpRiskMdcKeys.EXPOSED_ALIAS));
+        addNonBlank(context, MCP_RISK_FINAL, dimension.apply(McpRiskMdcKeys.RISK_FINAL));
+        addNonBlank(context, MCP_RISK_SERVER, dimension.apply(McpRiskMdcKeys.RISK_SERVER));
+        addNonBlank(context, MCP_RISK_PUBLISH, dimension.apply(McpRiskMdcKeys.RISK_PUBLISH));
+        addNonBlank(context, MCP_RISK_FLOOR_TRIGGER, dimension.apply(McpRiskMdcKeys.FLOOR_TRIGGER));
+    }
+
+    private void countToolRisk(Observation.Context context, String level) {
         if (level == null || level.isBlank()) return;
+        if (context.getHighCardinalityKeyValue(DeniedToolCallRecorder.HITL_OUTCOME) != null) return;
         this.meterRegistry.counter(TOOL_RISK_COUNTER, "level", level).increment();
     }
 

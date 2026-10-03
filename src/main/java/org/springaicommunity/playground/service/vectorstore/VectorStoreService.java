@@ -52,6 +52,10 @@ public class VectorStoreService {
                     .filterExpression(new FilterExpressionBuilder().in(DOC_INFO_ID, docInfoIds.toArray()).build())
                     .build();
 
+    public static boolean isPlaceholderQuery(SearchRequest searchRequest) {
+        return searchRequest != null && ALL_QUERY.equals(searchRequest.getQuery());
+    }
+
     public static SearchRequest searchAllRequest(List<String> excludedDocInfoIds) {
         SearchRequest.Builder searchRequestBuilder = new SearchRequest.Builder().query(ALL_QUERY)
                 .similarityThreshold(ALL_SEARCH_REQUEST_OPTION.similarityThreshold())

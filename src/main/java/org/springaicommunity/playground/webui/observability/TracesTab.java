@@ -171,7 +171,7 @@ public class TracesTab extends BaseDashboardTab {
         Span meta = new Span(
                 (trace.provider() == null ? "—" : trace.provider())
                 + " · " + (trace.model() == null ? "—" : trace.model())
-                + " · " + formatTokens(trace.inputTokens(), trace.outputTokens()) + " tok"
+                + " · " + FormatUtils.formatTokens(trace.inputTokens(), trace.outputTokens()) + " tok"
                 + " · " + FormatUtils.formatDurationMs(trace.durationMs())
                 + " · " + (trace.spans() == null ? 0 : trace.spans().size()) + " spans"
                 + (trace.toolCallCount() > 0 ? " · " + trace.toolCallCount() + " tools" : "")
@@ -320,17 +320,12 @@ public class TracesTab extends BaseDashboardTab {
         return s.length() <= n ? s : s.substring(0, n);
     }
 
-    private String formatTokens(Long in, Long out) {
-        long i = in == null ? 0 : in;
-        long o = out == null ? 0 : out;
-        return i + "/" + o;
-    }
-
     private String formatTagsText(TraceRecord t) {
         StringBuilder sb = new StringBuilder();
         if (t.hasRag()) sb.append("rag ");
         if (t.toolCallCount() > 0) sb.append("tools(").append(t.toolCallCount()).append(") ");
         if (t.finishReason() != null) sb.append(t.finishReason());
+        else if (TraceRecord.STATUS_CANCELLED.equals(t.status())) sb.append("stopped");
         return sb.toString().trim();
     }
 }

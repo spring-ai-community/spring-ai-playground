@@ -24,6 +24,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 class FormatUtilsTest {
 
     @Test
+    void unrecordedTokenCountsRenderAsADashNotZero() {
+        assertThat(FormatUtils.formatTokenCount(null)).isEqualTo("—");
+        assertThat(FormatUtils.formatTokenCount(0L)).isEqualTo("0");
+        assertThat(FormatUtils.formatTokens(null, null)).isEqualTo("—/—");
+        assertThat(FormatUtils.formatTokens(120L, null)).isEqualTo("120/—");
+        assertThat(FormatUtils.formatNumberOrDash(null)).isEqualTo("—");
+        assertThat(FormatUtils.formatNumberOrDash(1500L)).isEqualTo("1.5k");
+    }
+
+    @Test
     void formatBytesReturnsPlaceholderForZeroOrNegative() {
         assertThat(FormatUtils.formatBytes(0)).isEqualTo("—");
         assertThat(FormatUtils.formatBytes(-1)).isEqualTo("—");

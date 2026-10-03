@@ -246,7 +246,7 @@ public class OverviewTab extends BaseDashboardTab {
         recentTracesGrid.addColumn(t -> shorten(t.conversationId(), 10)).setHeader("Conv").setAutoWidth(true).setFlexGrow(0);
         recentTracesGrid.addColumn(t -> safe(t.provider())).setHeader("Provider").setAutoWidth(true).setFlexGrow(0);
         recentTracesGrid.addColumn(t -> safe(t.model())).setHeader("Model").setAutoWidth(true).setFlexGrow(0);
-        recentTracesGrid.addColumn(t -> formatTokens(t.inputTokens(), t.outputTokens())).setHeader("In/Out").setAutoWidth(true).setFlexGrow(0);
+        recentTracesGrid.addColumn(trace -> FormatUtils.formatTokens(trace.inputTokens(), trace.outputTokens())).setHeader("In/Out").setAutoWidth(true).setFlexGrow(0);
         recentTracesGrid.addColumn(t -> FormatUtils.formatLatencyMs((double) t.durationMs())).setHeader("Duration").setAutoWidth(true).setFlexGrow(0);
         recentTracesGrid.addColumn(TraceRecord::status).setHeader("Status").setAutoWidth(true).setFlexGrow(0);
         recentTracesGrid.addItemClickListener(e -> {
@@ -501,12 +501,6 @@ public class OverviewTab extends BaseDashboardTab {
         List<Number> out = new ArrayList<>(n);
         for (int i = 0; i < n; i++) out.add(a.get(i).doubleValue() + b.get(i).doubleValue());
         return out;
-    }
-
-    private static String formatTokens(Long in, Long out) {
-        long i = in == null ? 0 : in;
-        long o = out == null ? 0 : out;
-        return i + "/" + o;
     }
 
     private String formatUsd(BigDecimal v) {

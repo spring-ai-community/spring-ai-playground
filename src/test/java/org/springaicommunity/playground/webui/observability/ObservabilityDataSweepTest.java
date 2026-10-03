@@ -73,16 +73,9 @@ class ObservabilityDataSweepTest extends SpringBrowserlessTest {
 
         sidebar.select(new DashboardEntry("traces", "Traces", VaadinIcon.SITEMAP));
         roundTrip();
-        Div traceCard = $(Div.class, view)
-                .withCondition(div -> "pointer".equals(div.getStyle().get("cursor"))
-                        && div.getElement().getTextRecursively().contains("qwen-seed"))
-                .first();
-        ComponentUtil.fireEvent(traceCard, new ClickEvent<>(traceCard));
-        roundTrip();
 
-        assertThat($(TraceDetailDialog.class).all()).isNotEmpty();
-        assertThat($(TraceDetailDialog.class).first().getElement().getTextRecursively())
-                .contains("qwen-seed:1b").contains("getWeather").contains("weather-server");
+        String detail = openTraceDetail(view, "qwen-seed");
+        assertThat(detail).contains("qwen-seed:1b").contains("getWeather").contains("weather-server");
     }
 
     @Test
@@ -101,6 +94,45 @@ class ObservabilityDataSweepTest extends SpringBrowserlessTest {
         roundTrip();
         assertThat($(SafetyTab.class, view).first().getElement().getTextRecursively())
                 .contains("tool-poisoning").contains("seeded risk event");
+    }
+
+    @Test
+    void stoppedTraceShowsDashesForUnrecordedTokensAndStoppedAsFinishReason() {
+        long now = System.currentTimeMillis();
+        TraceRecord stopped = new TraceRecord("seed-trace-stopped", "conv-stopped", "msg-stopped", "ollama",
+                "qwen-stopped:1b", now - 5_000L, 800L, TraceRecord.STATUS_CANCELLED, null, null, null, null,
+                false, 0, false, "user-seed", "session-seed", Set.of(), Set.of(), List.of(), Map.of());
+        this.buffer.add(stopped);
+
+        ObservabilityView view = navigate(ObservabilityView.class);
+        ObservabilityDashboardSidebar sidebar = $(ObservabilityDashboardSidebar.class, view).first();
+        sidebar.select(new DashboardEntry("traces", "Traces", VaadinIcon.SITEMAP));
+        roundTrip();
+        assertThat(traceCard(view, "qwen-stopped").getElement().getTextRecursively())
+                .contains("—/— tok").doesNotContain("0/0 tok");
+
+        String detail = openTraceDetail(view, "qwen-stopped");
+        assertThat(detail).contains("In tokens—").contains("Out tokens—").contains("Finish reasonstopped")
+                .doesNotContain("In tokens0").doesNotContain("Out tokens0");
+    }
+
+    private Div traceCard(ObservabilityView view, String marker) {
+        return $(Div.class, view)
+                .withCondition(div -> "pointer".equals(div.getStyle().get("cursor"))
+                        && div.getElement().getTextRecursively().contains(marker))
+                .first();
+    }
+
+    private String openTraceDetail(ObservabilityView view, String marker) {
+        for (int click = 0; click < 2; click++) {
+            Div card = traceCard(view, marker);
+            ComponentUtil.fireEvent(card, new ClickEvent<>(card));
+            roundTrip();
+            var dialogs = $(TraceDetailDialog.class).withCondition(dialog ->
+                    dialog.getElement().getTextRecursively().contains(marker)).all();
+            if (!dialogs.isEmpty()) return dialogs.getFirst().getElement().getTextRecursively();
+        }
+        throw new AssertionError("trace detail did not open for " + marker);
     }
 
     private void seedTraffic() {

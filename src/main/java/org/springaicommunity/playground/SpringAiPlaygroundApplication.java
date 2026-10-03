@@ -33,6 +33,7 @@ import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.client.advisor.toolsearch.ToolSearchToolCallingAdvisor;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions.ToolSearch.IndexType;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions.ToolSearch.VectorStoreMode;
+import org.springaicommunity.playground.observability.ToolIndexVectorObservationConvention;
 import org.springaicommunity.playground.service.chat.ChatHistoryService;
 import org.springaicommunity.playground.service.chat.HybridToolIndex;
 import org.springaicommunity.playground.service.chat.LlmWindowChatMemory;
@@ -224,7 +225,8 @@ public class SpringAiPlaygroundApplication implements AppShellConfigurator {
             return exactName ? new HybridToolIndex(vectorToolIndex) : vectorToolIndex;
         }
         SimpleVectorStore dedicatedStore = SimpleVectorStore.builder(embeddingModel)
-                .observationRegistry(observationRegistry).build();
+                .observationRegistry(observationRegistry)
+                .customObservationConvention(new ToolIndexVectorObservationConvention()).build();
         Optional<EmbeddingOptions> options = resolveEmbeddingOptions(applicationContext);
         String signature = PersistentToolIndex.signatureOf(embeddingModel.getClass().getSimpleName(),
                 options.map(EmbeddingOptions::getModel).orElse(null),

@@ -16,6 +16,10 @@
 package org.springaicommunity.playground.webui.observability;
 
 import com.vaadin.flow.component.html.Div;
+import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import org.springaicommunity.playground.observability.VectorOperationLog;
+import org.springaicommunity.playground.observability.VectorOperationLog.RecentQuery;
 import org.springaicommunity.playground.observability.query.ObservabilityQueryService;
 import org.springaicommunity.playground.observability.query.ObservabilityQueryService.VectorStats;
 import org.springaicommunity.playground.observability.ObservabilityTimeSeries;
@@ -28,11 +32,17 @@ import org.springaicommunity.playground.webui.observability.components.Dashboard
 import org.springaicommunity.playground.webui.observability.components.FormatUtils;
 import org.springaicommunity.playground.webui.observability.components.KpiCard;
 
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 public class VectorTab extends BaseDashboardTab {
+
+    private static final DateTimeFormatter RECENT_QUERY_TIME =
+            DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault());
 
     private final ObservabilityQueryService queryService;
     private final ObservabilityTimeSeries timeSeries;
@@ -48,6 +58,7 @@ public class VectorTab extends BaseDashboardTab {
     private final ChartCanvas similarityHistogramChart = new ChartCanvas();
     private final ChartCanvas dbSystemsDonut = new ChartCanvas();
     private final ChartCanvas avgReturnedDocsBar = new ChartCanvas();
+    private final VerticalLayout recentQueriesList = new VerticalLayout();
 
     public VectorTab(ObservabilityQueryService queryService, ObservabilityTimeSeries timeSeries) {
         super();
@@ -80,7 +91,38 @@ public class VectorTab extends BaseDashboardTab {
                         avgReturnedDocsBar)
         );
 
+        this.recentQueriesList.setPadding(false);
+        this.recentQueriesList.setSpacing(false);
+        grid.add(DashboardLayout.chartCard("Recent searches", "last " + VectorOperationLog.RECENT_QUERY_LIMIT
+                        + ", kept in memory only",
+                "Query text of the latest document-store searches. Held in memory, never written to disk, "
+                        + "and cleared on restart.",
+                this.recentQueriesList));
+
         content.add(cardRow, grid);
+    }
+
+    private void refreshRecentQueries() {
+        this.recentQueriesList.removeAll();
+        List<RecentQuery> recentQueries = this.queryService.recentVectorQueries();
+        if (recentQueries.isEmpty()) {
+            this.recentQueriesList.add(recentQueryLine("No searches yet."));
+            return;
+        }
+        for (RecentQuery recentQuery : recentQueries) {
+            String returnedDocuments = recentQuery.returnedDocuments() == null
+                    ? "?" : recentQuery.returnedDocuments().toString();
+            String time = RECENT_QUERY_TIME.format(Instant.ofEpochMilli(recentQuery.epochMs()));
+            this.recentQueriesList.add(recentQueryLine(time + " · " + returnedDocuments + " docs · "
+                    + recentQuery.durationMs() + " ms · " + recentQuery.text()));
+        }
+    }
+
+    private static Span recentQueryLine(String text) {
+        Span line = new Span(text);
+        line.getStyle().set("font-size", "var(--lumo-font-size-s)").set("padding", "2px 0")
+                .set("overflow-wrap", "anywhere");
+        return line;
     }
 
     @Override
@@ -139,6 +181,8 @@ public class VectorTab extends BaseDashboardTab {
         dbSystemsDonut.donutChart(vectorStats.dbSystems(), ChartCanvas.DEFAULT_PALETTE);
 
         avgReturnedDocsBar.horizontalBarChart(vectorStats.avgReturnedDocs(), DashboardPalette.SUCCESS, 6);
+
+        refreshRecentQueries();
 
         setStatus(vectorStats.totalOps() + " vector ops · " + vectorStats.dbSystems().size() + " db systems · "
                 + s.tracesWithRag() + " RAG traces · window: " + window.minutes + "m");

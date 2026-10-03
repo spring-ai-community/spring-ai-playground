@@ -208,4 +208,16 @@ class VectorStoreServiceTest {
             offlineEtlPipelineService.deleteDocumentInfo(created.document());
         }
     }
+
+    @Test
+    void listingAndBlankSearchRequestsAreRecognisedAsPlaceholderQueries() {
+        assertThat(VectorStoreService.isPlaceholderQuery(
+                VectorStoreService.SEARCH_ALL_REQUEST_WITH_DOC_INFO_IDS_FUNCTION.apply(List.of("doc-1")))).isTrue();
+        assertThat(VectorStoreService.isPlaceholderQuery(VectorStoreService.searchAllRequest(List.of()))).isTrue();
+        assertThat(VectorStoreService.isPlaceholderQuery(
+                SearchRequest.builder().query("all").topK(4).similarityThreshold(0.6).build())).isTrue();
+        assertThat(VectorStoreService.isPlaceholderQuery(
+                SearchRequest.builder().query("wifi password").build())).isFalse();
+        assertThat(VectorStoreService.isPlaceholderQuery(null)).isFalse();
+    }
 }

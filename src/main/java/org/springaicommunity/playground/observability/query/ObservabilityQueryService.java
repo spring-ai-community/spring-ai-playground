@@ -15,17 +15,24 @@
  */
 package org.springaicommunity.playground.observability.query;
 
+import org.springaicommunity.playground.observability.McpToolObservationFilter;
 import org.springaicommunity.playground.observability.ObservabilityRingBuffer;
 import org.springaicommunity.playground.observability.SpanRecord;
 import org.springaicommunity.playground.observability.TraceRecord;
+import org.springaicommunity.playground.observability.VectorOperationLog;
+import org.springaicommunity.playground.observability.VectorOperationLog.RecentQuery;
+import org.springaicommunity.playground.observability.VectorOperationLog.VectorOperation;
 import org.springaicommunity.playground.observability.Window;
 import org.springaicommunity.playground.observability.conversation.ConversationAggregator;
 import org.springaicommunity.playground.observability.conversation.ConversationAggregator.ConversationSummary;
 import org.springaicommunity.playground.observability.pricing.ModelPricingService;
+import org.springaicommunity.playground.service.mcp.DeniedToolCallRecorder;
+import org.springaicommunity.playground.service.mcp.ExternalClientToolCallObserver;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.service.mcp.client.McpClientService.OAuthSnapshot;
 import org.springaicommunity.playground.service.mcp.client.McpClientService.ServerStatus;
 import org.springaicommunity.playground.service.mcp.client.McpClientService.StatusEntry;
+import org.springaicommunity.playground.service.mcp.risk.McpRiskMdcKeys;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -42,26 +49,42 @@ import java.util.Map;
 public class ObservabilityQueryService {
 
     public static final String TOOL_SPAN = "spring.ai.tool";
-    public static final String VECTOR_SPAN = "db.vector.client.operation";
     public static final String UNNAMED_TOOL = "(unnamed)";
     public static final String UNKNOWN = "(unknown)";
     public static final String IN_PROCESS = "in-process";
 
+    public static final String CHAT_CALLER = "Agentic Chat";
+    public static final String UNKNOWN_CLIENT = "(unknown client)";
+
+    private static final String TOOL_NAME = "spring.ai.tool.definition.name";
+
     public record McpBreakdown(Map<String, Long> toolCounts, Map<String, Long> serverCounts,
             Map<String, Long> transportCounts, Map<String, long[]> callsByTransportPerBucket, long ok, long error,
-            List<List<Long>> latencyPerBucket) {
+            long denied, long proxied, Map<String, Long> callerCounts, List<List<Long>> latencyPerBucket) {
 
         public long total() {
             return this.ok + this.error;
         }
+
+        public long externalClient() {
+            return externalClientCalls(this.callerCounts);
+        }
     }
 
     public record ToolBreakdown(Map<String, Long> toolNameCounts, Map<String, Long> sandboxLevelCounts,
-            Map<String, long[]> callsByToolPerBucket, long ok, long error, long distinctTraces,
-            List<List<Long>> latencyPerBucket) {
+            Map<String, long[]> callsByToolPerBucket, long ok, long error, long denied, long proxied,
+            Map<String, Long> callerCounts, long distinctTraces, List<List<Long>> latencyPerBucket) {
 
         public long total() {
+            return this.ok + this.error + this.denied;
+        }
+
+        public long executed() {
             return this.ok + this.error;
+        }
+
+        public long externalClient() {
+            return externalClientCalls(this.callerCounts);
         }
     }
 
@@ -131,9 +154,11 @@ public class ObservabilityQueryService {
     private final ObservabilityRingBuffer buffer;
     private final McpClientService mcpClientService;
     private final ModelPricingService pricingService;
+    private final VectorOperationLog vectorOperationLog;
 
     public ObservabilityQueryService(ObservabilityRingBuffer buffer, McpClientService mcpClientService,
-            ModelPricingService pricingService) {
+            ModelPricingService pricingService, VectorOperationLog vectorOperationLog) {
+        this.vectorOperationLog = vectorOperationLog;
         this.buffer = buffer;
         this.mcpClientService = mcpClientService;
         this.pricingService = pricingService;
@@ -153,6 +178,9 @@ public class ObservabilityQueryService {
         List<List<Long>> latencyPerBucket = emptyBuckets(buckets);
         long ok = 0;
         long error = 0;
+        long denied = 0;
+        long proxied = 0;
+        Map<String, Long> callerCounts = new LinkedHashMap<>();
         for (TraceRecord trace : this.buffer.snapshot()) {
             if (trace.startEpochMs() < windowStart || trace.spans() == null) continue;
             for (SpanRecord span : trace.spans()) {
@@ -163,7 +191,14 @@ public class ObservabilityQueryService {
                 if (transport == null || IN_PROCESS.equalsIgnoreCase(transport)) continue;
                 String server = attrs.getOrDefault("saip.mcp.server", UNKNOWN);
                 if (this.mcpClientService.isSelfLoopback(server)) continue;
-                toolCounts.merge(attrs.getOrDefault("spring.ai.tool.definition.name", UNNAMED_TOOL), 1L, Long::sum);
+                if (isDenied(attrs)) {
+                    denied++;
+                    continue;
+                }
+                if (isProxied(attrs)) proxied++;
+                callerCounts.merge(callerOf(attrs), 1L, Long::sum);
+                toolCounts.merge(attrs.getOrDefault(McpToolObservationFilter.MCP_UPSTREAM_TOOL,
+                        attrs.getOrDefault(TOOL_NAME, UNNAMED_TOOL)), 1L, Long::sum);
                 serverCounts.merge(server, 1L, Long::sum);
                 transportCounts.merge(transport, 1L, Long::sum);
                 int bucket = bucketIndex(span.startEpochMs(), windowStart, window.bucketMs(), buckets);
@@ -174,7 +209,29 @@ public class ObservabilityQueryService {
             }
         }
         return new McpBreakdown(toolCounts, serverCounts, transportCounts, callsByTransportPerBucket, ok, error,
-                latencyPerBucket);
+                denied, proxied, callerCounts, latencyPerBucket);
+    }
+
+    private static boolean isDenied(Map<String, String> attrs) {
+        return attrs != null && attrs.containsKey(DeniedToolCallRecorder.HITL_OUTCOME);
+    }
+
+    private static String callerOf(Map<String, String> attrs) {
+        if (attrs == null || !McpRiskMdcKeys.VIA_MCP_SERVER.equals(
+                attrs.get(ExternalClientToolCallObserver.CALLER_VIA))) {
+            return CHAT_CALLER;
+        }
+        return attrs.getOrDefault(ExternalClientToolCallObserver.CALLER_CLIENT, UNKNOWN_CLIENT);
+    }
+
+    private static long externalClientCalls(Map<String, Long> callerCounts) {
+        return callerCounts.entrySet().stream().filter(entry -> !CHAT_CALLER.equals(entry.getKey()))
+                .mapToLong(Map.Entry::getValue).sum();
+    }
+
+    private static boolean isProxied(Map<String, String> attrs) {
+        return attrs != null && McpRiskMdcKeys.ORIGIN_WRAPPED_EXTERNAL.equals(
+                attrs.get(McpToolObservationFilter.MCP_ORIGIN));
     }
 
     public ToolBreakdown toolBreakdown(Window window) {
@@ -190,6 +247,9 @@ public class ObservabilityQueryService {
         List<List<Long>> latencyPerBucket = emptyBuckets(buckets);
         long ok = 0;
         long error = 0;
+        long denied = 0;
+        long proxied = 0;
+        Map<String, Long> callerCounts = new LinkedHashMap<>();
         long distinctTraces = 0;
         for (TraceRecord trace : this.buffer.snapshot()) {
             if (trace.startEpochMs() < windowStart || trace.spans() == null) continue;
@@ -200,25 +260,31 @@ public class ObservabilityQueryService {
                 String transport = attrs == null ? null : attrs.get("network.transport");
                 String server = attrs == null ? null : attrs.get("saip.mcp.server");
                 boolean directInProcess = transport == null || IN_PROCESS.equalsIgnoreCase(transport);
-                if (!directInProcess && !this.mcpClientService.isSelfLoopback(server)) continue;
-                String name = attrs == null ? UNNAMED_TOOL
-                        : attrs.getOrDefault("spring.ai.tool.definition.name", UNNAMED_TOOL);
+                boolean proxiedCall = isProxied(attrs);
+                if (!directInProcess && !proxiedCall && !this.mcpClientService.isSelfLoopback(server)) continue;
+                if (proxiedCall && !isDenied(attrs)) proxied++;
+                callerCounts.merge(callerOf(attrs), 1L, Long::sum);
+                String name = attrs == null ? UNNAMED_TOOL : attrs.getOrDefault(TOOL_NAME, UNNAMED_TOOL);
                 toolNameCounts.merge(name, 1L, Long::sum);
                 int bucket = bucketIndex(span.startEpochMs(), windowStart, window.bucketMs(), buckets);
-                latencyPerBucket.get(bucket).add(span.durationMs());
                 callsByToolPerBucket.computeIfAbsent(name, key -> new long[buckets])[bucket]++;
-                if ("ERROR".equals(span.status())) error++;
-                else ok++;
                 if (!traceCounted) {
                     distinctTraces++;
                     traceCounted = true;
                 }
+                if (isDenied(attrs)) {
+                    denied++;
+                    continue;
+                }
+                latencyPerBucket.get(bucket).add(span.durationMs());
+                if ("ERROR".equals(span.status())) error++;
+                else ok++;
                 String level = attrs == null ? null : attrs.get("sandbox.level");
                 sandboxLevelCounts.merge(level == null ? "unknown" : level, 1L, Long::sum);
             }
         }
-        return new ToolBreakdown(toolNameCounts, sandboxLevelCounts, callsByToolPerBucket, ok, error, distinctTraces,
-                latencyPerBucket);
+        return new ToolBreakdown(toolNameCounts, sandboxLevelCounts, callsByToolPerBucket, ok, error, denied,
+                proxied, callerCounts, distinctTraces, latencyPerBucket);
     }
 
     public BigDecimal windowCost(Window window) {
@@ -250,7 +316,8 @@ public class ObservabilityQueryService {
             for (SpanRecord span : trace.spans()) {
                 if (!TOOL_SPAN.equals(span.name())) continue;
                 Map<String, String> attrs = span.attributes() == null ? Map.of() : span.attributes();
-                toolCounts.merge(attrs.getOrDefault("spring.ai.tool.definition.name", UNNAMED_TOOL), 1L, Long::sum);
+                toolCounts.merge(attrs.getOrDefault(TOOL_NAME, UNNAMED_TOOL), 1L, Long::sum);
+                if (isDenied(attrs)) continue;
                 String transport = attrs.getOrDefault("network.transport", IN_PROCESS);
                 transportCounts.merge(transport, 1L, Long::sum);
                 if (!IN_PROCESS.equalsIgnoreCase(transport))
@@ -258,6 +325,10 @@ public class ObservabilityQueryService {
             }
         }
         return new ToolMcpBreakdown(toolCounts, serverCounts, transportCounts);
+    }
+
+    public List<RecentQuery> recentVectorQueries() {
+        return this.vectorOperationLog.recentQueries();
     }
 
     public VectorOps vectorOps(Window window) {
@@ -269,16 +340,10 @@ public class ObservabilityQueryService {
         int buckets = window.buckets();
         long[] opsPerBucket = new long[buckets];
         Map<String, Long> topKHistogram = new LinkedHashMap<>();
-        for (TraceRecord trace : this.buffer.snapshot()) {
-            if (trace.startEpochMs() < windowStart || trace.spans() == null) continue;
-            for (SpanRecord span : trace.spans()) {
-                if (!VECTOR_SPAN.equals(span.name())) continue;
-                Map<String, String> attrs = span.attributes() == null ? Map.of() : span.attributes();
-                opsPerBucket[bucketIndex(span.startEpochMs(), windowStart, window.bucketMs(), buckets)]++;
-                String topK = attrs.getOrDefault("db.vector.query.top_k",
-                        attrs.getOrDefault("db.vector.query.top.k", null));
-                if (topK != null) topKHistogram.merge("k=" + topK, 1L, Long::sum);
-            }
+        for (VectorOperation operation : this.vectorOperationLog.snapshot()) {
+            if (operation.startEpochMs() < windowStart) continue;
+            opsPerBucket[bucketIndex(operation.startEpochMs(), windowStart, window.bucketMs(), buckets)]++;
+            if (operation.topK() != null) topKHistogram.merge("k=" + operation.topK(), 1L, Long::sum);
         }
         return new VectorOps(opsPerBucket, topKHistogram);
     }
@@ -304,48 +369,41 @@ public class ObservabilityQueryService {
         long topKSamples = 0;
         long totalLatencyMs = 0;
         long latencySamples = 0;
-        for (TraceRecord trace : this.buffer.snapshot()) {
-            if (trace.startEpochMs() < windowStart || trace.spans() == null) continue;
-            for (SpanRecord span : trace.spans()) {
-                if (!VECTOR_SPAN.equals(span.name())) continue;
-                Map<String, String> attrs = span.attributes() == null ? Map.of() : span.attributes();
-                int bucket = bucketIndex(span.startEpochMs(), windowStart, window.bucketMs(), buckets);
-                switch (attrs.getOrDefault("db.operation.name", "?")) {
-                    case "query" -> {
-                        queryPerBucket[bucket]++;
-                        totalQueries++;
-                    }
-                    case "add" -> addPerBucket[bucket]++;
-                    case "delete" -> deletePerBucket[bucket]++;
-                    default -> { }
+        for (VectorOperation operation : this.vectorOperationLog.snapshot()) {
+            if (operation.startEpochMs() < windowStart) continue;
+            int bucket = bucketIndex(operation.startEpochMs(), windowStart, window.bucketMs(), buckets);
+            switch (operation.operation()) {
+                case "query" -> {
+                    queryPerBucket[bucket]++;
+                    totalQueries++;
+                    latencyPerBucket.get(bucket).add(operation.durationMs());
+                    totalLatencyMs += operation.durationMs();
+                    latencySamples++;
                 }
-                String system = attrs.getOrDefault("db.system", UNKNOWN);
-                dbSystems.merge(system, 1L, Long::sum);
-                Long topK = parseLong(attrs.get("db.vector.query.top_k"));
-                if (topK != null) {
-                    totalTopK += topK;
-                    topKSamples++;
-                    topKDistribution.merge(topK, 1L, Long::sum);
-                }
-                Double threshold = parseDouble(attrs.get("db.vector.query.similarity_threshold"));
-                if (threshold != null) similarityBands.merge(similarityBand(threshold), 1L, Long::sum);
-                String returnedRaw = attrs.get("db.vector.query.response.documents.count");
-                if (returnedRaw == null) returnedRaw = attrs.get("rag.documents.count");
-                Long returned = parseLong(returnedRaw);
-                if (returned != null) {
-                    returnedDocsSum.merge(system, returned, Long::sum);
-                    returnedDocsCount.merge(system, 1L, Long::sum);
-                }
-                latencyPerBucket.get(bucket).add(span.durationMs());
-                totalLatencyMs += span.durationMs();
-                latencySamples++;
+                case "add" -> addPerBucket[bucket]++;
+                case "delete" -> deletePerBucket[bucket]++;
+                default -> { }
+            }
+            String system = operation.dbSystem() == null ? UNKNOWN : operation.dbSystem();
+            dbSystems.merge(system, 1L, Long::sum);
+            if (operation.topK() != null) {
+                totalTopK += operation.topK();
+                topKSamples++;
+                topKDistribution.merge(operation.topK(), 1L, Long::sum);
+            }
+            if (operation.similarityThreshold() != null) {
+                similarityBands.merge(similarityBand(operation.similarityThreshold()), 1L, Long::sum);
+            }
+            if (operation.returnedDocuments() != null) {
+                returnedDocsSum.merge(system, (long) operation.returnedDocuments(), Long::sum);
+                returnedDocsCount.merge(system, 1L, Long::sum);
             }
         }
         Map<String, Long> avgReturnedDocs = new LinkedHashMap<>();
         for (Map.Entry<String, Long> entry : returnedDocsCount.entrySet()) {
             long count = entry.getValue();
             long sum = returnedDocsSum.getOrDefault(entry.getKey(), 0L);
-            avgReturnedDocs.put(entry.getKey(), count == 0 ? 0 : sum / count);
+            avgReturnedDocs.put(entry.getKey(), count == 0 ? 0 : Math.round((double) sum / count));
         }
         return new VectorStats(queryPerBucket, addPerBucket, deletePerBucket, latencyPerBucket, dbSystems,
                 topKDistribution, similarityBands, avgReturnedDocs, totalQueries, totalTopK, topKSamples,
@@ -371,7 +429,7 @@ public class ObservabilityQueryService {
         double[] costPerBucket = new double[buckets];
         List<ExpensiveTrace> traces = new ArrayList<>();
         for (TraceRecord trace : this.buffer.snapshot()) {
-            if (trace.startEpochMs() < windowStart) continue;
+            if (trace.startEpochMs() < windowStart || trace.toolOnly()) continue;
             String model = trace.model() == null ? UNKNOWN : trace.model();
             String provider = trace.provider() == null ? UNKNOWN : trace.provider();
             long in = orZero(trace.inputTokens());
@@ -567,24 +625,6 @@ public class ObservabilityQueryService {
         List<List<Long>> result = new ArrayList<>(buckets);
         for (int i = 0; i < buckets; i++) result.add(new ArrayList<>());
         return result;
-    }
-
-    private static Long parseLong(String raw) {
-        if (raw == null) return null;
-        try {
-            return Long.parseLong(raw);
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
-    private static Double parseDouble(String raw) {
-        if (raw == null) return null;
-        try {
-            return Double.parseDouble(raw);
-        } catch (NumberFormatException e) {
-            return null;
-        }
     }
 
     private static long orZero(Long value) {

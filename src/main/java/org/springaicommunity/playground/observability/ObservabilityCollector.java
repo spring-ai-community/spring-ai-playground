@@ -18,6 +18,7 @@ package org.springaicommunity.playground.observability;
 import io.micrometer.common.KeyValue;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationHandler;
+import io.micrometer.observation.ObservationView;
 import io.micrometer.tracing.Span;
 import io.micrometer.tracing.Tracer;
 import org.slf4j.Logger;
@@ -25,9 +26,11 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springaicommunity.playground.config.MdcIdentityFilter;
 import org.springaicommunity.playground.service.chat.ChatService;
+import org.springaicommunity.playground.service.vectorstore.VectorStoreService;
 import org.springaicommunity.playground.service.identity.UserIdentityService;
 import org.springframework.ai.chat.client.ChatClientResponse;
 import org.springframework.ai.chat.client.observation.ChatClientObservationContext;
+import org.springframework.ai.vectorstore.observation.VectorStoreObservationContext;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.MessageType;
@@ -44,6 +47,7 @@ import org.springframework.stereotype.Component;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -69,7 +73,12 @@ public class ObservabilityCollector implements ObservationHandler<Observation.Co
     public static final String VECTOR_STORE_SPAN_NAME = "db.vector.client.operation";
     public static final String TOOL_CALL_ID_ATTR = "spring.ai.tool.call.id";
 
+    private static final int MIN_MODEL_ID_LENGTH = 3;
+    private static final String EMBEDDING_OPERATION = "embedding";
     private static final String CTX_START_NS = "obs.startNs";
+    private static final String CTX_START_EPOCH_MS = "obs.startEpochMs";
+    private static final String CTX_STOPPED = "obs.stopped";
+    private static final String CTX_RETRIEVED = "obs.retrieved";
     private static final String CTX_TRACE_ID = "obs.traceId";
     private static final String CTX_SPAN_ID = "obs.spanId";
     private static final String CTX_PARENT_SPAN_ID = "obs.parentSpanId";
@@ -87,6 +96,7 @@ public class ObservabilityCollector implements ObservationHandler<Observation.Co
     private final ObjectProvider<UserIdentityService> userIdentityProvider;
     private volatile String cachedUserId;
     private final ObservabilityProperties props;
+    private final VectorOperationLog vectorOperationLog;
 
     private final Map<String, TraceBuilder> active = new ConcurrentHashMap<>();
     private final AtomicLong fallbackTraceCounter = new AtomicLong();
@@ -102,7 +112,8 @@ public class ObservabilityCollector implements ObservationHandler<Observation.Co
             ObjectProvider<ObservabilityPersistenceService> persistenceProvider,
             ObjectProvider<Tracer> tracerProvider,
             ObjectProvider<UserIdentityService> userIdentityProvider,
-            ObservabilityProperties props) {
+            ObservabilityProperties props, VectorOperationLog vectorOperationLog) {
+        this.vectorOperationLog = vectorOperationLog;
         this.buffer = buffer;
         this.persistenceProvider = persistenceProvider;
         this.tracerProvider = tracerProvider;
@@ -124,12 +135,15 @@ public class ObservabilityCollector implements ObservationHandler<Observation.Co
 
     @Override
     public void onStop(Observation.Context context) {
+        if (context.get(CTX_STOPPED) != null) return;
+        context.put(CTX_STOPPED, Boolean.TRUE);
         captureSpanIds(context);
         long startNs = (long) Optional.ofNullable(context.get(CTX_START_NS))
                 .orElse(System.nanoTime());
         long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNs);
         long endEpochMs = Instant.now().toEpochMilli();
-        long startEpochMs = endEpochMs - durationMs;
+        long startEpochMs = (long) Optional.ofNullable(context.get(CTX_START_EPOCH_MS))
+                .orElse(endEpochMs - durationMs);
 
         Map<String, String> attrs = extractAttributes(context);
         Throwable err = context.getError();
@@ -145,7 +159,7 @@ public class ObservabilityCollector implements ObservationHandler<Observation.Co
         String parentSpanId = (String) context.get(CTX_PARENT_SPAN_ID);
 
         if (traceId == null || traceId.isBlank()) {
-            traceId = "local-" + fallbackTraceCounter.incrementAndGet();
+            traceId = activeTraceOfConversation(attrs.get("conversation.id")).orElseGet(this::nextLocalTraceId);
         }
         if (spanId == null || spanId.isBlank()) {
             spanId = UUID.randomUUID().toString();
@@ -159,6 +173,7 @@ public class ObservabilityCollector implements ObservationHandler<Observation.Co
                 startEpochMs, durationMs, errorStatus(context), attrs);
 
         boolean isRoot = isRoot(context);
+        recordVectorOperation(context, span);
 
         if (!isRoot && finalizedTraceIds.contains(traceId)) {
             TraceRecord lateTrace = lateSpanTrace(traceId, span);
@@ -175,13 +190,82 @@ public class ObservabilityCollector implements ObservationHandler<Observation.Co
             return;
         }
 
-        TraceBuilder builder = active.computeIfAbsent(traceId, TraceBuilder::new);
+        TraceBuilder builder = active.computeIfAbsent(traceId, id -> new TraceBuilder(id, null));
         builder.addSpan(span, props.getMaxSpansPerTrace());
 
         if (isRoot) {
             active.remove(traceId);
             finalizedTraceIds.add(traceId);
-            persistIfEnabled(buffer.add(builder.finalizeTrace(span)));
+            persistIfEnabled(buffer.add(builder.finalizeTrace(span, retrievedDuring(context, span, endEpochMs))));
+        }
+    }
+
+    private void recordVectorOperation(Observation.Context context, SpanRecord span) {
+        if (!VECTOR_STORE_SPAN_NAME.equals(span.name())) return;
+        Map<String, String> attributes = span.attributes();
+        if (ToolIndexVectorObservationConvention.TOOL_INDEX_ROLE.equals(
+                attributes.get(ToolIndexVectorObservationConvention.STORE_ROLE_KEY))) {
+            return;
+        }
+        Integer returnedDocuments = null;
+        String queryText = null;
+        if (context instanceof VectorStoreObservationContext vectorContext) {
+            if (VectorStoreService.isPlaceholderQuery(vectorContext.getQueryRequest())) return;
+            if (vectorContext.getQueryResponse() != null) {
+                returnedDocuments = vectorContext.getQueryResponse().size();
+            }
+            if (vectorContext.getQueryRequest() != null) {
+                queryText = vectorContext.getQueryRequest().getQuery();
+            }
+        }
+        Optional<Observation.Context> chatRoot = enclosingChatRoot(context);
+        String conversationId = Optional.ofNullable(blankToNull(attributes.get("conversation.id")))
+                .or(() -> chatRoot.map(root -> (String) root.get(CTX_CONVERSATION_ID))).orElse(null);
+        VectorOperationLog.VectorOperation operation = new VectorOperationLog.VectorOperation(
+                span.startEpochMs(), span.durationMs(), attributes.getOrDefault("db.operation.name", "?"),
+                attributes.getOrDefault("db.system", "unknown"), parseLong(attributes.get("db.vector.query.top_k")),
+                parseDouble(attributes.get("db.vector.query.similarity_threshold")), returnedDocuments,
+                conversationId, !"OK".equals(span.status()));
+        if (operation.isQuery()) chatRoot.ifPresent(root -> root.put(CTX_RETRIEVED, Boolean.TRUE));
+        logger.debug("vector.op operation={} conversation={} insideChatTurn={}", operation.operation(),
+                conversationId, chatRoot.isPresent());
+        this.vectorOperationLog.record(operation, queryText);
+    }
+
+    private Optional<Observation.Context> enclosingChatRoot(Observation.Context context) {
+        Observation.Context outermostChatClient = null;
+        ObservationView parent = context.getParentObservation();
+        while (parent != null) {
+            if (parent.getContextView() instanceof Observation.Context parentContext
+                    && isChatClient(parentContext)) {
+                outermostChatClient = parentContext;
+            }
+            parent = parent.getContextView().getParentObservation();
+        }
+        return Optional.ofNullable(outermostChatClient);
+    }
+
+    private boolean retrievedDuring(Observation.Context rootContext, SpanRecord rootSpan, long rootEndEpochMs) {
+        if (rootContext.get(CTX_RETRIEVED) != null) return true;
+        Map<String, String> rootAttributes = rootSpan.attributes();
+        String conversationId = rootAttributes.getOrDefault("conversation.id",
+                rootAttributes.get("spring.ai.chat.client.conversation.id"));
+        return this.vectorOperationLog.hasQueryFor(conversationId, rootSpan.startEpochMs(), rootEndEpochMs);
+    }
+
+    private static Long parseLong(String value) {
+        try {
+            return value == null || value.isBlank() ? null : Long.valueOf(value.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private static Double parseDouble(String value) {
+        try {
+            return value == null || value.isBlank() ? null : Double.valueOf(value.trim());
+        } catch (NumberFormatException e) {
+            return null;
         }
     }
 
@@ -196,7 +280,8 @@ public class ObservabilityCollector implements ObservationHandler<Observation.Co
         Set<String> toolNames = new LinkedHashSet<>();
         Set<String> serverNames = new LinkedHashSet<>();
         Map<String, String> a = span.attributes() == null ? Map.of() : span.attributes();
-        if (TOOL_SPAN_NAME.equals(span.name())) {
+        boolean toolSpan = TOOL_SPAN_NAME.equals(span.name());
+        if (toolSpan) {
             String toolName = toolNameOf(a);
             if (toolName != null && !toolName.isBlank()) toolNames.add(toolName);
             String mcpServer = a.get("saip.mcp.server");
@@ -210,10 +295,21 @@ public class ObservabilityCollector implements ObservationHandler<Observation.Co
                 null, null,
                 span.startEpochMs(), span.durationMs(), errorStatusOf(span),
                 null, null, null, null,
-                !toolNames.isEmpty(), toolNames.size(), false,
+                toolSpan, toolSpan ? 1 : 0, false,
                 blankToNull(a.get("user.id")), blankToNull(a.get("session.id")),
                 toolNames, serverNames,
                 spans, new HashMap<>());
+    }
+
+    static String collapseRepeatedModelId(String modelId) {
+        if (modelId == null) return null;
+        int length = modelId.length();
+        for (int unitLength = MIN_MODEL_ID_LENGTH; unitLength <= length / 2; unitLength++) {
+            if (length % unitLength != 0) continue;
+            String unit = modelId.substring(0, unitLength);
+            if (unit.repeat(length / unitLength).equals(modelId)) return unit;
+        }
+        return modelId;
     }
 
     private static String blankToNull(String s) {
@@ -233,17 +329,46 @@ public class ObservabilityCollector implements ObservationHandler<Observation.Co
     @Override
     public void onStart(Observation.Context context) {
         context.put(CTX_START_NS, System.nanoTime());
+        context.put(CTX_START_EPOCH_MS, Instant.now().toEpochMilli());
         captureSpanIds(context);
         captureIdentity(context);
+        inheritOrStartTrace(context);
         if (isRoot(context)) {
             String traceId = (String) context.get(CTX_TRACE_ID);
             if (traceId != null && !traceId.isBlank()) {
-                active.computeIfAbsent(traceId, TraceBuilder::new);
+                String conversationId = (String) context.get(CTX_CONVERSATION_ID);
+                active.computeIfAbsent(traceId, id -> new TraceBuilder(id, conversationId));
             }
         }
     }
 
+    private void inheritOrStartTrace(Observation.Context context) {
+        if (context.get(CTX_TRACE_ID) != null) return;
+        Optional<Observation.Context> chatRoot = enclosingChatRoot(context);
+        if (chatRoot.isPresent()) {
+            putIfPresent(context, CTX_TRACE_ID, (String) chatRoot.get().get(CTX_TRACE_ID));
+            return;
+        }
+        if (isChatClient(context)) context.put(CTX_TRACE_ID, nextLocalTraceId());
+    }
+
+    private String nextLocalTraceId() {
+        return "local-" + fallbackTraceCounter.incrementAndGet();
+    }
+
+    private Optional<String> activeTraceOfConversation(String conversationId) {
+        if (conversationId == null || conversationId.isBlank()) return Optional.empty();
+        return active.values().stream()
+                .filter(builder -> conversationId.equals(builder.conversationId))
+                .max(Comparator.comparingLong(builder -> builder.lastTouchedMs))
+                .map(builder -> builder.traceId);
+    }
+
     private boolean isRoot(Observation.Context context) {
+        return isChatClient(context) && enclosingChatRoot(context).isEmpty();
+    }
+
+    private static boolean isChatClient(Observation.Context context) {
         return ROOT_SPAN_NAME.equals(context.getName())
                 || ROOT_SPAN_NAME.equals(context.getContextualName())
                 || context.getClass().getName().endsWith("ChatClientObservationContext");
@@ -363,7 +488,7 @@ public class ObservabilityCollector implements ObservationHandler<Observation.Co
             if (meta == null) return;
             String model = meta.getModel();
             if (model != null && !model.isBlank()) {
-                attrs.putIfAbsent("gen_ai.response.model", model);
+                attrs.putIfAbsent("gen_ai.response.model", collapseRepeatedModelId(model));
             }
             Usage usage = meta.getUsage();
             if (usage != null) {
@@ -476,11 +601,13 @@ public class ObservabilityCollector implements ObservationHandler<Observation.Co
 
     private static final class TraceBuilder {
         private final String traceId;
+        private final String conversationId;
         private final List<SpanRecord> spans = new ArrayList<>();
         private volatile long lastTouchedMs = Instant.now().toEpochMilli();
 
-        TraceBuilder(String traceId) {
+        TraceBuilder(String traceId, String conversationId) {
             this.traceId = traceId;
+            this.conversationId = conversationId;
         }
 
         synchronized void addSpan(SpanRecord span, int maxSpans) {
@@ -494,7 +621,7 @@ public class ObservabilityCollector implements ObservationHandler<Observation.Co
             spans.add(span);
         }
 
-        synchronized TraceRecord finalizeTrace(SpanRecord rootSpan) {
+        synchronized TraceRecord finalizeTrace(SpanRecord rootSpan, boolean retrievedDuringTrace) {
             Map<String, String> rootAttrs = rootSpan.attributes();
             String conversationId = rootAttrs.getOrDefault("conversation.id",
                     rootAttrs.get("spring.ai.chat.client.conversation.id"));
@@ -507,24 +634,33 @@ public class ObservabilityCollector implements ObservationHandler<Observation.Co
             Long inputTokens = null;
             Long outputTokens = null;
             Long totalTokens = null;
+            Long turnInputTokens = null;
+            Long turnOutputTokens = null;
+            Long turnTotalTokens = null;
             String finishReason = null;
             int toolCallCount = 0;
-            boolean hasRag = false;
+            boolean hasRag = retrievedDuringTrace;
             Set<String> toolNames = new LinkedHashSet<>();
             Set<String> serverNames = new LinkedHashSet<>();
 
             for (SpanRecord s : spans) {
                 Map<String, String> a = s.attributes();
-                if (CHAT_MODEL_SPAN_NAME.equals(s.name()) || ROOT_SPAN_NAME.equals(s.name())) {
+                if (isChatModelCall(s) || ROOT_SPAN_NAME.equals(s.name())) {
                     if (provider == null) provider = nonSentinel(a.get("gen_ai.system"));
                     if (model == null) {
-                        String responseModel = nonSentinel(a.get("gen_ai.response.model"));
+                        String responseModel = collapseRepeatedModelId(nonSentinel(a.get("gen_ai.response.model")));
                         String requestModel = nonSentinel(a.get("gen_ai.request.model"));
                         model = TraceRecord.firstNonBlank(responseModel, requestModel);
                     }
-                    inputTokens = sumLong(inputTokens, a.get("gen_ai.usage.input_tokens"));
-                    outputTokens = sumLong(outputTokens, a.get("gen_ai.usage.output_tokens"));
-                    totalTokens = sumLong(totalTokens, a.get("gen_ai.usage.total_tokens"));
+                    if (isChatModelCall(s)) {
+                        inputTokens = sumLong(inputTokens, a.get("gen_ai.usage.input_tokens"));
+                        outputTokens = sumLong(outputTokens, a.get("gen_ai.usage.output_tokens"));
+                        totalTokens = sumLong(totalTokens, a.get("gen_ai.usage.total_tokens"));
+                    } else if (s == rootSpan) {
+                        turnInputTokens = sumLong(null, a.get("gen_ai.usage.input_tokens"));
+                        turnOutputTokens = sumLong(null, a.get("gen_ai.usage.output_tokens"));
+                        turnTotalTokens = sumLong(null, a.get("gen_ai.usage.total_tokens"));
+                    }
                     if (finishReason == null) finishReason = a.get("gen_ai.response.finish_reasons");
                 } else if (TOOL_SPAN_NAME.equals(s.name())) {
                     toolCallCount++;
@@ -532,7 +668,7 @@ public class ObservabilityCollector implements ObservationHandler<Observation.Co
                     if (toolName != null && !toolName.isBlank()) toolNames.add(toolName);
                     String mcpServer = a.get("saip.mcp.server");
                     if (mcpServer != null && !mcpServer.isBlank()) serverNames.add(mcpServer);
-                } else if (VECTOR_STORE_SPAN_NAME.equals(s.name())) {
+                } else if (isDocumentStoreOperation(s)) {
                     hasRag = true;
                 }
             }
@@ -554,9 +690,9 @@ public class ObservabilityCollector implements ObservationHandler<Observation.Co
                     rootSpan.startEpochMs(),
                     rootSpan.durationMs(),
                     status,
-                    inputTokens,
-                    outputTokens,
-                    totalTokens,
+                    turnInputTokens != null ? turnInputTokens : inputTokens,
+                    turnOutputTokens != null ? turnOutputTokens : outputTokens,
+                    turnTotalTokens != null ? turnTotalTokens : totalTokens,
                     finishReason,
                     toolCallCount > 0,
                     toolCallCount,
@@ -567,6 +703,17 @@ public class ObservabilityCollector implements ObservationHandler<Observation.Co
                     serverNames,
                     new ArrayList<>(spans),
                     rootAttrs);
+        }
+
+        private static boolean isChatModelCall(SpanRecord span) {
+            return CHAT_MODEL_SPAN_NAME.equals(span.name())
+                    && !EMBEDDING_OPERATION.equals(span.attributes().get("gen_ai.operation.name"));
+        }
+
+        private static boolean isDocumentStoreOperation(SpanRecord span) {
+            return VECTOR_STORE_SPAN_NAME.equals(span.name())
+                    && !ToolIndexVectorObservationConvention.TOOL_INDEX_ROLE.equals(
+                            span.attributes().get(ToolIndexVectorObservationConvention.STORE_ROLE_KEY));
         }
 
         private static String nonSentinel(String s) {

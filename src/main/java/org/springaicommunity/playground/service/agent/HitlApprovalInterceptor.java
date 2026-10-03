@@ -21,6 +21,7 @@ import org.slf4j.LoggerFactory;
 import org.springaicommunity.playground.service.tool.HumanQuestion;
 import org.springaicommunity.playground.service.tool.HumanQuestionHandler;
 import org.springaicommunity.playground.service.tool.ToolManifest;
+import org.springaicommunity.playground.service.mcp.DeniedToolCallRecorder;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
 import org.springframework.ai.chat.messages.AssistantMessage.ToolCall;
 import org.springframework.beans.factory.ObjectProvider;
@@ -37,10 +38,13 @@ final class HitlApprovalInterceptor implements AgentRoundInterceptor {
 
     private final ObjectProvider<ToolSpecService> toolSpecServiceProvider;
     private final MeterRegistry meterRegistry;
+    private final DeniedToolCallRecorder deniedToolCallRecorder;
 
-    HitlApprovalInterceptor(ObjectProvider<ToolSpecService> toolSpecServiceProvider, MeterRegistry meterRegistry) {
+    HitlApprovalInterceptor(ObjectProvider<ToolSpecService> toolSpecServiceProvider, MeterRegistry meterRegistry,
+            DeniedToolCallRecorder deniedToolCallRecorder) {
         this.toolSpecServiceProvider = toolSpecServiceProvider;
         this.meterRegistry = meterRegistry;
+        this.deniedToolCallRecorder = deniedToolCallRecorder;
     }
 
     @Override
@@ -90,17 +94,17 @@ final class HitlApprovalInterceptor implements AgentRoundInterceptor {
                 turn.markDeclined(call.name());
                 claims.put(call.id(), Interception.of(AgentTurnMessages.approvalUnavailable(call.name())));
                 logger.info("hitl.ask-failed tool={}", call.name());
-                countDecision("ask-failed");
+                countDenial(call, "ask-failed");
             } else if (HumanQuestionHandler.TIMEOUT_ANSWER.equals(answer)) {
                 turn.markDeclined(call.name());
                 claims.put(call.id(), Interception.of(AgentTurnMessages.approvalTimedOut(call.name())));
                 logger.info("hitl.timeout tool={}", call.name());
-                countDecision("timeout");
+                countDenial(call, "timeout");
             } else if (!"Approve".equalsIgnoreCase(answer)) {
                 turn.markDeclined(call.name());
                 claims.put(call.id(), Interception.of(AgentTurnMessages.declined(call.name())));
                 logger.info("hitl.declined tool={}", call.name());
-                countDecision("declined");
+                countDenial(call, "declined");
             } else {
                 logger.info("hitl.approved tool={}", call.name());
                 countDecision("approved");
@@ -121,6 +125,11 @@ final class HitlApprovalInterceptor implements AgentRoundInterceptor {
         if (arguments == null) return "{}";
         if (arguments.length() <= ARGS_DISPLAY_MAX_CHARS) return arguments;
         return arguments.substring(0, ARGS_DISPLAY_MAX_CHARS) + "...";
+    }
+
+    private void countDenial(ToolCall call, String outcome) {
+        countDecision(outcome);
+        this.deniedToolCallRecorder.recordChatDenial(call.name(), call.id(), call.arguments(), outcome);
     }
 
     private void countDecision(String outcome) {

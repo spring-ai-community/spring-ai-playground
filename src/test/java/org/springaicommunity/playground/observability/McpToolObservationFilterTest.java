@@ -23,15 +23,23 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
+import org.springaicommunity.playground.service.mcp.DeniedToolCallRecorder;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.service.mcp.client.McpClientService.McpToolSource;
 import org.springaicommunity.playground.service.mcp.risk.McpRiskMdcKeys;
+import org.springaicommunity.playground.service.mcp.risk.McpToolRiskComposer;
+import org.springaicommunity.playground.service.mcp.risk.WrappedExternalToolCallback;
+import org.springaicommunity.playground.service.tool.ToolManifest.Sandbox.RiskLevel;
+import org.springaicommunity.playground.service.tool.ToolSpecService;
+import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.definition.DefaultToolDefinition;
 import org.springframework.ai.tool.observation.ToolCallingObservationContext;
+import org.springframework.beans.factory.ObjectProvider;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -42,10 +50,15 @@ import static org.mockito.Mockito.when;
 class McpToolObservationFilterTest {
 
     private MeterRegistry registry;
+    @SuppressWarnings("unchecked")
+    private final ObjectProvider<ToolSpecService> toolSpecServiceProvider = mock(ObjectProvider.class);
+    private final ToolSpecService toolSpecService = mock(ToolSpecService.class);
 
     @BeforeEach
     void setUp() {
         registry = new SimpleMeterRegistry();
+        when(toolSpecServiceProvider.getIfAvailable()).thenReturn(toolSpecService);
+        when(toolSpecService.proxiedToolCallback(anyString())).thenReturn(Optional.empty());
     }
 
     @AfterEach
@@ -59,7 +72,8 @@ class McpToolObservationFilterTest {
         when(mcpClientService.lookupToolSource("weather"))
                 .thenReturn(Optional.of(new McpToolSource("weather-server", "STDIO", null)));
 
-        McpToolObservationFilter filter = new McpToolObservationFilter(mcpClientService, registry);
+        McpToolObservationFilter filter = new McpToolObservationFilter(mcpClientService, registry,
+                toolSpecServiceProvider);
         ToolCallingObservationContext ctx = ctx("weather");
 
         filter.map(ctx);
@@ -78,7 +92,8 @@ class McpToolObservationFilterTest {
         when(mcpClientService.lookupToolSource("weather"))
                 .thenReturn(Optional.of(new McpToolSource("weather-server", "STDIO", "L4")));
 
-        McpToolObservationFilter filter = new McpToolObservationFilter(mcpClientService, registry);
+        McpToolObservationFilter filter = new McpToolObservationFilter(mcpClientService, registry,
+                toolSpecServiceProvider);
         filter.map(ctx("weather"));
 
         assertThat(registry.find(McpToolObservationFilter.TOOL_RISK_COUNTER)
@@ -86,11 +101,26 @@ class McpToolObservationFilterTest {
     }
 
     @Test
+    void deniedCallIsTaggedButNotCountedAsExecutedToolRisk() {
+        McpClientService mcpClientService = mock(McpClientService.class);
+        when(mcpClientService.lookupToolSource("weather"))
+                .thenReturn(Optional.of(new McpToolSource("weather-server", "STDIO", "L4")));
+        ToolCallingObservationContext ctx = ctx("weather");
+        ctx.addHighCardinalityKeyValue(KeyValue.of(DeniedToolCallRecorder.HITL_OUTCOME, "declined"));
+
+        new McpToolObservationFilter(mcpClientService, registry, toolSpecServiceProvider).map(ctx);
+
+        assertThat(highCardMap(ctx)).containsEntry(McpToolObservationFilter.MCP_SERVER, "weather-server");
+        assertThat(registry.find(McpToolObservationFilter.TOOL_RISK_COUNTER).counter()).isNull();
+    }
+
+    @Test
     void tagsInProcessWhenToolIsNotMcpSourced() {
         McpClientService mcpClientService = mock(McpClientService.class);
         when(mcpClientService.lookupToolSource(anyString())).thenReturn(Optional.empty());
 
-        McpToolObservationFilter filter = new McpToolObservationFilter(mcpClientService, registry);
+        McpToolObservationFilter filter = new McpToolObservationFilter(mcpClientService, registry,
+                toolSpecServiceProvider);
         ToolCallingObservationContext ctx = ctx("local-tool");
 
         filter.map(ctx);
@@ -115,7 +145,8 @@ class McpToolObservationFilterTest {
         MDC.put(McpRiskMdcKeys.RISK_SERVER, "L1");
         MDC.put(McpRiskMdcKeys.RISK_PUBLISH, "L2");
 
-        McpToolObservationFilter filter = new McpToolObservationFilter(mcpClientService, registry);
+        McpToolObservationFilter filter = new McpToolObservationFilter(mcpClientService, registry,
+                toolSpecServiceProvider);
         ToolCallingObservationContext ctx = ctx("github__create_issue");
 
         filter.map(ctx);
@@ -144,7 +175,8 @@ class McpToolObservationFilterTest {
         MDC.put(McpRiskMdcKeys.ORIGIN, McpRiskMdcKeys.ORIGIN_INTERNAL_JS);
         MDC.put(McpRiskMdcKeys.RISK_FINAL, "L0");
 
-        McpToolObservationFilter filter = new McpToolObservationFilter(mcpClientService, registry);
+        McpToolObservationFilter filter = new McpToolObservationFilter(mcpClientService, registry,
+                toolSpecServiceProvider);
         ToolCallingObservationContext ctx = ctx("add_numbers");
 
         filter.map(ctx);
@@ -166,7 +198,8 @@ class McpToolObservationFilterTest {
         MDC.put(McpRiskMdcKeys.RISK_PUBLISH, "L1");
         MDC.put(McpRiskMdcKeys.FLOOR_TRIGGER, "non_loopback_no_auth_write_capability");
 
-        McpToolObservationFilter filter = new McpToolObservationFilter(mcpClientService, registry);
+        McpToolObservationFilter filter = new McpToolObservationFilter(mcpClientService, registry,
+                toolSpecServiceProvider);
         ToolCallingObservationContext ctx = ctx("write_anything");
 
         filter.map(ctx);
@@ -180,7 +213,8 @@ class McpToolObservationFilterTest {
     @Test
     void ignoresNonToolCallingContexts() {
         McpClientService mcpClientService = mock(McpClientService.class);
-        McpToolObservationFilter filter = new McpToolObservationFilter(mcpClientService, registry);
+        McpToolObservationFilter filter = new McpToolObservationFilter(mcpClientService, registry,
+                toolSpecServiceProvider);
 
         Observation.Context other = new Observation.Context();
         other.setName("some.other.observation");
@@ -190,6 +224,54 @@ class McpToolObservationFilterTest {
         assertThat(result).isSameAs(other);
         assertThat(result.getHighCardinalityKeyValues()).isEmpty();
         verifyNoInteractions(mcpClientService);
+    }
+
+    @Test
+    void proxiedAliasIsTaggedWithItsUpstreamServerWithoutMdc() {
+        McpClientService mcpClientService = mock(McpClientService.class);
+        ToolCallback upstream = mock(ToolCallback.class);
+        when(upstream.getToolDefinition()).thenReturn(ctx("get-sum").getToolDefinition());
+        WrappedExternalToolCallback proxied = new WrappedExternalToolCallback(upstream, "comp-1", "Exposed Tools",
+                "team_sum", "MCP-Everything", "STDIO",
+                new McpToolRiskComposer.Composed(RiskLevel.L1, RiskLevel.L1, RiskLevel.L2, null), Set.of());
+        when(toolSpecService.proxiedToolCallback("team_sum")).thenReturn(Optional.of(proxied));
+
+        McpToolObservationFilter filter = new McpToolObservationFilter(mcpClientService, registry,
+                toolSpecServiceProvider);
+        ToolCallingObservationContext ctx = ctx("team_sum");
+
+        filter.map(ctx);
+
+        assertThat(highCardMap(ctx))
+                .containsEntry(McpToolObservationFilter.MCP_METHOD_NAME, "tools/call")
+                .containsEntry(McpToolObservationFilter.MCP_ORIGIN, McpRiskMdcKeys.ORIGIN_WRAPPED_EXTERNAL)
+                .containsEntry(McpToolObservationFilter.NETWORK_TRANSPORT, "pipe")
+                .containsEntry(McpToolObservationFilter.MCP_SERVER, "MCP-Everything")
+                .containsEntry(McpToolObservationFilter.MCP_UPSTREAM_TOOL, "get-sum")
+                .containsEntry(McpToolObservationFilter.MCP_TOOL_EXPOSED_ALIAS, "team_sum")
+                .containsEntry(McpToolObservationFilter.MCP_COMPOSITION_NAME, "Exposed Tools")
+                .containsEntry(McpToolObservationFilter.MCP_RISK_FINAL, "L1")
+                .containsEntry(McpToolObservationFilter.MCP_RISK_PUBLISH, "L2");
+        assertThat(registry.find(McpToolObservationFilter.TOOL_RISK_COUNTER).tag("level", "L1").counter().count())
+                .isEqualTo(1.0);
+        verifyNoInteractions(mcpClientService);
+    }
+
+    @Test
+    void toolSourceLookupStillAppliesWhenTheToolSpecServiceIsNotAvailable() {
+        McpClientService mcpClientService = mock(McpClientService.class);
+        when(mcpClientService.lookupToolSource("weather"))
+                .thenReturn(Optional.of(new McpToolSource("weather-server", "STDIO", null)));
+        when(toolSpecServiceProvider.getIfAvailable()).thenReturn(null);
+
+        McpToolObservationFilter filter = new McpToolObservationFilter(mcpClientService, registry,
+                toolSpecServiceProvider);
+        ToolCallingObservationContext ctx = ctx("weather");
+
+        filter.map(ctx);
+
+        assertThat(highCardMap(ctx)).containsEntry(McpToolObservationFilter.MCP_SERVER, "weather-server")
+                .doesNotContainKey(McpToolObservationFilter.MCP_UPSTREAM_TOOL);
     }
 
     private static ToolCallingObservationContext ctx(String toolName) {

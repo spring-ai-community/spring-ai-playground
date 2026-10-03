@@ -31,6 +31,7 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import org.springaicommunity.playground.observability.ObservabilityRingBuffer;
 import org.springaicommunity.playground.observability.SpanRecord;
 import org.springaicommunity.playground.observability.TraceRecord;
+import org.springaicommunity.playground.webui.observability.components.FormatUtils;
 import org.springaicommunity.playground.webui.observability.components.ObservabilityNavLinks;
 import org.springaicommunity.playground.webui.observability.components.SpanTimelineCanvas;
 
@@ -109,14 +110,14 @@ public class TraceDetailDialog extends Dialog {
         div.add(line("Model", nullSafe(trace.model())));
         div.add(line("Status", nullSafe(trace.status())));
         div.add(line("Duration", trace.durationMs() + " ms"));
-        div.add(line("In tokens", String.valueOf(orZero(trace.inputTokens()))));
-        div.add(line("Out tokens", String.valueOf(orZero(trace.outputTokens()))));
+        div.add(line("In tokens", FormatUtils.formatTokenCount(trace.inputTokens())));
+        div.add(line("Out tokens", FormatUtils.formatTokenCount(trace.outputTokens())));
         div.add(line("Tools", String.valueOf(trace.toolCallCount())));
         div.add(line("RAG", trace.hasRag() ? "yes" : "no"));
         div.add(line("Conversation", nullSafe(trace.conversationId())));
         div.add(line("Session", nullSafe(trace.sessionId())));
         div.add(line("User", nullSafe(trace.userId())));
-        div.add(line("Finish reason", nullSafe(trace.finishReason())));
+        div.add(line("Finish reason", finishReasonText(trace)));
         return div;
     }
 
@@ -294,5 +295,9 @@ public class TraceDetailDialog extends Dialog {
 
     private String nullSafe(String s) { return s == null ? "—" : s; }
 
-    private long orZero(Long v) { return v == null ? 0L : v; }
+    private static String finishReasonText(TraceRecord trace) {
+        if (trace.finishReason() != null) return trace.finishReason();
+        return TraceRecord.STATUS_CANCELLED.equals(trace.status()) ? "stopped" : "—";
+    }
+
 }

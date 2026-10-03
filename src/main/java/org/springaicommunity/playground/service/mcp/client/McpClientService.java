@@ -176,6 +176,14 @@ public class McpClientService {
         return self != null && self.equalsIgnoreCase(serverName);
     }
 
+    public boolean isSelfLoopbackClient(Implementation clientInfo) {
+        if (clientInfo == null || clientInfo.name() == null) return false;
+        String name = clientInfo.name();
+        if (name.contains(TEST_CLIENT_INFIX)) return false;
+        String self = selfLoopbackServerName();
+        return self != null && name.endsWith(self);
+    }
+
     private McpSyncClientOps newSync(NamedClientMcpTransport namedClientMcpTransport, Implementation info) {
         logger.info("Creating SYNC MCP client: name={}, transport={}",
                 namedClientMcpTransport.name(), namedClientMcpTransport.transport().getClass().getSimpleName());
