@@ -349,10 +349,12 @@ public class VectorStoreView extends ContentWorkspaceView {
         newDocumentDialog.addOpenedChangeListener(event -> {
             if (event.isOpened()) {
                 filesHandedOff.set(false);
+                vectorStoreDocumentUpload.clearFileList();
                 return;
             }
-            if (!filesHandedOff.get())
-                removeStagedFiles(vectorStoreDocumentUpload.getUploadedFileNames());
+            if (filesHandedOff.get()) return;
+            removeStagedFiles(vectorStoreDocumentUpload.getUploadedFileNames());
+            vectorStoreDocumentUpload.clearFileList();
         });
 
         chunkDocumentButton.addClickListener(buttonClickEvent -> {

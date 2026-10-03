@@ -47,6 +47,7 @@ public class WorkspaceSettingsDrawer extends Div {
         this.scrim = buildScrim();
 
         addClassName("workspace-settings-drawer");
+        getElement().setAttribute("inert", true);
         getStyle().set("position", "absolute")
                 .set("top", "var(--lumo-space-m)")
                 .set("right", "var(--lumo-space-m)")
@@ -58,7 +59,8 @@ public class WorkspaceSettingsDrawer extends Div {
                 .set("border-radius", "var(--lumo-border-radius-l)")
                 .set("box-shadow", "var(--lumo-box-shadow-xl)")
                 .set("transform", "translateX(calc(100% + var(--lumo-space-m) * 2))")
-                .set("transition", "transform 220ms ease-out")
+                .set("transition", "transform 220ms ease-out, visibility 0s linear 220ms")
+                .set("visibility", "hidden")
                 .set("z-index", "21")
                 .set("display", "flex")
                 .set("flex-direction", "column")
@@ -183,12 +185,17 @@ public class WorkspaceSettingsDrawer extends Div {
             onOpenCallback.run();
         }
         scrim.getStyle().set("display", "block");
-        getStyle().set("transform", "translateX(0)");
+        getElement().removeAttribute("inert");
+        getStyle().set("visibility", "visible").set("transition", "transform 220ms ease-out")
+                .set("transform", "translateX(0)");
         opened = true;
     }
 
     public void close() {
-        getStyle().set("transform", "translateX(calc(100% + var(--lumo-space-m) * 2))");
+        getStyle().set("transition", "transform 220ms ease-out, visibility 0s linear 220ms")
+                .set("transform", "translateX(calc(100% + var(--lumo-space-m) * 2))")
+                .set("visibility", "hidden");
+        getElement().setAttribute("inert", true);
         scrim.getStyle().set("display", "none");
         opened = false;
     }

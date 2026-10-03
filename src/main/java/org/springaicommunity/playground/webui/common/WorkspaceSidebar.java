@@ -49,11 +49,17 @@ public abstract class WorkspaceSidebar extends VerticalLayout {
 
         this.titleSpan = new Span(title);
         this.titleSpan.addClassNames(LumoUtility.FontWeight.SEMIBOLD, LumoUtility.FontSize.LARGE);
+        this.titleSpan.getElement().setAttribute("title", title);
+        this.titleSpan.getStyle()
+                .set("flex", "1 1 auto")
+                .set("min-width", "0")
+                .set("overflow", "hidden")
+                .set("text-overflow", "ellipsis");
 
         this.headerMenuBar = new MenuBar();
-        this.headerMenuBar.setWidthFull();
         this.headerMenuBar.addThemeVariants(MenuBarVariant.LUMO_END_ALIGNED,
                 MenuBarVariant.LUMO_TERTIARY_INLINE);
+        this.headerMenuBar.getStyle().set("flex", "0 0 auto").set("margin-left", "var(--lumo-space-s)");
 
         this.header = new Header(this.titleSpan, this.headerMenuBar);
         this.header.getStyle()
@@ -87,6 +93,7 @@ public abstract class WorkspaceSidebar extends VerticalLayout {
 
     protected void setSidebarTitle(String title) {
         this.titleSpan.setText(title);
+        this.titleSpan.getElement().setAttribute("title", title);
     }
 
     public void enableCollapse() {

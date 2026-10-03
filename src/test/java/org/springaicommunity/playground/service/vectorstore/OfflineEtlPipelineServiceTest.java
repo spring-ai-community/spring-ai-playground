@@ -73,6 +73,23 @@ class OfflineEtlPipelineServiceTest {
     }
 
     @Test
+    void extractAndTransformReadsARepeatedFileNameOnce() throws Exception {
+        File tempFile = File.createTempFile("repeat", ".txt");
+        Files.write(tempFile.toPath(), "Repeated upload content".getBytes());
+        String fileName = "repeat-upload.txt";
+        service.stageUpload(fileName, tempFile);
+        try {
+            Map<String, List<Document>> extracted = service.extractAndTransform(List.of(fileName, fileName),
+                    service.getDefaultTokenTextSplitter());
+
+            assertEquals(1, extracted.size());
+            assertEquals(1, extracted.get(fileName).size());
+        } finally {
+            service.removeUploadedDocumentFile(fileName);
+        }
+    }
+
+    @Test
     void stageUploadReplacesAStagedFileThatWasNeverIndexed() throws Exception {
         File original = File.createTempFile("original", ".txt");
         Files.write(original.toPath(), "original content".getBytes());

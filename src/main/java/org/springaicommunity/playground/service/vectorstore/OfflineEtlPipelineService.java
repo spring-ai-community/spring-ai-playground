@@ -292,7 +292,7 @@ public class OfflineEtlPipelineService implements SharedDataReader<List<VectorSt
 
     public Map<String, List<Document>> extractAndTransform(List<String> uploadedFileNames,
             ExtractOptions extractOptions, TextSplitter textSplitter) {
-        return uploadedFileNames.stream().map(fileName -> {
+        return uploadedFileNames.stream().distinct().map(fileName -> {
                     Resource resource = resolveResource(buildUploadFilePath(fileName).toFile().getPath());
                     DocumentReader reader = newDocumentReader(resource, extractOptions);
                     return Map.entry(fileName, split(textSplitter, reader));
