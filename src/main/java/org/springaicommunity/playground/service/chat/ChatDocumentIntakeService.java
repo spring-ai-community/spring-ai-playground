@@ -160,6 +160,7 @@ public class ChatDocumentIntakeService {
     }
 
     public ChatDocumentAttachment attach(String conversationId, String fileName, byte[] bytes, String mimeType) {
+        rejectAlreadyAttached(conversationId, fileName, bytes);
         long active = list(conversationId).stream().filter(item -> item.status() != Status.FAILED).count();
         if (active >= MAX_ATTACHMENTS)
             throw new IllegalStateException("You can attach up to " + MAX_ATTACHMENTS + " documents.");
@@ -182,6 +183,15 @@ public class ChatDocumentIntakeService {
             this.intakeExecutor.submit(() -> runPipeline(conversationId, attachId, content, cancelled));
         }
         return attachment;
+    }
+
+    private void rejectAlreadyAttached(String conversationId, String fileName, byte[] bytes) {
+        long size = bytes == null ? 0 : bytes.length;
+        boolean alreadyAttached = list(conversationId).stream()
+                .filter(item -> item.status() != Status.FAILED)
+                .anyMatch(item -> item.fileName().equals(fileName) && item.bytes() == size);
+        if (alreadyAttached)
+            throw new IllegalStateException(fileName + " is already attached.");
     }
 
     public void remove(String conversationId, String attachId) {

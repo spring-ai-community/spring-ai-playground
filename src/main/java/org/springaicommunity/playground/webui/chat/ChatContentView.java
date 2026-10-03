@@ -524,9 +524,13 @@ public class ChatContentView extends VerticalLayout {
         getStyle().set("overflow", "hidden").set("display", "flex")
                 .set("flex-direction", "column").set("align-items", "stretch");
 
-        if (this.chatHistory.messagesSupplier().get().isEmpty())
+        boolean registered = Objects.nonNull(
+                this.chatHistoryService.getChatHistory(this.chatHistory.conversationId()));
+        boolean hasMessages = !this.chatHistory.messagesSupplier().get().isEmpty();
+        if (!registered && !hasMessages)
             return;
-        renderPersistedMessages();
+        if (hasMessages)
+            renderPersistedMessages();
         ChatToolPreferences preferences = this.chatHistory.toolPreferences();
         String ragSourceId = preferences.ragSourceId();
         if (ragSourceId != null) {
@@ -936,7 +940,14 @@ public class ChatContentView extends VerticalLayout {
             VaadinUtils.showErrorNotification(e.getMessage());
             return;
         }
+        registerUnsentConversation();
         refreshPendingDocsBar();
+    }
+
+    private void registerUnsentConversation() {
+        if (Objects.isNull(this.chatHistoryService.getChatHistory(this.chatHistory.conversationId()))) {
+            this.completeChatHistoryConsumer.accept(this.chatHistory);
+        }
     }
 
     private void refreshPendingDocsBar() {

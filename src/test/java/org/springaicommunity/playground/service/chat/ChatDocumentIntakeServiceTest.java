@@ -153,6 +153,17 @@ class ChatDocumentIntakeServiceTest {
     }
 
     @Test
+    void attachRefusesTheSameFileTwiceButAcceptsADifferentFileWithTheSameName() {
+        byte[] handbook = wordsOf(20);
+        this.intakeService.attach(CONVERSATION_ID, "handbook.txt", handbook, "text/plain");
+
+        assertThatThrownBy(() -> this.intakeService.attach(CONVERSATION_ID, "handbook.txt", handbook, "text/plain"))
+                .isInstanceOf(IllegalStateException.class).hasMessage("handbook.txt is already attached.");
+        this.intakeService.attach(CONVERSATION_ID, "handbook.txt", wordsOf(30), "text/plain");
+        assertThat(this.intakeService.list(CONVERSATION_ID)).hasSize(2);
+    }
+
+    @Test
     void smallTextStaysInlineWithoutIndexing() {
         ChatDocumentAttachment attachment =
                 this.intakeService.attach(CONVERSATION_ID, "notes.txt", wordsOf(100), "text/plain");

@@ -38,6 +38,7 @@ import org.springaicommunity.playground.observability.ObservabilityTimeSeries;
 import org.springaicommunity.playground.observability.system.SystemMetricsSnapshot;
 import org.springaicommunity.playground.service.chat.ChatHistory;
 import org.springaicommunity.playground.service.chat.ChatHistoryService;
+import org.springaicommunity.playground.webui.chat.ChatHistoryView;
 import org.springaicommunity.playground.service.chat.ProviderReadinessService;
 import org.springaicommunity.playground.service.home.ReleaseCheckService;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
@@ -259,9 +260,7 @@ public class HomeInfoView extends Div {
             return null;
         }
         ChatHistory history = recent.get();
-        String label = (history.title() == null || history.title().isBlank())
-                ? "last chat" : history.title();
-        Button resume = new Button("Resume · " + label, VaadinIcon.PLAY.create());
+        Button resume = new Button("Resume · " + ChatHistoryView.displayTitle(history), VaadinIcon.PLAY.create());
         resume.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         String conversationId = history.conversationId();
         resume.addClickListener(e -> UI.getCurrent().navigate(

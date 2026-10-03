@@ -25,6 +25,7 @@ import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import org.springaicommunity.playground.service.chat.ChatHistory;
 import org.springaicommunity.playground.service.chat.ChatHistoryService;
+import org.springaicommunity.playground.webui.chat.ChatHistoryView;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
 import org.springaicommunity.playground.service.tool.ToolSpecPersistenceService;
@@ -137,9 +138,7 @@ class HomeRecentActivity extends Div {
                         VectorStoreView.class, "Document")));
 
         for (ChatHistory history : chatHistoryService.getChatHistoryList()) {
-            String title = (history.title() == null || history.title().isBlank())
-                    ? "Untitled chat" : history.title();
-            items.add(new RecentItem(title, VaadinIcon.CHAT, history.updateTimestamp(),
+            items.add(new RecentItem(ChatHistoryView.displayTitle(history), VaadinIcon.CHAT, history.updateTimestamp(),
                     ChatView.class, "Chat"));
         }
         return items;
