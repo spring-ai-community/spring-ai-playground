@@ -20,6 +20,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.ArgumentCaptor;
 import org.springaicommunity.playground.service.PersistenceExecutor;
 import org.springaicommunity.playground.service.tool.ToolSpecService.ToolMcpServerSetting;
 import org.springframework.boot.web.server.context.WebServerInitializedEvent;
@@ -97,6 +98,31 @@ class ToolSpecPersistenceServiceBootTest {
 
         verify(preferenceService).update(any());
         verify(toolSpecService).updateToolMcpServerSetting(any(ToolMcpServerSetting.class));
+    }
+
+    @Test
+    void applyingAPresetLiftsEarlierBuiltinExclusionsButKeepsCustomOnes() throws IOException {
+        Path specFile = home.resolve("defaults.json");
+        Files.writeString(specFile, "[{\"toolId\":\"builtin-time\",\"name\":\"getCurrentTime\","
+                + "\"description\":\"time\",\"staticVariables\":[],\"params\":[],\"code\":\"return 1;\","
+                + "\"codeType\":\"Javascript\"}]");
+        ToolSpecService toolSpecService = mock(ToolSpecService.class);
+        when(toolSpecService.getToolMcpServerSetting()).thenReturn(new ToolMcpServerSetting(true,
+                Set.of("custom-kept"), Set.of("builtin-time", "custom-hidden")));
+        DefaultToolsPreferenceService preferenceService = mock(DefaultToolsPreferenceService.class);
+        DefaultToolsPreferenceResolver resolver = mock(DefaultToolsPreferenceResolver.class);
+        when(resolver.resolveActiveNames(any(), any())).thenReturn(Set.of("getCurrentTime"));
+
+        ToolSpecPersistenceService service = new ToolSpecPersistenceService(home, toolSpecService,
+                specFile.toUri().toString(), new ObjectMapper(), new DefaultResourceLoader(),
+                this.persistenceExecutor, preferenceService, resolver, new ToolActivationCalculator());
+
+        service.exposeBuiltinToolsAsPreference(Set.of("getCurrentTime"));
+
+        ArgumentCaptor<ToolMcpServerSetting> applied = ArgumentCaptor.forClass(ToolMcpServerSetting.class);
+        verify(toolSpecService).updateToolMcpServerSetting(applied.capture());
+        assertThat(applied.getValue().exposedToolIds()).containsExactlyInAnyOrder("builtin-time", "custom-kept");
+        assertThat(applied.getValue().excludedToolIds()).containsExactly("custom-hidden");
     }
 
     @Test

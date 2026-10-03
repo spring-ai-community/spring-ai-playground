@@ -80,6 +80,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 public class ToolSpecService {
@@ -263,9 +264,18 @@ public class ToolSpecService {
         toolNameError(input.name()).ifPresent(error -> {
             throw new IllegalArgumentException(error);
         });
-        if (input.toolId() == null && getToolSpecAsOpt(input.name()).isPresent()) {
+        if (nameTakenByAnotherTool(input.toolId(), input.name())) {
             throw new IllegalStateException("A tool with this name already exists.");
         }
+        if (!isDefaultTool(input.toolId()) && this.integrityVerifier.isReservedToolName(input.name())) {
+            throw new IllegalArgumentException("'" + input.name()
+                    + "' is the name of a built-in default tool. Choose a different name.");
+        }
+    }
+
+    private boolean nameTakenByAnotherTool(String toolId, String toolName) {
+        return this.toolIdSpecs.values().stream()
+                .anyMatch(spec -> spec.name().equals(toolName) && !Objects.equals(spec.toolId(), toolId));
     }
 
     private ToolSpec persistDraft(ToolDraftInput input, boolean draftRequested) {
@@ -374,8 +384,9 @@ public class ToolSpecService {
     public ToolMcpServerSetting updateExposure(ExposureSelection selection) {
         Set<String> exposed = new HashSet<>(selection.customSelectedIds());
         exposed.addAll(selection.builtinSelectedIds());
-        Set<String> excluded = exposableBuiltins().stream().map(ToolSpec::toolId)
-                .filter(id -> !selection.builtinSelectedIds().contains(id)).collect(Collectors.toSet());
+        Set<String> excluded = Stream.concat(exposableBuiltins().stream(),
+                        customTools().stream().filter(spec -> !spec.draft()))
+                .map(ToolSpec::toolId).filter(id -> !exposed.contains(id)).collect(Collectors.toSet());
         updateToolMcpServerSetting(new ToolMcpServerSetting(selection.autoAdd(), exposed, excluded));
         return getToolMcpServerSetting();
     }
@@ -403,6 +414,7 @@ public class ToolSpecService {
         boolean targetDraft = toolSpec.draft();
         ToolSpec existing = toolSpec.toolId() == null ? null : this.toolIdSpecs.get(toolSpec.toolId());
         boolean metadataChanged = existing != null && !sameMetadata(existing, toolSpec);
+        boolean approvalGateChanged = existing != null && !sameApprovalGate(existing, toolSpec);
         ToolSpec result = update(toolSpec.toolId(), toolSpec.name(), toolSpec.description(),
                 toolSpec.staticVariables(), toolSpec.params(), toolSpec.code(), toolSpec.codeType());
         result.withCategory(toolSpec.category())
@@ -412,7 +424,26 @@ public class ToolSpecService {
                 .withDraft(targetDraft);
         if (result == existing && metadataChanged) persistAsync();
         syncMcpExposureForDraft(result, targetDraft);
+        if (!targetDraft && !Boolean.TRUE.equals(this.skipPersist.get())
+                && this.toolMcpServerSetting.exposedToolIds().contains(result.toolId())
+                && (approvalGateChanged || !isServedOnMcp(result.name()))) {
+            reRegisterMcpTool(result);
+        }
         return result;
+    }
+
+    private static boolean sameApprovalGate(ToolSpec left, ToolSpec right) {
+        return Objects.equals(left.humanInTheLoop(), right.humanInTheLoop())
+                && Objects.equals(left.sandboxOverrides(), right.sandboxOverrides());
+    }
+
+    private boolean isServedOnMcp(String toolName) {
+        return getMcpToolList().stream().anyMatch(tool -> tool.name().equals(toolName));
+    }
+
+    private void reRegisterMcpTool(ToolSpec spec) {
+        if (isServedOnMcp(spec.name())) removeMcpTool(spec.name());
+        addMcpTool(spec);
     }
 
     private static boolean sameMetadata(ToolSpec left, ToolSpec right) {
@@ -455,7 +486,8 @@ public class ToolSpecService {
     private boolean isDefaultTool(String toolId) {
         ToolSpecPersistenceService persistenceService =
                 this.toolSpecPersistenceServiceProvider.getIfAvailable();
-        return persistenceService != null && persistenceService.getDefaultToolIds().contains(toolId);
+        return toolId != null && persistenceService != null
+                && persistenceService.getDefaultToolIds().contains(toolId);
     }
 
     public ToolSpec update(String toolId, String toolName, String toolDescription,
@@ -871,18 +903,20 @@ public class ToolSpecService {
     }
 
     public synchronized void reconcileNativeExposure() {
-        Set<String> desired = this.exposureMode.includesBuiltin()
-                ? this.toolMcpServerSetting.exposedToolIds().stream().map(this.toolIdSpecs::get)
-                        .filter(Objects::nonNull).filter(spec -> !spec.draft())
-                        .map(ToolSpec::name).collect(Collectors.toSet())
-                : Set.of();
+        Map<String, ToolSpec> desiredSpecs = new LinkedHashMap<>();
+        if (this.exposureMode.includesBuiltin()) {
+            this.toolMcpServerSetting.exposedToolIds().stream().map(this.toolIdSpecs::get)
+                    .filter(Objects::nonNull).filter(spec -> !spec.draft())
+                    .filter(spec -> !this.integrityVerifier.verifyTool(spec).isBlocked())
+                    .forEach(spec -> desiredSpecs.putIfAbsent(spec.name(), spec));
+        }
+        Set<String> desired = desiredSpecs.keySet();
         Set<String> external = getExternalMcpToolNames();
         Set<String> currentNative = getMcpToolList().stream().map(McpSchema.Tool::name)
                 .filter(name -> !external.contains(name)).collect(Collectors.toSet());
         currentNative.stream().filter(name -> !desired.contains(name)).forEach(this::removeMcpTool);
-        desired.stream().filter(name -> !currentNative.contains(name))
-                .map(name -> this.toolIdSpecs.values().stream().filter(spec -> name.equals(spec.name())).findFirst())
-                .flatMap(Optional::stream).forEach(this::addMcpTool);
+        desiredSpecs.values().stream().filter(spec -> !currentNative.contains(spec.name()))
+                .forEach(this::addMcpTool);
         refreshDefaultMcpTool();
         logger.info("Native exposure reconciled: mode={}, exposedNativeCount={}", this.exposureMode, desired.size());
     }

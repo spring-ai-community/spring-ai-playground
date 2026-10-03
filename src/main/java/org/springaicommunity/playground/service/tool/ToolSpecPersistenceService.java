@@ -233,8 +233,12 @@ public class ToolSpecPersistenceService implements
                 DefaultToolsPreference.Rule.empty()));
         Set<String> active = this.preferenceResolver.resolveActiveNames(
                 this.preferenceService.current(), this.defaultToolSpecs);
-        ToolMcpServerSetting setting = this.toolSpecService.getToolMcpServerSetting();
-        this.toolSpecService.updateToolMcpServerSetting(new ToolMcpServerSetting(setting.autoAdd(),
-                computePresetDrivenExposure(active, setting), setting.excludedToolIds()));
+        ToolMcpServerSetting current = this.toolSpecService.getToolMcpServerSetting();
+        Set<String> customExclusions = current.excludedToolIds().stream()
+                .filter(toolId -> !this.defaultToolIds.contains(toolId)).collect(Collectors.toSet());
+        ToolMcpServerSetting withoutBuiltinExclusions = new ToolMcpServerSetting(current.autoAdd(),
+                current.exposedToolIds(), customExclusions);
+        this.toolSpecService.updateToolMcpServerSetting(new ToolMcpServerSetting(current.autoAdd(),
+                computePresetDrivenExposure(active, withoutBuiltinExclusions), customExclusions));
     }
 }

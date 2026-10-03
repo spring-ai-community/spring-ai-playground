@@ -53,10 +53,12 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Supplier;
 
-@JavaScript("./prettier-standalone.js")
-@JavaScript("./prettier-plugin-babel.js")
-@JavaScript("./prettier-plugin-estree.js")
+@JavaScript("context://frontend/prettier-standalone.js")
+@JavaScript("context://frontend/prettier-plugin-babel.js")
+@JavaScript("context://frontend/prettier-plugin-estree.js")
 public class JavascriptToolPlaygroundView extends VerticalLayout {
+
+    private static final int PRETTIER_LOAD_TIMEOUT_MS = 10_000;
 
     @Override
     protected void onAttach(AttachEvent attachEvent) {
@@ -200,15 +202,19 @@ public class JavascriptToolPlaygroundView extends VerticalLayout {
         Button clearButton = new Button("Clear", VaadinIcon.ERASER.create(), e -> ace.clear());
         this.formatButton = new Button("Format", VaadinIcon.MAGIC.create(), e -> formatCodeWithPrettier());
         getElement().executeJs("""
-                window.waitForPrettier = new Promise((resolve) => {
+                window.waitForPrettier = new Promise((resolve, reject) => {
+                    const startedAt = Date.now();
                     const check = setInterval(() => {
                         if (window.prettier && window.prettierPlugins) {
                             clearInterval(check);
                             resolve();
+                        } else if (Date.now() - startedAt > $0) {
+                            clearInterval(check);
+                            reject(new Error("prettier scripts did not load"));
                         }
                     }, 50);
                 });
-                """);
+                """, PRETTIER_LOAD_TIMEOUT_MS);
 
         Span staticHint = new Span(
                 "Optional key-value pairs available in your code as global variables, injected into the action context");
@@ -305,6 +311,7 @@ public class JavascriptToolPlaygroundView extends VerticalLayout {
         PendingJavaScriptResult result = ace.getElement().executeJs("""
                 return (async () => {
                     try {
+                        await window.waitForPrettier;
                         return await prettier.format($0, {
                             parser: "babel",
                             plugins: prettierPlugins,

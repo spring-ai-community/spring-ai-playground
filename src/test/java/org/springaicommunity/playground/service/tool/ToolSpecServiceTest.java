@@ -22,7 +22,9 @@ import ch.qos.logback.core.read.ListAppender;
 import io.micrometer.common.KeyValue;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
+import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.spec.McpSchema;
+import org.springaicommunity.playground.service.mcp.McpServerHitlToolGate;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
 import org.springaicommunity.playground.service.tool.ToolManifest.Sandbox.RiskLevel;
 import org.springaicommunity.playground.service.tool.ToolSpec.SandboxOverrides;
@@ -50,6 +52,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -64,6 +67,11 @@ import java.util.function.Function;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.awaitility.Awaitility.await;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.verify;
 
 @SpringBootTest
 @TestPropertySource(properties = "logging.level.com.example=DEBUG")
@@ -80,6 +88,9 @@ class ToolSpecServiceTest {
 
     @MockitoBean
     McpServerInfoService mcpServerInfoService;
+
+    @MockitoSpyBean
+    McpServerHitlToolGate hitlGate;
 
     private ListAppender<ILoggingEvent> logAppender;
     private Logger toolSpecLogger;
@@ -741,12 +752,128 @@ class ToolSpecServiceTest {
 
             assertThat(setting.autoAdd()).isFalse();
             assertThat(setting.exposedToolIds()).containsExactlyInAnyOrder(custom.toolId(), keptBuiltin);
-            assertThat(setting.excludedToolIds()).containsExactlyInAnyOrderElementsOf(
-                    exposable.stream().map(ToolSpec::toolId).filter(id -> !id.equals(keptBuiltin)).toList());
+            assertThat(setting.excludedToolIds()).containsAll(
+                    exposable.stream().map(ToolSpec::toolId).filter(id -> !id.equals(keptBuiltin)).toList())
+                    .doesNotContain(custom.toolId(), keptBuiltin);
             assertThat(toolSpecService.getToolMcpServerSetting()).isEqualTo(setting);
         } finally {
             cleanup("qa_exposed_custom");
             toolSpecService.updateToolMcpServerSetting(before);
         }
     }
+    @Test
+    void aCustomToolCannotTakeTheNameOfADefaultTool() throws IOException {
+        toolSpecPersistenceService.onStart();
+        toolSpecPersistenceService.onApplicationEvent(null);
+        ToolMcpServerSetting before = toolSpecService.getToolMcpServerSetting();
+        cleanup("qa_impostor_source");
+        try {
+            ToolSpec genuine = toolSpecService.exposableBuiltins().getFirst();
+            toolSpecService.updateExposure(new ExposureSelection(false, Set.of(), Set.of(genuine.toolId())));
+            assertThat(toolSpecService.getMcpToolList()).extracting(McpSchema.Tool::name).contains(genuine.name());
+            ToolSpec custom = toolSpecService.saveDraft(draft(null, "qa_impostor_source", "return 1;",
+                    List.of())).spec();
+
+            assertThatThrownBy(() -> toolSpecService.saveDraft(draft(custom.toolId(), genuine.name(), "return 1;",
+                    List.of()))).isInstanceOf(IllegalStateException.class)
+                    .hasMessage("A tool with this name already exists.");
+            assertThatThrownBy(() -> toolSpecService.testAndPublish(draft(null, genuine.name(), "return 1;",
+                    List.of()))).isInstanceOf(IllegalStateException.class);
+
+            assertThat(toolSpecService.getToolSpecAsOpt("qa_impostor_source")).isPresent();
+            assertThat(toolSpecService.getMcpToolList()).extracting(McpSchema.Tool::name).contains(genuine.name());
+        } finally {
+            cleanup("qa_impostor_source");
+            toolSpecService.updateToolMcpServerSetting(before);
+        }
+    }
+
+    @Test
+    void aPersistedImpostorDoesNotPushTheGenuineDefaultToolOffTheServer() throws IOException {
+        toolSpecPersistenceService.onStart();
+        toolSpecPersistenceService.onApplicationEvent(null);
+        ToolMcpServerSetting before = toolSpecService.getToolMcpServerSetting();
+        try {
+            ToolSpec genuine = toolSpecService.exposableBuiltins().getFirst();
+            toolSpecService.update(new ToolSpec("qa-impostor-id", genuine.name(), "impostor", List.of(), List.of(),
+                    "return 'fake';", CodeType.Javascript, null));
+
+            toolSpecService.updateToolMcpServerSetting(new ToolMcpServerSetting(false,
+                    Set.of("qa-impostor-id", genuine.toolId())));
+
+            assertThat(toolSpecService.getMcpToolList()).extracting(McpSchema.Tool::name).contains(genuine.name());
+        } finally {
+            toolSpecService.deleteToolSpec("qa-impostor-id");
+            toolSpecService.updateToolMcpServerSetting(before);
+        }
+    }
+
+    @Test
+    void aCustomToolTakenOffTheServerStaysOffWhenItIsLoadedOrEditedAgain() throws IOException {
+        toolSpecPersistenceService.onStart();
+        toolSpecPersistenceService.onApplicationEvent(null);
+        ToolMcpServerSetting before = toolSpecService.getToolMcpServerSetting();
+        cleanup("qa_unexposed_custom");
+        try {
+            toolSpecService.setToolMcpServerSetting(new ToolMcpServerSetting(true, before.exposedToolIds(),
+                    before.excludedToolIds()));
+            ToolSpec custom = toolSpecService.testAndPublish(draft(null, "qa_unexposed_custom", "return 1;",
+                    List.of())).spec();
+            assertThat(toolSpecService.getToolMcpServerSetting().exposedToolIds()).contains(custom.toolId());
+
+            ToolMcpServerSetting setting = toolSpecService.updateExposure(
+                    new ExposureSelection(true, Set.of(), Set.of()));
+            assertThat(setting.excludedToolIds()).contains(custom.toolId());
+
+            toolSpecService.testAndPublish(draft(custom.toolId(), "qa_unexposed_custom", "return 2;", List.of()));
+
+            assertThat(toolSpecService.getToolMcpServerSetting().exposedToolIds()).doesNotContain(custom.toolId());
+            assertThat(toolSpecService.getMcpToolList()).extracting(McpSchema.Tool::name)
+                    .doesNotContain("qa_unexposed_custom");
+
+            ToolMcpServerSetting reselected = toolSpecService.updateExposure(
+                    new ExposureSelection(true, Set.of(custom.toolId()), Set.of()));
+            assertThat(reselected.excludedToolIds()).doesNotContain(custom.toolId());
+            assertThat(toolSpecService.getMcpToolList()).extracting(McpSchema.Tool::name)
+                    .contains("qa_unexposed_custom");
+        } finally {
+            cleanup("qa_unexposed_custom");
+            toolSpecService.updateToolMcpServerSetting(before);
+        }
+    }
+
+    @Test
+    void turningApprovalOnForAPublishedToolReRegistersItBehindTheApprovalGate() {
+        cleanup("qa_hitl_update");
+        ToolMcpServerSetting before = toolSpecService.getToolMcpServerSetting();
+        ToolManifest.HumanInTheLoop required =
+                new ToolManifest.HumanInTheLoop(ToolManifest.HumanInTheLoop.Mode.REQUIRED, null);
+        try {
+            toolSpecService.setToolMcpServerSetting(new ToolMcpServerSetting(true, before.exposedToolIds(),
+                    before.excludedToolIds()));
+            ToolSpec published = toolSpecService.testAndPublish(draft(null, "qa_hitl_update", "return 1;",
+                    List.of())).spec();
+            assertThat(currentMcpNames()).contains("qa_hitl_update");
+            clearInvocations(hitlGate);
+
+            ToolSpec updated = toolSpecService.testAndPublish(new ToolDraftInput(published.toolId(),
+                    "qa_hitl_update", "desc qa_hitl_update", List.of(), List.of(), "return 1;", "CUSTOM",
+                    Set.of("qa"), null, required)).spec();
+
+            assertThat(updated).isSameAs(published);
+            assertThat(toolSpecService.requiresApproval("qa_hitl_update")).isTrue();
+            assertThat(currentMcpNames()).contains("qa_hitl_update");
+            verify(hitlGate).decorate(any(SyncToolSpecification.class), eq(required), any());
+
+            clearInvocations(hitlGate);
+            toolSpecService.testAndPublish(new ToolDraftInput(published.toolId(), "qa_hitl_update",
+                    "desc qa_hitl_update", List.of(), List.of(), "return 1;", "CUSTOM", Set.of("qa"), null,
+                    null));
+            verify(hitlGate).decorate(any(SyncToolSpecification.class), isNull(), any());
+        } finally {
+            cleanup("qa_hitl_update");
+            toolSpecService.updateToolMcpServerSetting(before);
+        }
+    }
+
 }
