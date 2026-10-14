@@ -45,6 +45,7 @@ class ChatMessage extends Component implements HasStyle {
     private final Element content = new Element("div");
     private final Element rawView = new Element("pre");
     private final Element plainView = new Element("div");
+    private final Element generatingIndicator = buildGeneratingIndicator();
     private String rawMarkdown = "";
     private boolean showingRaw;
     private boolean collapsed;
@@ -69,7 +70,29 @@ class ChatMessage extends Component implements HasStyle {
         this.content.appendChild(this.markdown.getElement());
         this.content.appendChild(this.rawView);
         this.content.appendChild(this.plainView);
+        this.content.appendChild(this.generatingIndicator);
         element.appendChild(this.content);
+    }
+
+    private static Element buildGeneratingIndicator() {
+        Element indicator = new Element("div");
+        indicator.setAttribute("class", "saip-generating");
+        indicator.setAttribute("aria-label", "Generating");
+        for (int dot = 0; dot < 3; dot++) indicator.appendChild(new Element("span"));
+        indicator.getStyle().set("display", "none");
+        return indicator;
+    }
+
+    void showGenerating() {
+        this.generatingIndicator.getStyle().set("display", "inline-flex");
+    }
+
+    void hideGenerating() {
+        this.generatingIndicator.getStyle().set("display", "none");
+    }
+
+    boolean isGenerating() {
+        return "inline-flex".equals(this.generatingIndicator.getStyle().get("display"));
     }
 
     void usePlainText() {

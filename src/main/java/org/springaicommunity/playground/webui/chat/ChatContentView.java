@@ -1281,7 +1281,7 @@ public class ChatContentView extends VerticalLayout {
             this.processListLayout = buildProcessListLayout();
             this.botResponse = buildMessage(null, MessageType.ASSISTANT, System.currentTimeMillis());
             this.botResponse.disableAutoEnhance();
-            this.botResponse.addClassName("blink");
+            this.botResponse.showGenerating();
             this.messageListLayout.remove(ChatContentView.this.scrollSpacer);
             this.messageListLayout.add(this.userMessage, this.processListLayout, this.botResponse,
                     ChatContentView.this.scrollSpacer);
@@ -1721,18 +1721,18 @@ public class ChatContentView extends VerticalLayout {
                 updateDetailsSummary(this.thinkDetails, THINK_PROCESS, this.recorder.thinkStart(),
                         this.recorder.thinkEnd(), ChatProcessText.thinkTokens(this.recorder));
             }
-            this.botResponse.removeClassName("blink");
+            this.botResponse.hideGenerating();
             this.botResponse.appendMarkdown(content);
         }
 
         private void markGenerating() {
-            if (Objects.nonNull(this.botResponse)) this.botResponse.addClassName("blink");
+            if (Objects.nonNull(this.botResponse)) this.botResponse.showGenerating();
         }
 
         private void initBotResponse(long epochMillis) {
             this.recorder.assistantStarted(epochMillis);
             this.botResponse.setTime(getLocalDateTime(this.recorder.responseTimestamp()));
-            this.botResponse.removeClassName("blink");
+            this.botResponse.hideGenerating();
         }
 
         public void markStopped() {
@@ -1798,7 +1798,7 @@ public class ChatContentView extends VerticalLayout {
                 this.mcpToolProcessDetails = null;
                 this.mcpToolProcessMessage = null;
             }
-            this.botResponse.removeClassName("blink");
+            this.botResponse.hideGenerating();
             List<String> appendedBlocks = appendPendingActionBlocks();
             this.botResponse.enhanceNow();
             ChatService.ChatMeta chatMeta = lastUserMetadata.map(map -> map.get(ChatService.CHAT_META))
