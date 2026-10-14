@@ -39,12 +39,14 @@ final class HitlApprovalInterceptor implements AgentRoundInterceptor {
     private final ObjectProvider<ToolSpecService> toolSpecServiceProvider;
     private final MeterRegistry meterRegistry;
     private final DeniedToolCallRecorder deniedToolCallRecorder;
+    private final int approvalWaitSeconds;
 
     HitlApprovalInterceptor(ObjectProvider<ToolSpecService> toolSpecServiceProvider, MeterRegistry meterRegistry,
-            DeniedToolCallRecorder deniedToolCallRecorder) {
+            DeniedToolCallRecorder deniedToolCallRecorder, int approvalWaitSeconds) {
         this.toolSpecServiceProvider = toolSpecServiceProvider;
         this.meterRegistry = meterRegistry;
         this.deniedToolCallRecorder = deniedToolCallRecorder;
+        this.approvalWaitSeconds = approvalWaitSeconds;
     }
 
     @Override
@@ -97,7 +99,8 @@ final class HitlApprovalInterceptor implements AgentRoundInterceptor {
                 countDenial(call, "ask-failed");
             } else if (HumanQuestionHandler.TIMEOUT_ANSWER.equals(answer)) {
                 turn.markDeclined(call.name());
-                claims.put(call.id(), Interception.of(AgentTurnMessages.approvalTimedOut(call.name())));
+                claims.put(call.id(), Interception.of(
+                        AgentTurnMessages.approvalTimedOut(call.name(), this.approvalWaitSeconds)));
                 logger.info("hitl.timeout tool={}", call.name());
                 countDenial(call, "timeout");
             } else if (!"Approve".equalsIgnoreCase(answer)) {

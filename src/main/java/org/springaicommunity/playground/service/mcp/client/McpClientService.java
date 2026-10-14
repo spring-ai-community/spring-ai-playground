@@ -25,11 +25,14 @@ import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.Implementation;
 import io.modelcontextprotocol.spec.McpSchema.ServerCapabilities;
 import jakarta.annotation.Nullable;
+import org.springaicommunity.playground.SpringAiPlaygroundOptions;
+import org.springaicommunity.playground.service.mcp.McpServerHitlToolGate;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
 import org.springaicommunity.playground.service.mcp.risk.McpToolRiskEvaluator;
 import org.springaicommunity.playground.service.oauth.McpOAuthAuthorizedEvent;
 import org.springaicommunity.playground.service.tool.ToolManifest.Sandbox.RiskLevel;
+import org.springaicommunity.playground.service.tool.ToolSpecService;
 import org.springaicommunity.playground.service.oauth.OAuthClientRegistrations;
 import org.springaicommunity.playground.service.util.SecretMasking;
 import org.slf4j.Logger;
@@ -50,6 +53,7 @@ import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -63,7 +67,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -129,8 +132,10 @@ public class McpClientService {
     private final Map<String, List<McpSchema.Root>> rootsByServer = new ConcurrentHashMap<>();
 
     private final Map<McpTransportType, McpClientPropertiesService<?>> typeMcpClientPropertiesServiceMap;
-    private final BiFunction<NamedClientMcpTransport, Implementation, McpClientOps> mcpClientOpsBiFunction;
     private final Map<String, McpClientOps> connectingMcpClientOpsMap;
+    private final Map<String, McpClientOps> approvalAwareClientOpsMap = new ConcurrentHashMap<>();
+    private final SpringAiPlaygroundOptions.Hitl hitl;
+    private final ObjectProvider<ToolSpecService> toolSpecServiceProvider;
 
     private final Map<String, StatusEntry> statusCache;
 
@@ -145,7 +150,9 @@ public class McpClientService {
             ObjectProvider<McpServerInfoService> mcpServerInfoServiceProvider,
             ObjectProvider<McpToolRiskEvaluator> riskEvaluatorProvider,
             McpNotificationStore notificationStore,
-            MeterRegistry meterRegistry) {
+            MeterRegistry meterRegistry,
+            SpringAiPlaygroundOptions playgroundOptions,
+            ObjectProvider<ToolSpecService> toolSpecServiceProvider) {
         this.mcpSyncClientConfigurer = mcpSyncClientConfigurer;
         this.mcpAsyncClientConfigurer = mcpAsyncClientConfigurer;
         this.mcpClientCommonProperties = mcpClientCommonProperties;
@@ -158,9 +165,8 @@ public class McpClientService {
         this.meterRegistry = meterRegistry;
         this.typeMcpClientPropertiesServiceMap = Arrays.stream(mcpClientPropertiesServices)
                 .collect(Collectors.toMap(McpClientPropertiesService::getTransportType, Function.identity()));
-        this.mcpClientOpsBiFunction = (namedClientMcpTransport, info) ->
-                mcpClientCommonProperties.getType() == ClientType.SYNC ? newSync(namedClientMcpTransport,
-                        info) : newAsync(namedClientMcpTransport, info);
+        this.hitl = playgroundOptions.hitl();
+        this.toolSpecServiceProvider = toolSpecServiceProvider;
         this.connectingMcpClientOpsMap = new ConcurrentHashMap<>();
         this.statusCache = new ConcurrentHashMap<>();
     }
@@ -184,14 +190,35 @@ public class McpClientService {
         return self != null && name.endsWith(self);
     }
 
-    private McpSyncClientOps newSync(NamedClientMcpTransport namedClientMcpTransport, Implementation info) {
+    public Duration approvalWait() {
+        return this.hitl.approvalWait();
+    }
+
+    public Duration requestTimeout() {
+        return this.mcpClientCommonProperties.getRequestTimeout();
+    }
+
+    public boolean inspectorCallAwaitsApproval(McpServerInfo mcpServerInfo, String toolName) {
+        return awaitsHumanApproval(mcpServerInfo, toolName,
+                Map.of(McpServerHitlToolGate.INTERACTIVE_HITL_META_KEY, true));
+    }
+
+    private McpClientOps newClientOps(NamedClientMcpTransport namedClientMcpTransport, Implementation info,
+            Duration requestTimeout) {
+        return this.mcpClientCommonProperties.getType() == ClientType.SYNC
+                ? newSync(namedClientMcpTransport, info, requestTimeout)
+                : newAsync(namedClientMcpTransport, info, requestTimeout);
+    }
+
+    private McpSyncClientOps newSync(NamedClientMcpTransport namedClientMcpTransport, Implementation info,
+            Duration requestTimeout) {
         logger.info("Creating SYNC MCP client: name={}, transport={}",
                 namedClientMcpTransport.name(), namedClientMcpTransport.transport().getClass().getSimpleName());
         String serverKey = namedClientMcpTransport.name();
         McpClient.SyncSpec syncSpec = McpClient.sync(namedClientMcpTransport.transport())
                 .clientInfo(info)
                 .transportContextProvider(McpLoopbackIdentity::snapshotMdc)
-                .requestTimeout(mcpClientCommonProperties.getRequestTimeout())
+                .requestTimeout(requestTimeout)
                 .loggingConsumer(n -> notificationStore.record(serverKey,
                         McpNotificationStore.Event.of(McpNotificationStore.Kind.LOGGING,
                                 describeLogging(n), n)))
@@ -212,18 +239,18 @@ public class McpClientService {
         List<McpSchema.Root> roots = rootsByServer.getOrDefault(serverKey, List.of());
         syncSpec = syncSpec.capabilities(INTERACTIVE_CLIENT_CAPABILITIES).roots(roots);
         syncSpec = mcpSyncClientConfigurer.configure(namedClientMcpTransport.name(), syncSpec);
-        McpSyncClient mcpSyncClient =
-                syncSpec.requestTimeout(this.mcpClientCommonProperties.getRequestTimeout()).build();
+        McpSyncClient mcpSyncClient = syncSpec.requestTimeout(requestTimeout).build();
         mcpSyncClient.initialize();
         return new McpSyncClientOps(mcpSyncClient);
     }
 
-    private McpAsyncClientOps newAsync(NamedClientMcpTransport namedClientMcpTransport, Implementation implementation) {
+    private McpAsyncClientOps newAsync(NamedClientMcpTransport namedClientMcpTransport, Implementation implementation,
+            Duration requestTimeout) {
         logger.info("Creating ASYNC MCP client: name={}, transport={}",
                 namedClientMcpTransport.name(), namedClientMcpTransport.transport().getClass().getSimpleName());
         String serverKey = namedClientMcpTransport.name();
         McpClient.AsyncSpec asyncSpec = McpClient.async(namedClientMcpTransport.transport())
-                .clientInfo(implementation).requestTimeout(mcpClientCommonProperties.getRequestTimeout())
+                .clientInfo(implementation).requestTimeout(requestTimeout)
                 .loggingConsumer(n -> {
                     notificationStore.record(serverKey, McpNotificationStore.Event.of(
                             McpNotificationStore.Kind.LOGGING, describeLogging(n), n));
@@ -259,8 +286,7 @@ public class McpClientService {
         List<McpSchema.Root> roots = rootsByServer.getOrDefault(serverKey, List.of());
         asyncSpec = asyncSpec.capabilities(INTERACTIVE_CLIENT_CAPABILITIES).roots(roots);
         asyncSpec = mcpAsyncClientConfigurer.configure(namedClientMcpTransport.name(), asyncSpec);
-        McpAsyncClient mcpAsyncClient =
-                asyncSpec.requestTimeout(this.mcpClientCommonProperties.getRequestTimeout()).build();
+        McpAsyncClient mcpAsyncClient = asyncSpec.requestTimeout(requestTimeout).build();
         mcpAsyncClient.initialize().block();
         return new McpAsyncClientOps(mcpAsyncClient);
     }
@@ -286,8 +312,9 @@ public class McpClientService {
             McpSchema.CreateMessageRequest request) {
         String outcome;
         try {
-            McpSchema.CreateMessageResult result =
-                    notificationStore.awaitSamplingResponse(serverKey, request).get(2, TimeUnit.MINUTES);
+            McpSchema.CreateMessageResult result = notificationStore
+                    .awaitSamplingResponse(serverKey, request, this.hitl.approvalWait())
+                    .get(this.hitl.approvalWaitSeconds(), TimeUnit.SECONDS);
             outcome = "success";
             recordServerHandler("sampling", serverKey, outcome);
             return result;
@@ -295,7 +322,8 @@ public class McpClientService {
             recordServerHandler("sampling", serverKey, "timeout");
             return McpSchema.CreateMessageResult.builder()
                     .role(McpSchema.Role.ASSISTANT)
-                    .content(new McpSchema.TextContent("Timed out waiting for user response."))
+                    .content(new McpSchema.TextContent(
+                            "No user response within " + this.hitl.approvalWaitSeconds() + " s."))
                     .model(MANUAL_SAMPLING_MODEL)
                     .stopReason(McpSchema.CreateMessageResult.StopReason.END_TURN)
                     .build();
@@ -312,26 +340,25 @@ public class McpClientService {
 
     private McpSchema.ElicitResult awaitElicitation(String serverKey, McpSchema.ElicitRequest request) {
         CompletableFuture<McpSchema.ElicitResult> future =
-                notificationStore.awaitElicitationResponse(serverKey, request);
+                notificationStore.awaitElicitationResponse(serverKey, request, this.hitl.approvalWait());
         try {
-            McpSchema.ElicitResult result = future.get(2, TimeUnit.MINUTES);
+            McpSchema.ElicitResult result = future.get(this.hitl.approvalWaitSeconds(), TimeUnit.SECONDS);
             recordServerHandler("elicitation",
                     serverKey, result.action() == McpSchema.ElicitResult.Action.ACCEPT ? "accept" : "reject");
             return result;
         } catch (TimeoutException e) {
             recordServerHandler("elicitation", serverKey, "timeout");
-            return discardAndCancel(future);
+            return settle(future, McpServerHitlToolGate.approvalExpired());
         } catch (Exception e) {
             recordServerHandler("elicitation", serverKey, "error");
-            return discardAndCancel(future);
+            return settle(future, new McpSchema.ElicitResult(McpSchema.ElicitResult.Action.CANCEL, Map.of()));
         }
     }
 
-    private McpSchema.ElicitResult discardAndCancel(CompletableFuture<McpSchema.ElicitResult> future) {
-        McpSchema.ElicitResult cancelled =
-                new McpSchema.ElicitResult(McpSchema.ElicitResult.Action.CANCEL, Map.of());
-        future.complete(cancelled);
-        return cancelled;
+    private static McpSchema.ElicitResult settle(CompletableFuture<McpSchema.ElicitResult> future,
+            McpSchema.ElicitResult result) {
+        future.complete(result);
+        return result;
     }
 
     private void recordServerHandler(String kind, String serverName, String outcome) {
@@ -358,8 +385,10 @@ public class McpClientService {
                 new Implementation(mcpClientCommonProperties.getName() + " - " + mcpServerInfo.serverName(),
                         mcpClientCommonProperties.getVersion());
         try {
-            McpClientOps mcpClientOps = mcpClientOpsBiFunction.apply(buildMcpClientTransport(mcpServerInfo), info);
+            McpClientOps mcpClientOps = newClientOps(buildMcpClientTransport(mcpServerInfo), info,
+                    this.mcpClientCommonProperties.getRequestTimeout());
             McpClientOps previous = connectingMcpClientOpsMap.put(key, mcpClientOps);
+            closeApprovalAwareClient(key);
             statusCache.put(key, StatusEntry.ok());
             refreshToolIndex(mcpServerInfo, mcpClientOps);
             recordLifecycle("connect", mcpServerInfo);
@@ -524,10 +553,48 @@ public class McpClientService {
         logger.info("Stopping MCP client: serverName={}, mcpClientOps={}", mcpServerInfo.serverName(), mcpClientOps);
         statusCache.put(key, StatusEntry.OFFLINE);
         evictToolIndex(mcpServerInfo);
+        closeApprovalAwareClient(key);
         if (Objects.nonNull(mcpClientOps)) {
             mcpClientOps.close();
             recordLifecycle("disconnect", mcpServerInfo);
         }
+    }
+
+    private void closeApprovalAwareClient(String key) {
+        McpClientOps approvalAware = this.approvalAwareClientOpsMap.remove(key);
+        if (approvalAware == null) return;
+        try {
+            approvalAware.close();
+        } catch (RuntimeException e) {
+            logger.warn("Failed to close approval-aware MCP client: key={}", key, e);
+        }
+    }
+
+    private boolean awaitsHumanApproval(McpServerInfo mcpServerInfo, String toolName, Map<String, Object> meta) {
+        if (meta == null || !Boolean.TRUE.equals(meta.get(McpServerHitlToolGate.INTERACTIVE_HITL_META_KEY))) {
+            return false;
+        }
+        if (!isBuiltInServer(mcpServerInfo)) return false;
+        ToolSpecService toolSpecService = this.toolSpecServiceProvider.getIfAvailable();
+        return toolSpecService != null && toolSpecService.requiresApproval(toolName);
+    }
+
+    private McpClientOps approvalAwareClientOps(McpServerInfo mcpServerInfo) {
+        return this.approvalAwareClientOpsMap.computeIfAbsent(clientKey(mcpServerInfo), key -> {
+            McpServerInfo current = currentBuiltInServerInfo(mcpServerInfo);
+            Implementation info = new Implementation(
+                    mcpClientCommonProperties.getName() + " - " + current.serverName(),
+                    mcpClientCommonProperties.getVersion());
+            logger.info("Creating approval-aware MCP client: serverName={}, requestTimeout={}",
+                    current.serverName(), this.hitl.transportTimeout());
+            return newClientOps(buildMcpClientTransport(current), info, this.hitl.transportTimeout());
+        });
+    }
+
+    private McpServerInfo currentBuiltInServerInfo(McpServerInfo requested) {
+        McpServerInfoService infoService = this.mcpServerInfoServiceProvider.getIfAvailable();
+        McpServerInfo builtIn = infoService == null ? null : infoService.getDefaultMcpServerInfo();
+        return builtIn == null ? requested : builtIn;
     }
 
     public Optional<McpToolSource> lookupToolSource(String toolName) {
@@ -730,10 +797,13 @@ public class McpClientService {
             logger.info("mcp.tool.start cid={} server={} tool={} via=inspector",
                     cid, mcpServerInfo.serverName(), toolName);
             long startNs = System.nanoTime();
+            McpClientOps connected = connectingMcpClientOpsMap.get(clientKey(mcpServerInfo));
+            boolean approvalCall = connected != null && awaitsHumanApproval(mcpServerInfo, toolName, meta);
+            Duration callTimeout = approvalCall ? this.hitl.transportTimeout() : requestTimeout();
             try {
-                Optional<McpSchema.CallToolResult> result =
-                        Optional.ofNullable(connectingMcpClientOpsMap.get(clientKey(mcpServerInfo)))
-                                .map(mcpClientOps -> mcpClientOps.callTool(toolName, args, meta));
+                McpClientOps caller = approvalCall ? approvalAwareClientOps(mcpServerInfo) : connected;
+                Optional<McpSchema.CallToolResult> result = Optional.ofNullable(caller)
+                        .map(mcpClientOps -> mcpClientOps.callTool(toolName, args, meta));
                 long durMs = (System.nanoTime() - startNs) / 1_000_000L;
                 boolean ok = result.map(r -> !Boolean.TRUE.equals(r.isError())).orElse(false);
                 logger.info("mcp.tool.done cid={} server={} tool={} durationMs={} ok={} via=inspector",
@@ -747,6 +817,10 @@ public class McpClientService {
                 logger.warn("mcp.tool.crash cid={} server={} tool={} durationMs={} via=inspector error={}",
                         cid, mcpServerInfo.serverName(), toolName, durMs,
                         SecretMasking.mask(msg, secrets));
+                if (isTimeout(e)) {
+                    throw new IllegalStateException("No response from the server within "
+                            + callTimeout.toSeconds() + " s (MCP client request timeout).", e);
+                }
                 throw e;
             }
         });
@@ -802,6 +876,13 @@ public class McpClientService {
                         .buildClientTransport(this.objectMapper, mcpServerInfo.connectionAsJson(),
                                 registrationId, this.oauth2ClientManager,
                                 isBuiltInServer(mcpServerInfo) ? McpLoopbackIdentity.headerCustomizer() : null));
+    }
+
+    private static boolean isTimeout(Throwable error) {
+        for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+            if (cause instanceof TimeoutException) return true;
+        }
+        return false;
     }
 
     private boolean isBuiltInServer(McpServerInfo mcpServerInfo) {
@@ -874,6 +955,7 @@ public class McpClientService {
     public void shutdownAllMcpClients() {
         logger.info("Shutting down all MCP clients. currentActiveClientCount={}", connectingMcpClientOpsMap.size());
         this.connectingMcpClientOpsMap.forEach((key, mcpClientOps) -> {
+            closeApprovalAwareClient(key);
             try {
                 mcpClientOps.close();
             } catch (RuntimeException e) {

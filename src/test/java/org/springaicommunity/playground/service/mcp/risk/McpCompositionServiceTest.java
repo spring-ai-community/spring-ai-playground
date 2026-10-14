@@ -65,7 +65,7 @@ class McpCompositionServiceTest {
             }
             @Override public void onPoisoningHit(McpRiskEvents.PoisoningHit event) {}
         };
-        SpringAiPlaygroundOptions options = new SpringAiPlaygroundOptions(null, false, null, null, null, null);
+        SpringAiPlaygroundOptions options = new SpringAiPlaygroundOptions(null, false, null, null, null, null, null);
         this.service = new McpCompositionService(persistence, new McpCompositionShadowingRules(), sink, options);
     }
 

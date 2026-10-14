@@ -22,6 +22,7 @@ import com.vaadin.flow.component.UI;
 import com.vaadin.flow.server.VaadinSession;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.tabs.Tab;
 import com.vaadin.flow.component.tabs.TabSheet;
 import com.vaadin.flow.component.textfield.TextField;
@@ -30,14 +31,21 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
+import org.springaicommunity.playground.service.mcp.McpServerInfoService;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.service.mcp.client.McpLoopbackClientTestSupport;
 import org.springaicommunity.playground.service.mcp.client.McpNotificationStore;
 import org.springaicommunity.playground.service.mcp.client.McpTransportType;
+import org.springaicommunity.playground.service.mcp.risk.McpToolRiskComposer;
 import org.springaicommunity.playground.service.mcp.risk.McpToolRiskEvaluator;
+import org.springaicommunity.playground.service.mcp.risk.WrappedExternalToolCallback;
+import org.springaicommunity.playground.service.tool.ToolManifest.Sandbox.RiskLevel;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
 import org.springaicommunity.playground.webui.mcp.inspector.primitives.server.ResourcePrimitive;
+import org.springaicommunity.playground.webui.mcp.inspector.primitives.server.ToolPrimitive;
 import org.springframework.ai.mcp.client.common.autoconfigure.properties.McpStreamableHttpClientProperties;
+import org.springframework.ai.tool.ToolCallback;
+import org.springframework.ai.tool.function.FunctionToolCallback;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -60,6 +68,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 class McpServerInspectorViewTest extends SpringBrowserlessTest {
 
     private static final String EVAL_EXPRESSION_TOOL_ID = "6dea1efa-8a21-5522-ac08-4ede8fd9ff84";
+    private static final String APPROVAL_TOOL = "inspectorApprovalEcho";
+
+    record EchoRequest(String text) {}
 
     @LocalServerPort
     private int port;
@@ -72,6 +83,9 @@ class McpServerInspectorViewTest extends SpringBrowserlessTest {
 
     @Autowired
     private McpToolRiskEvaluator riskEvaluator;
+
+    @Autowired
+    private McpServerInfoService mcpServerInfoService;
 
     private McpServerInfo serverInfo;
     private ToolSpecService.ToolMcpServerSetting previousSetting;
@@ -167,6 +181,113 @@ class McpServerInspectorViewTest extends SpringBrowserlessTest {
         McpSchema.ReadResourceResult elicitResult = pendingElicitRead.get(15, TimeUnit.SECONDS).orElseThrow();
         assertThat(((McpSchema.TextResourceContents) elicitResult.contents().getFirst()).text())
                 .isEqualToIgnoringCase("elicit:accept");
+    }
+
+    @Test
+    void hitlToolCallFromInspectorOutlivesTheClientRequestTimeoutUntilApproved() throws Exception {
+        ToolCallback echo = FunctionToolCallback
+                .builder(APPROVAL_TOOL, (EchoRequest request) -> "approved echo: " + request.text())
+                .description("Echoes the text once a human approves.")
+                .inputType(EchoRequest.class)
+                .build();
+        this.toolSpecService.addExternalMcpTool(echo, true);
+        McpServerInfo builtIn = this.mcpServerInfoService.getDefaultMcpServerInfo();
+        this.mcpClientService.startMcpClient(builtIn);
+        try {
+            List<McpSchema.Tool> tools = pollUntil(
+                    () -> this.mcpClientService.getToolListAsOpt(builtIn).orElseGet(List::of),
+                    (List<McpSchema.Tool> listed) -> listed.stream().anyMatch(tool -> APPROVAL_TOOL.equals(tool.name())));
+            McpServerInspectorView inspector = new McpServerInspectorView(builtIn, this.mcpClientService,
+                    tools, this.riskEvaluator);
+            UI.getCurrent().add(inspector);
+            roundTrip();
+
+            ToolPrimitive card = $(ToolPrimitive.class, inspector)
+                    .withCondition(primitive -> primitive.getElement().getTextRecursively().contains(APPROVAL_TOOL))
+                    .first();
+            test($(TextField.class, card).first()).setValue("hello");
+            test($(Button.class, card)
+                    .withCondition(button -> "Run tool".equals(button.getTooltip().getText()))
+                    .first()).click();
+
+            pollUntil(() -> this.mcpClientService.snapshotPendingElicitations(builtIn),
+                    (List<McpNotificationStore.PendingElicitation> pending) -> !pending.isEmpty());
+            drainUi();
+            assertThat(card.getElement().getTextRecursively()).contains("Running...").contains("left to approve");
+
+            Thread.sleep(25_000L);
+            drainUi();
+            assertThat(this.mcpClientService.snapshotPendingElicitations(builtIn)).hasSize(1);
+            assertThat(card.getElement().getTextRecursively()).contains("Running...").doesNotContain("ERROR");
+
+            Button accept = pollUntil(() -> {
+                drainUi();
+                return $(Button.class, card).withCondition(button -> "Accept".equals(button.getText()))
+                        .all().stream().findFirst().orElse(null);
+            }, Objects::nonNull);
+            assertThat(card.getElement().getTextRecursively())
+                    .contains("Approval needed:").contains("left to answer");
+            assertThat($(Notification.class).all()).isEmpty();
+            test(accept).click();
+
+            String output = pollUntil(() -> {
+                drainUi();
+                return card.getElement().getTextRecursively();
+            }, text -> text.contains("approved echo: hello"));
+            assertThat(output).contains("approved echo: hello").doesNotContain("Running...");
+            assertThat(this.mcpClientService.snapshotPendingElicitations(builtIn)).isEmpty();
+        } finally {
+            this.toolSpecService.removeExternalMcpTool(APPROVAL_TOOL);
+        }
+    }
+
+    @Test
+    void builtInInspectorShowsTheComposedLevelOfProxiedTools() throws Exception {
+        McpToolRiskComposer.Composed lowRisk =
+                new McpToolRiskComposer.Composed(RiskLevel.L2, RiskLevel.L1, RiskLevel.L2, null);
+        WrappedExternalToolCallback plain = new WrappedExternalToolCallback(echoCallback("upstreamEcho"),
+                "composition", "Exposed Tools", "proxied_echo", "everything", "STDIO", lowRisk, Set.of());
+        WrappedExternalToolCallback gated = new WrappedExternalToolCallback(echoCallback("upstreamSum"),
+                "composition", "Exposed Tools", "proxied_sum", "everything", "STDIO", lowRisk, Set.of());
+        this.toolSpecService.addExternalMcpTool(plain, false);
+        this.toolSpecService.addExternalMcpTool(gated, true);
+        McpServerInfo builtIn = this.mcpServerInfoService.getDefaultMcpServerInfo();
+        this.mcpClientService.startMcpClient(builtIn);
+        try {
+            List<McpSchema.Tool> tools = pollUntil(
+                    () -> this.mcpClientService.getToolListAsOpt(builtIn).orElseGet(List::of),
+                    (List<McpSchema.Tool> listed) -> listed.stream().map(McpSchema.Tool::name).toList()
+                            .containsAll(List.of("proxied_echo", "proxied_sum")));
+            McpServerInspectorView inspector = new McpServerInspectorView(builtIn, this.mcpClientService,
+                    tools, this.riskEvaluator);
+            UI.getCurrent().add(inspector);
+            roundTrip();
+
+            assertThat(cardText(inspector, "proxied_echo")).contains("L2 - Low").doesNotContain("L0");
+            assertThat(cardText(inspector, "proxied_sum")).contains("L2 → L1 - Safe");
+        } finally {
+            this.toolSpecService.removeExternalMcpTool("proxied_echo");
+            this.toolSpecService.removeExternalMcpTool("proxied_sum");
+        }
+    }
+
+    private static ToolCallback echoCallback(String name) {
+        return FunctionToolCallback.builder(name, (EchoRequest request) -> request.text())
+                .description("Echoes the text.")
+                .inputType(EchoRequest.class)
+                .build();
+    }
+
+    private String cardText(McpServerInspectorView inspector, String toolName) {
+        return $(ToolPrimitive.class, inspector)
+                .withCondition(primitive -> primitive.getElement().getTextRecursively().contains(toolName))
+                .first().getElement().getTextRecursively();
+    }
+
+    private void drainUi() {
+        VaadinSession session = VaadinSession.getCurrent();
+        session.getService().runPendingAccessTasks(session);
+        roundTrip();
     }
 
     private void selectTab(TabSheet tabSheet, String caption) {

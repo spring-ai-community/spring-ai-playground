@@ -69,7 +69,7 @@ class AgentLoopManagerHitlTest {
         ObjectProvider<ToolSpecService> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(toolSpecService);
         return new AgentLoopManager(delegate, provider, meterRegistry, toolResultMaxChars,
-                mock(DeniedToolCallRecorder.class));
+                mock(DeniedToolCallRecorder.class), 180);
     }
 
     private Prompt promptWith(HumanQuestionHandler handler) {
@@ -163,7 +163,7 @@ class AgentLoopManagerHitlTest {
         DeniedToolCallRecorder recorder = mock(DeniedToolCallRecorder.class);
         ObjectProvider<ToolSpecService> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(toolSpecService);
-        AgentLoopManager manager = new AgentLoopManager(delegate, provider, meterRegistry, 12_000, recorder);
+        AgentLoopManager manager = new AgentLoopManager(delegate, provider, meterRegistry, 12_000, recorder, 180);
         when(toolSpecService.requiresApproval(anyString())).thenReturn(true);
         when(delegate.executeToolCalls(any(), any())).thenReturn(delegateResultFor(toolCall("3", "readFile")));
 
@@ -186,7 +186,7 @@ class AgentLoopManagerHitlTest {
 
         verify(delegate, never()).executeToolCalls(any(), any());
         ToolResponseMessage trm = (ToolResponseMessage) result.conversationHistory().getLast();
-        assertTrue(trm.getResponses().get(0).responseData().contains("timed out"));
+        assertTrue(trm.getResponses().get(0).responseData().contains("no approval within 180 s"));
     }
 
     @Test
@@ -358,7 +358,7 @@ class AgentLoopManagerHitlTest {
 
     @Test
     void cancelledUploadIsAutoDeclinedOnRepeatCallInSameTurn() {
-        AgentTurn turn = new AgentTurn(new SpringAiPlaygroundOptions.AgentLoop(16, 18, 3, 1, null, null));
+        AgentTurn turn = new AgentTurn(new SpringAiPlaygroundOptions.AgentLoop(16, 18, 3, 1));
         AtomicInteger uploads = new AtomicInteger();
         FileUploadHandler handler = request -> {
             uploads.incrementAndGet();
@@ -379,7 +379,7 @@ class AgentLoopManagerHitlTest {
 
     @Test
     void secondInteractiveCallInOneRoundIsDeferredByBudget() {
-        AgentTurn turn = new AgentTurn(new SpringAiPlaygroundOptions.AgentLoop(16, 18, 3, 1, null, null));
+        AgentTurn turn = new AgentTurn(new SpringAiPlaygroundOptions.AgentLoop(16, 18, 3, 1));
         AtomicInteger uploads = new AtomicInteger();
         FileUploadHandler uploadHandler = request -> {
             uploads.incrementAndGet();

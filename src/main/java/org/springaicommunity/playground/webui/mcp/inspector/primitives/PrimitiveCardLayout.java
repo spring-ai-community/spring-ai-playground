@@ -24,6 +24,9 @@ import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
+import org.springaicommunity.playground.webui.CountdownLabel;
+
+import java.time.Instant;
 
 public final class PrimitiveCardLayout {
 
@@ -68,6 +71,12 @@ public final class PrimitiveCardLayout {
         row.setAlignItems(FlexComponent.Alignment.CENTER);
         row.getStyle().set("gap", "0.6em");
         return row;
+    }
+
+    public static CountdownLabel expiryLine(Instant deadline) {
+        CountdownLabel countdown = new CountdownLabel(deadline, " left to answer before this request expires");
+        countdown.getStyle().set("display", "block").set("margin", "0.3em 0 0 2.4em");
+        return countdown;
     }
 
     public static Span subNameLabel(String name) {

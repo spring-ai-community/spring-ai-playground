@@ -38,8 +38,7 @@ public final class AgentTurn {
     private volatile RoundVerdict verdict = RoundVerdict.CONTINUE;
 
     public AgentTurn(SpringAiPlaygroundOptions.AgentLoop policy) {
-        this.policy = policy == null ? new SpringAiPlaygroundOptions.AgentLoop(null, null, null, null, null, null)
-                : policy;
+        this.policy = policy == null ? new SpringAiPlaygroundOptions.AgentLoop(null, null, null, null) : policy;
     }
 
     public RoundVerdict beginRound() {
@@ -97,6 +96,6 @@ public final class AgentTurn {
 
     static AgentTurn detached() {
         return new AgentTurn(new SpringAiPlaygroundOptions.AgentLoop(Integer.MAX_VALUE, Integer.MAX_VALUE,
-                Integer.MAX_VALUE, Integer.MAX_VALUE, null, null));
+                Integer.MAX_VALUE, Integer.MAX_VALUE));
     }
 }

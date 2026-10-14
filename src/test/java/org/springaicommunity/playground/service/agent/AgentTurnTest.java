@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
 import org.springaicommunity.playground.service.agent.AgentTurn.RoundVerdict;
 
+import java.time.Duration;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -30,8 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class AgentTurnTest {
 
     private static AgentTurn turn(int soft, int hard, int identical, int interactions) {
-        return new AgentTurn(new SpringAiPlaygroundOptions.AgentLoop(soft, hard, identical, interactions,
-                null, null));
+        return new AgentTurn(new SpringAiPlaygroundOptions.AgentLoop(soft, hard, identical, interactions));
     }
 
     @Test
@@ -98,28 +98,27 @@ class AgentTurnTest {
     @Test
     void policyDefaultsFillInNullAndNonPositiveValues() {
         SpringAiPlaygroundOptions.AgentLoop policy =
-                new SpringAiPlaygroundOptions.AgentLoop(null, null, 0, -1, null, null);
+                new SpringAiPlaygroundOptions.AgentLoop(null, null, 0, -1);
         assertEquals(16, policy.softMaxRounds());
         assertEquals(18, policy.hardMaxRounds());
         assertEquals(3, policy.maxIdenticalCalls());
         assertEquals(1, policy.interactionsPerRound());
-        assertEquals(120, policy.approvalTimeoutSeconds());
-        assertEquals(180, policy.dialogTimeoutSeconds());
     }
 
     @Test
     void policyRaisesHardCapBelowSoftCapToTheSoftCap() {
         SpringAiPlaygroundOptions.AgentLoop policy =
-                new SpringAiPlaygroundOptions.AgentLoop(20, 5, 3, 1, null, null);
+                new SpringAiPlaygroundOptions.AgentLoop(20, 5, 3, 1);
         assertEquals(20, policy.softMaxRounds());
         assertEquals(20, policy.hardMaxRounds());
     }
 
     @Test
-    void policyClampsDialogTimeoutsBelowTheStreamTimeout() {
-        SpringAiPlaygroundOptions.AgentLoop policy =
-                new SpringAiPlaygroundOptions.AgentLoop(16, 18, 3, 1, 9000, 9000);
-        assertEquals(240, policy.approvalTimeoutSeconds());
-        assertEquals(240, policy.dialogTimeoutSeconds());
+    void approvalWaitDefaultsToThreeMinutesAndClampsBelowTheStreamTimeout() {
+        assertEquals(180, new SpringAiPlaygroundOptions.Hitl(null).approvalWaitSeconds());
+        assertEquals(180, new SpringAiPlaygroundOptions.Hitl(0).approvalWaitSeconds());
+        assertEquals(240, new SpringAiPlaygroundOptions.Hitl(9000).approvalWaitSeconds());
+        assertEquals(Duration.ofSeconds(42), new SpringAiPlaygroundOptions.Hitl(42).approvalWait());
+        assertEquals(Duration.ofSeconds(72), new SpringAiPlaygroundOptions.Hitl(42).transportTimeout());
     }
 }

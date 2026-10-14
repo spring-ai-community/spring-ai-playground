@@ -147,6 +147,8 @@ spring:
       mcp-server:
         composed-tools-max-risk: L5
         composed-tools: []
+      hitl:
+        approval-wait-seconds: 180
     mcp:
       client:
         type: SYNC
@@ -155,8 +157,6 @@ spring:
         name: ${spring.ai.playground.built-in-mcp-server.name}
         protocol: STREAMABLE
         type: SYNC
-        # Server-to-client elicitation (HITL) timeout; must outlast the client's 2-min decision wait (bare number = millis).
-        request-timeout: 150s
 
 ---
 spring:

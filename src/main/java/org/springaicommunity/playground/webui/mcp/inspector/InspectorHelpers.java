@@ -49,6 +49,13 @@ import java.util.Optional;
 
 public final class InspectorHelpers {
 
+    public static boolean requiresNoInput(McpSchema.ElicitRequest request) {
+        if (!(request instanceof McpSchema.ElicitFormRequest form)) return false;
+        Map<String, Object> schema = form.requestedSchema();
+        if (schema == null || schema.isEmpty()) return true;
+        return !(schema.get("properties") instanceof Map<?, ?> properties) || properties.isEmpty();
+    }
+
     public static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm:ss");
     public static final String ARG_REQUIRED = "Required field";
     public static final ObjectMapper INSPECTOR_OBJECT_MAPPER = new ObjectMapper();

@@ -74,16 +74,19 @@ public class AgentLoopManager implements ToolCallingManager {
             SpringAiPlaygroundOptions options, DeniedToolCallRecorder deniedToolCallRecorder) {
         this(ToolCallingManager.builder().observationRegistry(observationRegistry).build(),
                 toolSpecServiceProvider, meterRegistry,
-                options.chat() == null ? 12_000 : options.chat().toolResultMaxChars(), deniedToolCallRecorder);
+                options.chat() == null ? 12_000 : options.chat().toolResultMaxChars(), deniedToolCallRecorder,
+                options.hitl().approvalWaitSeconds());
     }
 
     AgentLoopManager(ToolCallingManager delegate, ObjectProvider<ToolSpecService> toolSpecServiceProvider,
-            MeterRegistry meterRegistry, int toolResultMaxChars, DeniedToolCallRecorder deniedToolCallRecorder) {
+            MeterRegistry meterRegistry, int toolResultMaxChars, DeniedToolCallRecorder deniedToolCallRecorder,
+            int approvalWaitSeconds) {
         this.toolCallingManager = delegate;
         this.toolResultMaxChars = toolResultMaxChars;
         this.interceptors = List.of(
                 new LoopGuardInterceptor(meterRegistry),
-                new HitlApprovalInterceptor(toolSpecServiceProvider, meterRegistry, deniedToolCallRecorder),
+                new HitlApprovalInterceptor(toolSpecServiceProvider, meterRegistry, deniedToolCallRecorder,
+                        approvalWaitSeconds),
                 new FileUploadInterceptor(meterRegistry),
                 new ImageReferenceInterceptor());
     }

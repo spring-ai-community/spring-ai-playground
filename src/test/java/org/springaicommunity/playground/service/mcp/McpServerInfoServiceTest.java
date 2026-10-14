@@ -319,7 +319,7 @@ class McpServerInfoServiceTest {
         doReturn(Map.of()).when(streamable).getDefaultConnections();
         Path homeDir = Files.createTempDirectory("saip-mcp-save-test");
         SpringAiPlaygroundOptions playgroundOptions = new SpringAiPlaygroundOptions(null, false, null, null, null,
-                new SpringAiPlaygroundOptions.McpServer(null, null, null));
+                new SpringAiPlaygroundOptions.McpServer(null, null, null), null);
         ObjectProvider<McpServerInfoPersistenceService> provider = mock();
         when(provider.getObject()).thenReturn(persistence);
         return new McpServerInfoService(new ObjectMapper(),
@@ -352,7 +352,7 @@ class McpServerInfoServiceTest {
     private static void newService(String authToken, boolean stdio) throws IOException {
         Path homeDir = Files.createTempDirectory("saip-mcp-info-test");
         SpringAiPlaygroundOptions playgroundOptions = new SpringAiPlaygroundOptions(null, false, null, null, null,
-                new SpringAiPlaygroundOptions.McpServer(null, null, authToken));
+                new SpringAiPlaygroundOptions.McpServer(null, null, authToken), null);
         McpServerProperties serverProperties = new McpServerProperties();
         serverProperties.setStdio(stdio);
         ObjectProvider<McpServerInfoPersistenceService> persistence = mock();

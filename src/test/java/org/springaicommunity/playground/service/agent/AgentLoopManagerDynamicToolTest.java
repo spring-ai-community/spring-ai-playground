@@ -54,7 +54,7 @@ class AgentLoopManagerDynamicToolTest {
         ObjectProvider<ToolSpecService> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(null);
         return new AgentLoopManager(delegate, provider, new SimpleMeterRegistry(), 12_000,
-                mock(DeniedToolCallRecorder.class));
+                mock(DeniedToolCallRecorder.class), 180);
     }
 
     private Prompt promptWith(Map<String, Object> toolContext, ToolCallback... offered) {

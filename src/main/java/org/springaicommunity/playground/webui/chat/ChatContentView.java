@@ -159,7 +159,7 @@ public class ChatContentView extends VerticalLayout {
     private final Span dynamicToolsNote = new Span();
     private final ChatClientActionRegistry clientActionRegistry;
     private final SpringAiPlaygroundOptions.ToolSearch toolSearch;
-    private final SpringAiPlaygroundOptions.AgentLoop agentLoop;
+    private final int approvalWaitSeconds;
     private final ChatStreamRegistry streamRegistry;
     private final CompletableFuture<ZoneId> zoneIdFuture;
 
@@ -189,7 +189,7 @@ public class ChatContentView extends VerticalLayout {
         this.usageEventTracker = usageEventTracker;
         this.streamRegistry = streamRegistry;
         this.toolSearch = playgroundOptions.chat().toolSearch();
-        this.agentLoop = playgroundOptions.chat().agentLoop();
+        this.approvalWaitSeconds = playgroundOptions.hitl().approvalWaitSeconds();
         this.customToolsComboBox = ExposedToolsSelector.newCustomSelector(
                 toolSpecService::riskLevelOf, toolSpecService::categoryOf);
         this.builtinToolsComboBox = ExposedToolsSelector.newBuiltinSelector(
@@ -843,11 +843,11 @@ public class ChatContentView extends VerticalLayout {
                         releaseStream();
                     }
                 },
-                new ChatHumanQuestionHandler(ui, this.agentLoop.approvalTimeoutSeconds()),
+                new ChatHumanQuestionHandler(ui, this.approvalWaitSeconds),
                 new ChatFileUploadHandler(ui, this.fileUploadStore, this.chatHistory.conversationId(),
-                        this.agentLoop.dialogTimeoutSeconds()),
+                        this.approvalWaitSeconds),
                 new ChatImageReferenceHandler(ui, this.imageStore, this.chatHistory.conversationId(),
-                        this.agentLoop.dialogTimeoutSeconds()),
+                        this.approvalWaitSeconds),
                 this.completeChatHistoryConsumer);
         ChatTurnService.ChatTurn turn;
         try {

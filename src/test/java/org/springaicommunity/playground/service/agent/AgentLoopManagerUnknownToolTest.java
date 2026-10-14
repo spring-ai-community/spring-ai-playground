@@ -56,7 +56,7 @@ class AgentLoopManagerUnknownToolTest {
         ObjectProvider<ToolSpecService> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(mock(ToolSpecService.class));
         return new AgentLoopManager(delegate, provider, new SimpleMeterRegistry(), 12_000,
-                mock(DeniedToolCallRecorder.class));
+                mock(DeniedToolCallRecorder.class), 180);
     }
 
     private static ToolCallback callbackNamed(String name) {

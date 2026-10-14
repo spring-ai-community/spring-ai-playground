@@ -28,10 +28,12 @@ import com.vaadin.flow.component.radiobutton.RadioButtonGroup;
 import org.springaicommunity.playground.service.tool.HumanQuestion;
 import org.springaicommunity.playground.service.tool.HumanQuestionHandler;
 import org.springaicommunity.playground.service.tool.ToolManifest.Sandbox.RiskLevel;
+import org.springaicommunity.playground.webui.CountdownLabel;
 import org.springaicommunity.playground.webui.mcp.McpRiskChip;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -100,7 +102,10 @@ public final class ChatHumanQuestionHandler implements HumanQuestionHandler {
         dialog.add(body);
         List<HumanQuestion.Option> options = question.options();
         dialog.setCancelable(true);
-        dialog.setCancelText(options.get(1).label());
+        dialog.setCancelButton(declineWithCountdown(options.get(1).label(), () -> {
+            decision.complete(singleAnswer(question, options.get(1).label()));
+            dialog.close();
+        }));
         dialog.addCancelListener(e -> decision.complete(singleAnswer(question, options.get(1).label())));
         if (question.requiresAcknowledgement()) {
             dialog.setConfirmButton(acknowledgedApprove(question, options.get(0).label(), body, decision, dialog));
@@ -165,12 +170,25 @@ public final class ChatHumanQuestionHandler implements HumanQuestionHandler {
             revalidate.set(gate);
             gate.run();
         }
-        dialog.getFooter().add(confirm);
+        dialog.getFooter().add(countdown(), confirm);
         dialog.addOpenedChangeListener(e -> {
             if (!e.isOpened() && !decision.isDone()) decision.complete(HumanQuestionHandler.defaultAnswers(questions));
         });
         dialog.open();
         return dialog;
+    }
+
+    private Button declineWithCountdown(String declineLabel, Runnable onDecline) {
+        CountdownLabel countdown = countdown();
+        countdown.getStyle().set("margin-left", "0.6em");
+        Button decline = new Button(declineLabel, countdown, e -> onDecline.run());
+        decline.setIconAfterText(true);
+        decline.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
+        return decline;
+    }
+
+    private CountdownLabel countdown() {
+        return new CountdownLabel(Duration.ofSeconds(this.decisionTimeoutSeconds), " left");
     }
 
     private VerticalLayout questionRow(HumanQuestion question, Map<String, Supplier<String>> selections,

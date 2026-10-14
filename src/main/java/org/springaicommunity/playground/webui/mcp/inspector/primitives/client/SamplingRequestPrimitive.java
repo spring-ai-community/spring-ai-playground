@@ -36,6 +36,7 @@ public class SamplingRequestPrimitive extends Div {
         PrimitiveCardLayout.applyCardStyle(this);
 
         add(PrimitiveCardLayout.titleRow(VaadinIcon.CUBES.create(), "Sampling request"));
+        add(PrimitiveCardLayout.expiryLine(pending.deadline()));
 
         McpSchema.CreateMessageRequest req = pending.request();
         add(InspectorHelpers.simpleSectionLabel("Request"));

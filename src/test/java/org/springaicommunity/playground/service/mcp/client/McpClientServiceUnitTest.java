@@ -21,6 +21,7 @@ import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.Tool;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springaicommunity.playground.SpringAiPlaygroundOptions;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
 import org.springaicommunity.playground.service.mcp.client.McpClientService.McpToolSource;
@@ -38,6 +39,7 @@ import org.springframework.security.oauth2.core.OAuth2RefreshToken;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -78,7 +80,8 @@ class McpClientServiceUnitTest {
                 presentProvider(serverInfoService),
                 emptyProvider(),
                 mock(McpNotificationStore.class),
-                meterRegistry);
+                meterRegistry,
+                new SpringAiPlaygroundOptions(null, false, null, null, null, null, null), emptyProvider());
     }
 
     @Test
@@ -114,7 +117,8 @@ class McpClientServiceUnitTest {
                 presentProvider(serverInfoService),
                 presentProvider(evaluator),
                 mock(McpNotificationStore.class),
-                meterRegistry);
+                meterRegistry,
+                new SpringAiPlaygroundOptions(null, false, null, null, null, null, null), emptyProvider());
         McpClientOps ops = mock(McpClientOps.class);
         when(ops.listTools()).thenReturn(List.of(
                 Tool.builder().name("bad").description("first, fails").build(),
@@ -135,17 +139,18 @@ class McpClientServiceUnitTest {
         McpClientCommonProperties props = new McpClientCommonProperties();
         McpClientService sampling = new McpClientService(null, null, props, new ObjectMapper(),
                 new McpClientPropertiesService<?>[] {}, null, oauthClientService,
-                presentProvider(serverInfoService), emptyProvider(), notificationStore, meterRegistry);
+                presentProvider(serverInfoService), emptyProvider(), notificationStore, meterRegistry,
+                new SpringAiPlaygroundOptions(null, false, null, null, null, null, null), emptyProvider());
         McpServerInfo server = new McpServerInfo(McpTransportType.STDIO, "sampling-server", "", 0L, 0L, "{}");
         McpSchema.CreateMessageRequest request = McpSchema.CreateMessageRequest.builder()
                 .messages(List.of(new McpSchema.SamplingMessage(McpSchema.Role.USER,
                         new McpSchema.TextContent("Say hello")))).maxTokens(50).build();
 
         CompletableFuture<McpSchema.CreateMessageResult> answered =
-                notificationStore.awaitSamplingResponse(server.serverName(), request);
+                notificationStore.awaitSamplingResponse(server.serverName(), request, Duration.ofMinutes(1));
         sampling.respondToSampling(server, sampling.snapshotPendingSamplings(server).getFirst().id(), "Hello.");
         CompletableFuture<McpSchema.CreateMessageResult> declined =
-                notificationStore.awaitSamplingResponse(server.serverName(), request);
+                notificationStore.awaitSamplingResponse(server.serverName(), request, Duration.ofMinutes(1));
         sampling.declineSampling(server, sampling.snapshotPendingSamplings(server).getFirst().id());
 
         assertThat(answered.join().model()).isEqualTo(McpClientService.MANUAL_SAMPLING_MODEL);
@@ -216,6 +221,14 @@ class McpClientServiceUnitTest {
         assertThat(awaiting.status()).isEqualTo(McpClientService.ServerStatus.AWAITING_AUTHORIZATION);
         assertThat(awaiting.authorizationUrl()).isEqualTo("/oauth/x");
         assertThat(StatusEntry.OFFLINE.status()).isEqualTo(McpClientService.ServerStatus.OFFLINE);
+    }
+
+    @Test
+    void inspectorCallToExternalServerWaitsOnlyForTheClientRequestTimeout() {
+        McpServerInfo external = new McpServerInfo(McpTransportType.STDIO, "everything", "", 0L, 0L, "{}");
+
+        assertThat(service.inspectorCallAwaitsApproval(external, "trigger-sampling-request")).isFalse();
+        assertThat(service.requestTimeout()).isEqualTo(Duration.ofSeconds(20));
     }
 
     private static <T> ObjectProvider<T> presentProvider(T value) {

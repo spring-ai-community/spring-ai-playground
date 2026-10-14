@@ -18,6 +18,8 @@ package org.springaicommunity.playground.service.mcp.client;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -48,10 +50,10 @@ public class McpNotificationStore {
     }
 
     public record PendingSampling(String id, McpSchema.CreateMessageRequest request,
-            CompletableFuture<McpSchema.CreateMessageResult> future) {}
+            CompletableFuture<McpSchema.CreateMessageResult> future, Instant deadline) {}
 
     public record PendingElicitation(String id, McpSchema.ElicitRequest request,
-            CompletableFuture<McpSchema.ElicitResult> future) {}
+            CompletableFuture<McpSchema.ElicitResult> future, Instant deadline) {}
 
     private static final int MAX_EVENTS_PER_SERVER = 500;
 
@@ -110,11 +112,12 @@ public class McpNotificationStore {
     }
 
     public CompletableFuture<McpSchema.CreateMessageResult> awaitSamplingResponse(String serverKey,
-            McpSchema.CreateMessageRequest request) {
+            McpSchema.CreateMessageRequest request, Duration responseWindow) {
         CompletableFuture<McpSchema.CreateMessageResult> future = new CompletableFuture<>();
         String id = UUID.randomUUID().toString();
         pendingSamplings.computeIfAbsent(serverKey, k -> new LinkedHashMap<>())
-                .put(id, new PendingSampling(id, request, future));
+                .put(id, new PendingSampling(id, request, future, Instant.now().plus(responseWindow)));
+        future.whenComplete((result, error) -> discardPendingSampling(serverKey, id));
         record(serverKey, Event.of(Kind.SAMPLING_REQUEST,
                 "Sampling request received (" + (request.messages() == null ? 0 : request.messages().size())
                         + " messages)", request));
@@ -123,12 +126,11 @@ public class McpNotificationStore {
     }
 
     public CompletableFuture<McpSchema.ElicitResult> awaitElicitationResponse(String serverKey,
-            McpSchema.ElicitRequest request) {
+            McpSchema.ElicitRequest request, Duration responseWindow) {
         CompletableFuture<McpSchema.ElicitResult> future = new CompletableFuture<>();
         String id = UUID.randomUUID().toString();
         pendingElicitations.computeIfAbsent(serverKey, k -> new LinkedHashMap<>())
-                .put(id, new PendingElicitation(id, request, future));
-        // Drop on settle so an abandoned elicitation does not re-render as a stale prompt on reattach.
+                .put(id, new PendingElicitation(id, request, future, Instant.now().plus(responseWindow)));
         future.whenComplete((result, error) -> discardPendingElicitation(serverKey, id));
         record(serverKey, Event.of(Kind.ELICITATION_REQUEST,
                 "Elicitation request: " + request.message(), request));
@@ -136,35 +138,45 @@ public class McpNotificationStore {
         return future;
     }
 
-    private void discardPendingElicitation(String serverKey, String id) {
-        Map<String, PendingElicitation> m = pendingElicitations.get(serverKey);
-        if (m == null) return;
+    private void discardPendingSampling(String serverKey, String id) {
+        Map<String, PendingSampling> pending = pendingSamplings.get(serverKey);
+        if (pending == null) return;
         boolean removed;
-        synchronized (m) {
-            removed = m.remove(id) != null;
+        synchronized (pending) {
+            removed = pending.remove(id) != null;
+        }
+        if (removed) firePendingChange(serverKey);
+    }
+
+    private void discardPendingElicitation(String serverKey, String id) {
+        Map<String, PendingElicitation> pending = pendingElicitations.get(serverKey);
+        if (pending == null) return;
+        boolean removed;
+        synchronized (pending) {
+            removed = pending.remove(id) != null;
         }
         if (removed) firePendingChange(serverKey);
     }
 
     public List<PendingSampling> snapshotPendingSamplings(String serverKey) {
-        Map<String, PendingSampling> m = pendingSamplings.get(serverKey);
-        if (m == null) return List.of();
-        synchronized (m) { return new ArrayList<>(m.values()); }
+        Map<String, PendingSampling> pending = pendingSamplings.get(serverKey);
+        if (pending == null) return List.of();
+        synchronized (pending) { return new ArrayList<>(pending.values()); }
     }
 
     public List<PendingElicitation> snapshotPendingElicitations(String serverKey) {
-        Map<String, PendingElicitation> m = pendingElicitations.get(serverKey);
-        if (m == null) return List.of();
-        synchronized (m) { return new ArrayList<>(m.values()); }
+        Map<String, PendingElicitation> pending = pendingElicitations.get(serverKey);
+        if (pending == null) return List.of();
+        synchronized (pending) { return new ArrayList<>(pending.values()); }
     }
 
     public void completeSampling(String serverKey, String pendingId, McpSchema.CreateMessageResult result) {
-        Map<String, PendingSampling> m = pendingSamplings.get(serverKey);
-        if (m == null) return;
-        PendingSampling p;
-        synchronized (m) { p = m.remove(pendingId); }
-        if (p != null) {
-            p.future().complete(result);
+        Map<String, PendingSampling> pending = pendingSamplings.get(serverKey);
+        if (pending == null) return;
+        PendingSampling sampling;
+        synchronized (pending) { sampling = pending.remove(pendingId); }
+        if (sampling != null) {
+            sampling.future().complete(result);
             record(serverKey, Event.of(Kind.SAMPLING_RESPONDED,
                     "Sampling responded (" + result.role() + ")", result));
             firePendingChange(serverKey);
@@ -172,12 +184,12 @@ public class McpNotificationStore {
     }
 
     public void completeElicitation(String serverKey, String pendingId, McpSchema.ElicitResult result) {
-        Map<String, PendingElicitation> m = pendingElicitations.get(serverKey);
-        if (m == null) return;
-        PendingElicitation p;
-        synchronized (m) { p = m.remove(pendingId); }
-        if (p != null) {
-            p.future().complete(result);
+        Map<String, PendingElicitation> pending = pendingElicitations.get(serverKey);
+        if (pending == null) return;
+        PendingElicitation elicitation;
+        synchronized (pending) { elicitation = pending.remove(pendingId); }
+        if (elicitation != null) {
+            elicitation.future().complete(result);
             record(serverKey, Event.of(Kind.ELICITATION_RESPONDED,
                     "Elicitation responded (" + result.action() + ")", result));
             firePendingChange(serverKey);
@@ -188,9 +200,9 @@ public class McpNotificationStore {
         events.remove(serverKey);
         listeners.remove(serverKey);
         Map<String, PendingSampling> ps = pendingSamplings.remove(serverKey);
-        if (ps != null) ps.values().forEach(p -> p.future().cancel(true));
+        if (ps != null) ps.values().forEach(sampling -> sampling.future().cancel(true));
         Map<String, PendingElicitation> pe = pendingElicitations.remove(serverKey);
-        if (pe != null) pe.values().forEach(p -> p.future().cancel(true));
+        if (pe != null) pe.values().forEach(elicitation -> elicitation.future().cancel(true));
         pendingChangeListeners.remove(serverKey);
     }
 }

@@ -16,17 +16,31 @@
 package org.springaicommunity.playground.config;
 
 import org.junit.jupiter.api.AfterEach;
+import io.modelcontextprotocol.spec.McpSchema;
 import org.junit.jupiter.api.Test;
 import org.springaicommunity.playground.service.mcp.McpServerAuthTokenService;
 import org.springaicommunity.playground.service.mcp.McpServerAuthTokenService.AccessMode;
+import org.springaicommunity.playground.service.mcp.McpServerHitlToolGate;
+import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
+import org.springaicommunity.playground.service.tool.ToolSpecService;
+import org.springaicommunity.playground.service.mcp.client.McpNotificationStore;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.ai.tool.function.FunctionToolCallback;
+import org.springframework.ai.tool.ToolCallback;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpHeaders;
 
 import java.net.URI;
+import java.util.Map;
+import java.util.function.Supplier;
+import java.util.function.Predicate;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.CompletableFuture;
+import java.util.Optional;
+import java.util.List;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -50,6 +64,11 @@ class McpServerAuthTokenRuntimeTest {
     @Autowired
     private McpClientService mcpClientService;
 
+    @Autowired
+    private ToolSpecService toolSpecService;
+
+    record EchoRequest(String text) {}
+
     @AfterEach
     void reopen() {
         if (this.authTokenService.accessMode() != AccessMode.NONE) this.authTokenService.open();
@@ -64,6 +83,64 @@ class McpServerAuthTokenRuntimeTest {
 
     private boolean loopbackConnects() {
         return this.mcpClientService.testConnection(this.mcpServerInfoService.getDefaultMcpServerInfo()).ok();
+    }
+
+    private boolean inspectorRunsBuiltInTool(McpServerInfo serverInfo) {
+        return this.mcpClientService.callTool(serverInfo, "getCurrentTime", Map.of(),
+                        Map.of(McpServerHitlToolGate.INTERACTIVE_HITL_META_KEY, true))
+                .map(result -> !Boolean.TRUE.equals(result.isError()))
+                .orElse(false);
+    }
+
+    @Test
+    void inspectorKeepsRunningBuiltInToolsAfterTheTokenTurnsOnAndOff() {
+        McpServerInfo beforeToken = this.mcpServerInfoService.getDefaultMcpServerInfo();
+        assertThat(inspectorRunsBuiltInTool(beforeToken)).isTrue();
+
+        this.authTokenService.requireToken("inspector-runtime-token");
+        assertThat(inspectorRunsBuiltInTool(beforeToken)).isTrue();
+        assertThat(inspectorRunsBuiltInTool(this.mcpServerInfoService.getDefaultMcpServerInfo())).isTrue();
+
+        this.authTokenService.open();
+        assertThat(inspectorRunsBuiltInTool(this.mcpServerInfoService.getDefaultMcpServerInfo())).isTrue();
+    }
+
+    @Test
+    void inspectorApprovalCallUsesTheTokenEvenWhenItHoldsStaleServerInfo() throws Exception {
+        McpServerInfo beforeToken = this.mcpServerInfoService.getDefaultMcpServerInfo();
+        ToolCallback echo = FunctionToolCallback
+                .builder("tokenApprovalEcho", (EchoRequest request) -> "approved: " + request.text())
+                .description("Echoes after approval.")
+                .inputType(EchoRequest.class)
+                .build();
+        this.toolSpecService.addExternalMcpTool(echo, true);
+        this.authTokenService.requireToken("inspector-approval-token");
+        try {
+            CompletableFuture<Optional<McpSchema.CallToolResult>> pendingCall = CompletableFuture.supplyAsync(
+                    () -> this.mcpClientService.callTool(beforeToken, "tokenApprovalEcho", Map.of("text", "hi"),
+                            Map.of(McpServerHitlToolGate.INTERACTIVE_HITL_META_KEY, true)));
+            List<McpNotificationStore.PendingElicitation> pending = pollUntil(
+                    () -> this.mcpClientService.snapshotPendingElicitations(beforeToken), list -> !list.isEmpty());
+            assertThat(pending).hasSize(1);
+            this.mcpClientService.completeElicitation(beforeToken, pending.getFirst().id(),
+                    new McpSchema.ElicitResult(McpSchema.ElicitResult.Action.ACCEPT, Map.of()));
+
+            McpSchema.CallToolResult result = pendingCall.get(20, TimeUnit.SECONDS).orElseThrow();
+            assertThat(result.isError()).isNotEqualTo(Boolean.TRUE);
+            assertThat(((McpSchema.TextContent) result.content().getFirst()).text()).contains("approved: hi");
+        } finally {
+            this.toolSpecService.removeExternalMcpTool("tokenApprovalEcho");
+        }
+    }
+
+    private static <T> T pollUntil(Supplier<T> supplier, Predicate<T> ready) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 15_000L;
+        T value = supplier.get();
+        while (!ready.test(value) && System.currentTimeMillis() < deadline) {
+            Thread.sleep(50L);
+            value = supplier.get();
+        }
+        return value;
     }
 
     @Test

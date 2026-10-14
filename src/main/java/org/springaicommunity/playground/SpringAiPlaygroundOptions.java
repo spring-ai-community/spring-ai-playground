@@ -20,6 +20,7 @@ import org.springaicommunity.playground.service.tool.ToolSpecService.ExposureMod
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -28,11 +29,34 @@ import java.util.Set;
 public record SpringAiPlaygroundOptions(@NestedConfigurationProperty ToolStudio toolStudio, boolean persistence,
                                         String userHome, @NestedConfigurationProperty Chat chat,
                                         @NestedConfigurationProperty BuiltInMcpServer builtInMcpServer,
-                                        @NestedConfigurationProperty McpServer mcpServer) {
+                                        @NestedConfigurationProperty McpServer mcpServer,
+                                        @NestedConfigurationProperty Hitl hitl) {
 
     public SpringAiPlaygroundOptions {
         if (builtInMcpServer == null) builtInMcpServer = new BuiltInMcpServer(null, null, null);
         if (mcpServer == null) mcpServer = new McpServer(null, null, null);
+        if (hitl == null) hitl = new Hitl(null);
+    }
+
+    public record Hitl(Integer approvalWaitSeconds) {
+        private static final int DEFAULT_APPROVAL_WAIT_SECONDS = 180;
+        private static final int STREAM_SAFE_MAX_WAIT_SECONDS = 240;
+        private static final Duration TRANSPORT_MARGIN = Duration.ofSeconds(30);
+
+        public Hitl {
+            if (approvalWaitSeconds == null || approvalWaitSeconds <= 0) {
+                approvalWaitSeconds = DEFAULT_APPROVAL_WAIT_SECONDS;
+            }
+            approvalWaitSeconds = Math.min(approvalWaitSeconds, STREAM_SAFE_MAX_WAIT_SECONDS);
+        }
+
+        public Duration approvalWait() {
+            return Duration.ofSeconds(approvalWaitSeconds);
+        }
+
+        public Duration transportTimeout() {
+            return approvalWait().plus(TRANSPORT_MARGIN);
+        }
     }
 
     public record BuiltInMcpServer(String name, String description, ExposureMode exposureMode) {
@@ -93,16 +117,12 @@ public record SpringAiPlaygroundOptions(@NestedConfigurationProperty ToolStudio 
             if (historyMaxMessages == null || historyMaxMessages <= 0) historyMaxMessages = 2_000;
             if (defaultMaxTokens == null || defaultMaxTokens <= 0) defaultMaxTokens = 8_192;
             if (toolSearch == null) toolSearch = new ToolSearch(null, null, null, null, null);
-            if (agentLoop == null) agentLoop = new AgentLoop(null, null, null, null, null, null);
+            if (agentLoop == null) agentLoop = new AgentLoop(null, null, null, null);
         }
     }
 
-    // Dialog timeouts are clamped below the 300s stream inter-signal timeout so a pending dialog
-    // can never outlive the stream it belongs to.
     public record AgentLoop(Integer softMaxRounds, Integer hardMaxRounds, Integer maxIdenticalCalls,
-                            Integer interactionsPerRound, Integer approvalTimeoutSeconds,
-                            Integer dialogTimeoutSeconds) {
-        private static final int MAX_DIALOG_WAIT_SECONDS = 240;
+                            Integer interactionsPerRound) {
 
         public AgentLoop {
             if (softMaxRounds == null || softMaxRounds <= 0) softMaxRounds = 16;
@@ -110,10 +130,6 @@ public record SpringAiPlaygroundOptions(@NestedConfigurationProperty ToolStudio 
             if (hardMaxRounds < softMaxRounds) hardMaxRounds = softMaxRounds;
             if (maxIdenticalCalls == null || maxIdenticalCalls <= 0) maxIdenticalCalls = 3;
             if (interactionsPerRound == null || interactionsPerRound <= 0) interactionsPerRound = 1;
-            if (approvalTimeoutSeconds == null || approvalTimeoutSeconds <= 0) approvalTimeoutSeconds = 120;
-            if (dialogTimeoutSeconds == null || dialogTimeoutSeconds <= 0) dialogTimeoutSeconds = 180;
-            approvalTimeoutSeconds = Math.min(approvalTimeoutSeconds, MAX_DIALOG_WAIT_SECONDS);
-            dialogTimeoutSeconds = Math.min(dialogTimeoutSeconds, MAX_DIALOG_WAIT_SECONDS);
         }
     }
 

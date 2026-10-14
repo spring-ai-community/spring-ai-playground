@@ -25,6 +25,7 @@ import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
+import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.shared.Tooltip;
@@ -32,8 +33,10 @@ import io.modelcontextprotocol.spec.McpSchema;
 import org.springaicommunity.playground.service.mcp.McpServerHitlToolGate;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
+import org.springaicommunity.playground.service.mcp.client.McpNotificationStore;
 import org.springaicommunity.playground.service.mcp.risk.McpToolPoisoningScanner;
 import org.springaicommunity.playground.service.mcp.risk.McpToolRiskEvaluator;
+import org.springaicommunity.playground.webui.CountdownLabel;
 import org.springaicommunity.playground.webui.mcp.McpRiskChip;
 import org.springaicommunity.playground.webui.mcp.inspector.InspectorHelpers;
 import org.springaicommunity.playground.webui.mcp.inspector.InspectorHelpers.ToolInfo;
@@ -60,8 +63,9 @@ public class ToolPrimitive extends Div {
     private String lastTimestamp;
     private boolean rawView = false;
     private boolean running = false;
-    private final Span runningHint = new Span(
-            "Running... answer any Sampling or Elicitation request from its tab while this call waits.");
+    private final Div runningHint = new Div();
+    private final Div approvalPanel = new Div();
+    private String pendingApprovalId;
 
     public ToolPrimitive(ToolInfo tool, int displayIndex, McpServerInfo serverInfo,
             McpClientService clientService, McpToolRiskEvaluator.ToolRiskView risk) {
@@ -117,11 +121,64 @@ public class ToolPrimitive extends Div {
         }
 
         runningHint.setVisible(false);
-        runningHint.getStyle().set("display", "block").set("margin", "0.5em 0 0 2.4em")
+        runningHint.getStyle().set("display", "flex").set("gap", "0.4em").set("flex-wrap", "wrap")
+                .set("margin", "0.5em 0 0 2.4em")
                 .set("color", "var(--lumo-secondary-text-color)").set("font-size", "var(--lumo-font-size-s)");
         add(runningHint);
+        approvalPanel.setVisible(false);
+        approvalPanel.getStyle().set("margin", "0.5em 0 0 2.4em").set("padding", "0.6em 0.8em")
+                .set("border", "1px solid var(--lumo-primary-color-50pct)")
+                .set("border-radius", "var(--lumo-border-radius-m)")
+                .set("background-color", "var(--lumo-primary-color-10pct)");
+        add(approvalPanel);
         inlineResultPanel.setOnDismiss(this::clearLastResultState);
         add(inlineResultPanel);
+    }
+
+    public boolean isRunning() {
+        return this.running;
+    }
+
+    public void showApprovalRequest(McpNotificationStore.PendingElicitation pending, Runnable openElicitationTab) {
+        this.pendingApprovalId = pending.id();
+        this.approvalPanel.removeAll();
+        Span text = new Span("Approval needed: " + pending.request().message());
+        text.getStyle().set("display", "block").set("font-size", "var(--lumo-font-size-s)");
+        HorizontalLayout actions = new HorizontalLayout();
+        actions.setPadding(false);
+        actions.setAlignItems(FlexComponent.Alignment.CENTER);
+        actions.getStyle().set("margin-top", "0.4em").set("gap", "0.6em").set("flex-wrap", "wrap");
+        if (InspectorHelpers.requiresNoInput(pending.request())) {
+            Button accept = new Button("Accept", VaadinIcon.CHECK.create(), click -> answer(pending,
+                    McpSchema.ElicitResult.Action.ACCEPT));
+            accept.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_PRIMARY);
+            Button decline = new Button("Decline", click -> answer(pending, McpSchema.ElicitResult.Action.DECLINE));
+            decline.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
+            actions.add(accept, decline);
+        }
+        actions.add(new CountdownLabel(pending.deadline(), " left to answer"));
+        Button review = new Button("Review", click -> openElicitationTab.run());
+        review.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY_INLINE);
+        actions.add(review);
+        this.approvalPanel.add(text, actions);
+        this.approvalPanel.setVisible(true);
+    }
+
+    public void clearApprovalRequest(String pendingId) {
+        if (pendingId == null || !pendingId.equals(this.pendingApprovalId)) return;
+        hideApprovalPanel();
+    }
+
+    private void answer(McpNotificationStore.PendingElicitation pending, McpSchema.ElicitResult.Action action) {
+        this.clientService.completeElicitation(this.serverInfo, pending.id(),
+                new McpSchema.ElicitResult(action, Map.of()));
+        hideApprovalPanel();
+    }
+
+    private void hideApprovalPanel() {
+        this.pendingApprovalId = null;
+        this.approvalPanel.removeAll();
+        this.approvalPanel.setVisible(false);
     }
 
     public boolean matches(String needle) {
@@ -192,7 +249,21 @@ public class ToolPrimitive extends Div {
 
     private void setRunning(boolean running) {
         this.running = running;
+        this.runningHint.removeAll();
+        if (running) {
+            if (this.clientService.inspectorCallAwaitsApproval(this.serverInfo, this.tool.name())) {
+                this.runningHint.add(new Span(
+                        "Running... answer any Sampling or Elicitation request from its tab while this call waits."),
+                        new CountdownLabel(this.clientService.approvalWait(), " left to approve"));
+            } else {
+                this.runningHint.add(new Span(
+                        "Running... answer any Sampling or Elicitation request from its tab "
+                                + "before the call times out."),
+                        new CountdownLabel(this.clientService.requestTimeout(), " left before the call times out"));
+            }
+        }
         this.runningHint.setVisible(running);
+        if (!running) hideApprovalPanel();
     }
 
     private void renderInline() {

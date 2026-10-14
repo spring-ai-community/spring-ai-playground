@@ -29,6 +29,7 @@ import io.modelcontextprotocol.spec.McpSchema.Tool;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springaicommunity.playground.SpringAiPlaygroundOptions;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.service.tool.ToolManifest.HumanInTheLoop;
 import org.springaicommunity.playground.service.tool.ToolManifest.HumanInTheLoop.Mode;
@@ -62,7 +63,8 @@ class McpServerHitlToolGateTest {
     private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
     private final DeniedToolCallRecorder deniedToolCallRecorder = mock(DeniedToolCallRecorder.class);
     private final McpServerHitlToolGate gate = new McpServerHitlToolGate(mcpClientServiceProvider, meterRegistry,
-            deniedToolCallRecorder);
+            deniedToolCallRecorder, new SpringAiPlaygroundOptions(null, false, null, null, null, null,
+                    new SpringAiPlaygroundOptions.Hitl(45)));
     private final AtomicInteger delegateCalls = new AtomicInteger();
     private final CallToolResult delegateResult =
             CallToolResult.builder().addTextContent("ok").isError(false).build();
@@ -158,8 +160,37 @@ class McpServerHitlToolGateTest {
 
         assertEquals(0, delegateCalls.get());
         assertTrue(result.isError());
+        assertTrue(deniedText(result).startsWith("Tool 'writeFile' was not run: no approval within 45 s."));
         assertEquals(1.0, decisionCount("timeout"));
         assertEquals(0.0, decisionCount("elicit-failed"));
+    }
+
+    @Test
+    void expiredApprovalWindowDeniesWithExplicitTimeoutResult() {
+        McpSyncServerExchange exchange = exchange("cursor", true);
+        when(exchange.createElicitation(any())).thenReturn(McpServerHitlToolGate.approvalExpired());
+
+        CallToolResult result = invoke(decorated(required()), exchange);
+
+        assertEquals(0, delegateCalls.get());
+        assertTrue(result.isError());
+        assertTrue(deniedText(result).startsWith("Tool 'writeFile' was not run: no approval within 45 s."));
+        assertEquals(1.0, decisionCount("timeout"));
+        assertEquals(0.0, decisionCount("declined"));
+        Implementation client = exchange.getClientInfo();
+        verify(deniedToolCallRecorder).recordExternalClientDenial(any(), eq(client), eq("timeout"));
+    }
+
+    @Test
+    void userCancelStaysADecline() {
+        McpSyncServerExchange exchange = exchange("cursor", true);
+        when(exchange.createElicitation(any())).thenReturn(new ElicitResult(ElicitResult.Action.CANCEL, Map.of()));
+
+        CallToolResult result = invoke(decorated(required()), exchange);
+
+        assertTrue(deniedText(result).contains("approval was not granted"));
+        assertEquals(1.0, decisionCount("declined"));
+        assertEquals(0.0, decisionCount("timeout"));
     }
 
     @Test

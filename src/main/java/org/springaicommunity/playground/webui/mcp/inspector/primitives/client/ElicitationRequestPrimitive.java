@@ -48,6 +48,7 @@ public class ElicitationRequestPrimitive extends Div {
         McpSchema.ElicitRequest req = pending.request();
         String title = req.message() == null ? "Elicitation request" : req.message();
         add(PrimitiveCardLayout.titleRow(VaadinIcon.QUESTION_CIRCLE_O.create(), title));
+        add(PrimitiveCardLayout.expiryLine(pending.deadline()));
 
         Map<String, Object> schema = req instanceof McpSchema.ElicitFormRequest form ? form.requestedSchema() : null;
         List<String> required = schema != null && schema.get("required") instanceof List<?> rl
