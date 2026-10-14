@@ -244,7 +244,7 @@ public class RagPipelineExecutor {
         }
         List<Document> joined = this.documentJoiner.join(retrieved);
         long ms = (System.nanoTime() - startNanos) / 1_000_000L;
-        trace.accept(TraceEvent.info("joiner", "done " + ms + "ms · " + joined.size() + " unique docs"));
+        trace.accept(TraceEvent.info("joiner", "done " + ms + "ms · " + joined.size() + " unique docs", joined));
         return joined;
     }
 
@@ -280,12 +280,19 @@ public class RagPipelineExecutor {
         RagPipeline.PostRetrievalConfig post = pipeline.postRetrieval();
         ScoreOrderingDocumentPostProcessor postProcessor =
                 new ScoreOrderingDocumentPostProcessor(post.reRankByScore(), post.topNTruncate());
-        if (postProcessor.isNoOp()) return joinedDocs;
+        if (postProcessor.isNoOp()) {
+            trace.accept(TraceEvent.info("postProcess", "done 0ms · " + joinedDocs.size() + " docs (pass-through)",
+                    joinedDocs));
+            return joinedDocs;
+        }
+        long startNanos = System.nanoTime();
         int before = joinedDocs.size();
         List<Document> result = postProcessor.process(new Query(userQuery), joinedDocs);
         if (post.reRankByScore()) trace.accept(TraceEvent.info("postProcess", "re-ranked by score"));
         if (result.size() < before)
             trace.accept(TraceEvent.info("postProcess", "truncated " + before + " → " + result.size()));
+        long ms = (System.nanoTime() - startNanos) / 1_000_000L;
+        trace.accept(TraceEvent.info("postProcess", "done " + ms + "ms · " + result.size() + " docs", result));
         return result;
     }
 
@@ -305,7 +312,7 @@ public class RagPipelineExecutor {
         long ms = (System.nanoTime() - startNanos) / 1_000_000L;
         String prompt = augmented.text();
         trace.accept(TraceEvent.info("augment", "done " + ms + "ms · prompt " + prompt.length() + " chars"
-                + (withSource ? " · format=text+source" : "")));
+                + (withSource ? " · format=text+source" : ""), prompt));
         return prompt;
     }
 

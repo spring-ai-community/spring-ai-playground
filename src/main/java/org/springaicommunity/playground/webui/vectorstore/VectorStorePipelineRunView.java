@@ -25,6 +25,8 @@ import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H4;
 import com.vaadin.flow.component.html.Pre;
 import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.UIDetachedException;
+import org.springaicommunity.playground.webui.ElapsedLabel;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
@@ -310,20 +312,22 @@ public class VectorStorePipelineRunView extends VerticalLayout {
         this.currentRunEvents.clear();
 
         appendUserBubble(query);
-        Div pending = appendPendingBubble();
+        RunProgressBubble progress = new RunProgressBubble(this.currentPipeline);
+        this.messagesArea.add(progress);
+        scrollToBottom();
 
         UI ui = UI.getCurrent();
         new Thread(() -> {
             try {
                 RagPipelineExecutor.RunResult result = this.runSession.run(this.currentPipeline, query,
-                        this.currentRunEvents::add);
+                        event -> reportProgress(ui, progress, event));
                 ui.access(() -> {
-                    this.messagesArea.remove(pending);
-                    appendAssistantBubble(result);
+                    progress.complete(result, List.copyOf(this.currentRunEvents));
+                    scrollToBottom();
                 });
             } catch (Exception ex) {
                 ui.access(() -> {
-                    this.messagesArea.remove(pending);
+                    this.messagesArea.remove(progress);
                     appendErrorBubble(ex);
                 });
             } finally {
@@ -344,42 +348,200 @@ public class VectorStorePipelineRunView extends VerticalLayout {
         scrollToBottom();
     }
 
-    private Div appendPendingBubble() {
-        Div bubble = new Div();
-        bubble.addClassNames("vstore-chat-assistant", "vstore-chat-pending");
-        bubble.setText("Running pipeline…");
-        this.messagesArea.add(bubble);
-        scrollToBottom();
-        return bubble;
+    private void reportProgress(UI ui, RunProgressBubble progress, TraceEvent event) {
+        this.currentRunEvents.add(event);
+        try {
+            ui.access(() -> {
+                progress.record(event);
+                scrollToBottom();
+            });
+        } catch (UIDetachedException ignore) {
+        }
     }
 
-    private void appendAssistantBubble(RagPipelineExecutor.RunResult result) {
-        Div bubble = new Div();
-        bubble.addClassName("vstore-chat-assistant");
+    private static String seconds(long millis) {
+        return String.format("%.1f s", millis / 1000.0);
+    }
 
-        Div headline = new Div();
-        headline.addClassName("vstore-chat-headline");
-        headline.setText(String.format("Retrieved %d docs → %d final · %d ms",
-                result.joinedDocs().size(), result.finalDocs().size(), result.totalMs()));
-        bubble.add(headline);
+    private static List<String> augmentSummary(RagPipeline.GenerationConfig gen) {
+        List<String> lines = new ArrayList<>();
+        lines.add("Empty context: " + (gen.allowEmptyContext() ? "allowed" : "refused"));
+        if (RagPipeline.DocumentFormat.TEXT_WITH_SOURCE.equals(gen.documentFormat()))
+            lines.add("Context: text + source label");
+        return lines;
+    }
 
-        if (result.llmAnswer() != null) {
-            Div answer = new Div();
-            answer.addClassName("vstore-chat-answer");
-            answer.setText(result.llmAnswer());
-            bubble.add(answer);
+    private static int stepIndex(String stage) {
+        return switch (stage == null ? "" : stage) {
+            case "rewrite", "compression", "translation", "multiQuery" -> 0;
+            case "retrieve", "joiner" -> 1;
+            case "postProcess" -> 2;
+            case "augment" -> 3;
+            case "llm" -> 4;
+            default -> -1;
+        };
+    }
+
+    private static boolean completesStep(int index, TraceEvent event) {
+        return switch (index) {
+            case 1 -> "joiner".equals(event.stage());
+            case 2 -> event.message() != null && event.message().startsWith("done");
+            case 3, 4 -> true;
+            default -> false;
+        };
+    }
+
+    private final class RunProgressBubble extends Div {
+
+        private final List<StepRow> steps = new ArrayList<>();
+        private final Div stepList = new Div();
+        private long stageStartedAtMs = System.currentTimeMillis();
+
+        private RunProgressBubble(RagPipeline pipeline) {
+            addClassNames("vstore-chat-assistant", "vstore-chat-pending");
+            add(new ElapsedLabel("Running pipeline… "));
+            this.stepList.getStyle().set("margin-top", "var(--lumo-space-xs)");
+            this.steps.add(new StepRow("Pre-Retrieval",
+                    String.join(" · ", preRetrievalSummary(pipeline.preRetrieval()))));
+            this.steps.add(new StepRow("Retrieval", String.join(" · ", retrievalSummary(pipeline))));
+            this.steps.add(new StepRow("Post-Retrieval",
+                    String.join(" · ", postRetrievalSummary(pipeline.postRetrieval()))));
+            this.steps.add(new StepRow("Augment", String.join(" · ", augmentSummary(pipeline.generation()))));
+            if (pipeline.generation().runAugmentLLM()) this.steps.add(new StepRow("LLM", "Run LLM: on"));
+            this.steps.forEach(this.stepList::add);
+            this.steps.getFirst().markRunning();
+            add(this.stepList);
         }
 
-        bubble.add(collapsible("Documents (" + result.finalDocs().size() + ")", buildDocsList(result.finalDocs()),
-                result.llmAnswer() == null && !result.finalDocs().isEmpty()));
-        bubble.add(collapsible("Final prompt (" + promptLength(result) + " chars)",
-                monospacePre(result.finalPrompt() == null ? "(empty)" : result.finalPrompt()),
-                result.llmAnswer() == null && result.finalDocs().isEmpty()));
-        bubble.add(collapsible("Trace (" + this.currentRunEvents.size() + " events)",
-                buildTraceList(List.copyOf(this.currentRunEvents)), false));
+        private void record(TraceEvent event) {
+            int index = stepIndex(event.stage());
+            if (index < 0 || index >= this.steps.size()) return;
+            finishStepsBefore(index, event.timestampMs());
+            StepRow step = this.steps.get(index);
+            step.note(event);
+            if (completesStep(index, event)) finishStep(index, event.timestampMs(), stepResult(event));
+        }
 
-        this.messagesArea.add(bubble);
-        scrollToBottom();
+        private void finishStepsBefore(int index, long atMs) {
+            for (int i = 0; i < index; i++) {
+                if (!this.steps.get(i).isDone()) finishStep(i, atMs, null);
+            }
+        }
+
+        private void finishStep(int index, long atMs, Component result) {
+            this.steps.get(index).markDone(Math.max(0L, atMs - this.stageStartedAtMs), result);
+            this.stageStartedAtMs = atMs;
+            if (index + 1 < this.steps.size()) this.steps.get(index + 1).markRunning();
+        }
+
+        @SuppressWarnings("unchecked")
+        private Component stepResult(TraceEvent event) {
+            if (event.payload() instanceof List<?> documents) return buildDocsList((List<Document>) documents);
+            if (event.payload() instanceof String prompt) {
+                return collapsible("Prompt (" + prompt.length() + " chars)", monospacePre(prompt), true);
+            }
+            return null;
+        }
+
+        private void complete(RagPipelineExecutor.RunResult result, List<TraceEvent> events) {
+            finishStepsBefore(this.steps.size(), System.currentTimeMillis());
+            this.steps.forEach(StepRow::fold);
+            removeClassName("vstore-chat-pending");
+            removeAll();
+            if (result.llmAnswer() != null) {
+                add(closingBlock("Final Answer", answerBlock(result.llmAnswer())));
+            } else {
+                add(closingBlock("Final prompt",
+                        monospacePre(result.finalPrompt() == null ? "(empty)" : result.finalPrompt())));
+            }
+            add(collapsible("Steps (" + this.steps.size() + ")", this.stepList, false));
+            Div headline = new Div();
+            headline.addClassName("vstore-chat-headline");
+            headline.setText(String.format("Retrieved %d docs → %d final · %s",
+                    result.joinedDocs().size(), result.finalDocs().size(), seconds(result.totalMs())));
+            add(headline);
+            add(collapsible("Documents (" + result.finalDocs().size() + ")", buildDocsList(result.finalDocs()),
+                    false));
+            add(collapsible("Final prompt (" + promptLength(result) + " chars)",
+                    monospacePre(result.finalPrompt() == null ? "(empty)" : result.finalPrompt()), false));
+            add(collapsible("Trace (" + events.size() + " events)", buildTraceList(events), false));
+        }
+
+        private Div closingBlock(String title, Component content) {
+            Div block = new Div();
+            Div heading = new Div();
+            heading.addClassName("vstore-chat-headline");
+            heading.setText(title);
+            block.add(heading, content);
+            block.getStyle().set("margin-bottom", "var(--lumo-space-s)");
+            return block;
+        }
+
+        private Div answerBlock(String answer) {
+            Div block = new Div();
+            block.addClassName("vstore-chat-answer");
+            block.setText(answer);
+            return block;
+        }
+    }
+
+    private static final class StepRow extends Div {
+
+        private final Span status = new Span("○");
+        private final Div elapsedBox = new Div();
+        private final Div notes = new Div();
+        private final Div result = new Div();
+        private boolean done;
+
+        private StepRow(String label, String settings) {
+            getStyle().set("margin-top", "var(--lumo-space-xs)");
+            Span name = new Span(label);
+            name.getStyle().set("font-weight", "600").set("margin-left", "0.4em");
+            Span settingsText = new Span(settings);
+            settingsText.getStyle().set("color", "var(--lumo-secondary-text-color)")
+                    .set("font-size", "var(--lumo-font-size-xs)").set("margin-left", "0.6em");
+            this.elapsedBox.getStyle().set("display", "inline").set("margin-left", "0.6em")
+                    .set("color", "var(--lumo-secondary-text-color)").set("font-size", "var(--lumo-font-size-xs)")
+                    .set("font-variant-numeric", "tabular-nums");
+            Div header = new Div(this.status, name, settingsText, this.elapsedBox);
+            this.notes.addClassName("vstore-chat-trace");
+            this.notes.getStyle().set("margin-left", "1.4em");
+            this.result.getStyle().set("margin-left", "1.4em");
+            add(header, this.notes, this.result);
+        }
+
+        private void markRunning() {
+            if (this.done) return;
+            this.status.setText("◌");
+            this.elapsedBox.removeAll();
+            this.elapsedBox.add(new ElapsedLabel("running "));
+        }
+
+        private void markDone(long elapsedMs, Component resultComponent) {
+            this.done = true;
+            this.status.setText("✓");
+            this.elapsedBox.removeAll();
+            this.elapsedBox.add(new Span(seconds(elapsedMs)));
+            if (resultComponent != null) {
+                this.result.removeAll();
+                this.result.add(resultComponent);
+            }
+        }
+
+        private void note(TraceEvent event) {
+            this.notes.add(traceLine(event));
+        }
+
+        private void fold() {
+            this.result.getChildren()
+                    .filter(Details.class::isInstance)
+                    .map(Details.class::cast)
+                    .forEach(details -> details.setOpened(false));
+        }
+
+        private boolean isDone() {
+            return this.done;
+        }
     }
 
     private static int promptLength(RagPipelineExecutor.RunResult result) {
@@ -432,14 +594,18 @@ public class VectorStorePipelineRunView extends VerticalLayout {
         Div box = new Div();
         box.addClassName("vstore-chat-trace");
         for (TraceEvent event : events) {
-            Div line = new Div();
-            String levelTag = event.level() == TraceEvent.Level.WARN ? "[WARN] "
-                    : (event.level() == TraceEvent.Level.ERROR ? "[ERR] " : "");
-            line.setText(String.format("%s%s · %s", levelTag, event.stage(), event.message()));
-            if (event.level() != TraceEvent.Level.INFO) line.addClassName("vstore-chat-trace-warn");
-            box.add(line);
+            box.add(traceLine(event));
         }
         return box;
+    }
+
+    private static Div traceLine(TraceEvent event) {
+        Div line = new Div();
+        String levelTag = event.level() == TraceEvent.Level.WARN ? "[WARN] "
+                : (event.level() == TraceEvent.Level.ERROR ? "[ERR] " : "");
+        line.setText(String.format("%s%s · %s", levelTag, event.stage(), event.message()));
+        if (event.level() != TraceEvent.Level.INFO) line.addClassName("vstore-chat-trace-warn");
+        return line;
     }
 
     private void scrollToBottom() {
