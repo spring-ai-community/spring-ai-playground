@@ -17,7 +17,12 @@ package org.springaicommunity.playground.webui.observability;
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
+import org.springaicommunity.playground.SpringAiPlaygroundOptions;
+import org.springaicommunity.playground.SpringAiPlaygroundOptions.ApprovalMode;
 import org.springaicommunity.playground.observability.McpRiskEventRingBuffer;
+import org.springaicommunity.playground.service.management.ManagementAuditLog;
+import org.springaicommunity.playground.service.management.ManagementStatus;
+import org.springaicommunity.playground.service.management.ManagementToolRegistrar;
 import org.springaicommunity.playground.observability.ollama.OllamaMetricsRingBuffer;
 import org.springaicommunity.playground.observability.ollama.OllamaMetricsTimeSeries;
 import org.springaicommunity.playground.observability.system.SystemMetricsRingBuffer;
@@ -30,6 +35,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class RuntimeTabsSmokeTest {
 
@@ -42,7 +48,13 @@ class RuntimeTabsSmokeTest {
     }
 
     private SafetyTab safetyTab() {
-        return new SafetyTab(metrics(), new McpRiskEventRingBuffer());
+        McpRiskEventRingBuffer riskEvents = new McpRiskEventRingBuffer();
+        ManagementToolRegistrar registrar = mock(ManagementToolRegistrar.class);
+        when(registrar.status()).thenReturn(ManagementStatus.inactive("no bearer token on the built-in server",
+                ApprovalMode.DESTRUCTIVE));
+        return new SafetyTab(metrics(), riskEvents, new ManagementAuditLog(
+                new SpringAiPlaygroundOptions(null, false, null, null, null, null, null, null, null), riskEvents,
+                new SimpleMeterRegistry()), registrar);
     }
 
     @SuppressWarnings("unchecked")

@@ -381,7 +381,7 @@ class ChatServiceTest {
         SpringAiPlaygroundOptions playgroundOptions =
                 new SpringAiPlaygroundOptions(null, true, "", new SpringAiPlaygroundOptions.Chat("systemPrompt",
                         List.of("MockLlmProvider"), null, null, null,
-                        null, null, null, null, null), null, null, null);
+                        null, null, null, null, null), null, null, null, null, null);
         ChatMemory chatMemory = mock(ChatMemory.class);
         ChatService service = new ChatService(chatModel, chatClient, chatMemory, playgroundOptions,
                 ragPipelineService, List::of, null, new ChatRequestOptionsFactory(new ObjectMapper(), null), null,
@@ -395,7 +395,7 @@ class ChatServiceTest {
         SpringAiPlaygroundOptions playgroundOptions =
                 new SpringAiPlaygroundOptions(null, true, "", new SpringAiPlaygroundOptions.Chat("systemPrompt",
                         List.of(), null, null, null,
-                        null, null, null, null, null), null, null, null);
+                        null, null, null, null, null), null, null, null, null, null);
         ChatService service = new ChatService(new AbsentModelFallbackConfig.AbsentChatModel(), mock(ChatClient.class),
                 mock(ChatMemory.class), playgroundOptions, ragPipelineService, List::of, null,
                 new ChatRequestOptionsFactory(new ObjectMapper(), null), null, null, Duration.ofMinutes(10));

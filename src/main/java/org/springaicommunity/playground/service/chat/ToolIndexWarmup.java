@@ -54,18 +54,19 @@ public class ToolIndexWarmup implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
+        reindexPublishedTools();
+    }
+
+    public void reindexPublishedTools() {
         if (!(this.toolIndexProvider.getIfAvailable() instanceof PersistentToolIndex persistentToolIndex)) {
             return;
         }
         List<ToolReference> references = references();
-        if (references.isEmpty()) {
-            return;
-        }
         try {
             persistentToolIndex.indexTools(ChatMemory.CONVERSATION_ID, references);
-            logger.info("Tool index warm-up complete: {} tools", references.size());
+            logger.debug("Tool index reconciled: {} tools", references.size());
         } catch (RuntimeException e) {
-            logger.warn("Tool index warm-up skipped, tools will be indexed on first use ({})", e.getMessage());
+            logger.warn("Tool index refresh skipped, tools will be indexed on first use ({})", e.getMessage());
         }
     }
 

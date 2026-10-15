@@ -142,6 +142,7 @@ public class McpServerConfigView extends VerticalLayout {
     private Button saveAndConnectButton;
     private Button testConnectionButton;
 
+    private boolean populating;
     private boolean nameChanged = false;
     private boolean descChanged = false;
     private boolean jsonChanged = false;
@@ -173,7 +174,6 @@ public class McpServerConfigView extends VerticalLayout {
         this.mcpServerInfoChangeSupport = mcpServerInfoChangeSupport;
         buildLayout();
         populateFields();
-        refreshRiskPreview();
     }
 
     private void buildLayout() {
@@ -336,6 +336,7 @@ public class McpServerConfigView extends VerticalLayout {
     }
 
     private void refreshRiskPreview() {
+        if (populating) return;
         riskPreviewPanel.setVisible(true);
         riskPreviewPanel.removeAll();
         try {
@@ -710,10 +711,16 @@ public class McpServerConfigView extends VerticalLayout {
     private void updateSaveButtonState() {
         boolean hasChanges = nameChanged || descChanged || jsonChanged || transportChanged || extrasChanged
                 || categoryChanged || tagsChanged;
-        boolean isNewOrGhost = !isPersisted();
+        boolean isNewOrGhost = !isPersisted() || neverConnected();
         boolean isValid = validateNameField();
         saveAndConnectButton.setEnabled((hasChanges || isNewOrGhost) && isValid && !isAppManagedBuiltIn());
         refreshRiskPreview();
+    }
+
+    private boolean neverConnected() {
+        return mcpServerInfoService.findByServerName(mcpServerInfo.serverName())
+                .map(saved -> saved.lastUsedAtEpochMs() == null)
+                .orElse(false);
     }
 
     private boolean isAppManagedBuiltIn() {
@@ -754,7 +761,7 @@ public class McpServerConfigView extends VerticalLayout {
     }
 
     private void populateFields() {
-
+        populating = true;
         originalName = mcpServerInfo.serverName();
         originalDesc = mcpServerInfo.description();
         originalTransport = mcpServerInfo.mcpTransportType();
@@ -808,6 +815,7 @@ public class McpServerConfigView extends VerticalLayout {
         extrasChanged = false;
         categoryChanged = false;
         tagsChanged = false;
+        populating = false;
         updateSaveButtonState();
     }
 

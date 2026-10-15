@@ -30,6 +30,8 @@ import io.modelcontextprotocol.server.McpSyncServer;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
 import org.springaicommunity.playground.config.MdcIdentityFilter;
+import org.springaicommunity.playground.service.chat.ToolIndexWarmup;
+import org.springaicommunity.playground.service.mcp.ManagementToolNames;
 import org.springaicommunity.playground.service.mcp.McpServerHitlToolGate;
 import org.springaicommunity.playground.service.mcp.ExternalClientToolCallObserver;
 import org.springaicommunity.playground.service.mcp.risk.WrappedExternalToolCallback;
@@ -63,6 +65,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -123,6 +126,7 @@ public class ToolSpecService {
     private final McpServerHitlToolGate hitlGate;
     private final ExternalClientToolCallObserver externalClientToolCallObserver;
     private final ObjectProvider<ToolSpecPersistenceService> toolSpecPersistenceServiceProvider;
+    private final ObjectProvider<ToolIndexWarmup> toolIndexWarmupProvider;
     private final Map<String, ToolSpec> toolIdSpecs;
     private final JsToolExecutor jsToolExecutor;
     private final JsSandbox sandboxBaseline;
@@ -134,6 +138,7 @@ public class ToolSpecService {
     private final ToolActivationCalculator activationCalculator;
     private final ThreadLocal<Boolean> skipPersist = ThreadLocal.withInitial(() -> Boolean.FALSE);
     private final Map<String, ToolSpec> externalToolSpecs = new ConcurrentHashMap<>();
+    private final Set<String> servedToolNames = ConcurrentHashMap.newKeySet();
     private final Map<String, String> externalToolRiskLevels = new ConcurrentHashMap<>();
 
     private ToolMcpServerSetting toolMcpServerSetting;
@@ -144,6 +149,7 @@ public class ToolSpecService {
             McpServerHitlToolGate hitlGate,
             ExternalClientToolCallObserver externalClientToolCallObserver,
             ObjectProvider<ToolSpecPersistenceService> toolSpecPersistenceServiceProvider,
+            ObjectProvider<ToolIndexWarmup> toolIndexWarmupProvider,
             SpringAiPlaygroundOptions playgroundOptions, EffectivePolicyResolver policyResolver,
             SandboxPostureCalculator postureCalculator,
             ObservationRegistry observationRegistry,
@@ -156,6 +162,7 @@ public class ToolSpecService {
         this.hitlGate = hitlGate;
         this.externalClientToolCallObserver = externalClientToolCallObserver;
         this.toolSpecPersistenceServiceProvider = toolSpecPersistenceServiceProvider;
+        this.toolIndexWarmupProvider = toolIndexWarmupProvider;
         this.toolMcpServerSetting = new ToolMcpServerSetting(true, Set.of());
         this.exposureMode = playgroundOptions.builtInMcpServer().exposureMode();
         this.toolIdSpecs = new ConcurrentHashMap<>();
@@ -215,6 +222,10 @@ public class ToolSpecService {
         if (toolName == null || toolName.isBlank()) return Optional.of("Tool Name is required.");
         if (!TOOL_NAME_PATTERN.matcher(toolName).matches()) {
             return Optional.of("Use letters, numbers, and '_' only. Must start with a letter.");
+        }
+        if (ManagementToolNames.isReserved(toolName)) {
+            return Optional.of("Names starting with '" + ManagementToolNames.PREFIX
+                    + "' are reserved for this app's management tools.");
         }
         return Optional.empty();
     }
@@ -434,6 +445,7 @@ public class ToolSpecService {
                 && (approvalGateChanged || !isServedOnMcp(result.name()))) {
             reRegisterMcpTool(result);
         }
+        refreshToolIndex();
         return result;
     }
 
@@ -455,6 +467,15 @@ public class ToolSpecService {
         return Objects.equals(left.category(), right.category()) && Objects.equals(left.tags(), right.tags())
                 && Objects.equals(left.sandboxOverrides(), right.sandboxOverrides())
                 && Objects.equals(left.humanInTheLoop(), right.humanInTheLoop()) && left.draft() == right.draft();
+    }
+
+    private void refreshToolIndex() {
+        if (Boolean.TRUE.equals(this.skipPersist.get()))
+            return;
+        ToolIndexWarmup warmup = this.toolIndexWarmupProvider.getIfAvailable();
+        if (warmup != null) {
+            warmup.reindexPublishedTools();
+        }
     }
 
     private void syncMcpExposureForDraft(ToolSpec spec, boolean targetDraft) {
@@ -498,6 +519,7 @@ public class ToolSpecService {
     public ToolSpec update(String toolId, String toolName, String toolDescription,
             List<Map.Entry<String, String>> staticVariables, List<ToolParamSpec> toolParamSpecs, String jsCode,
             ToolSpec.CodeType codeType) {
+        ManagementToolNames.requireNotReserved("Tool name", toolName);
         boolean isNew = Objects.isNull(toolId);
         ToolSpec toolSpec = isNew ? null : toolIdSpecs.get(toolId);
         if (Objects.isNull(toolSpec) || !Objects.equals(toolSpec.name(), toolName) ||
@@ -631,6 +653,56 @@ public class ToolSpecService {
         } catch (RuntimeException e) {
             logger.warn("Failed to add external MCP tool: name={}, error={}", name, e.getMessage());
         }
+    }
+
+    public void addServedTool(SyncToolSpecification specification) {
+        addServedTools(List.of(specification));
+    }
+
+    public void addServedTools(List<SyncToolSpecification> specifications) {
+        boolean added = false;
+        for (SyncToolSpecification specification : specifications) {
+            String name = specification.tool().name();
+            if (Objects.nonNull(this.mcpSyncServer)) {
+                this.mcpSyncServer.addTool(specification);
+            } else if (Objects.nonNull(this.mcpAsyncServer)) {
+                this.mcpAsyncServer.addTool(AsyncToolSpecification.builder().tool(specification.tool())
+                        .callHandler((exchange, request) -> Mono.fromCallable(
+                                () -> specification.callHandler().apply(null, request)))
+                        .build());
+            } else {
+                continue;
+            }
+            this.servedToolNames.add(name);
+            added = true;
+            logger.info("Added served tool to server: name={}", name);
+        }
+        if (added) {
+            this.mcpServerInfoService.updateDefaultMcpTool();
+        }
+    }
+
+    public void removeServedTools(Set<String> names) {
+        boolean removed = false;
+        for (String name : names) {
+            if (!this.servedToolNames.remove(name)) {
+                continue;
+            }
+            if (Objects.nonNull(this.mcpSyncServer)) {
+                this.mcpSyncServer.removeTool(name);
+            } else if (Objects.nonNull(this.mcpAsyncServer)) {
+                this.mcpAsyncServer.removeTool(name);
+            }
+            removed = true;
+            logger.info("Removed served tool from server: name={}", name);
+        }
+        if (removed) {
+            this.mcpServerInfoService.updateDefaultMcpTool();
+        }
+    }
+
+    public Set<String> getServedToolNames() {
+        return Set.copyOf(this.servedToolNames);
     }
 
     public void removeExternalMcpTool(String toolName) {
@@ -892,6 +964,7 @@ public class ToolSpecService {
         logger.info("Deleting tool spec: toolId={}", toolId);
         Optional.ofNullable(toolIdSpecs.remove(toolId)).map(ToolSpec::name).ifPresent(this::removeMcpTool);
         persistAsync();
+        refreshToolIndex();
     }
 
     public ToolMcpServerSetting getToolMcpServerSetting() {
@@ -930,7 +1003,8 @@ public class ToolSpecService {
                     .forEach(spec -> desiredSpecs.putIfAbsent(spec.name(), spec));
         }
         Set<String> desired = desiredSpecs.keySet();
-        Set<String> external = getExternalMcpToolNames();
+        Set<String> external = new HashSet<>(getExternalMcpToolNames());
+        external.addAll(this.servedToolNames);
         Set<String> currentNative = getMcpToolList().stream().map(McpSchema.Tool::name)
                 .filter(name -> !external.contains(name)).collect(Collectors.toSet());
         currentNative.stream().filter(name -> !desired.contains(name)).forEach(this::removeMcpTool);

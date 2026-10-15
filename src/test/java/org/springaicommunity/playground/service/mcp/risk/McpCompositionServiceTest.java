@@ -46,15 +46,18 @@ class McpCompositionServiceTest {
 
     private McpCompositionService service;
     private PersistenceExecutor executor;
+    private McpCompositionPersistenceService persistence;
+    private McpRiskSignalSink sink;
+    private SpringAiPlaygroundOptions options;
     private List<McpRiskEvents.CompositionLifecycle> emittedEvents;
 
     @BeforeEach
     void setUp() throws IOException {
         this.emittedEvents = new ArrayList<>();
         this.executor = new PersistenceExecutor();
-        McpCompositionPersistenceService persistence = new McpCompositionPersistenceService(
+        this.persistence = new McpCompositionPersistenceService(
                 tempHome, new ObjectMapper(), executor);
-        McpRiskSignalSink sink = new McpRiskSignalSink() {
+        this.sink = new McpRiskSignalSink() {
             @Override public void onServerRiskComputed(McpRiskEvents.ServerRiskComputed event) {}
             @Override public void onToolPublishRiskComputed(McpRiskEvents.ToolPublishRiskComputed event) {}
             @Override public void onFloorOverrideTriggered(McpRiskEvents.FloorOverrideTriggered event) {}
@@ -65,7 +68,7 @@ class McpCompositionServiceTest {
             }
             @Override public void onPoisoningHit(McpRiskEvents.PoisoningHit event) {}
         };
-        SpringAiPlaygroundOptions options = new SpringAiPlaygroundOptions(null, false, null, null, null, null, null);
+        this.options = new SpringAiPlaygroundOptions(null, false, null, null, null, null, null, null, null);
         this.service = new McpCompositionService(persistence, new McpCompositionShadowingRules(), sink, options);
     }
 
@@ -97,6 +100,48 @@ class McpCompositionServiceTest {
         assertEquals("tavily", updated.members().getFirst().serverId());
         assertEquals(RiskLevel.L2, updated.maxRiskLevel());
         assertTrue(updated.enabled());
+    }
+
+    @Test
+    void upsertExposedSurvivesRestart() throws InterruptedException, TimeoutException {
+        service.upsertExposed(List.of(member("github", "search_issues")), RiskLevel.L2);
+        executor.awaitCompletion(Duration.ofSeconds(5));
+
+        McpCompositionService restarted = new McpCompositionService(persistence,
+                new McpCompositionShadowingRules(), sink, options);
+        McpComposition exposed = restarted.getExposed().orElseThrow();
+        assertEquals(1, exposed.members().size());
+        assertEquals("github", exposed.members().getFirst().serverId());
+        assertEquals(RiskLevel.L2, exposed.maxRiskLevel());
+        assertTrue(exposed.enabled());
+    }
+
+    @Test
+    void configuredComposedToolsWinOverTheSavedSelectionAtEveryBoot() throws InterruptedException, TimeoutException {
+        service.upsertExposed(List.of(member("github", "search_issues")), RiskLevel.L2);
+        executor.awaitCompletion(Duration.ofSeconds(5));
+        assertFalse(service.exposedManagedByConfiguration());
+
+        SpringAiPlaygroundOptions configured = new SpringAiPlaygroundOptions(null, false, null, null, null,
+                new SpringAiPlaygroundOptions.McpServer(RiskLevel.L3, List.of(new SpringAiPlaygroundOptions
+                        .ComposedTool("DeepWiki", "ask_question", "deepwiki_ask", null, true)), null), null, null, null);
+        McpCompositionService restarted = new McpCompositionService(persistence,
+                new McpCompositionShadowingRules(), sink, configured);
+
+        McpComposition exposed = restarted.getExposed().orElseThrow();
+        assertTrue(restarted.exposedManagedByConfiguration());
+        assertEquals(1, exposed.members().size());
+        assertEquals("DeepWiki", exposed.members().getFirst().serverId());
+        assertEquals("deepwiki_ask", exposed.members().getFirst().exposedAlias());
+        assertTrue(exposed.members().getFirst().hitl());
+        assertEquals(RiskLevel.L3, exposed.maxRiskLevel());
+    }
+
+    @Test
+    void exposedSeedsEmptyWhenNothingPersistedOrConfigured() {
+        McpComposition exposed = service.getExposed().orElseThrow();
+        assertTrue(exposed.members().isEmpty());
+        assertFalse(exposed.enabled());
     }
 
     @Test

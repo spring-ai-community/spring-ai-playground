@@ -59,6 +59,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @SpringBootTest
@@ -299,6 +300,38 @@ class McpServerInfoServiceTest {
     }
 
     @Test
+    void saveAndConnectRefusesThisAppsOwnMcpEndpoint() throws IOException {
+        McpClientService clientService = mock(McpClientService.class);
+        McpServerInfoPersistenceService persistence = mock(McpServerInfoPersistenceService.class);
+        McpServerInfoService service = newServiceForSave(clientService, persistence);
+
+        for (String url : List.of("http://localhost:8282", "http://127.0.0.1:8282/mcp", "http://[::1]:8282",
+                "http://0.0.0.0:8282/sse")) {
+            assertThatThrownBy(() -> service.saveAndConnect(new McpServerRegistration(null, null,
+                    McpTransportType.STREAMABLE_HTTP, "loop", "d", null, null,
+                    "{\"url\":\"" + url + "\",\"endpoint\":\"/mcp\"}")))
+                    .as(url).isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("own MCP endpoint");
+        }
+        verify(clientService, never()).startMcpClient(any());
+    }
+
+    @Test
+    void saveAndConnectAllowsOtherLocalPortsAndRemoteHosts() throws IOException {
+        McpClientService clientService = mock(McpClientService.class);
+        McpServerInfoPersistenceService persistence = mock(McpServerInfoPersistenceService.class);
+        McpServerInfoService service = newServiceForSave(clientService, persistence);
+
+        service.saveAndConnect(new McpServerRegistration(null, null, McpTransportType.STREAMABLE_HTTP, "other-port",
+                "d", null, null, "{\"url\":\"http://localhost:9000\",\"endpoint\":\"/mcp\"}"));
+        service.saveAndConnect(new McpServerRegistration(null, null, McpTransportType.STREAMABLE_HTTP, "remote",
+                "d", null, null, "{\"url\":\"https://example.com:8282\",\"endpoint\":\"/mcp\"}"));
+
+        assertThat(service.findByServerName("other-port")).isPresent();
+        assertThat(service.findByServerName("remote")).isPresent();
+    }
+
+    @Test
     void persistedServersStartBeforeTheExposedToolsAreSynced() throws NoSuchMethodException {
         Order startOrder = McpServerInfoService.class.getMethod("onApplicationReady", ApplicationReadyEvent.class)
                 .getAnnotation(Order.class);
@@ -319,7 +352,7 @@ class McpServerInfoServiceTest {
         doReturn(Map.of()).when(streamable).getDefaultConnections();
         Path homeDir = Files.createTempDirectory("saip-mcp-save-test");
         SpringAiPlaygroundOptions playgroundOptions = new SpringAiPlaygroundOptions(null, false, null, null, null,
-                new SpringAiPlaygroundOptions.McpServer(null, null, null), null);
+                new SpringAiPlaygroundOptions.McpServer(null, null, null), null, null, null);
         ObjectProvider<McpServerInfoPersistenceService> provider = mock();
         when(provider.getObject()).thenReturn(persistence);
         return new McpServerInfoService(new ObjectMapper(),
@@ -349,15 +382,70 @@ class McpServerInfoServiceTest {
         }
     }
 
+    @Test
+    void autoStartLeavesAlreadyConnectedClientsAlone() throws IOException {
+        McpClientService clientService = mock(McpClientService.class);
+        McpClientPropertiesService<?> streamableHttp = mock(McpClientPropertiesService.class);
+        when(streamableHttp.getTransportType()).thenReturn(McpTransportType.STREAMABLE_HTTP);
+        doReturn(Map.of()).when(streamableHttp).getDefaultConnections();
+        McpServerInfoService service = newService(null, true, clientService,
+                new McpClientPropertiesService<?>[] {streamableHttp});
+        McpServerInfo connected = new McpServerInfo(McpTransportType.STREAMABLE_HTTP, "already-connected",
+                "d", 1L, 1L, "{\"url\":\"https://a.example.com\"}");
+        McpServerInfo idle = new McpServerInfo(McpTransportType.STREAMABLE_HTTP, "not-yet-connected",
+                "d", 1L, 1L, "{\"url\":\"https://b.example.com\"}");
+        service.loadAll(() -> {
+            service.updateMcpServerInfo(connected.mcpTransportType(), connected.serverName(), connected);
+            service.updateMcpServerInfo(idle.mcpTransportType(), idle.serverName(), idle);
+        });
+        when(clientService.isConnecting(connected)).thenReturn(true);
+
+        service.onApplicationReady(null);
+
+        verify(clientService, never()).startMcpClient(connected);
+        verify(clientService).startMcpClient(idle);
+    }
+
+    @Test
+    void stdioServerModeNeverStartsTheLoopbackClient() throws IOException {
+        McpClientService clientService = mock(McpClientService.class);
+        McpServerInfoService service = newService(null, true, clientService, new McpClientPropertiesService<?>[0]);
+
+        service.onApplicationReady(null);
+        service.onAuthTokenChanged(new McpServerAuthTokenService.AuthTokenChangedEvent(
+                McpServerAuthTokenService.AccessMode.BEARER_TOKEN));
+        service.updateDefaultMcpTool();
+
+        verifyNoInteractions(clientService);
+    }
+
+    @Test
+    void httpServerModeStartsTheLoopbackClientOnceTheApplicationIsReady() throws IOException {
+        McpClientService clientService = mock(McpClientService.class);
+        McpServerInfoService service = newService(null, false, clientService, new McpClientPropertiesService<?>[0]);
+
+        service.updateDefaultMcpTool();
+        verifyNoInteractions(clientService);
+
+        service.onApplicationReady(null);
+
+        verify(clientService).startMcpClient(service.getDefaultMcpServerInfo());
+    }
+
     private static void newService(String authToken, boolean stdio) throws IOException {
+        newService(authToken, stdio, mock(McpClientService.class), new McpClientPropertiesService<?>[0]);
+    }
+
+    private static McpServerInfoService newService(String authToken, boolean stdio, McpClientService clientService,
+            McpClientPropertiesService<?>[] propertiesServices) throws IOException {
         Path homeDir = Files.createTempDirectory("saip-mcp-info-test");
         SpringAiPlaygroundOptions playgroundOptions = new SpringAiPlaygroundOptions(null, false, null, null, null,
-                new SpringAiPlaygroundOptions.McpServer(null, null, authToken), null);
+                new SpringAiPlaygroundOptions.McpServer(null, null, authToken), null, null, null);
         McpServerProperties serverProperties = new McpServerProperties();
         serverProperties.setStdio(stdio);
         ObjectProvider<McpServerInfoPersistenceService> persistence = mock();
-        new McpServerInfoService(new ObjectMapper(), new McpClientPropertiesService<?>[0],
-                mock(McpClientService.class), mock(McpCatalogService.class), persistence,
+        return new McpServerInfoService(new ObjectMapper(), propertiesServices,
+                clientService, mock(McpCatalogService.class), persistence,
                 mock(McpClientRegistrationRepository.class), 8282, serverProperties,
                 playgroundOptions, new McpServerAuthTokenService(playgroundOptions, homeDir,
                         new OAuthTokenEncryptor(homeDir), event -> { }));

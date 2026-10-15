@@ -24,6 +24,8 @@ import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.spec.McpSchema;
+import org.springaicommunity.playground.service.chat.ToolIndexWarmup;
+import org.springaicommunity.playground.service.mcp.ManagementToolNames;
 import org.springaicommunity.playground.service.mcp.McpServerHitlToolGate;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
 import org.springaicommunity.playground.service.mcp.risk.McpToolRiskComposer;
@@ -90,6 +92,9 @@ class ToolSpecServiceTest {
 
     @MockitoBean
     McpServerInfoService mcpServerInfoService;
+
+    @MockitoBean
+    ToolIndexWarmup toolIndexWarmup;
 
     @MockitoSpyBean
     McpServerHitlToolGate hitlGate;
@@ -275,6 +280,17 @@ class ToolSpecServiceTest {
         toolSpecService.update(freshSpec("publish-1", "publishOne", false));
         assertThat(toolSpecService.getMcpToolList().stream().map(McpSchema.Tool::name).toList())
                 .contains("publishOne");
+    }
+
+    @Test
+    void publishAndDeleteTriggerLiveToolIndexRefresh() {
+        clearInvocations(this.toolIndexWarmup);
+        toolSpecService.update(freshSpec("idx-1", "idxTool", false));
+        verify(this.toolIndexWarmup).reindexPublishedTools();
+
+        clearInvocations(this.toolIndexWarmup);
+        toolSpecService.deleteToolSpec("idx-1");
+        verify(this.toolIndexWarmup).reindexPublishedTools();
     }
 
     @Test
@@ -798,6 +814,15 @@ class ToolSpecServiceTest {
             toolSpecService.updateToolMcpServerSetting(before);
         }
     }
+    @Test
+    void aToolNameWithTheManagementPrefixIsRefused() {
+        assertThatThrownBy(() -> toolSpecService.update(null, ManagementToolNames.PREFIX + "tools_list", "",
+                List.of(), List.of(), "return 1;", CodeType.Javascript))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("reserved for this app's own management tools");
+        assertThat(toolSpecService.getToolSpecAsOpt(ManagementToolNames.PREFIX + "tools_list")).isEmpty();
+    }
+
     @Test
     void aCustomToolCannotTakeTheNameOfADefaultTool() throws IOException {
         toolSpecPersistenceService.onStart();

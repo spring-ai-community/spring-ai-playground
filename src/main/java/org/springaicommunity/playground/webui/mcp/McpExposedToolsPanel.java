@@ -116,8 +116,19 @@ public class McpExposedToolsPanel {
         Checkbox hitlAll = new Checkbox("Mark all selected tools for human review (HITL, −1 risk band)");
         hitlAll.addValueChangeListener(event -> applyHitlToAllSelected(Boolean.TRUE.equals(event.getValue())));
 
-        VerticalLayout root = new VerticalLayout(intro, this.exposedArea,
-                this.modeField, this.capField, hitlAll);
+        boolean managed = this.compositionService.exposedManagedByConfiguration();
+        VerticalLayout root = new VerticalLayout(intro);
+        if (managed) {
+            Span notice = new Span("Composed tools are set by configuration ("
+                    + McpExposedToolService.COMPOSED_TOOLS_PROPERTY
+                    + "); edit the configuration and restart to change them.");
+            notice.getStyle().set("color", "var(--lumo-secondary-text-color)")
+                    .set("font-size", "var(--lumo-font-size-s)");
+            root.add(notice);
+            this.capField.setReadOnly(true);
+            hitlAll.setEnabled(false);
+        }
+        root.add(this.exposedArea, this.modeField, this.capField, hitlAll);
         root.setPadding(false);
         root.setSpacing(true);
         refreshExposedArea();
@@ -132,7 +143,9 @@ public class McpExposedToolsPanel {
 
         root.add(sectionLabel("Connected MCP servers"));
         for (McpServerInfo server : active) {
-            root.add(buildServerAccordion(server));
+            Details accordion = buildServerAccordion(server);
+            accordion.setEnabled(!managed);
+            root.add(accordion);
         }
         return root;
     }

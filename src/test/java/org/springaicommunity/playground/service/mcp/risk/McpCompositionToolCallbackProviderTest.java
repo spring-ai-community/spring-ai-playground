@@ -16,6 +16,7 @@
 package org.springaicommunity.playground.service.mcp.risk;
 
 import tools.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springaicommunity.playground.service.PersistenceExecutor;
@@ -146,7 +147,7 @@ class McpCompositionToolCallbackProviderTest {
         when(ledger.get("GitHub", "list_repos")).thenReturn(Optional.empty());
 
         McpCompositionToolCallbackProvider provider = new McpCompositionToolCallbackProvider(composition, infoService,
-                clientService, providerOf(evaluator), ledger, new ObjectMapper());
+                clientService, providerOf(evaluator), ledger, new ObjectMapper(), new SimpleMeterRegistry());
 
         assertThat(provider.getToolCallbacks()).singleElement()
                 .satisfies(callback -> assertThat(((WrappedExternalToolCallback) callback).riskLevel())
@@ -180,6 +181,7 @@ class McpCompositionToolCallbackProviderTest {
     private static McpCompositionToolCallbackProvider newProvider(McpCompositionService composition,
             McpServerInfoService infoService, McpClientService clientService, McpToolHashLedger ledger) {
         return new McpCompositionToolCallbackProvider(composition, infoService, clientService,
-                providerOf(mock(McpToolRiskEvaluator.class)), ledger, new ObjectMapper());
+                providerOf(mock(McpToolRiskEvaluator.class)), ledger, new ObjectMapper(),
+                new SimpleMeterRegistry());
     }
 }

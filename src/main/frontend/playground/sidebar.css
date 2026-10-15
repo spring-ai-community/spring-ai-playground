@@ -51,11 +51,8 @@ vaadin-text-area.debug-console::part(input-field) {
     background: var(--lumo-contrast-5pct);
 }
 
-/* Observability tab is a *monitoring* surface, distinct from the LLM
- * authoring tools (Home / Tool Studio / MCP / Vector / Chat). Pin it to the
- * right edge of the navbar tabs and add a vertical divider to make the
- * visual category split obvious. */
-vaadin-tabs vaadin-tab.observability-tab {
+/* Pins the operations tab group to the right edge with a divider before it. */
+vaadin-tabs vaadin-tab.ops-tab-first {
     margin-inline-start: auto !important;
     border-inline-start: 1px solid var(--lumo-contrast-10pct);
     padding-inline-start: var(--lumo-space-m);
@@ -87,7 +84,7 @@ vaadin-app-layout vaadin-tabs {
     vaadin-tabs vaadin-tab span {
         display: none;
     }
-    vaadin-tabs vaadin-tab.observability-tab {
+    vaadin-tabs vaadin-tab.ops-tab-first {
         padding-inline-start: var(--lumo-space-xs);
     }
 }

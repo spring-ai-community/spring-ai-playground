@@ -22,6 +22,10 @@ import org.springaicommunity.playground.observability.McpRiskEventRingBuffer.Ris
 import org.springaicommunity.playground.observability.Window;
 import org.springaicommunity.playground.observability.system.SystemMetricsSnapshot;
 import org.springaicommunity.playground.observability.system.SystemMetricsSnapshot.Snapshot;
+import org.springaicommunity.playground.service.management.ManagementAuditLog;
+import org.springaicommunity.playground.service.management.ManagementOutcome;
+import org.springaicommunity.playground.service.management.ManagementStatus;
+import org.springaicommunity.playground.service.management.ManagementToolRegistrar;
 import org.springaicommunity.playground.service.mcp.risk.McpRiskEvents.Types;
 import org.springaicommunity.playground.webui.observability.components.BaseDashboardTab;
 import org.springaicommunity.playground.webui.observability.components.ChartCanvas;
@@ -44,6 +48,8 @@ public class SafetyTab extends BaseDashboardTab {
 
     private final SystemMetricsSnapshot systemMetrics;
     private final McpRiskEventRingBuffer eventBuffer;
+    private final ManagementAuditLog auditLog;
+    private final ManagementToolRegistrar managementRegistrar;
 
     private final KpiCard riskSignalsCard = new KpiCard("Risk signals");
     private final KpiCard tamperCard = new KpiCard("Tamper rejects");
@@ -57,13 +63,20 @@ public class SafetyTab extends BaseDashboardTab {
     private final ChartCanvas hitlByOutcomeBar = new ChartCanvas();
     private final ChartCanvas sandboxByReasonBar = new ChartCanvas();
     private final Div timeline = new Div();
+    private final Span managementStatusLine = new Span();
+    private final Div managementLog = new Div();
+    private int renderedAuditCount = -1;
+    private ManagementAuditLog.Entry renderedNewestAudit;
     private int renderedEventCount = -1;
     private RiskEvent renderedNewestEvent;
 
-    public SafetyTab(SystemMetricsSnapshot systemMetrics, McpRiskEventRingBuffer eventBuffer) {
+    public SafetyTab(SystemMetricsSnapshot systemMetrics, McpRiskEventRingBuffer eventBuffer,
+            ManagementAuditLog auditLog, ManagementToolRegistrar managementRegistrar) {
         super();
         this.systemMetrics = systemMetrics;
         this.eventBuffer = eventBuffer;
+        this.auditLog = auditLog;
+        this.managementRegistrar = managementRegistrar;
 
         Div intro = buildIntro(
                 "Safety & security signals across the MCP risk model (L0–L5), the JS tool sandbox guards, " +
@@ -100,7 +113,7 @@ public class SafetyTab extends BaseDashboardTab {
                         sandboxByReasonBar)
         );
 
-        content.add(intro, cardRow, grid, buildTimelineSection());
+        content.add(intro, cardRow, grid, buildTimelineSection(), buildManagementSection());
     }
 
     private Div buildTimelineSection() {
@@ -114,6 +127,24 @@ public class SafetyTab extends BaseDashboardTab {
                 .set("border-radius", "var(--lumo-border-radius-m)")
                 .set("padding", "var(--lumo-space-s)");
         Div section = new Div(title, timeline);
+        section.setWidthFull();
+        return section;
+    }
+
+    private Div buildManagementSection() {
+        Div title = new Div();
+        title.setText("Management tool calls");
+        title.getStyle().set("font-weight", "600").set("font-size", "var(--lumo-font-size-m)")
+                .set("margin", "var(--lumo-space-m) 0 var(--lumo-space-xs) 0");
+        managementStatusLine.getStyle().set("color", "var(--lumo-secondary-text-color)")
+                .set("font-size", "var(--lumo-font-size-s)");
+        managementLog.getStyle().set("display", "flex").set("flex-direction", "column").set("gap", "4px")
+                .set("max-height", "320px").set("overflow-y", "auto")
+                .set("border", "1px solid var(--lumo-contrast-10pct)")
+                .set("border-radius", "var(--lumo-border-radius-m)")
+                .set("padding", "var(--lumo-space-s)");
+        managementLog.getElement().setAttribute("data-testid", "management-log");
+        Div section = new Div(title, managementStatusLine, managementLog);
         section.setWidthFull();
         return section;
     }
@@ -157,6 +188,7 @@ public class SafetyTab extends BaseDashboardTab {
                 + hitlTotal + " HITL decisions · " + sandboxBlocks + " sandbox blocks");
 
         renderTimeline();
+        renderManagementLog();
     }
 
     private void renderTimeline() {
@@ -179,6 +211,55 @@ public class SafetyTab extends BaseDashboardTab {
         events.reversed().stream()
                 .limit(50)
                 .forEach(e -> timeline.add(buildEventRow(e)));
+    }
+
+    private void renderManagementLog() {
+        ManagementStatus status = managementRegistrar.status();
+        managementStatusLine.setText(status.active()
+                ? "AI management tools are on: " + status.toolCount() + " tools, categories "
+                        + String.join(", ", status.categories().stream().sorted().toList())
+                        + ", human approval " + status.approval().name().toLowerCase(Locale.ROOT)
+                : "AI management tools are off: " + status.reason());
+        List<ManagementAuditLog.Entry> entries = auditLog.snapshot();
+        ManagementAuditLog.Entry newest = entries.isEmpty() ? null : entries.getLast();
+        if (entries.size() == renderedAuditCount && Objects.equals(newest, renderedNewestAudit)) {
+            return;
+        }
+        renderedAuditCount = entries.size();
+        renderedNewestAudit = newest;
+        managementLog.removeAll();
+        if (entries.isEmpty()) {
+            Span empty = new Span("No management tool calls yet. An external AI client that connects with the "
+                    + "bearer token can call the saip_ tools; every call is recorded here.");
+            empty.getStyle().set("color", "var(--lumo-secondary-text-color)")
+                    .set("font-style", "italic").set("padding", "var(--lumo-space-s)");
+            managementLog.add(empty);
+            return;
+        }
+        entries.reversed().stream().limit(50).forEach(entry -> managementLog.add(buildAuditRow(entry)));
+    }
+
+    private Div buildAuditRow(ManagementAuditLog.Entry entry) {
+        Div row = new Div();
+        row.getStyle().set("display", "flex").set("align-items", "baseline").set("gap", "8px")
+                .set("padding", "2px 4px").set("font-size", "var(--lumo-font-size-s)");
+        Span time = new Span(TIME_FMT.format(Instant.ofEpochMilli(entry.epochMs()).atZone(ZoneId.systemDefault())));
+        time.getStyle().set("color", "var(--lumo-secondary-text-color)")
+                .set("font-family", "var(--lumo-font-family-monospace, monospace)").set("flex", "0 0 auto");
+        boolean problem = entry.outcome() != ManagementOutcome.OK;
+        Span badge = new Span(entry.outcome().name());
+        badge.getStyle().set("flex", "0 0 auto").set("font-weight", "600")
+                .set("font-size", "var(--lumo-font-size-xs)").set("padding", "1px 6px")
+                .set("border-radius", "999px")
+                .set("background", problem ? "var(--lumo-error-color-10pct)" : "var(--lumo-primary-color-10pct)")
+                .set("color", problem ? "var(--lumo-error-text-color)" : "var(--lumo-primary-text-color)");
+        Span tool = new Span(entry.tool() + " (" + entry.level().name().toLowerCase(Locale.ROOT) + ")");
+        tool.getStyle().set("font-weight", "500").set("flex", "0 0 auto");
+        Span client = new Span(entry.client() + " · " + entry.durationMs() + " ms");
+        client.getStyle().set("color", "var(--lumo-secondary-text-color)").set("flex", "1 1 auto")
+                .set("overflow", "hidden").set("text-overflow", "ellipsis").set("white-space", "nowrap");
+        row.add(time, badge, tool, client);
+        return row;
     }
 
     private Div buildEventRow(RiskEvent e) {

@@ -15,10 +15,12 @@
  */
 package org.springaicommunity.playground;
 
+import org.springaicommunity.playground.service.mcp.bundle.ShipRequest.Transport;
 import org.springaicommunity.playground.service.tool.ToolManifest.Sandbox.RiskLevel;
 import org.springaicommunity.playground.service.tool.ToolSpecService.ExposureMode;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
+import org.springframework.boot.context.properties.bind.ConstructorBinding;
 
 import java.time.Duration;
 import java.util.List;
@@ -30,12 +32,45 @@ public record SpringAiPlaygroundOptions(@NestedConfigurationProperty ToolStudio 
                                         String userHome, @NestedConfigurationProperty Chat chat,
                                         @NestedConfigurationProperty BuiltInMcpServer builtInMcpServer,
                                         @NestedConfigurationProperty McpServer mcpServer,
-                                        @NestedConfigurationProperty Hitl hitl) {
+                                        @NestedConfigurationProperty Hitl hitl,
+                                        @NestedConfigurationProperty Shipyard shipyard,
+                                        @NestedConfigurationProperty Management management) {
 
+    @ConstructorBinding
     public SpringAiPlaygroundOptions {
         if (builtInMcpServer == null) builtInMcpServer = new BuiltInMcpServer(null, null, null);
         if (mcpServer == null) mcpServer = new McpServer(null, null, null);
         if (hitl == null) hitl = new Hitl(null);
+        if (shipyard == null) shipyard = new Shipyard(null, null, null, null, null);
+        if (management == null) management = new Management(null, null, null, null, null);
+    }
+
+    public enum ApprovalMode {
+        DESTRUCTIVE, ALL, NONE
+    }
+
+    public record Management(Boolean enabled, Set<String> tools, Set<String> exclude, ApprovalMode approval,
+                             Integer auditCapacity) {
+
+        public static final int DEFAULT_AUDIT_CAPACITY = 500;
+
+        public Management {
+            if (enabled == null) enabled = Boolean.TRUE;
+            tools = tools == null ? Set.of() : Set.copyOf(tools);
+            exclude = exclude == null ? Set.of() : Set.copyOf(exclude);
+            if (approval == null) approval = ApprovalMode.DESTRUCTIVE;
+            if (auditCapacity == null || auditCapacity <= 0) auditCapacity = DEFAULT_AUDIT_CAPACITY;
+        }
+
+        public static final Set<String> OPT_IN_CATEGORIES = Set.of("mcp-register");
+
+        public boolean categoryEnabled(String category) {
+            return this.tools.isEmpty() ? !OPT_IN_CATEGORIES.contains(category) : this.tools.contains(category);
+        }
+
+        public boolean toolExcluded(String toolName) {
+            return this.exclude.contains(toolName);
+        }
     }
 
     public record Hitl(Integer approvalWaitSeconds) {
@@ -58,6 +93,46 @@ public record SpringAiPlaygroundOptions(@NestedConfigurationProperty ToolStudio 
             return approvalWait().plus(TRANSPORT_MARGIN);
         }
     }
+
+    public record Shipyard(String dockerExecutable, String imageRepository, String imageTag,
+                           List<ShipyardServer> servers, List<ShipyardTarget> targets) {
+
+        public static final String DEFAULT_IMAGE_REPOSITORY = "ghcr.io/spring-ai-community/spring-ai-playground";
+
+        public Shipyard {
+            if (imageRepository == null || imageRepository.isBlank()) imageRepository = DEFAULT_IMAGE_REPOSITORY;
+            servers = servers == null ? List.of() : List.copyOf(servers);
+            targets = targets == null ? List.of() : List.copyOf(targets);
+        }
+
+        public boolean manages(String serverName) {
+            return servers.stream().anyMatch(server -> server.name() != null && server.name().equals(serverName));
+        }
+    }
+
+    public record ShipyardServer(String name, String description, String version, List<String> tools,
+                                 List<ComposedTool> composedTools, RiskLevel composedToolsMaxRisk,
+                                 Transport transport, Integer hostPort,
+                                 @NestedConfigurationProperty ShipyardModel chatModel,
+                                 @NestedConfigurationProperty ShipyardModel embeddingModel, String target,
+                                 List<ShipyardKnowledge> knowledge, Boolean autoRun) {
+
+        public ShipyardServer {
+            tools = tools == null ? List.of() : List.copyOf(tools);
+            composedTools = composedTools == null ? List.of() : List.copyOf(composedTools);
+            knowledge = knowledge == null ? List.of() : List.copyOf(knowledge);
+        }
+
+        public boolean autoRuns() {
+            return Boolean.TRUE.equals(autoRun);
+        }
+    }
+
+    public record ShipyardKnowledge(String source, String name, String description, Integer topK) {}
+
+    public record ShipyardModel(String provider, String model) {}
+
+    public record ShipyardTarget(String name, String dockerContext, String dockerHost, String publicHost) {}
 
     public record BuiltInMcpServer(String name, String description, ExposureMode exposureMode) {
         public BuiltInMcpServer {

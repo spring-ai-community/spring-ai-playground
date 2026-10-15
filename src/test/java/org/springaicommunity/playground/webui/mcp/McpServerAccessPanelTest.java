@@ -43,7 +43,7 @@ class McpServerAccessPanelTest extends SpringBrowserlessTest {
 
     private McpServerAuthTokenService newService(String configuredToken) throws IOException {
         return new McpServerAuthTokenService(new SpringAiPlaygroundOptions(null, false, null, null, null,
-                new SpringAiPlaygroundOptions.McpServer(null, null, configuredToken), null), this.homeDir,
+                new SpringAiPlaygroundOptions.McpServer(null, null, configuredToken), null, null, null), this.homeDir,
                 new OAuthTokenEncryptor(this.homeDir), event -> { });
     }
 

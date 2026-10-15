@@ -34,7 +34,8 @@ public class McpServerAuthTokenFilter extends OncePerRequestFilter {
 
     private static final String BEARER_PREFIX = "Bearer ";
     private static final RequestMatcher PROTECTED_PATHS = new OrRequestMatcher(
-            PathPatternRequestMatcher.pathPattern("/mcp/**"), PathPatternRequestMatcher.pathPattern("/sse/**"));
+            PathPatternRequestMatcher.pathPattern("/mcp/**"), PathPatternRequestMatcher.pathPattern("/sse/**"),
+            PathPatternRequestMatcher.pathPattern("/actuator/bundle"));
 
     private final McpServerAuthTokenService authTokenService;
 

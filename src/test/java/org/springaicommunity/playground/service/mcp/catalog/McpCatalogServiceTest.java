@@ -113,4 +113,21 @@ class McpCatalogServiceTest {
         // Literal substitution — no regex interpretation of $ or backslash.
         assertThat(result).isEqualTo("https://x/abc$1\\def/y");
     }
+    @Test
+    void searchMatchesIdNameDescriptionAndTagsCaseInsensitively() {
+        assertThat(service.search("github", null, null)).extracting(McpCatalogEntry::id).contains("GitHub");
+        assertThat(service.search("  GITHUB ", null, null)).extracting(McpCatalogEntry::id).contains("GitHub");
+        assertThat(service.search("no-such-server-anywhere", null, null)).isEmpty();
+    }
+
+    @Test
+    void searchFiltersByCategoryAndTransport() {
+        assertThat(service.search(null, "dev", null)).isNotEmpty()
+                .allMatch(entry -> entry.category().equalsIgnoreCase("DEV"));
+        assertThat(service.search(null, null, McpTransportType.STREAMABLE_HTTP)).isNotEmpty()
+                .allMatch(entry -> entry.transports().stream()
+                        .anyMatch(spec -> spec.type() == McpTransportType.STREAMABLE_HTTP));
+        assertThat(service.search(null, null, null)).hasSameSizeAs(service.getCatalog());
+    }
+
 }

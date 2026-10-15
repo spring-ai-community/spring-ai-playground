@@ -27,9 +27,11 @@ import com.vaadin.flow.server.auth.AnonymousAllowed;
 import com.vaadin.flow.spring.annotation.SpringComponent;
 import com.vaadin.flow.spring.annotation.UIScope;
 import org.springaicommunity.playground.service.analytics.UsageAnalyticsService;
+import org.springaicommunity.playground.service.management.ManagementToolRegistrar;
 import org.springaicommunity.playground.service.mcp.McpServerAuthTokenService;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
+import org.springaicommunity.playground.service.mcp.bundle.ShipyardService;
 import org.springaicommunity.playground.service.mcp.catalog.McpCatalogService;
 import org.springaicommunity.playground.service.mcp.catalog.McpCategoryService;
 import org.springaicommunity.playground.service.mcp.catalog.McpTagSuggestionService;
@@ -45,6 +47,7 @@ import org.springaicommunity.playground.webui.UsageEventTracker;
 import org.springaicommunity.playground.webui.VaadinUtils;
 import org.springaicommunity.playground.webui.common.ContentWorkspaceView;
 import org.springaicommunity.playground.webui.common.WorkspaceSettingsDrawer;
+import org.springaicommunity.playground.webui.shipyard.ShipyardView;
 
 import java.beans.PropertyChangeSupport;
 import java.net.URLDecoder;
@@ -74,6 +77,8 @@ public class McpServerView extends ContentWorkspaceView {
     private final McpExposedToolService mcpExposedToolService;
     private final McpCompositionService mcpCompositionService;
     private final ToolSpecService toolSpecService;
+    private final ShipyardService shipyardService;
+    private final ManagementToolRegistrar managementRegistrar;
     private final UsageAnalyticsService usageAnalyticsService;
     private final UsageEventTracker usageEventTracker;
     private final McpServerConnectionView mcpServerConnectionView;
@@ -87,7 +92,10 @@ public class McpServerView extends ContentWorkspaceView {
             McpToolRiskEvaluator mcpToolRiskEvaluator, McpRegistrationRiskPreview mcpRegistrationRiskPreview,
             McpExposedToolService mcpExposedToolService, McpCompositionService mcpCompositionService,
             ToolSpecService toolSpecService, UsageAnalyticsService usageAnalyticsService,
-            UsageEventTracker usageEventTracker, McpServerAuthTokenService mcpServerAuthTokenService) {
+            UsageEventTracker usageEventTracker, McpServerAuthTokenService mcpServerAuthTokenService,
+            ShipyardService shipyardService, ManagementToolRegistrar managementRegistrar) {
+        this.shipyardService = shipyardService;
+        this.managementRegistrar = managementRegistrar;
         this.mcpServerInfoService = mcpServerInfoService;
         this.mcpClientService = mcpClientService;
         this.mcpCategoryService = mcpCategoryService;
@@ -133,6 +141,10 @@ public class McpServerView extends ContentWorkspaceView {
                 event -> addNewMcpServerDetails());
         addHeaderAction(newMcpConnectionButton);
 
+        Button shipServerButton = styledButton("Ship MCP Server", VaadinIcon.ANCHOR.create(),
+                event -> ShipyardView.requestShipFlowWith(this.shipyardService.requestFromCurrentExposure()));
+        getHeaderEndMenuBar().addItem(shipServerButton);
+
         WorkspaceSettingsDrawer builtInServerDrawer = installSettingsDrawer(VaadinIcon.COG_O,
                 "Built-in MCP Server",
                 "Built-in MCP server settings - who can call it, and which tools it exposes");
@@ -142,6 +154,8 @@ public class McpServerView extends ContentWorkspaceView {
                 this.usageEventTracker);
         builtInServerDrawer.setBodyFactory(() -> {
             VerticalLayout drawerBody = new VerticalLayout(accessPanel.build(), new Hr(),
+                    McpExposedToolsPanel.sectionLabel("AI management"),
+                    new McpManagementStatusPanel(this.managementRegistrar).build(), new Hr(),
                     McpExposedToolsPanel.sectionLabel("Composed Tools"), exposeToolsPanel.build());
             drawerBody.setPadding(false);
             return drawerBody;
@@ -229,4 +243,5 @@ public class McpServerView extends ContentWorkspaceView {
         }
         return null;
     }
+
 }

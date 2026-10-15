@@ -36,6 +36,7 @@ import org.springaicommunity.playground.webui.chat.ChatView;
 import org.springaicommunity.playground.webui.home.HomeView;
 import org.springaicommunity.playground.webui.mcp.McpServerView;
 import org.springaicommunity.playground.webui.observability.ObservabilityView;
+import org.springaicommunity.playground.webui.shipyard.ShipyardView;
 import org.springaicommunity.playground.webui.tool.ToolStudioView;
 import org.springaicommunity.playground.webui.vectorstore.VectorStoreView;
 
@@ -76,11 +77,9 @@ public class SpringAiPlaygroundAppLayout extends AppLayout
         createTab("MCP Server", VaadinIcon.TOOLBOX, McpServerView.class);
         createTab("Vector Database", VaadinIcon.SEARCH_PLUS, VectorStoreView.class);
         createTab("Agentic Chat", VaadinIcon.CHAT, ChatView.class);
-        Tab observabilityTab = createTab("Observability", VaadinIcon.DASHBOARD, ObservabilityView.class);
-        // The observability tab is a "monitoring" surface, not a "tool" — pin it
-        // to the right of the navbar with a divider so users see it as a separate
-        // class of feature.
-        observabilityTab.addClassName("observability-tab");
+        Tab shipyardTab = createTab("Shipyard", VaadinIcon.ANCHOR, ShipyardView.class);
+        shipyardTab.addClassName("ops-tab-first");
+        createTab("Observability", VaadinIcon.DASHBOARD, ObservabilityView.class);
         this.tabs.setWidthFull();
         addToNavbar(tabs);
 

@@ -98,6 +98,6 @@ class ToolWorkspaceTest {
                         new SpringAiPlaygroundOptions.DefaultTools(null,
                                 new SpringAiPlaygroundOptions.SelectionRule(Set.of(), Set.of(), Set.of()),
                                 new SpringAiPlaygroundOptions.SelectionRule(Set.of(), Set.of(), Set.of()))),
-                true, null, null, null, null, null);
+                true, null, null, null, null, null, null, null);
     }
 }

@@ -442,6 +442,10 @@ public class ToolBuilderView extends VerticalLayout {
         });
     }
 
+    public Optional<ToolSpec> getCurrentToolSpecAsOpt() {
+        return Optional.ofNullable(this.toolSpec);
+    }
+
     public ToolSpec copyCurrentToolSpec() {
         return new ToolSpec(null, this.toolNameField.getValue() + "_COPY",
                 this.toolDescriptionField.getValue(), this.javascriptToolPlaygroundView.getStaticVariables(),

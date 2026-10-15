@@ -46,6 +46,7 @@ import org.springframework.core.annotation.Order;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.stereotype.Service;
 
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
@@ -141,7 +142,7 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
 
     private void autoStartConfiguredMcpClients() {
         this.typeMcpServerInfosMap.values().forEach(byName -> byName.values().forEach(info -> {
-            if (info.equals(this.defaultMcpServerInfo)) return;
+            if (info.equals(this.defaultMcpServerInfo) || this.mcpClientService.isConnecting(info)) return;
             try {
                 this.mcpClientService.startMcpClient(info);
             } catch (RuntimeException e) {
@@ -260,21 +261,8 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
     }
 
     public McpServerInfo saveAndConnect(McpServerRegistration registration) {
-        serverNameError(registration.serverName()).ifPresent(error -> {
-            throw new IllegalArgumentException(error);
-        });
-        McpConnectionSpec spec = McpConnectionSpec.from(registration.transport(), registration.connectionJson());
-        if (spec.isHttp() && !spec.hasUrl()) throw new IllegalArgumentException("URL is required for HTTP/SSE transport");
-        if (spec.oauth() != null) {
-            Map<String, String> oauthErrors = spec.oauth().validationErrors();
-            if (!oauthErrors.isEmpty()) throw new IllegalArgumentException(String.join(" ", oauthErrors.values()));
-        }
-        Map<String, McpServerInfo> sameTransport = this.typeMcpServerInfosMap.get(registration.transport());
-        if (!registration.sameKeyAsOriginal() && sameTransport != null
-                && sameTransport.containsKey(registration.serverName())) {
-            throw new IllegalStateException("Failed to save : MCP connection already exists with name "
-                    + registration.serverName());
-        }
+        validateRegistration(registration);
+        requireFreeName(registration);
         McpTransportType originalTransport = registration.originalTransport() == null
                 ? registration.transport() : registration.originalTransport();
         String originalServerName = registration.originalServerName() == null
@@ -294,6 +282,46 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
                     + SecretMasking.mask(raw, SecretMasking.collectFromTemplate(info.connectionAsJson())), e);
         }
         return updateMcpServerInfo(originalTransport, originalServerName, info);
+    }
+
+    public void validateRegistration(McpServerRegistration registration) {
+        serverNameError(registration.serverName()).ifPresent(error -> {
+            throw new IllegalArgumentException(error);
+        });
+        McpConnectionSpec spec = McpConnectionSpec.from(registration.transport(), registration.connectionJson());
+        if (spec.isHttp() && !spec.hasUrl()) throw new IllegalArgumentException("URL is required for HTTP/SSE transport");
+        if (spec.isHttp() && pointsAtThisApp(spec)) {
+            throw new IllegalArgumentException("This URL is this app's own MCP endpoint; registering it as an "
+                    + "upstream server would loop the app back onto itself.");
+        }
+        if (spec.oauth() != null) {
+            Map<String, String> oauthErrors = spec.oauth().validationErrors();
+            if (!oauthErrors.isEmpty()) throw new IllegalArgumentException(String.join(" ", oauthErrors.values()));
+        }
+    }
+
+    public void requireFreeName(McpServerRegistration registration) {
+        Map<String, McpServerInfo> sameTransport = this.typeMcpServerInfosMap.get(registration.transport());
+        if (!registration.sameKeyAsOriginal() && sameTransport != null
+                && sameTransport.containsKey(registration.serverName())) {
+            throw new IllegalStateException("Failed to save : MCP connection already exists with name "
+                    + registration.serverName());
+        }
+    }
+
+    private boolean pointsAtThisApp(McpConnectionSpec spec) {
+        try {
+            URI uri = URI.create(spec.url().trim());
+            String host = uri.getHost();
+            int port = uri.getPort() >= 0 ? uri.getPort() : ("https".equalsIgnoreCase(uri.getScheme()) ? 443 : 80);
+            boolean loopback = host != null && (host.equalsIgnoreCase("localhost") || host.equals("127.0.0.1")
+                    || host.equals("::1") || host.equals("[::1]") || host.equals("0.0.0.0"));
+            String path = (uri.getPath() == null ? "" : uri.getPath()) + (spec.endpoint() == null ? "" : spec.endpoint());
+            return loopback && port == this.serverPort && (path.isEmpty() || path.startsWith("/mcp")
+                    || path.startsWith("/sse"));
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
     }
 
     public List<McpServerInfo> uninstalledCatalogServers() {

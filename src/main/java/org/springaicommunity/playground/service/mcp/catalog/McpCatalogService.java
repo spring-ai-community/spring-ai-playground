@@ -23,6 +23,7 @@ import tools.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
+import org.springaicommunity.playground.service.mcp.client.McpTransportType;
 import org.springaicommunity.playground.service.mcp.client.HttpConnectionParametersWithExtras;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
@@ -95,6 +96,26 @@ public class McpCatalogService {
 
     public List<McpCatalogEntry> getCatalog() {
         return this.entriesOrdered;
+    }
+
+    public List<McpCatalogEntry> search(String query, String category, McpTransportType transport) {
+        String needle = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
+        return getCatalog().stream()
+                .filter(entry -> category == null || category.isBlank() || category.equalsIgnoreCase(entry.category()))
+                .filter(entry -> transport == null
+                        || entry.transports().stream().anyMatch(spec -> spec.type() == transport))
+                .filter(entry -> needle.isEmpty() || matches(entry, needle))
+                .toList();
+    }
+
+    private static boolean matches(McpCatalogEntry entry, String needle) {
+        return contains(entry.id(), needle) || contains(entry.displayName(), needle)
+                || contains(entry.description(), needle) || contains(entry.vendor(), needle)
+                || entry.tags().stream().anyMatch(tag -> contains(tag, needle));
+    }
+
+    private static boolean contains(String text, String needle) {
+        return text != null && text.toLowerCase(Locale.ROOT).contains(needle);
     }
 
     public Optional<McpCatalogEntry> findById(String id) {

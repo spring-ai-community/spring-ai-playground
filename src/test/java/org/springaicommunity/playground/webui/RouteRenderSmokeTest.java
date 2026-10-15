@@ -22,6 +22,7 @@ import org.springaicommunity.playground.webui.chat.ChatView;
 import org.springaicommunity.playground.webui.home.HomeView;
 import org.springaicommunity.playground.webui.mcp.McpServerView;
 import org.springaicommunity.playground.webui.observability.ObservabilityView;
+import org.springaicommunity.playground.webui.shipyard.ShipyardView;
 import org.springaicommunity.playground.webui.tool.ToolStudioView;
 import org.springaicommunity.playground.webui.vectorstore.VectorStoreView;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -36,6 +37,7 @@ class RouteRenderSmokeTest extends SpringBrowserlessTest {
         assertRenders(HomeView.class);
         assertRenders(ChatView.class);
         assertRenders(McpServerView.class);
+        assertRenders(ShipyardView.class);
         assertRenders(ObservabilityView.class);
         assertRenders(ToolStudioView.class);
         assertRenders(VectorStoreView.class);

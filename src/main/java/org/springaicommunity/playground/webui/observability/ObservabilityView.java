@@ -44,6 +44,8 @@ import org.springaicommunity.playground.observability.pricing.CurrencyService;
 import org.springaicommunity.playground.webui.observability.components.CurrencyFlags;
 import org.springaicommunity.playground.observability.pricing.ModelPricingService;
 import org.springaicommunity.playground.service.chat.OllamaMonitorService;
+import org.springaicommunity.playground.service.management.ManagementAuditLog;
+import org.springaicommunity.playground.service.management.ManagementToolRegistrar;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.webui.PersistentUiDataStorage;
 import org.springaicommunity.playground.webui.SpringAiPlaygroundAppLayout;
@@ -110,7 +112,9 @@ public class ObservabilityView extends ContentWorkspaceView {
             McpClientService mcpClientService,
             OllamaMonitorService ollamaMonitor,
             OllamaMetricsTimeSeries ollamaMetricsTimeSeries,
-            ObservabilityProperties obsProps) {
+            ObservabilityProperties obsProps,
+            ManagementAuditLog managementAuditLog,
+            ManagementToolRegistrar managementRegistrar) {
         this.storage = storage;
 
         TokensAndCostTab tokens = new TokensAndCostTab(queryService, timeSeries, currencyService);
@@ -121,7 +125,7 @@ public class ObservabilityView extends ContentWorkspaceView {
         ToolsTab toolsView = new ToolsTab(queryService, systemMetrics);
         McpTab mcp = new McpTab(queryService, systemMetrics);
         McpPrimitivesTab mcpPrimitives = new McpPrimitivesTab(systemMetrics);
-        SafetyTab safety = new SafetyTab(systemMetrics, riskEventBuffer);
+        SafetyTab safety = new SafetyTab(systemMetrics, riskEventBuffer, managementAuditLog, managementRegistrar);
         VectorTab vector = new VectorTab(queryService, timeSeries);
         LlmTab llm = new LlmTab(timeSeries, systemMetrics);
         AgenticChatTab agenticChat = new AgenticChatTab(queryService, buffer);

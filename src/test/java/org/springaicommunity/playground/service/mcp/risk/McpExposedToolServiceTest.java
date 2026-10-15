@@ -60,6 +60,33 @@ class McpExposedToolServiceTest {
     }
 
     @Test
+    void anAliasWithTheManagementPrefixIsRefused() {
+        McpCompositionService compositionService = mock(McpCompositionService.class);
+        when(compositionService.exposedManagedByConfiguration()).thenReturn(false);
+        McpExposedToolService service = newService(compositionService,
+                mock(McpCompositionToolCallbackProvider.class), mock(ToolSpecService.class));
+        List<McpComposition.Member> members = List.of(new McpComposition.Member("srv", "tool", "saip_tool", null,
+                false, ""));
+
+        assertThatThrownBy(() -> service.apply(members, RiskLevel.L5))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("reserved for this app's own management tools");
+        verify(compositionService, never()).upsertExposed(members, RiskLevel.L5);
+    }
+
+    @Test
+    void applyIsRefusedWhileConfigurationManagesComposedTools() {
+        McpCompositionService compositionService = mock(McpCompositionService.class);
+        when(compositionService.exposedManagedByConfiguration()).thenReturn(true);
+        McpExposedToolService service = newService(compositionService, mock(McpCompositionToolCallbackProvider.class), mock(ToolSpecService.class));
+
+        assertThatThrownBy(() -> service.apply(List.of(), RiskLevel.L5))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining(McpExposedToolService.COMPOSED_TOOLS_PROPERTY);
+        verify(compositionService, never()).upsertExposed(List.of(), RiskLevel.L5);
+    }
+
+    @Test
     void syncAddsMissingAndRemovesStaleExternalTools() {
         McpCompositionService compositionService = mock(McpCompositionService.class);
         McpCompositionToolCallbackProvider provider = mock(McpCompositionToolCallbackProvider.class);
@@ -241,6 +268,21 @@ class McpExposedToolServiceTest {
     }
 
     @Test
+    void exposureRequestUnderConfigurationOnlySwitchesTheModeAndSyncs() {
+        Rig rig = Rig.create();
+        when(rig.compositionService().exposedManagedByConfiguration()).thenReturn(true);
+        when(rig.toolSpecService().exposureMode()).thenReturn(ExposureMode.BUILTIN_ONLY);
+        when(rig.toolSpecService().getExternalMcpToolNames()).thenReturn(Set.of());
+        McpComposition.Member member = new McpComposition.Member("files", "remove", "files_remove", null, false, "");
+
+        rig.service().apply(new ExposureRequest(ExposureMode.BUILTIN_ONLY, List.of(member), RiskLevel.L1));
+
+        verify(rig.toolSpecService()).setExposureMode(ExposureMode.BUILTIN_ONLY);
+        verify(rig.compositionService(), never()).upsertExposed(any(), any());
+        verify(rig.clientService(), never()).getToolListAsOpt(any());
+    }
+
+    @Test
     void exposureRequestDefaultsANullCapToL5AndRejectsANullMode() {
         ExposureRequest request = new ExposureRequest(ExposureMode.BOTH, null, null);
 
@@ -263,4 +305,49 @@ class McpExposedToolServiceTest {
 
         assertThat(rig.service().composableServers()).containsExactly(connected);
     }
+    private McpExposedToolService serviceWithLedger(McpCompositionService compositionService,
+            McpToolHashLedger ledger) {
+        ToolSpecService toolSpecService = mock(ToolSpecService.class);
+        when(toolSpecService.exposureMode()).thenReturn(ExposureMode.BOTH);
+        return new McpExposedToolService(compositionService, mock(McpCompositionToolCallbackProvider.class),
+                toolSpecService, ledger, mock(McpServerInfoService.class), mock(McpClientService.class),
+                mock(McpToolRiskEvaluator.class));
+    }
+
+    private McpCompositionService compositionReturning(List<McpComposition.Member> members) {
+        McpCompositionService compositionService = mock(McpCompositionService.class);
+        when(compositionService.exposedManagedByConfiguration()).thenReturn(false);
+        McpComposition composition = new McpComposition(McpCompositionService.EXPOSED_ID, "Exposed Tools", "",
+                members, true, RiskLevel.L5, 0L, 0L, 0L);
+        when(compositionService.upsertExposed(members, RiskLevel.L5)).thenReturn(composition);
+        when(compositionService.getExposed()).thenReturn(Optional.of(composition));
+        return compositionService;
+    }
+
+    @Test
+    void applyApprovesReviewOfEveryMemberWhenNoAcknowledgementSetIsGiven() {
+        McpComposition.Member first = new McpComposition.Member("srv", "a", "srv_a", null, false, "");
+        McpComposition.Member second = new McpComposition.Member("srv", "b", "srv_b", null, false, "");
+        McpToolHashLedger ledger = mock(McpToolHashLedger.class);
+        McpExposedToolService service = serviceWithLedger(compositionReturning(List.of(first, second)), ledger);
+
+        service.apply(List.of(first, second), RiskLevel.L5);
+
+        verify(ledger).approveRereview("srv", "a");
+        verify(ledger).approveRereview("srv", "b");
+    }
+
+    @Test
+    void applyApprovesReviewOnlyForAcknowledgedMembersWhenASetIsGiven() {
+        McpComposition.Member first = new McpComposition.Member("srv", "a", "srv_a", null, false, "");
+        McpComposition.Member second = new McpComposition.Member("srv", "b", "srv_b", null, false, "");
+        McpToolHashLedger ledger = mock(McpToolHashLedger.class);
+        McpExposedToolService service = serviceWithLedger(compositionReturning(List.of(first, second)), ledger);
+
+        service.apply(List.of(first, second), RiskLevel.L5, Set.of("srv::b"));
+
+        verify(ledger).approveRereview("srv", "b");
+        verify(ledger, never()).approveRereview("srv", "a");
+    }
+
 }

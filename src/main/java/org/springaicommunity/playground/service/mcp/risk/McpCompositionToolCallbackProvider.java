@@ -18,6 +18,7 @@ package org.springaicommunity.playground.service.mcp.risk;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
@@ -46,17 +47,20 @@ public class McpCompositionToolCallbackProvider implements ToolCallbackProvider 
     private final ObjectProvider<McpToolRiskEvaluator> riskEvaluatorProvider;
     private final McpToolHashLedger hashLedger;
     private final ObjectMapper objectMapper;
+    private final MeterRegistry meterRegistry;
 
     public McpCompositionToolCallbackProvider(McpCompositionService compositionService,
             McpServerInfoService serverInfoService, McpClientService mcpClientService,
             ObjectProvider<McpToolRiskEvaluator> riskEvaluatorProvider, McpToolHashLedger hashLedger,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            MeterRegistry meterRegistry) {
         this.compositionService = compositionService;
         this.serverInfoService = serverInfoService;
         this.mcpClientService = mcpClientService;
         this.riskEvaluatorProvider = riskEvaluatorProvider;
         this.hashLedger = hashLedger;
         this.objectMapper = objectMapper;
+        this.meterRegistry = meterRegistry;
     }
 
     @Override
@@ -108,7 +112,7 @@ public class McpCompositionToolCallbackProvider implements ToolCallbackProvider 
 
         return Optional.of(new WrappedExternalToolCallback(upstream.get(),
                 composition.id(), composition.name(), member.exposedAlias(), member.descriptionOverride(),
-                member.serverId(), transport, risk, secrets));
+                member.serverId(), transport, risk, secrets, this.meterRegistry));
     }
 
     private Optional<McpServerInfo> findServerByName(String serverName) {

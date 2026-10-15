@@ -18,6 +18,7 @@ package org.springaicommunity.playground.service.mcp.risk;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springaicommunity.playground.service.mcp.ManagementToolNames;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
@@ -42,6 +43,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class McpExposedToolService {
+
+    public static final String COMPOSED_TOOLS_PROPERTY = "spring.ai.playground.mcp-server.composed-tools";
 
     private static final Logger logger = LoggerFactory.getLogger(McpExposedToolService.class);
 
@@ -76,8 +79,13 @@ public class McpExposedToolService {
     }
 
     public synchronized McpComposition apply(ExposureRequest request) {
-        assertMembersWithinCap(request.members(), request.maxRisk());
+        boolean managed = this.compositionService.exposedManagedByConfiguration();
+        if (!managed) assertMembersWithinCap(request.members(), request.maxRisk());
         this.toolSpecService.setExposureMode(request.mode());
+        if (managed) {
+            sync();
+            return this.compositionService.getExposed().orElse(null);
+        }
         return apply(request.members(), request.maxRisk());
     }
 
@@ -114,8 +122,21 @@ public class McpExposedToolService {
     }
 
     public synchronized McpComposition apply(List<McpComposition.Member> members, RiskLevel maxRiskLevel) {
+        return apply(members, maxRiskLevel, null);
+    }
+
+    public synchronized McpComposition apply(List<McpComposition.Member> members, RiskLevel maxRiskLevel,
+            Set<String> acknowledgedKeys) {
+        if (this.compositionService.exposedManagedByConfiguration()) {
+            throw new IllegalStateException("Composed tools are managed by configuration ("
+                    + COMPOSED_TOOLS_PROPERTY + "); edit the configuration and restart to change them");
+        }
+        members.forEach(member -> ManagementToolNames.requireNotReserved("Alias", member.exposedAlias()));
         McpComposition exposed = this.compositionService.upsertExposed(members, maxRiskLevel);
-        exposed.members().forEach(m -> this.hashLedger.approveRereview(m.serverId(), m.toolName()));
+        exposed.members().stream()
+                .filter(member -> acknowledgedKeys == null || acknowledgedKeys.contains(
+                        McpToolHashLedger.Fingerprint.keyOf(member.serverId(), member.toolName())))
+                .forEach(member -> this.hashLedger.approveRereview(member.serverId(), member.toolName()));
         sync();
         return exposed;
     }
@@ -158,7 +179,7 @@ public class McpExposedToolService {
     }
 
     @EventListener(ApplicationReadyEvent.class)
-    @Order(Ordered.LOWEST_PRECEDENCE)
+    @Order(Ordered.LOWEST_PRECEDENCE - 1)
     public void onApplicationReady() {
         sync();
     }

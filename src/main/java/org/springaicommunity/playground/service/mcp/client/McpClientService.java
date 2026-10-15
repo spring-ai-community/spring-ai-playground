@@ -26,6 +26,7 @@ import io.modelcontextprotocol.spec.McpSchema.Implementation;
 import io.modelcontextprotocol.spec.McpSchema.ServerCapabilities;
 import jakarta.annotation.Nullable;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
+import org.springaicommunity.playground.service.mcp.ManagementToolNames;
 import org.springaicommunity.playground.service.mcp.McpServerHitlToolGate;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
@@ -504,6 +505,30 @@ public class McpClientService {
         }
     }
 
+    public McpSchema.CallToolResult callToolOnce(McpServerInfo mcpServerInfo, String toolName,
+            Map<String, Object> arguments) {
+        McpSyncClient transientClient = null;
+        try {
+            McpClientTransport transport = buildMcpClientTransport(mcpServerInfo).transport();
+            Implementation info = new Implementation(mcpClientCommonProperties.getName() + TEST_CLIENT_INFIX
+                    + mcpServerInfo.serverName(), mcpClientCommonProperties.getVersion());
+            transientClient = McpClient.sync(transport).clientInfo(info)
+                    .requestTimeout(mcpClientCommonProperties.getRequestTimeout()).build();
+            transientClient.initialize();
+            return transientClient.callTool(new McpSchema.CallToolRequest(toolName,
+                    arguments == null ? Map.of() : arguments));
+        } catch (RuntimeException e) {
+            throw new IllegalStateException(safeErrorMessage(mcpServerInfo, e), e);
+        } finally {
+            if (transientClient != null) {
+                try {
+                    transientClient.close();
+                } catch (RuntimeException ignore) {
+                }
+            }
+        }
+    }
+
     public StatusEntry getStatus(McpServerInfo mcpServerInfo) {
         return statusCache.getOrDefault(clientKey(mcpServerInfo), StatusEntry.OFFLINE);
     }
@@ -832,7 +857,9 @@ public class McpClientService {
                 .map(info -> {
                     McpClientOps ops = connectingMcpClientOpsMap.get(clientKey(info));
                     Set<String> secrets = SecretMasking.collectFromTemplate(info.connectionAsJson());
+                    boolean selfLoopback = isSelfLoopback(info.serverName());
                     ToolCallback[] wrapped = Arrays.stream(ops.toolCallbackProvider().getToolCallbacks())
+                            .filter(cb -> !selfLoopback || !ManagementToolNames.isReserved(cb.getToolDefinition().name()))
                             .map(cb -> (ToolCallback) new LoggingMcpToolCallback(cb, info.serverName(), secrets,
                                     riskFinalOf(cb)))
                             .toArray(ToolCallback[]::new);
