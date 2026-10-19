@@ -39,6 +39,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -63,12 +64,20 @@ public class KnowledgeIngestService {
     private static final Duration DOWNLOAD_TIMEOUT = Duration.ofSeconds(60);
     private static final Duration PERSISTENCE_FLUSH_TIMEOUT = Duration.ofSeconds(10);
 
-    public record IngestProgress(BiConsumer<Integer, Integer> progress, BooleanSupplier cancelled) {
+    public enum Stage { READING, SPLIT, EMBEDDING }
 
-        public static final IngestProgress NONE = new IngestProgress(null, () -> false);
+    public record IngestProgress(BiConsumer<Integer, Integer> progress, BooleanSupplier cancelled,
+                                 BiConsumer<Stage, Integer> stage) {
+
+        public static final IngestProgress NONE = new IngestProgress(null, () -> false, null);
 
         public IngestProgress {
             cancelled = cancelled == null ? () -> false : cancelled;
+            stage = stage == null ? (ignoredStage, ignoredChunks) -> { } : stage;
+        }
+
+        public IngestProgress(BiConsumer<Integer, Integer> progress, BooleanSupplier cancelled) {
+            this(progress, cancelled, null);
         }
     }
 
@@ -138,7 +147,10 @@ public class KnowledgeIngestService {
     }
 
     public VectorStoreDocumentInfo ingest(DocumentSpec spec, IngestProgress progress) {
-        return commit(prepare(spec, progress));
+        IngestProgress effectiveProgress = progress == null ? IngestProgress.NONE : progress;
+        Prepared prepared = prepare(spec, effectiveProgress);
+        effectiveProgress.stage().accept(Stage.EMBEDDING, chunkCount(prepared.chunksByFile()));
+        return commit(prepared);
     }
 
     public Prepared prepare(DocumentSpec spec, IngestProgress progress) {
@@ -149,11 +161,13 @@ public class KnowledgeIngestService {
     Prepared prepare(DocumentSpec spec, IngestProgress progress, ResolvedSource source) {
         EnrichOptions enrich = spec.enrich().toOptions();
         requireChatModelForEnrichment(spec);
+        IngestProgress effectiveProgress = progress == null ? IngestProgress.NONE : progress;
+        effectiveProgress.stage().accept(Stage.READING, 0);
         stage(source);
         ExtractOptions extract = spec.extract().toOptions(source.recommendedReader());
         Map<String, List<Document>> chunks = this.etl.extractAndTransform(List.of(source.fileName()), extract,
                 this.etl.newTokenTextSplitter(spec.split().toInfo()));
-        IngestProgress effectiveProgress = progress == null ? IngestProgress.NONE : progress;
+        effectiveProgress.stage().accept(Stage.SPLIT, chunkCount(chunks));
         if (enrich.llmCallsPerChunk() > 0) {
             chunks = this.etl.enrichByFile(chunks, enrich, effectiveProgress.progress(),
                     effectiveProgress.cancelled());
@@ -181,6 +195,10 @@ public class KnowledgeIngestService {
                 yield spec.title().trim();
             }
         };
+    }
+
+    private static int chunkCount(Map<String, List<Document>> chunksByFile) {
+        return chunksByFile.values().stream().mapToInt(List::size).sum();
     }
 
     public VectorStoreDocumentInfo commit(Prepared prepared) {
@@ -269,11 +287,22 @@ public class KnowledgeIngestService {
             String fileName = path.getFileName().toString();
             return new ResolvedSource(fileName, bytes, ReaderType.recommendFor(fileName), null);
         } catch (JsHelperException e) {
-            throw new IllegalArgumentException("'" + rawPath + "' is outside the ingest roots " + this.ingestRoots
-                    + "; put the file there or extend " + INGEST_ROOTS_PROPERTY, e);
+            throw new IllegalArgumentException(unreadablePathMessage(rawPath), e);
+        } catch (NoSuchFileException e) {
+            throw new IllegalArgumentException("'" + rawPath + "' does not exist; the ingest roots are "
+                    + this.ingestRoots, e);
         } catch (IOException e) {
             throw new UncheckedIOException("cannot read '" + rawPath + "': " + e.getMessage(), e);
         }
+    }
+
+    private String unreadablePathMessage(String rawPath) {
+        Path given = expandHome(rawPath);
+        if (!given.isAbsolute())
+            return "'" + rawPath + "' is a relative path; give the absolute path of the file inside an ingest root, "
+                    + "for example " + this.ingestRoots.getFirst().resolve(given);
+        return "'" + rawPath + "' is outside the ingest roots " + this.ingestRoots + "; put the file there or extend "
+                + INGEST_ROOTS_PROPERTY;
     }
 
     private ResolvedSource resolveUrl(String rawUrl) {

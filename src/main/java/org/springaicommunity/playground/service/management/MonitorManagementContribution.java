@@ -249,11 +249,11 @@ public class MonitorManagementContribution implements ManagementToolContribution
                 });
     }
 
-    private static int limitOf(Integer requested) {
+    static int limitOf(Integer requested) {
         return requested == null ? LIMIT_DEFAULT : Math.max(1, Math.min(requested, LIMIT_MAX));
     }
 
-    private static Window windowOf(String text) {
+    static Window windowOf(String text) {
         if (text == null || text.isBlank()) {
             return Window.LAST_1H;
         }
@@ -264,7 +264,7 @@ public class MonitorManagementContribution implements ManagementToolContribution
         return window;
     }
 
-    private static String windowName(Window window) {
+    static String windowName(Window window) {
         return WINDOWS.entrySet().stream().filter(entry -> entry.getValue() == window).map(Map.Entry::getKey)
                 .findFirst().orElse(window.name());
     }

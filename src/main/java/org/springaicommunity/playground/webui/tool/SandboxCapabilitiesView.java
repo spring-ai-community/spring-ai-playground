@@ -38,6 +38,7 @@ import org.springaicommunity.playground.service.tool.ToolManifest.HumanInTheLoop
 import org.springaicommunity.playground.service.tool.ToolManifest.Sandbox.RiskLevel;
 import org.springaicommunity.playground.service.tool.ToolSpec;
 import org.springaicommunity.playground.service.tool.policy.SandboxPostureCalculator;
+import org.springaicommunity.playground.service.tool.policy.SandboxPostureCalculator.Explanation;
 import org.springaicommunity.playground.service.tool.policy.SandboxPostureCalculator.Inputs;
 
 import java.io.IOException;
@@ -48,6 +49,7 @@ import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class SandboxCapabilitiesView extends Details {
@@ -323,8 +325,7 @@ public class SandboxCapabilitiesView extends Details {
 
     private void applyHitlDefault(RiskLevel level) {
         if (this.hitlModeField == null || this.hitlUserTouched) return;
-        HumanInTheLoop.Mode want = level == RiskLevel.L0
-                ? HumanInTheLoop.Mode.DISABLED : HumanInTheLoop.Mode.REQUIRED;
+        HumanInTheLoop.Mode want = HumanInTheLoop.Mode.defaultFor(level);
         if (this.hitlModeField.getValue() != want) {
             this.previousHitlMode = want;
             this.hitlModeField.setValue(want);
@@ -390,9 +391,11 @@ public class SandboxCapabilitiesView extends Details {
 
     private void updatePostureBadge() {
         if (this.postureBadge == null) return;
-        RiskLevel level = computeRisk();
+        Explanation explanation = explainRisk();
+        RiskLevel level = explanation.level();
         applyHitlDefault(level);
         this.postureBadge.setText(postureLabel(level, currentSignals()) + "  " + level.name());
+        this.postureBadge.getElement().setProperty("title", reasonsText(explanation));
         String theme = switch (level) {
             case L0, L1 -> "badge success primary small";
             case L2     -> "badge contrast small";
@@ -417,7 +420,14 @@ public class SandboxCapabilitiesView extends Details {
         this.postureIcon.getStyle().set("color", iconColour);
     }
 
-    private RiskLevel computeRisk() {
+    static String reasonsText(Explanation explanation) {
+        return explanation.reasons().isEmpty() ? "Nothing raises the risk above the sandbox baseline."
+                : explanation.reasons().stream()
+                        .map(reason -> reason.raisesTo().name() + ": " + reason.setting() + " - " + reason.why())
+                        .collect(Collectors.joining("\n"));
+    }
+
+    private Explanation explainRisk() {
         String mode = this.networkModeField.getValue();
         Set<String> hosts = this.hostsField.getValue();
         String fileMode = this.fileModeField.getValue();
@@ -425,7 +435,7 @@ public class SandboxCapabilitiesView extends Details {
         boolean fileWrite = "read+write".equals(fileMode);
         Set<String> userDeny = this.denyClassesField.getValue();
         Set<String> userAllow = this.allowClassesField.getValue();
-        return this.postureCalculator.compute(
+        return this.postureCalculator.explain(
                 new Inputs(mode, hosts, fileRead, fileWrite, Boolean.TRUE.equals(this.destructive),
                         this.yamlBaselineDeny, userDeny, this.yamlBaselineAllow, userAllow));
     }

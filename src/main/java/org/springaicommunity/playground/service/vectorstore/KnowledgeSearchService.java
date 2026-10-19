@@ -116,11 +116,15 @@ public class KnowledgeSearchService {
             int chunks = scoped.stream()
                     .mapToInt(info -> info.documentListSupplier() == null ? 0 : info.documentListSupplier().get().size())
                     .sum();
-            List<String> llmStages = pipeline.stageLabels().stream()
-                    .filter(label -> !label.equals("Retrieve") && !label.equals("Re-rank") && !label.equals("Augment")
-                            && !label.startsWith("Top-")).toList();
-            return new Snapshot(scoped.size(), chunks, llmStages);
+            return new Snapshot(scoped.size(), chunks, llmStages(pipeline));
         });
+    }
+
+    public static List<String> llmStages(RagPipeline pipeline) {
+        return pipeline.stageLabels().stream()
+                .filter(label -> !label.equals("Retrieve") && !label.equals("Re-rank") && !label.equals("Augment")
+                        && !label.startsWith("Top-"))
+                .toList();
     }
 
     public Optional<RagPipeline> resolvePipeline(String sourceId) {

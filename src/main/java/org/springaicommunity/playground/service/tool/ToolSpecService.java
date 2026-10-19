@@ -276,6 +276,12 @@ public class ToolSpecService {
         return new ToolSaveResult(persistDraft(input, false), test);
     }
 
+    public Optional<ToolDraftInput> draftInputOf(String toolName) {
+        return getToolSpecAsOpt(toolName).map(spec -> new ToolDraftInput(spec.toolId(), spec.name(),
+                spec.description(), spec.staticVariables(), spec.params(), spec.code(), spec.category(),
+                spec.tags(), spec.sandboxOverrides(), spec.humanInTheLoop()));
+    }
+
     private void validateDraft(ToolDraftInput input) {
         toolNameError(input.name()).ifPresent(error -> {
             throw new IllegalArgumentException(error);
@@ -494,10 +500,7 @@ public class ToolSpecService {
                         this.toolMcpServerSetting.autoAdd(), ids, excluded);
                 changed = true;
             }
-        } else if (!currentlyExposed
-                && this.toolMcpServerSetting.autoAdd()
-                && !excluded.contains(spec.toolId())
-                && !isDefaultTool(spec.toolId())) {
+        } else if (!currentlyExposed && autoAddsOnPublish(spec)) {
             addMcpTool(spec);
             HashSet<String> ids = new HashSet<>(this.toolMcpServerSetting.exposedToolIds());
             ids.add(spec.toolId());
@@ -507,6 +510,12 @@ public class ToolSpecService {
         if (changed) {
             persistAsync();
         }
+    }
+
+    public boolean autoAddsOnPublish(ToolSpec spec) {
+        return this.toolMcpServerSetting.autoAdd()
+                && !this.toolMcpServerSetting.excludedToolIds().contains(spec.toolId())
+                && !isDefaultTool(spec.toolId());
     }
 
     private boolean isDefaultTool(String toolId) {
@@ -873,18 +882,25 @@ public class ToolSpecService {
     }
 
     private String riskLevelFor(ToolSpec.SandboxOverrides sbo) {
-        if (sbo == null) return "L0";
+        return explainRisk(sbo).level().name();
+    }
+
+    public SandboxPostureCalculator.Explanation explainRisk(ToolSpec.SandboxOverrides sbo) {
         Set<String> baselineDeny = this.sandboxBaseline.denyClasses() == null
                 ? Set.of() : this.sandboxBaseline.denyClasses();
         Set<String> baselineAllow = this.sandboxBaseline.allowClasses() == null
                 ? Set.of() : this.sandboxBaseline.allowClasses();
+        if (sbo == null) {
+            return this.postureCalculator.explain(new SandboxPostureCalculator.Inputs(null, Set.of(), false, false,
+                    false, baselineDeny, baselineDeny, baselineAllow, baselineAllow));
+        }
         Set<String> effectiveDeny = new HashSet<>(baselineDeny);
         if (sbo.removeDenyClasses() != null) effectiveDeny.removeAll(sbo.removeDenyClasses());
         if (sbo.addDenyClasses() != null) effectiveDeny.addAll(sbo.addDenyClasses());
         Set<String> effectiveAllow = new HashSet<>(baselineAllow);
         if (sbo.removeAllowClasses() != null) effectiveAllow.removeAll(sbo.removeAllowClasses());
         if (sbo.addAllowClasses() != null) effectiveAllow.addAll(sbo.addAllowClasses());
-        return this.postureCalculator.compute(new SandboxPostureCalculator.Inputs(
+        return this.postureCalculator.explain(new SandboxPostureCalculator.Inputs(
                 sbo.networkMode(),
                 sbo.hostsAllow() == null ? Set.of() : sbo.hostsAllow(),
                 Boolean.TRUE.equals(sbo.fileRead()),
@@ -893,7 +909,7 @@ public class ToolSpecService {
                 baselineDeny,
                 effectiveDeny,
                 baselineAllow,
-                effectiveAllow)).name();
+                effectiveAllow));
     }
 
     private static String capabilitySummary(ToolSpec.SandboxOverrides sbo) {

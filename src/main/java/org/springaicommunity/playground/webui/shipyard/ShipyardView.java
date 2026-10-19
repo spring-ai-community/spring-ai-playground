@@ -37,6 +37,7 @@ import org.springaicommunity.playground.service.mcp.bundle.BundleRegistryService
 import org.springaicommunity.playground.service.mcp.bundle.ConnectionSnippetService;
 import org.springaicommunity.playground.service.mcp.bundle.DeployTargetService;
 import org.springaicommunity.playground.service.mcp.bundle.DockerCliService;
+import org.springaicommunity.playground.service.mcp.bundle.KnowledgeSuggestService;
 import org.springaicommunity.playground.service.mcp.bundle.RunPlanner;
 import org.springaicommunity.playground.service.mcp.bundle.ShipRequest;
 import org.springaicommunity.playground.service.mcp.bundle.ShipyardService;
@@ -65,6 +66,7 @@ public class ShipyardView extends ContentWorkspaceView {
     private final RunPlanner runPlanner;
     private final ToolCategoryCatalog categoryCatalog;
     private final KnowledgeSearchService knowledgeSearchService;
+    private final KnowledgeSuggestService knowledgeSuggestService;
 
     private final VerticalLayout serverList = new VerticalLayout();
     private final Button shipButton;
@@ -72,9 +74,11 @@ public class ShipyardView extends ContentWorkspaceView {
 
     public ShipyardView(BundleExportService bundleExportService, DeployTargetService deployTargetService,
             ConnectionSnippetService connectionSnippetService, ShipyardService shipyardService,
-            RunPlanner runPlanner, ToolCategoryCatalog categoryCatalog, KnowledgeSearchService knowledgeSearchService) {
+            RunPlanner runPlanner, ToolCategoryCatalog categoryCatalog, KnowledgeSearchService knowledgeSearchService,
+            KnowledgeSuggestService knowledgeSuggestService) {
         this.bundleExportService = bundleExportService;
         this.knowledgeSearchService = knowledgeSearchService;
+        this.knowledgeSuggestService = knowledgeSuggestService;
         this.deployTargetService = deployTargetService;
         this.connectionSnippetService = connectionSnippetService;
         this.shipyardService = shipyardService;
@@ -125,7 +129,8 @@ public class ShipyardView extends ContentWorkspaceView {
     private void openShipFlow(ShipFlowPrefill prefill) {
         this.shipButton.setEnabled(false);
         setContent(new ShipFlowView(this.shipyardService, this.bundleExportService, this.categoryCatalog,
-                this.knowledgeSearchService, prefill, this::showSuccess, this::closeShipFlow));
+                this.knowledgeSearchService, this.knowledgeSuggestService, prefill, this::showSuccess,
+                this::closeShipFlow));
     }
 
     private void closeShipFlow() {

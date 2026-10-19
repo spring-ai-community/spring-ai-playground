@@ -270,10 +270,7 @@ public class KnowledgeContribution implements BundleContribution {
     }
 
     private static String llmStages(RagPipeline pipeline) {
-        return pipeline.stageLabels().stream()
-                .filter(stage -> !stage.equals("Retrieve") && !stage.equals("Augment") && !stage.equals("Re-rank")
-                        && !stage.startsWith("Top-"))
-                .collect(Collectors.joining(", "));
+        return String.join(", ", KnowledgeSearchService.llmStages(pipeline));
     }
 
     @Override

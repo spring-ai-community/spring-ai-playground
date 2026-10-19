@@ -63,7 +63,7 @@ public record DocumentSpec(
     }
 
     public record Source(
-            @Nullable @JsonPropertyDescription("Local file inside spring.ai.playground.rag.ingest-roots.") String path,
+            @Nullable @JsonPropertyDescription("Absolute path of a local file inside spring.ai.playground.rag.ingest-roots.") String path,
             @Nullable @JsonPropertyDescription("http or https URL to download, up to the upload size limit.")
             String url,
             @Nullable @JsonPropertyDescription("Inline document body; ingested as a text file.") String text) {

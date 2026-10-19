@@ -20,6 +20,7 @@ import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.checkbox.CheckboxGroup;
 import com.vaadin.flow.component.details.Details;
 import com.vaadin.flow.component.dialog.Dialog;
+import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.radiobutton.RadioButtonGroup;
@@ -38,7 +39,10 @@ import org.springaicommunity.playground.service.tool.ToolSpec;
 import org.springaicommunity.playground.service.tool.ToolSpec.CodeType;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
 import org.springaicommunity.playground.service.vectorstore.RagPipeline;
+import org.springaicommunity.playground.service.vectorstore.OfflineEtlPipelineService;
 import org.springaicommunity.playground.service.vectorstore.RagPipelineService;
+import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentInfo;
+import org.springframework.ai.document.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
@@ -68,6 +72,9 @@ class ShipFlowViewTest extends SpringBrowserlessTest {
 
     @Autowired
     private RagPipelineService ragPipelineService;
+
+    @Autowired
+    private OfflineEtlPipelineService offlineEtlPipelineService;
 
     @AfterEach
     void cleanup() {
@@ -266,6 +273,44 @@ class ShipFlowViewTest extends SpringBrowserlessTest {
         } finally {
             this.ragPipelineService.deleteById(pipeline.id());
         }
+    }
+
+    @Test
+    void suggestPicksASearchToolPerPipelineAndFillsTheTable() {
+        VectorStoreDocumentInfo faqDocument = this.offlineEtlPipelineService.loadDocument("suggest-faq.txt",
+                "Suggest FAQ", null, List.of(new Document("faq chunk")));
+        VectorStoreDocumentInfo notesDocument = this.offlineEtlPipelineService.loadDocument("suggest-notes.txt",
+                "Suggest Notes", null, List.of(new Document("notes chunk")));
+        RagPipeline faq = scopedPipeline("Suggest FAQ", faqDocument.docInfoId());
+        RagPipeline notes = scopedPipeline("Suggest Notes", notesDocument.docInfoId());
+        try {
+            openShipFlow();
+            Dialog picker = openPicker("Knowledge");
+            test($(Button.class, picker).withCondition(button -> "Suggest knowledge".equals(
+                    button.getAriaLabel().orElse(null))).first()).click();
+            roundTrip();
+
+            List<String> noteTexts = $(Div.class, picker).all().stream().map(Div::getText).toList();
+            assertThat(noteTexts).anyMatch(text -> text.startsWith("Suggested ")
+                    && text.contains("search_suggest_faq from Suggest FAQ (pipeline over 1 document)")
+                    && text.contains("search_suggest_notes from Suggest Notes (pipeline over 1 document)"));
+            picker.close();
+
+            assertThat(spanTexts()).contains("search_suggest_faq", "search_suggest_notes");
+            assertThat(shipButton().isEnabled()).isFalse();
+            assertThat(issueTexts()).contains("Server name is required").doesNotContain("Select at least one tool");
+        } finally {
+            this.ragPipelineService.deleteById(faq.id());
+            this.ragPipelineService.deleteById(notes.id());
+            this.offlineEtlPipelineService.deleteDocument(faqDocument.docInfoId());
+            this.offlineEtlPipelineService.deleteDocument(notesDocument.docInfoId());
+        }
+    }
+
+    private RagPipeline scopedPipeline(String name, String docInfoId) {
+        return this.ragPipelineService.create(name, null, List.of(docInfoId),
+                RagPipeline.PreRetrievalConfig.defaults(), RagPipeline.RetrievalConfig.defaults(),
+                RagPipeline.PostRetrievalConfig.defaults(), RagPipeline.GenerationConfig.defaults());
     }
 
     private void publishTool() {

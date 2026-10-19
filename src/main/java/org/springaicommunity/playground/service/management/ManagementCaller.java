@@ -16,9 +16,18 @@
 package org.springaicommunity.playground.service.management;
 
 public record ManagementCaller(String clientName, String clientVersion, boolean interactive,
-                               boolean supportsElicitation, boolean selfLoopback) {
+                               boolean supportsElicitation, boolean selfLoopback, ManagementProgress progress) {
 
     public static final ManagementCaller ANONYMOUS = new ManagementCaller("unknown", "", false, false, false);
+
+    public ManagementCaller {
+        progress = progress == null ? ManagementProgress.NONE : progress;
+    }
+
+    public ManagementCaller(String clientName, String clientVersion, boolean interactive,
+            boolean supportsElicitation, boolean selfLoopback) {
+        this(clientName, clientVersion, interactive, supportsElicitation, selfLoopback, ManagementProgress.NONE);
+    }
 
     public String label() {
         return this.clientVersion == null || this.clientVersion.isBlank()

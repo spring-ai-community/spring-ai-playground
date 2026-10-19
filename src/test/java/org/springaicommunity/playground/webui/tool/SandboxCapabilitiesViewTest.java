@@ -55,4 +55,24 @@ class SandboxCapabilitiesViewTest {
         view.applyOverrides(overridesWithDestructive(null));
         assertNull(view.currentOverrides().destructive());
     }
+
+    @Test
+    void postureBadgeTooltipListsTheReasonsFromTheCalculator() {
+        SandboxPostureCalculator.Explanation explanation = new SandboxPostureCalculator().explain(
+                new SandboxPostureCalculator.Inputs("open", Set.of(), false, false, false, Set.of(), Set.of(),
+                        Set.of(), Set.of()));
+
+        assertEquals("L4: networkMode=open - Any host can be reached.",
+                SandboxCapabilitiesView.reasonsText(explanation));
+    }
+
+    @Test
+    void postureBadgeTooltipSaysWhenNothingRaisesTheRisk() {
+        SandboxPostureCalculator.Explanation explanation = new SandboxPostureCalculator().explain(
+                new SandboxPostureCalculator.Inputs("blocked", Set.of(), false, false, false, Set.of(), Set.of(),
+                        Set.of(), Set.of()));
+
+        assertEquals("Nothing raises the risk above the sandbox baseline.",
+                SandboxCapabilitiesView.reasonsText(explanation));
+    }
 }

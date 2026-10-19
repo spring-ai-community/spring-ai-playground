@@ -19,9 +19,12 @@ import org.junit.jupiter.api.Test;
 import org.springaicommunity.playground.service.tool.ToolManifest.Sandbox.RiskLevel;
 import org.springaicommunity.playground.service.tool.policy.SandboxPostureCalculator.Inputs;
 
+import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SandboxPostureCalculatorTest {
 
@@ -227,4 +230,80 @@ class SandboxPostureCalculatorTest {
         org.junit.jupiter.api.Assertions.assertTrue(SandboxPostureCalculator.isReflectionClass("java.lang.Class"));
         org.junit.jupiter.api.Assertions.assertFalse(SandboxPostureCalculator.isReflectionClass("java.lang.String"));
     }
+
+    private SandboxPostureCalculator.Explanation explain(String mode, Set<String> hosts, boolean fileRead,
+            boolean fileWrite, boolean destructive, Set<String> userDeny, Set<String> userAllow) {
+        return calc.explain(new Inputs(mode, hosts, fileRead, fileWrite, destructive, BASELINE_DENY, userDeny,
+                BASELINE_ALLOW, userAllow));
+    }
+
+    @Test
+    void explainingTheLockedDefaultGivesNoReasonsAndIsNotElevated() {
+        SandboxPostureCalculator.Explanation explanation = explain("blocked", Set.of(), false, false, false,
+                BASELINE_DENY, BASELINE_ALLOW);
+
+        assertEquals(RiskLevel.L0, explanation.level());
+        assertTrue(explanation.reasons().isEmpty());
+        assertFalse(explanation.elevated());
+    }
+
+    @Test
+    void explanationNamesEverySettingThatRaisedTheLevelAndTheLevelIsTheHighest() {
+        SandboxPostureCalculator.Explanation explanation = explain("open", Set.of(), false, true, false,
+                BASELINE_DENY, BASELINE_ALLOW);
+
+        assertEquals(RiskLevel.L4, explanation.level());
+        assertEquals(List.of("networkMode=open", "fileWrite=true"),
+                explanation.reasons().stream().map(SandboxPostureCalculator.Reason::setting).toList());
+        assertTrue(explanation.elevated());
+        assertFalse(explanation.suggestions().isEmpty());
+    }
+
+    @Test
+    void strictSuggestsAnAllowlistWhenTheHostsAreKnown() {
+        SandboxPostureCalculator.Explanation strict = explain("strict", Set.of(), false, false, false,
+                BASELINE_DENY, BASELINE_ALLOW);
+
+        assertEquals(RiskLevel.L3, strict.level());
+        assertFalse(strict.elevated());
+        assertEquals(List.of("Use networkMode=allowlist with the hosts in hostsAllow when they are known in advance (also L3)."),
+                strict.suggestions());
+    }
+
+    @Test
+    void anAllowlistWithExactHostsIsL3AndNotElevatedButAWildcardIsElevated() {
+        SandboxPostureCalculator.Explanation exact = explain("allowlist", Set.of("api.example.com"), false, false,
+                false, BASELINE_DENY, BASELINE_ALLOW);
+        SandboxPostureCalculator.Explanation wildcard = explain("allowlist", Set.of("*"), false, false, false,
+                BASELINE_DENY, BASELINE_ALLOW);
+
+        assertEquals(RiskLevel.L3, exact.level());
+        assertFalse(exact.elevated());
+        assertEquals(RiskLevel.L4, wildcard.level());
+        assertTrue(wildcard.elevated());
+    }
+
+    @Test
+    void anExtraAllowedClassIsElevatedEvenAtL3() {
+        SandboxPostureCalculator.Explanation explanation = explain("blocked", Set.of(), false, false, false,
+                BASELINE_DENY, Set.of("java.util.*", "java.lang.*", "java.net.http.HttpClient", "java.time.*"));
+
+        assertEquals(RiskLevel.L3, explanation.level());
+        assertTrue(explanation.elevated());
+        assertEquals("addAllowClasses=[java.time.*]", explanation.reasons().getFirst().setting());
+    }
+
+    @Test
+    void explainAndComputeAlwaysAgree() {
+        for (String mode : List.of("blocked", "allowlist", "strict", "open")) {
+            for (boolean write : List.of(false, true)) {
+                for (boolean destructive : List.of(false, true)) {
+                    Inputs inputs = new Inputs(mode, Set.of("h.example.com"), write, write, destructive,
+                            BASELINE_DENY, Set.of("java.lang.Class"), BASELINE_ALLOW, Set.of("java.lang.Runtime"));
+                    assertEquals(calc.compute(inputs), calc.explain(inputs).level());
+                }
+            }
+        }
+    }
+
 }

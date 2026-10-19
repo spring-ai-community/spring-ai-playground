@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -86,6 +87,21 @@ class KnowledgeIngestServiceTest {
     }
 
     @Test
+    void ingestReportsReadingSplitAndEmbeddingStagesInOrder() {
+        DocumentSpec spec = new DocumentSpec(DocumentSpec.Source.text(HANDBOOK), "Harbour stages", null, null,
+                new DocumentSpec.Split(60, 20, 5, 100, true, null), null);
+        List<String> stages = new ArrayList<>();
+        IngestProgress progress = new IngestProgress(null, null,
+                (stage, chunks) -> stages.add(stage + ":" + chunks));
+
+        VectorStoreDocumentInfo info = this.service.ingest(spec, progress);
+
+        int chunks = info.documentListSupplier().get().size();
+        assertThat(stages).containsExactly("READING:0", "SPLIT:" + chunks, "EMBEDDING:" + chunks);
+        assertThat(new IngestProgress(null, null).stage()).isNotNull();
+    }
+
+    @Test
     void aFileInsideAnIngestRootIsIngestedUnderItsFileName() throws IOException {
         Path file = this.inbox.resolve("handbook.txt");
         Files.writeString(file, HANDBOOK, StandardCharsets.UTF_8);
@@ -111,6 +127,29 @@ class KnowledgeIngestServiceTest {
                 .hasMessageContaining("outside the ingest roots")
                 .hasMessageContaining(KnowledgeIngestService.INGEST_ROOTS_PROPERTY);
         assertThat(this.etl.buildUploadFilePath("secret.txt")).doesNotExist();
+        assertThat(this.etl.getVisibleDocumentList()).isEmpty();
+    }
+
+    @Test
+    void aRelativePathIsRefusedWithTheAbsolutePathToUseInstead() throws IOException {
+        Files.writeString(this.inbox.resolve("handbook.txt"), HANDBOOK, StandardCharsets.UTF_8);
+        DocumentSpec spec = new DocumentSpec(DocumentSpec.Source.path("handbook.txt"), null, null, null, null, null);
+
+        assertThatThrownBy(() -> this.service.ingest(spec, IngestProgress.NONE))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("'handbook.txt' is a relative path")
+                .hasMessageContaining(this.inbox.toAbsolutePath().normalize().resolve("handbook.txt").toString());
+        assertThat(this.etl.getVisibleDocumentList()).isEmpty();
+    }
+
+    @Test
+    void aMissingFileInsideAnIngestRootIsNamedAsMissing() {
+        String missing = this.inbox.resolve("ingest").resolve("handbook.txt").toString();
+        DocumentSpec spec = new DocumentSpec(DocumentSpec.Source.path(missing), null, null, null, null, null);
+
+        assertThatThrownBy(() -> this.service.ingest(spec, IngestProgress.NONE))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("'" + missing + "' does not exist; the ingest roots are");
         assertThat(this.etl.getVisibleDocumentList()).isEmpty();
     }
 
