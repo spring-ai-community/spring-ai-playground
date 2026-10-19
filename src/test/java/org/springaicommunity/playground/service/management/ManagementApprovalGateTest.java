@@ -19,6 +19,7 @@ import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.server.McpSyncServerExchange;
 import io.modelcontextprotocol.spec.McpSchema.CallToolRequest;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
+import io.modelcontextprotocol.spec.McpSchema.ProgressNotification;
 import io.modelcontextprotocol.spec.McpSchema.ElicitRequest;
 import io.modelcontextprotocol.spec.McpSchema.ElicitResult;
 import io.modelcontextprotocol.spec.McpSchema.Implementation;
@@ -42,6 +43,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -105,6 +107,29 @@ class ManagementApprovalGateTest {
 
     private static String text(CallToolResult result) {
         return ((TextContent) result.content().getFirst()).text();
+    }
+
+    @Test
+    void aProgressTokenInTheRequestMetaForwardsProgressToTheClient() {
+        McpSyncServerExchange exchange = ManagementTestSupport.exchange("cursor", false);
+        ManagementTool tool = ManagementTool.named("saip_test_progress", "test", EchoInput.class)
+                .description("progress").handle((input, caller) -> {
+                    caller.progress().report(1, 3.0, "step one");
+                    return ManagementResult.ok("done", null);
+                });
+        ManagementAuditLog[] holder = new ManagementAuditLog[1];
+        SyncToolSpecification specification = gate(ApprovalMode.ALL, holder).wrap(tool);
+
+        specification.callHandler().apply(exchange, new CallToolRequest(tool.name(), Map.of("text", "x"),
+                Map.of("progressToken", "tok-1")));
+        specification.callHandler().apply(exchange, new CallToolRequest(tool.name(), Map.of("text", "x")));
+
+        ArgumentCaptor<ProgressNotification> notification = ArgumentCaptor.forClass(ProgressNotification.class);
+        verify(exchange, times(1)).progressNotification(notification.capture());
+        assertThat(notification.getValue().progressToken()).isEqualTo("tok-1");
+        assertThat(notification.getValue().progress()).isEqualTo(1.0);
+        assertThat(notification.getValue().total()).isEqualTo(3.0);
+        assertThat(notification.getValue().message()).isEqualTo("step one");
     }
 
     @Test
@@ -204,7 +229,7 @@ class ManagementApprovalGateTest {
 
         assertThat(result.isError()).isTrue();
         assertThat(handlerCalls.get()).isZero();
-        assertThat(text(result)).contains("high-risk");
+        assertThat(text(result)).contains("high-risk", "Requested: risky x");
     }
 
     @Test
@@ -263,12 +288,20 @@ class ManagementApprovalGateTest {
                     throw new IllegalStateException("already exists with name " + input.text());
                 }).handle((input, caller) -> ManagementResult.ok("ran", null));
         McpSyncServerExchange exchange = ManagementTestSupport.exchange("cursor", true);
+        SpringAiPlaygroundOptions options = ManagementTestSupport.options(ApprovalMode.ALL);
+        ManagementAuditLog auditLog = ManagementTestSupport.auditLog(options, riskEvents);
+        ManagementApprovalGate gate = new ManagementApprovalGate(options, clientServiceProvider, auditLog);
 
-        CallToolResult result = call(ApprovalMode.ALL, refusing, exchange, Map.of("text", "wiki"));
+        CallToolResult result = gate.wrap(refusing).callHandler()
+                .apply(exchange, new CallToolRequest("saip_test_plan", Map.of("text", "wiki")));
 
         assertThat(result.isError()).isTrue();
         assertThat(text(result)).contains("already exists with name wiki");
         verify(exchange, never()).createElicitation(any());
+        assertThat(auditLog.snapshot()).singleElement().satisfies(entry -> {
+            assertThat(entry.outcome()).isEqualTo(ManagementOutcome.ERROR);
+            assertThat(entry.level()).isEqualTo(ApprovalLevel.DESTRUCTIVE);
+        });
     }
 
     @Test

@@ -17,6 +17,7 @@ package org.springaicommunity.playground.service.management;
 
 import io.modelcontextprotocol.server.McpServerFeatures.SyncPromptSpecification;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncResourceSpecification;
+import io.modelcontextprotocol.server.McpServerFeatures.SyncResourceTemplateSpecification;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.server.McpSyncServer;
 import org.slf4j.Logger;
@@ -59,6 +60,7 @@ public class ManagementToolRegistrar {
     private final Environment environment;
     private final Set<String> registeredNames = new TreeSet<>();
     private final Map<String, SyncResourceSpecification> registeredResources = new LinkedHashMap<>();
+    private final Map<String, SyncResourceTemplateSpecification> registeredTemplates = new LinkedHashMap<>();
     private final Map<String, SyncPromptSpecification> registeredPrompts = new LinkedHashMap<>();
 
     private volatile ManagementStatus status;
@@ -125,6 +127,7 @@ public class ManagementToolRegistrar {
             return;
         }
         Map<String, SyncResourceSpecification> desiredResources = new LinkedHashMap<>();
+        Map<String, SyncResourceTemplateSpecification> desiredTemplates = new LinkedHashMap<>();
         Map<String, SyncPromptSpecification> desiredPrompts = new LinkedHashMap<>();
         if (management != null) {
             this.contributions.orderedStream()
@@ -132,6 +135,8 @@ public class ManagementToolRegistrar {
                     .forEach(contribution -> {
                         contribution.resources().forEach(resource ->
                                 desiredResources.put(resource.resource().uri(), resource));
+                        contribution.resourceTemplates().forEach(template ->
+                                desiredTemplates.put(template.resourceTemplate().uriTemplate(), template));
                         contribution.prompts().forEach(prompt -> desiredPrompts.put(prompt.prompt().name(), prompt));
                     });
         }
@@ -145,6 +150,17 @@ public class ManagementToolRegistrar {
                 if (!this.registeredResources.containsKey(uri)) {
                     server.addResource(resource);
                     this.registeredResources.put(uri, resource);
+                }
+            });
+            new TreeSet<>(this.registeredTemplates.keySet()).stream()
+                    .filter(uriTemplate -> !desiredTemplates.containsKey(uriTemplate)).forEach(uriTemplate -> {
+                        server.removeResourceTemplate(uriTemplate);
+                        this.registeredTemplates.remove(uriTemplate);
+                    });
+            desiredTemplates.forEach((uriTemplate, template) -> {
+                if (!this.registeredTemplates.containsKey(uriTemplate)) {
+                    server.addResourceTemplate(template);
+                    this.registeredTemplates.put(uriTemplate, template);
                 }
             });
             new TreeSet<>(this.registeredPrompts.keySet()).stream()

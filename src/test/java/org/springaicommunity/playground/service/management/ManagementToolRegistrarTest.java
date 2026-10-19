@@ -15,8 +15,14 @@
  */
 package org.springaicommunity.playground.service.management;
 
+import io.modelcontextprotocol.server.McpServerFeatures.SyncPromptSpecification;
+import io.modelcontextprotocol.server.McpServerFeatures.SyncResourceSpecification;
+import io.modelcontextprotocol.server.McpServerFeatures.SyncResourceTemplateSpecification;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.server.McpSyncServer;
+import io.modelcontextprotocol.spec.McpSchema.Prompt;
+import io.modelcontextprotocol.spec.McpSchema.Resource;
+import io.modelcontextprotocol.spec.McpSchema.ResourceTemplate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -40,6 +46,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -187,6 +194,96 @@ class ManagementToolRegistrarTest {
         assertThat(registrar.status().active()).isTrue();
         assertThat(registrar.status().approval()).isEqualTo(ApprovalMode.ALL);
         verify(toolSpecService, times(2)).addServedTools(anyList());
+    }
+
+
+    @Test
+    void guideResourcesTemplatesAndPromptsFollowTheTokenAndTheirCategory() {
+        McpSyncServer server = mock(McpSyncServer.class);
+        when(syncServerProvider.getIfAvailable()).thenReturn(server);
+        ManagementToolContribution guides = new ManagementToolContribution() {
+            @Override
+            public String category() {
+                return "tools";
+            }
+
+            @Override
+            public List<ManagementTool> tools() {
+                return List.of();
+            }
+
+            @Override
+            public List<SyncResourceSpecification> resources() {
+                return List.of(new SyncResourceSpecification(Resource.builder().uri("saip://guide/x").name("x")
+                        .build(), (exchange, request) -> null));
+            }
+
+            @Override
+            public List<SyncResourceTemplateSpecification> resourceTemplates() {
+                return List.of(new SyncResourceTemplateSpecification(ResourceTemplate.builder()
+                        .uriTemplate("saip://examples/{name}").name("e").build(), (exchange, request) -> null));
+            }
+
+            @Override
+            public List<SyncPromptSpecification> prompts() {
+                return List.of(new SyncPromptSpecification(new Prompt("saip_create_tool", "d", List.of()),
+                        (exchange, request) -> null));
+            }
+        };
+        when(contributions.orderedStream()).thenAnswer(invocation -> Stream.of(guides));
+        ManagementToolRegistrar registrar = registrar(new Management(null, Set.of("tools"), null, null, null));
+
+        registrar.refresh();
+        registrar.refresh();
+
+        verify(server, times(1)).addResource(any(SyncResourceSpecification.class));
+        verify(server, times(1)).addResourceTemplate(any(SyncResourceTemplateSpecification.class));
+        verify(server, times(1)).addPrompt(any(SyncPromptSpecification.class));
+
+        when(authTokenService.accessMode()).thenReturn(AccessMode.NONE);
+        registrar.onAuthTokenChanged(new McpServerAuthTokenService.AuthTokenChangedEvent(AccessMode.NONE));
+
+        verify(server).removeResource("saip://guide/x");
+        verify(server).removeResourceTemplate("saip://examples/{name}");
+        verify(server).removePrompt("saip_create_tool");
+
+        when(authTokenService.accessMode()).thenReturn(AccessMode.BEARER_TOKEN);
+        registrar.onAuthTokenChanged(new McpServerAuthTokenService.AuthTokenChangedEvent(AccessMode.BEARER_TOKEN));
+
+        verify(server, times(2)).addResourceTemplate(any(SyncResourceTemplateSpecification.class));
+    }
+
+    @Test
+    void guidesOfADisabledCategoryAreNotRegistered() {
+        McpSyncServer server = mock(McpSyncServer.class);
+        when(syncServerProvider.getIfAvailable()).thenReturn(server);
+        ToolManagementCategoryProbe probe = new ToolManagementCategoryProbe();
+        when(contributions.orderedStream()).thenAnswer(invocation -> Stream.of(probe));
+        ManagementToolRegistrar registrar = registrar(new Management(null, Set.of("monitor"), null, null, null));
+
+        registrar.refresh();
+
+        verify(server, never()).addResourceTemplate(any(SyncResourceTemplateSpecification.class));
+    }
+
+    private static final class ToolManagementCategoryProbe implements ManagementToolContribution {
+
+        @Override
+        public String category() {
+            return "tools";
+        }
+
+        @Override
+        public List<ManagementTool> tools() {
+            return List.of();
+        }
+
+        @Override
+        public List<SyncResourceTemplateSpecification> resourceTemplates() {
+            return List.of(new SyncResourceTemplateSpecification(ResourceTemplate.builder()
+                    .uriTemplate("saip://examples/{name}").name("e").build(), (exchange, request) -> null));
+        }
+
     }
 
 }

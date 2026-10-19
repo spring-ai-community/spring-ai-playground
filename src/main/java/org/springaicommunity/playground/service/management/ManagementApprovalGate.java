@@ -25,6 +25,7 @@ import io.modelcontextprotocol.spec.McpSchema.ClientCapabilities;
 import io.modelcontextprotocol.spec.McpSchema.ElicitRequest;
 import io.modelcontextprotocol.spec.McpSchema.ElicitResult;
 import io.modelcontextprotocol.spec.McpSchema.Implementation;
+import io.modelcontextprotocol.spec.McpSchema.ProgressNotification;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
@@ -87,7 +88,7 @@ public class ManagementApprovalGate {
         try {
             approval = tool.approvalFor(arguments);
         } catch (IllegalArgumentException | IllegalStateException e) {
-            return finish(tool, caller, arguments, ApprovalLevel.READ, ManagementOutcome.ERROR,
+            return finish(tool, caller, arguments, tool.level(), ManagementOutcome.ERROR,
                     ManagementResult.failure(ManagementSecrets.maskText(e.getMessage())), startNanos);
         }
         if (caller.selfLoopback() && !caller.interactive()) {
@@ -120,7 +121,8 @@ public class ManagementApprovalGate {
         if (approval.highRisk() && mode == ApprovalMode.NONE) {
             return Optional.of(new Stop(ManagementOutcome.REFUSED, ManagementResult.failure("Tool '" + tool.name()
                     + "' was not run: this is a high-risk action and needs a human decision, but approval is "
-                    + "disabled. Ask the user to do it in the app or to enable approval.")));
+                    + "disabled. Ask the user to do it in the app or to enable approval. Requested: "
+                    + approval.summary())));
         }
         boolean prompt = approval.highRisk() || switch (mode) {
             case NONE -> false;
@@ -162,7 +164,19 @@ public class ManagementApprovalGate {
                 && Boolean.TRUE.equals(meta.get(McpServerHitlToolGate.INTERACTIVE_HITL_META_KEY));
         return new ManagementCaller(info == null || info.name() == null ? "unknown" : info.name(),
                 info == null || info.version() == null ? "" : info.version(), interactive,
-                supportsElicitation(exchange.getClientCapabilities()), selfLoopback);
+                supportsElicitation(exchange.getClientCapabilities()), selfLoopback, progressOf(exchange, request));
+    }
+
+    private static ManagementProgress progressOf(McpSyncServerExchange exchange, CallToolRequest request) {
+        Object token = request.progressToken();
+        if (token == null) return ManagementProgress.NONE;
+        return (progress, total, message) -> {
+            try {
+                exchange.progressNotification(new ProgressNotification(token, progress, total, message));
+            } catch (RuntimeException e) {
+                logger.debug("Progress notification for token {} was not delivered", token, e);
+            }
+        };
     }
 
     private CallToolResult finish(ManagementTool tool, ManagementCaller caller, Map<String, Object> arguments,

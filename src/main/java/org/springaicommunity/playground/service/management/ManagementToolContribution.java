@@ -17,6 +17,7 @@ package org.springaicommunity.playground.service.management;
 
 import io.modelcontextprotocol.server.McpServerFeatures.SyncPromptSpecification;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncResourceSpecification;
+import io.modelcontextprotocol.server.McpServerFeatures.SyncResourceTemplateSpecification;
 
 import java.util.List;
 
@@ -27,6 +28,10 @@ public interface ManagementToolContribution {
     List<ManagementTool> tools();
 
     default List<SyncResourceSpecification> resources() {
+        return List.of();
+    }
+
+    default List<SyncResourceTemplateSpecification> resourceTemplates() {
         return List.of();
     }
 

@@ -42,6 +42,8 @@ import org.springaicommunity.playground.service.mcp.bundle.BundleExportService.V
 import org.springaicommunity.playground.service.mcp.bundle.BundleManifest;
 import org.springaicommunity.playground.service.mcp.bundle.BundleRegistryService;
 import org.springaicommunity.playground.service.mcp.bundle.KnowledgeContribution;
+import org.springaicommunity.playground.service.mcp.bundle.KnowledgeSuggestService;
+import org.springaicommunity.playground.service.mcp.bundle.KnowledgeSuggestService.Suggestion;
 import org.springaicommunity.playground.service.mcp.bundle.ShipRequest;
 import org.springaicommunity.playground.service.mcp.bundle.ShipRequest.Transport;
 import org.springaicommunity.playground.service.mcp.bundle.ShipyardService;
@@ -90,8 +92,10 @@ public class ShipFlowView extends Div {
     private final CheckboxGroup<RagSource> knowledgeGroup = new CheckboxGroup<>("Knowledge");
     private final Dialog knowledgeDialog = pickerDialog("Add knowledge");
     private final Map<String, ShipRequest.Knowledge> knowledgeEdits = new LinkedHashMap<>();
+    private final Div suggestionNote = new Div();
     private final Div shippedToolRows = new Div();
     private final KnowledgeSearchService knowledgeSearchService;
+    private final KnowledgeSuggestService knowledgeSuggestService;
     private final Set<String> expandedKnowledge = new LinkedHashSet<>();
     private final Map<String, String> tryQueries = new HashMap<>();
     private final Map<String, List<String>> tryResults = new HashMap<>();
@@ -117,10 +121,12 @@ public class ShipFlowView extends Div {
 
     public ShipFlowView(ShipyardService shipyardService, BundleExportService bundleExportService,
             ToolCategoryCatalog categoryCatalog, KnowledgeSearchService knowledgeSearchService,
-            ShipFlowPrefill prefill, Consumer<String> onShipped, Runnable onCancel) {
+            KnowledgeSuggestService knowledgeSuggestService, ShipFlowPrefill prefill, Consumer<String> onShipped,
+            Runnable onCancel) {
         this.shipyardService = shipyardService;
         this.bundleExportService = bundleExportService;
         this.knowledgeSearchService = knowledgeSearchService;
+        this.knowledgeSuggestService = knowledgeSuggestService;
         ShipRequest request = prefill == null ? null : prefill.request();
         if (prefill != null) {
             this.tryQueries.putAll(prefill.tryQueries());
@@ -208,7 +214,15 @@ public class ShipFlowView extends Div {
                 e -> UI.getCurrent().navigate(VectorStoreView.class));
         openVectorDatabase.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
         openVectorDatabase.setTooltipText("Embed documents and build pipelines there; they show up here");
-        this.knowledgeDialog.add(this.knowledgeGroup, openVectorDatabase);
+        Button suggest = new Button("Suggest", VaadinIcon.MAGIC.create(), e -> applySuggestions());
+        suggest.addThemeVariants(ButtonVariant.LUMO_SMALL);
+        suggest.setAriaLabel("Suggest knowledge");
+        suggest.setTooltipText("Pick one search tool per pipeline, plus the documents no pipeline covers");
+        this.suggestionNote.getStyle().set("font-size", "var(--lumo-font-size-s)")
+                .set("color", "var(--lumo-secondary-text-color)").set("white-space", "pre-wrap");
+        HorizontalLayout knowledgeActions = new HorizontalLayout(suggest, openVectorDatabase);
+        knowledgeActions.setAlignItems(HorizontalLayout.Alignment.CENTER);
+        this.knowledgeDialog.add(this.knowledgeGroup, knowledgeActions, this.suggestionNote);
 
         this.nameField.setPlaceholder("my-tools-server");
         this.nameField.setWidthFull();
@@ -534,6 +548,43 @@ public class ShipFlowView extends Div {
         panel.getStyle().set("background", "var(--lumo-contrast-5pct)")
                 .set("padding", "var(--lumo-space-s) var(--lumo-space-m)");
         return panel;
+    }
+
+    private void applySuggestions() {
+        Set<String> selectedSourceIds = this.knowledgeGroup.getValue().stream().map(RagSource::sourceId)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        List<String> takenNames = this.bundleExportService.validate(currentRequest()).tools().stream()
+                .map(ShippedTool::name).toList();
+        List<Suggestion> suggestions = this.knowledgeSuggestService.suggest(selectedSourceIds, takenNames);
+        if (suggestions.isEmpty()) {
+            this.suggestionNote.setText(this.knowledgeGroup.getListDataView().getItems().findAny().isEmpty()
+                    ? "Nothing to suggest: embed documents in Vector Database first."
+                    : "Nothing to suggest: every document is already covered by the selected sources.");
+            return;
+        }
+        Set<RagSource> selection = new LinkedHashSet<>(this.knowledgeGroup.getValue());
+        List<String> lines = new ArrayList<>();
+        for (Suggestion suggestion : suggestions) {
+            this.knowledgeEdits.put(suggestion.knowledge().sourceId(), suggestion.knowledge());
+            this.knowledgeGroup.getListDataView().getItems()
+                    .filter(source -> source.sourceId().equals(suggestion.knowledge().sourceId()))
+                    .forEach(selection::add);
+            lines.add(suggestion.knowledge().toolName() + " from " + suggestion.sourceName() + " ("
+                    + suggestionReason(suggestion) + ")");
+        }
+        this.suggestionNote.setText("Suggested " + ShipyardVisuals.toolCount(suggestions.size()) + ":\n"
+                + String.join("\n", lines) + "\nEdit names and descriptions in the table.");
+        this.knowledgeGroup.setValue(selection);
+    }
+
+    private static String suggestionReason(Suggestion suggestion) {
+        String documents = suggestion.documents() == 1 ? "1 document" : suggestion.documents() + " documents";
+        String stages = suggestion.llmStages().isEmpty() ? "" : ", runs " + String.join(", ", suggestion.llmStages());
+        return switch (suggestion.reason()) {
+            case PIPELINE -> "pipeline over " + documents + stages;
+            case ALL_DOCUMENTS_PIPELINE -> "pipeline over every document, " + documents + stages;
+            case UNCOVERED_DOCUMENT -> "document no pipeline covers";
+        };
     }
 
     private void saveKnowledge(ShipRequest.Knowledge current, String toolName, String description, Integer topK) {
