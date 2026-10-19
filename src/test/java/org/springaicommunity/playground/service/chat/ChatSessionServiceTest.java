@@ -66,7 +66,7 @@ class ChatSessionServiceTest {
     private ChatSessionService service(String defaultPresetId) {
         SpringAiPlaygroundOptions options = new SpringAiPlaygroundOptions(null, false, null,
                 new SpringAiPlaygroundOptions.Chat(null, null, null, null, null, null, null, null, defaultPresetId,
-                        null), null, null, null, null, null);
+                        null), null, null, null, null, null, null);
         return new ChatSessionService(chatService, chatHistoryService, presetService, toolSpecService,
                 persistenceService, downloadService, options);
     }

@@ -68,7 +68,7 @@ class McpCompositionServiceTest {
             }
             @Override public void onPoisoningHit(McpRiskEvents.PoisoningHit event) {}
         };
-        this.options = new SpringAiPlaygroundOptions(null, false, null, null, null, null, null, null, null);
+        this.options = new SpringAiPlaygroundOptions(null, false, null, null, null, null, null, null, null, null);
         this.service = new McpCompositionService(persistence, new McpCompositionShadowingRules(), sink, options);
     }
 
@@ -124,7 +124,7 @@ class McpCompositionServiceTest {
 
         SpringAiPlaygroundOptions configured = new SpringAiPlaygroundOptions(null, false, null, null, null,
                 new SpringAiPlaygroundOptions.McpServer(RiskLevel.L3, List.of(new SpringAiPlaygroundOptions
-                        .ComposedTool("DeepWiki", "ask_question", "deepwiki_ask", null, true)), null), null, null, null);
+                        .ComposedTool("DeepWiki", "ask_question", "deepwiki_ask", null, true)), null), null, null, null, null);
         McpCompositionService restarted = new McpCompositionService(persistence,
                 new McpCompositionShadowingRules(), sink, configured);
 

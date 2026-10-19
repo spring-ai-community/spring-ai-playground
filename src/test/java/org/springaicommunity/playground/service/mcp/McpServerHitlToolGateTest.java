@@ -64,7 +64,7 @@ class McpServerHitlToolGateTest {
     private final DeniedToolCallRecorder deniedToolCallRecorder = mock(DeniedToolCallRecorder.class);
     private final McpServerHitlToolGate gate = new McpServerHitlToolGate(mcpClientServiceProvider, meterRegistry,
             deniedToolCallRecorder, new SpringAiPlaygroundOptions(null, false, null, null, null, null,
-                    new SpringAiPlaygroundOptions.Hitl(45), null, null));
+                    new SpringAiPlaygroundOptions.Hitl(45), null, null, null));
     private final AtomicInteger delegateCalls = new AtomicInteger();
     private final CallToolResult delegateResult =
             CallToolResult.builder().addTextContent("ok").isError(false).build();

@@ -87,7 +87,7 @@ class ManagementToolRegistrarTest {
 
     private ManagementToolRegistrar registrar(Management management) {
         SpringAiPlaygroundOptions options = new SpringAiPlaygroundOptions(null, false, null, null, null, null, null,
-                null, management);
+                null, management, null);
         ManagementApprovalGate gate = new ManagementApprovalGate(options, mock(ObjectProvider.class),
                 ManagementTestSupport.auditLog(options, new McpRiskEventRingBuffer()));
         return new ManagementToolRegistrar(options, syncServerProvider, toolSpecService, authTokenService,

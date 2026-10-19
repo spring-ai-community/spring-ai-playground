@@ -53,7 +53,7 @@ class RuntimeTabsSmokeTest {
         when(registrar.status()).thenReturn(ManagementStatus.inactive("no bearer token on the built-in server",
                 ApprovalMode.DESTRUCTIVE));
         return new SafetyTab(metrics(), riskEvents, new ManagementAuditLog(
-                new SpringAiPlaygroundOptions(null, false, null, null, null, null, null, null, null), riskEvents,
+                new SpringAiPlaygroundOptions(null, false, null, null, null, null, null, null, null, null), riskEvents,
                 new SimpleMeterRegistry()), registrar);
     }
 

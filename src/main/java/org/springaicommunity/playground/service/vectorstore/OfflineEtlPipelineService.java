@@ -206,6 +206,11 @@ public class OfflineEtlPipelineService implements SharedDataReader<List<VectorSt
 
     public VectorStoreDocumentInfo loadDocument(String documentFileName, String title, String description,
             boolean chatOrigin, List<Document> uploadedDocumentItems) {
+        return loadDocument(documentFileName, title, description, chatOrigin, null, uploadedDocumentItems);
+    }
+
+    public VectorStoreDocumentInfo loadDocument(String documentFileName, String title, String description,
+            boolean chatOrigin, String sourceFingerprint, List<Document> uploadedDocumentItems) {
         long createTimestamp = System.currentTimeMillis();
         File uploadedDocumentFile = buildUploadFilePath(documentFileName).toFile();
         String docInfoId = VectorStoreService.DOC_INFO_ID + "-" + UUID.randomUUID();
@@ -215,7 +220,7 @@ public class OfflineEtlPipelineService implements SharedDataReader<List<VectorSt
         VectorStoreDocumentInfo vectorStoreDocumentInfo =
                 new VectorStoreDocumentInfo(docInfoId, resolvedTitle, description, createTimestamp,
                         createTimestamp, documentFileName, uploadedDocumentFile.getPath(), chatOrigin,
-                        () -> documentList);
+                        sourceFingerprint, () -> documentList);
         this.documentInfos.put(docInfoId, vectorStoreDocumentInfo);
         if (!Boolean.TRUE.equals(this.skipPersist.get()))
             this.vectorStoreDocumentPersistenceServiceProvider.getObject().saveAsync(vectorStoreDocumentInfo);
@@ -223,11 +228,16 @@ public class OfflineEtlPipelineService implements SharedDataReader<List<VectorSt
     }
 
     public record IngestRequest(List<String> uploadedFileNames, Map<String, List<Document>> chunksByFile,
-            String title, String description) {
+            String title, String description, String sourceFingerprint) {
 
         public IngestRequest {
             uploadedFileNames = uploadedFileNames == null ? List.of() : List.copyOf(uploadedFileNames);
             chunksByFile = chunksByFile == null ? Map.of() : Map.copyOf(chunksByFile);
+        }
+
+        public IngestRequest(List<String> uploadedFileNames, Map<String, List<Document>> chunksByFile,
+                String title, String description) {
+            this(uploadedFileNames, chunksByFile, title, description, null);
         }
     }
 
@@ -236,13 +246,25 @@ public class OfflineEtlPipelineService implements SharedDataReader<List<VectorSt
                 .map(fileName -> {
                     List<Document> chunks = request.chunksByFile().getOrDefault(fileName, List.of());
                     return chunks.isEmpty() ? null
-                            : loadDocument(fileName, request.title(), request.description(), chunks);
+                            : loadDocument(fileName, request.title(), request.description(), false,
+                                    request.sourceFingerprint(), chunks);
                 })
                 .filter(Objects::nonNull)
                 .toList();
         VectorStoreService vectorStoreService = this.vectorStoreServiceProvider.getObject();
-        documents.forEach(vectorStoreService::add);
+        for (VectorStoreDocumentInfo document : documents) {
+            embedOrForget(vectorStoreService, document);
+        }
         return documents;
+    }
+
+    private void embedOrForget(VectorStoreService vectorStoreService, VectorStoreDocumentInfo document) {
+        try {
+            vectorStoreService.add(document);
+        } catch (RuntimeException embeddingFailed) {
+            deleteDocumentInfo(document);
+            throw embeddingFailed;
+        }
     }
 
     public Map<String, List<Document>> enrichByFile(Map<String, List<Document>> chunksByFile, EnrichOptions options,
@@ -316,11 +338,11 @@ public class OfflineEtlPipelineService implements SharedDataReader<List<VectorSt
                         : new JsonReader(resource, Arrays.stream(keys.split(","))
                                 .map(String::trim).filter(key -> !key.isEmpty()).toArray(String[]::new));
             }
-            case MARKDOWN -> new MarkdownDocumentReader(resource, MarkdownDocumentReaderConfig.builder()
+            case MARKDOWN -> withSectionTitles(new MarkdownDocumentReader(resource, MarkdownDocumentReaderConfig.builder()
                     .withIncludeCodeBlock(options.markdownIncludeCodeBlock())
                     .withIncludeBlockquote(options.markdownIncludeBlockquote())
                     .withHorizontalRuleCreateDocument(options.markdownHorizontalRuleCreateDocument())
-                    .build());
+                    .build()));
             case HTML -> {
                 JsoupDocumentReaderConfig.Builder builder = JsoupDocumentReaderConfig.builder();
                 if (options.charset() != null && !options.charset().isBlank())
@@ -374,6 +396,18 @@ public class OfflineEtlPipelineService implements SharedDataReader<List<VectorSt
                 if (!cleaned.equals(value)) document.getMetadata().put(key, cleaned);
             }
         });
+    }
+
+    private static DocumentReader withSectionTitles(DocumentReader reader) {
+        return () -> reader.get().stream().map(OfflineEtlPipelineService::withSectionTitle).toList();
+    }
+
+    private static Document withSectionTitle(Document section) {
+        String text = section.getText();
+        if (!(section.getMetadata().get("title") instanceof String title) || title.isBlank() || text == null
+                || text.startsWith(title))
+            return section;
+        return section.mutate().text(title + "\n" + text).build();
     }
 
     private static List<SummaryMetadataEnricher.SummaryType> summaryTypes(EnrichOptions options) {

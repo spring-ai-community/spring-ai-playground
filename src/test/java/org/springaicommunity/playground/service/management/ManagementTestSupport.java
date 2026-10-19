@@ -40,7 +40,7 @@ final class ManagementTestSupport {
 
     static SpringAiPlaygroundOptions options(ApprovalMode approval) {
         return new SpringAiPlaygroundOptions(null, false, null, null, null, null, null,
-                null, new Management(true, null, null, approval, null));
+                null, new Management(true, null, null, approval, null), null);
     }
 
     static ManagementAuditLog auditLog(SpringAiPlaygroundOptions options, McpRiskEventRingBuffer riskEvents) {

@@ -19,6 +19,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springaicommunity.playground.service.PersistenceExecutor;
 import org.springaicommunity.playground.service.PersistenceServiceInterface;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -29,6 +31,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -42,13 +45,72 @@ public class RagPipelineService implements PersistenceServiceInterface<RagPipeli
 
     private final Path saveDir;
     private final PersistenceExecutor persistenceExecutor;
+    private final ObjectProvider<OfflineEtlPipelineService> documentsProvider;
     private final ConcurrentMap<String, RagPipeline> pipelines = new ConcurrentHashMap<>();
 
     public RagPipelineService(Path springAiPlaygroundHomeDir, PersistenceExecutor persistenceExecutor)
             throws IOException {
+        this(springAiPlaygroundHomeDir, persistenceExecutor, null);
+    }
+
+    @Autowired
+    public RagPipelineService(Path springAiPlaygroundHomeDir, PersistenceExecutor persistenceExecutor,
+            ObjectProvider<OfflineEtlPipelineService> documentsProvider) throws IOException {
         this.saveDir = springAiPlaygroundHomeDir.resolve("vectorstore").resolve("pipelines");
         Files.createDirectories(this.saveDir);
         this.persistenceExecutor = persistenceExecutor;
+        this.documentsProvider = documentsProvider;
+    }
+
+    public Optional<RagPipeline> findByName(String name) {
+        if (name == null || name.isBlank()) return Optional.empty();
+        String wanted = name.trim();
+        return list().stream().filter(pipeline -> wanted.equals(pipeline.name())).findFirst();
+    }
+
+    public RagPipeline apply(PipelineSpec spec) {
+        return apply(spec, null);
+    }
+
+    public RagPipeline apply(PipelineSpec spec, String existingId) {
+        Objects.requireNonNull(spec, "spec");
+        String name = spec.resolvedName();
+        List<String> docInfoIds = resolveDocuments(spec.documents());
+        Optional<RagPipeline> existing = existingId == null ? findByName(name) : get(existingId);
+        if (existing.isPresent()) {
+            RagPipeline current = existing.get();
+            return update(new RagPipeline(current.id(), name, spec.description(), docInfoIds,
+                    spec.preRetrieval().toConfig(), spec.retrieval().toConfig(), spec.postRetrieval().toConfig(),
+                    spec.generation().toConfig(), current.createdAt(), current.updatedAt()));
+        }
+        return create(name, spec.description(), docInfoIds, spec.preRetrieval().toConfig(),
+                spec.retrieval().toConfig(), spec.postRetrieval().toConfig(), spec.generation().toConfig());
+    }
+
+    public PipelineSpec specOf(RagPipeline pipeline) {
+        Map<String, String> titlesById = documents().stream()
+                .collect(Collectors.toMap(VectorStoreDocumentInfo::docInfoId, VectorStoreDocumentInfo::title,
+                        (first, second) -> first));
+        List<String> references = pipeline.docInfoIds().stream()
+                .map(docInfoId -> titlesById.getOrDefault(docInfoId, docInfoId)).toList();
+        return PipelineSpec.of(pipeline, references);
+    }
+
+    private List<String> resolveDocuments(List<String> references) {
+        if (this.documentsProvider == null) return references;
+        List<VectorStoreDocumentInfo> known = documents();
+        return references.stream().map(String::trim).map(reference -> known.stream()
+                        .filter(info -> reference.equals(info.docInfoId()) || reference.equals(info.title()))
+                        .findFirst()
+                        .map(VectorStoreDocumentInfo::docInfoId)
+                        .orElseThrow(() -> new IllegalArgumentException("unknown document '" + reference + "'")))
+                .distinct().toList();
+    }
+
+    private List<VectorStoreDocumentInfo> documents() {
+        OfflineEtlPipelineService documents =
+                this.documentsProvider == null ? null : this.documentsProvider.getIfAvailable();
+        return documents == null ? List.of() : documents.getVisibleDocumentList();
     }
 
     public List<RagPipeline> list() {

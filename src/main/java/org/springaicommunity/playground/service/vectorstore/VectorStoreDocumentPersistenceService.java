@@ -156,12 +156,14 @@ public class VectorStoreDocumentPersistenceService implements PersistenceService
         String documentPath = vectorStoreDocumentInfoMap.computeIfAbsent("documentPath", key -> "").toString();
         boolean chatOrigin = Boolean.parseBoolean(
                 vectorStoreDocumentInfoMap.getOrDefault("chatOrigin", Boolean.FALSE).toString());
+        Object fingerprintRaw = vectorStoreDocumentInfoMap.get("sourceFingerprint");
+        String sourceFingerprint = fingerprintRaw == null ? null : fingerprintRaw.toString();
         List<Map<String, Object>> documentMapList =
                 (List<Map<String, Object>>) vectorStoreDocumentInfoMap.get("documentList");
         List<Document> documentList =
                 documentMapList.stream().map(this::convertToDocument).collect(Collectors.toList());
         return new VectorStoreDocumentInfo(docInfoId, title, description, createTimestamp, updateTimestamp,
-                documentFileName, documentPath, chatOrigin, () -> documentList);
+                documentFileName, documentPath, chatOrigin, sourceFingerprint, () -> documentList);
     }
 
     @Override

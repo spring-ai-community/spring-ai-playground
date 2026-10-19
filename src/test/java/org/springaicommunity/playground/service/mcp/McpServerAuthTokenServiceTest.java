@@ -48,7 +48,7 @@ class McpServerAuthTokenServiceTest {
     private McpServerAuthTokenService newService(String configuredToken) throws IOException {
         ApplicationEventPublisher eventPublisher = this.publishedEvents::add;
         return new McpServerAuthTokenService(new SpringAiPlaygroundOptions(null, false, null, null, null,
-                new SpringAiPlaygroundOptions.McpServer(null, null, configuredToken), null, null, null), this.homeDir,
+                new SpringAiPlaygroundOptions.McpServer(null, null, configuredToken), null, null, null, null), this.homeDir,
                 new OAuthTokenEncryptor(this.homeDir), eventPublisher);
     }
 

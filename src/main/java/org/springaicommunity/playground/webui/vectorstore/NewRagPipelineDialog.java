@@ -46,6 +46,7 @@ import com.vaadin.flow.component.textfield.IntegerField;
 import com.vaadin.flow.component.textfield.NumberField;
 import com.vaadin.flow.component.textfield.TextArea;
 import com.vaadin.flow.component.textfield.TextField;
+import org.springaicommunity.playground.service.vectorstore.PipelineSpec;
 import org.springaicommunity.playground.service.vectorstore.RagPipeline;
 import org.springaicommunity.playground.service.vectorstore.RagPipelineService;
 import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentInfo;
@@ -873,14 +874,18 @@ public class NewRagPipelineDialog extends Dialog {
                     this.runAugmentLLMCheck.getValue(), this.documentFormatCombo.getValue());
             String description = blankToNull(this.descField.getValue());
 
-            RagPipeline saved;
-            if (this.editingPipeline == null) {
-                saved = this.ragPipelineService.create(name, description, docInfoIds, pre, ret, post, gen);
-            } else {
-                RagPipeline updated = new RagPipeline(this.editingPipeline.id(), name, description, docInfoIds, pre,
-                        ret, post, gen, this.editingPipeline.createdAt(), System.currentTimeMillis());
-                saved = this.ragPipelineService.update(updated);
+            String existingId = this.editingPipeline == null ? null : this.editingPipeline.id();
+            boolean nameTaken = this.ragPipelineService.findByName(name)
+                    .filter(other -> !other.id().equals(existingId)).isPresent();
+            if (nameTaken) {
+                VaadinUtils.showErrorNotification("A pipeline named '" + name + "' already exists");
+                this.nameField.focus();
+                return;
             }
+            PipelineSpec spec = new PipelineSpec(name, description, docInfoIds, PipelineSpec.PreRetrieval.of(pre),
+                    PipelineSpec.Retrieval.of(ret), PipelineSpec.PostRetrieval.of(post),
+                    PipelineSpec.Generation.of(gen));
+            RagPipeline saved = this.ragPipelineService.apply(spec, existingId);
             close();
             if (this.onSaved != null) this.onSaved.accept(saved);
         } catch (Exception e) {

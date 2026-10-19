@@ -17,6 +17,8 @@ package org.springaicommunity.playground;
 
 import org.springaicommunity.playground.service.mcp.bundle.ShipRequest.Transport;
 import org.springaicommunity.playground.service.tool.ToolManifest.Sandbox.RiskLevel;
+import org.springaicommunity.playground.service.vectorstore.DocumentSpec;
+import org.springaicommunity.playground.service.vectorstore.PipelineSpec;
 import org.springaicommunity.playground.service.tool.ToolSpecService.ExposureMode;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
@@ -34,7 +36,8 @@ public record SpringAiPlaygroundOptions(@NestedConfigurationProperty ToolStudio 
                                         @NestedConfigurationProperty McpServer mcpServer,
                                         @NestedConfigurationProperty Hitl hitl,
                                         @NestedConfigurationProperty Shipyard shipyard,
-                                        @NestedConfigurationProperty Management management) {
+                                        @NestedConfigurationProperty Management management,
+                                        @NestedConfigurationProperty Rag rag) {
 
     @ConstructorBinding
     public SpringAiPlaygroundOptions {
@@ -43,6 +46,16 @@ public record SpringAiPlaygroundOptions(@NestedConfigurationProperty ToolStudio 
         if (hitl == null) hitl = new Hitl(null);
         if (shipyard == null) shipyard = new Shipyard(null, null, null, null, null);
         if (management == null) management = new Management(null, null, null, null, null);
+        if (rag == null) rag = new Rag(null, null, null);
+    }
+
+    public record Rag(List<String> ingestRoots, List<DocumentSpec> documents, List<PipelineSpec> pipelines) {
+
+        public Rag {
+            ingestRoots = ingestRoots == null ? List.of() : List.copyOf(ingestRoots);
+            documents = documents == null ? List.of() : List.copyOf(documents);
+            pipelines = pipelines == null ? List.of() : List.copyOf(pipelines);
+        }
     }
 
     public enum ApprovalMode {

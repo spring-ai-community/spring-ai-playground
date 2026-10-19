@@ -61,7 +61,7 @@ class BundleExportServiceImageTagTest {
         ObjectProvider<BuildProperties> buildPropertiesProvider = mock(ObjectProvider.class);
         when(buildPropertiesProvider.getIfAvailable()).thenReturn(version == null ? null : buildProperties(version));
         SpringAiPlaygroundOptions options = new SpringAiPlaygroundOptions(null, false, null, null, null, null, null,
-                shipyard, null);
+                shipyard, null, null);
         return new BundleExportService(List.of(), mock(BundleArtifactWriter.class),
                 mock(BundleRegistryService.class), options, buildPropertiesProvider);
     }

@@ -34,12 +34,20 @@ public class VectorStoreDocumentInfo {
     private final String documentFileName;
     private final String documentPath;
     private final boolean chatOrigin;
+    private final String sourceFingerprint;
     @JsonIgnore
     private Supplier<List<Document>> documentListSupplier;
 
     public VectorStoreDocumentInfo(String docInfoId, String title, String description, long createTimestamp,
             long updateTimestamp, String documentFileName, String documentPath, boolean chatOrigin,
             Supplier<List<Document>> documentListSupplier) {
+        this(docInfoId, title, description, createTimestamp, updateTimestamp, documentFileName, documentPath,
+                chatOrigin, null, documentListSupplier);
+    }
+
+    public VectorStoreDocumentInfo(String docInfoId, String title, String description, long createTimestamp,
+            long updateTimestamp, String documentFileName, String documentPath, boolean chatOrigin,
+            String sourceFingerprint, Supplier<List<Document>> documentListSupplier) {
         this.docInfoId = docInfoId;
         this.title = title;
         this.description = description;
@@ -48,6 +56,7 @@ public class VectorStoreDocumentInfo {
         this.documentFileName = documentFileName;
         this.documentPath = documentPath;
         this.chatOrigin = chatOrigin;
+        this.sourceFingerprint = sourceFingerprint;
         this.documentListSupplier = documentListSupplier;
     }
 
@@ -97,18 +106,25 @@ public class VectorStoreDocumentInfo {
         return chatOrigin;
     }
 
+    public String sourceFingerprint() {
+        return sourceFingerprint;
+    }
+
     public VectorStoreDocumentInfo newTitle(String newTitle) {
         return new VectorStoreDocumentInfo(docInfoId, newTitle, description, createTimestamp,
-                System.currentTimeMillis(), documentFileName, documentPath, chatOrigin, documentListSupplier);
+                System.currentTimeMillis(), documentFileName, documentPath, chatOrigin, sourceFingerprint,
+                documentListSupplier);
     }
 
     public VectorStoreDocumentInfo newTitleAndDescription(String newTitle, String newDescription) {
         return new VectorStoreDocumentInfo(docInfoId, newTitle, newDescription, createTimestamp,
-                System.currentTimeMillis(), documentFileName, documentPath, chatOrigin, documentListSupplier);
+                System.currentTimeMillis(), documentFileName, documentPath, chatOrigin, sourceFingerprint,
+                documentListSupplier);
     }
 
     public VectorStoreDocumentInfo promoted() {
         return new VectorStoreDocumentInfo(docInfoId, title, description, createTimestamp,
-                System.currentTimeMillis(), documentFileName, documentPath, false, documentListSupplier);
+                System.currentTimeMillis(), documentFileName, documentPath, false, sourceFingerprint,
+                documentListSupplier);
     }
 }

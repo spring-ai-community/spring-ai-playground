@@ -35,6 +35,8 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -82,6 +84,20 @@ class OfflineEtlPipelineIngestTest {
         verify(this.vectorStoreService, times(2)).add(added.capture());
         assertThat(added.getAllValues()).containsExactlyElementsOf(documents);
         assertThat(this.service.getDocumentList()).hasSize(2);
+    }
+
+    @Test
+    void aDocumentWhoseEmbeddingFailsIsNotLeftRegistered() {
+        Map<String, List<Document>> chunksByFile = new LinkedHashMap<>();
+        chunksByFile.put("a.txt", List.of(new Document("alpha one")));
+        doThrow(new IllegalStateException("Connection refused: localhost/127.0.0.1:11434"))
+                .when(this.vectorStoreService).add(any(VectorStoreDocumentInfo.class));
+
+        assertThatThrownBy(() -> this.service.ingest(
+                new IngestRequest(List.of("a.txt"), chunksByFile, "Handbook", null)))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("Connection refused");
+
+        assertThat(this.service.getDocumentList()).isEmpty();
     }
 
     @Test

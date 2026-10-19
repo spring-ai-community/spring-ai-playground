@@ -26,6 +26,7 @@ import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.router.BeforeEnterEvent;
 import com.vaadin.flow.router.BeforeEnterObserver;
+import org.springaicommunity.playground.service.vectorstore.ConfiguredKnowledgeLoader;
 import org.springaicommunity.playground.service.vectorstore.RagPipeline;
 import org.springaicommunity.playground.service.vectorstore.RagPipelineService;
 import org.springaicommunity.playground.webui.VaadinUtils;
@@ -50,14 +51,17 @@ public class VectorStorePipelineListView extends WorkspaceSidebar implements Bef
     private final ListBox<RagPipeline> pipelineListBox;
     private final PropertyChangeSupport pipelineChangeSupport;
     private final Consumer<RagPipeline> onEditRequest;
+    private final ConfiguredKnowledgeLoader knowledgeLoader;
     private Runnable onSelectionStart;
 
     public VectorStorePipelineListView(RagPipelineService ragPipelineService,
-            PropertyChangeSupport pipelineChangeSupport, Consumer<RagPipeline> onEditRequest) {
+            ConfiguredKnowledgeLoader knowledgeLoader, PropertyChangeSupport pipelineChangeSupport,
+            Consumer<RagPipeline> onEditRequest) {
         super("RAG Pipelines");
         this.ragPipelineService = ragPipelineService;
         this.pipelineChangeSupport = pipelineChangeSupport;
         this.onEditRequest = onEditRequest;
+        this.knowledgeLoader = knowledgeLoader;
 
         addHeaderIcon(VaadinIcon.CLOSE, "Delete", e -> deletePipeline());
         addHeaderIcon(VaadinIcon.PENCIL, "Edit", e -> editPipeline());
@@ -75,8 +79,13 @@ public class VectorStorePipelineListView extends WorkspaceSidebar implements Bef
                     .format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
             Span ago = new Span(formatRelative(pipeline.updatedAt()));
             ago.getStyle().set("font-size", "var(--lumo-font-size-xxs)")
-                    .set("color", "var(--lumo-secondary-text-color)").set("margin-left", "auto");
+                    .set("color", "var(--lumo-secondary-text-color)").set("margin-left", "auto")
+                    .set("white-space", "nowrap").set("flex", "none");
             row.add(name, ago);
+            if (this.knowledgeLoader.managesPipeline(pipeline.name())) {
+                ago.getStyle().remove("margin-left");
+                row.add(VectorStoreView.managedBadge(ConfiguredKnowledgeLoader.PIPELINES_PROPERTY));
+            }
             row.setWidthFull();
             return row;
         }));
@@ -100,15 +109,22 @@ public class VectorStorePipelineListView extends WorkspaceSidebar implements Bef
         VaadinUtils.getUi(this).access(this.pipelineListBox::clear);
     }
 
+    private boolean managedByConfiguration(RagPipeline pipeline) {
+        if (!this.knowledgeLoader.managesPipeline(pipeline.name())) return false;
+        VaadinUtils.showInfoNotification("Managed by configuration: edit "
+                + ConfiguredKnowledgeLoader.PIPELINES_PROPERTY + " and restart to change it");
+        return true;
+    }
+
     private void editPipeline() {
         RagPipeline selected = this.pipelineListBox.getValue();
-        if (Objects.isNull(selected) || Objects.isNull(this.onEditRequest)) return;
+        if (Objects.isNull(selected) || Objects.isNull(this.onEditRequest) || managedByConfiguration(selected)) return;
         this.onEditRequest.accept(selected);
     }
 
     private void deletePipeline() {
         RagPipeline selected = this.pipelineListBox.getValue();
-        if (Objects.isNull(selected)) return;
+        if (Objects.isNull(selected) || managedByConfiguration(selected)) return;
 
         String headerTitle = String.format("Delete: %s", selected.name());
         Dialog dialog = VaadinUtils.headerDialog(headerTitle);

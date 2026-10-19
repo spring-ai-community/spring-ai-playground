@@ -81,7 +81,7 @@ class McpClientServiceUnitTest {
                 emptyProvider(),
                 mock(McpNotificationStore.class),
                 meterRegistry,
-                new SpringAiPlaygroundOptions(null, false, null, null, null, null, null, null, null), emptyProvider());
+                new SpringAiPlaygroundOptions(null, false, null, null, null, null, null, null, null, null), emptyProvider());
     }
 
     @Test
@@ -118,7 +118,7 @@ class McpClientServiceUnitTest {
                 presentProvider(evaluator),
                 mock(McpNotificationStore.class),
                 meterRegistry,
-                new SpringAiPlaygroundOptions(null, false, null, null, null, null, null, null, null), emptyProvider());
+                new SpringAiPlaygroundOptions(null, false, null, null, null, null, null, null, null, null), emptyProvider());
         McpClientOps ops = mock(McpClientOps.class);
         when(ops.listTools()).thenReturn(List.of(
                 Tool.builder().name("bad").description("first, fails").build(),
@@ -140,7 +140,7 @@ class McpClientServiceUnitTest {
         McpClientService sampling = new McpClientService(null, null, props, new ObjectMapper(),
                 new McpClientPropertiesService<?>[] {}, null, oauthClientService,
                 presentProvider(serverInfoService), emptyProvider(), notificationStore, meterRegistry,
-                new SpringAiPlaygroundOptions(null, false, null, null, null, null, null, null, null), emptyProvider());
+                new SpringAiPlaygroundOptions(null, false, null, null, null, null, null, null, null, null), emptyProvider());
         McpServerInfo server = new McpServerInfo(McpTransportType.STDIO, "sampling-server", "", 0L, 0L, "{}");
         McpSchema.CreateMessageRequest request = McpSchema.CreateMessageRequest.builder()
                 .messages(List.of(new McpSchema.SamplingMessage(McpSchema.Role.USER,
