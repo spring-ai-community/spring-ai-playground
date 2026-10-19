@@ -32,6 +32,10 @@ import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
+import org.springaicommunity.playground.service.chat.ChatService;
+import org.springaicommunity.playground.service.vectorstore.KnowledgeSearchService;
+import org.springaicommunity.playground.webui.shipyard.ShipFlowPrefill;
+import org.springaicommunity.playground.webui.shipyard.ShipyardView;
 import org.springaicommunity.playground.service.vectorstore.RagPipeline;
 import org.springaicommunity.playground.service.vectorstore.RagPipelineExecutor;
 import org.springaicommunity.playground.service.vectorstore.TraceEvent;
@@ -53,6 +57,7 @@ public class VectorStorePipelineRunView extends VerticalLayout {
     private final Div configCard = new Div();
     private final Div messagesArea = new Div();
     private final TextField queryField = new TextField();
+    private String lastQuery;
     private final Button runButton = new Button("Run", VaadinIcon.PLAY.create());
     private final Button clearButton = new Button(VaadinIcon.ERASER.create());
     private final List<TraceEvent> currentRunEvents = new CopyOnWriteArrayList<>();
@@ -183,8 +188,23 @@ public class VectorStorePipelineRunView extends VerticalLayout {
             if (this.onEditRequest != null && this.currentPipeline != null)
                 this.onEditRequest.accept(this.currentPipeline);
         });
-        container.add(editButton);
+        Button shipButton = new Button("Ship", VaadinIcon.ANCHOR.create());
+        shipButton.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
+        shipButton.setTooltipText("Ship this pipeline as a search tool in an MCP server");
+        shipButton.addClickListener(e -> {
+            if (this.currentPipeline == null) return;
+            ShipyardView.requestShipFlowWith(ShipFlowPrefill.knowledge(knowledgeSourceId(this.currentPipeline),
+                    this.lastQuery));
+        });
+        container.add(editButton, shipButton);
         return container;
+    }
+
+    static String knowledgeSourceId(RagPipeline pipeline) {
+        return pipeline.id().startsWith(KnowledgeSearchService.DOCUMENT_PIPELINE_ID_PREFIX)
+                ? ChatService.RAG_DOCUMENT_SOURCE_PREFIX
+                        + pipeline.id().substring(KnowledgeSearchService.DOCUMENT_PIPELINE_ID_PREFIX.length())
+                : pipeline.id();
     }
 
     private static Span buildChip(String text) {
@@ -306,6 +326,7 @@ public class VectorStorePipelineRunView extends VerticalLayout {
             VaadinUtils.showErrorNotification("Enter a query first");
             return;
         }
+        this.lastQuery = query;
         this.runButton.setEnabled(false);
         this.queryField.setEnabled(false);
         this.queryField.clear();

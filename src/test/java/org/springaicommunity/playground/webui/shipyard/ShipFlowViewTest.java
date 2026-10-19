@@ -241,7 +241,7 @@ class ShipFlowViewTest extends SpringBrowserlessTest {
             roundTrip();
             picker.close();
 
-            assertThat(spanTexts()).contains("search_product_faq", "Knowledge", "1 tool")
+            assertThat(spanTexts()).contains("search_product_faq", "Knowledge", "1 tool", "Snapshot")
                     .anyMatch(text -> text.startsWith("Search the Product FAQ knowledge base"))
                     .contains("Embedding model")
                     .anyMatch(text -> text.contains("references documents that no longer exist"));
@@ -249,13 +249,15 @@ class ShipFlowViewTest extends SpringBrowserlessTest {
             test($(Button.class, flow).withCondition(button -> "Edit search_product_faq".equals(
                     button.getAriaLabel().orElse(null))).first()).click();
             roundTrip();
-            Dialog editor = $(Dialog.class).all().stream().filter(Dialog::isOpened).findFirst().orElseThrow();
-            test($(TextField.class, editor).withCondition(field -> "Tool name".equals(field.getLabel())).first())
+            assertThat($(Button.class, flow).withCondition(button -> "Try search_product_faq".equals(
+                    button.getAriaLabel().orElse(null))).all()).hasSize(1);
+            test($(TextField.class, flow).withCondition(field -> "Tool name".equals(field.getLabel())).first())
                     .setValue("search_faq");
-            test($(Button.class, editor).withCondition(button -> "Save".equals(button.getText())).first()).click();
             roundTrip();
 
             assertThat(spanTexts()).contains("search_faq").doesNotContain("search_product_faq");
+            assertThat($(TextField.class, flow).withCondition(field -> "Try a search".equals(field.getLabel()))
+                    .all()).hasSize(1);
 
             test($(Button.class, flow).withCondition(button -> "Remove search_faq".equals(
                     button.getAriaLabel().orElse(null))).first()).click();

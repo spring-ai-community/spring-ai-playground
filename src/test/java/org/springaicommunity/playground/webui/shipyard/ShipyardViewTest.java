@@ -219,7 +219,7 @@ class ShipyardViewTest extends SpringBrowserlessTest {
         assertThat($(H3.class, view).all().stream().map(H3::getText).toList())
                 .contains("Anything as an MCP server");
         assertThat($(Button.class, view).all().stream().map(Button::getText).toList())
-                .contains("Ship New Server");
+                .contains("Ship New Server", "Open Vector Database");
     }
 
     private Button headerShipButton(ShipyardView view) {

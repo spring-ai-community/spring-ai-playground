@@ -25,6 +25,7 @@ import org.springaicommunity.playground.service.tool.ToolSpec;
 import org.springaicommunity.playground.service.tool.ToolSpec.CodeType;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
 import org.springaicommunity.playground.service.vectorstore.RagPipeline;
+import org.springaicommunity.playground.service.vectorstore.ConfiguredKnowledgeLoader;
 import org.springaicommunity.playground.service.vectorstore.RagPipelineService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.bind.Binder;
@@ -83,6 +84,8 @@ class ConfiguredBundleExporterTest {
 
     @Autowired
     private KnowledgeContribution knowledgeContribution;
+    @Autowired
+    private ConfiguredKnowledgeLoader knowledgeLoader;
 
     @Autowired
     private Path springAiPlaygroundHomeDir;
@@ -213,7 +216,7 @@ class ConfiguredBundleExporterTest {
                 .resolve("auto-run-test"), properties, Set.of(), commands);
         ConfiguredBundleExporter autoRunExporter = new ConfiguredBundleExporter(options, this.springAiPlaygroundHomeDir,
                 this.bundleExportService, this.bundleRegistryService, this.artifactWriter, this.toolSpecService,
-                deployTargets, this.freshnessService, this.knowledgeContribution);
+                deployTargets, this.freshnessService, this.knowledgeContribution, this.knowledgeLoader);
 
         autoRunExporter.reconcile(options.shipyard().servers().getFirst());
 

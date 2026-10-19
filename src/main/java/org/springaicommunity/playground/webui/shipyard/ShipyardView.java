@@ -43,6 +43,8 @@ import org.springaicommunity.playground.service.mcp.bundle.ShipyardService;
 import org.springaicommunity.playground.service.mcp.bundle.ShipyardService.ServerSummary;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.service.tool.ToolCategoryCatalog;
+import org.springaicommunity.playground.webui.vectorstore.VectorStoreView;
+import org.springaicommunity.playground.service.vectorstore.KnowledgeSearchService;
 import org.springaicommunity.playground.webui.SpringAiPlaygroundAppLayout;
 import org.springaicommunity.playground.webui.VaadinUtils;
 import org.springaicommunity.playground.webui.common.ContentWorkspaceView;
@@ -62,6 +64,7 @@ public class ShipyardView extends ContentWorkspaceView {
     private final ShipyardService shipyardService;
     private final RunPlanner runPlanner;
     private final ToolCategoryCatalog categoryCatalog;
+    private final KnowledgeSearchService knowledgeSearchService;
 
     private final VerticalLayout serverList = new VerticalLayout();
     private final Button shipButton;
@@ -69,8 +72,9 @@ public class ShipyardView extends ContentWorkspaceView {
 
     public ShipyardView(BundleExportService bundleExportService, DeployTargetService deployTargetService,
             ConnectionSnippetService connectionSnippetService, ShipyardService shipyardService,
-            RunPlanner runPlanner, ToolCategoryCatalog categoryCatalog) {
+            RunPlanner runPlanner, ToolCategoryCatalog categoryCatalog, KnowledgeSearchService knowledgeSearchService) {
         this.bundleExportService = bundleExportService;
+        this.knowledgeSearchService = knowledgeSearchService;
         this.deployTargetService = deployTargetService;
         this.connectionSnippetService = connectionSnippetService;
         this.shipyardService = shipyardService;
@@ -99,6 +103,10 @@ public class ShipyardView extends ContentWorkspaceView {
     }
 
     public static void requestShipFlowWith(ShipRequest prefill) {
+        requestShipFlowWith(ShipFlowPrefill.of(prefill));
+    }
+
+    public static void requestShipFlowWith(ShipFlowPrefill prefill) {
         UI ui = UI.getCurrent();
         ComponentUtil.setData(ui, FLOW_PRESELECTION_KEY, prefill);
         ui.navigate(ShipyardView.class);
@@ -108,16 +116,16 @@ public class ShipyardView extends ContentWorkspaceView {
     protected void onAttach(AttachEvent attachEvent) {
         super.onAttach(attachEvent);
         Object preselection = ComponentUtil.getData(attachEvent.getUI(), FLOW_PRESELECTION_KEY);
-        if (preselection instanceof ShipRequest prefill) {
+        if (preselection instanceof ShipFlowPrefill prefill) {
             ComponentUtil.setData(attachEvent.getUI(), FLOW_PRESELECTION_KEY, null);
             openShipFlow(prefill);
         }
     }
 
-    private void openShipFlow(ShipRequest prefill) {
+    private void openShipFlow(ShipFlowPrefill prefill) {
         this.shipButton.setEnabled(false);
-        setContent(new ShipFlowView(this.shipyardService, this.bundleExportService, this.categoryCatalog, prefill,
-                this::showSuccess, this::closeShipFlow));
+        setContent(new ShipFlowView(this.shipyardService, this.bundleExportService, this.categoryCatalog,
+                this.knowledgeSearchService, prefill, this::showSuccess, this::closeShipFlow));
     }
 
     private void closeShipFlow() {
@@ -223,13 +231,18 @@ public class ShipyardView extends ContentWorkspaceView {
         VerticalLayout layout = new VerticalLayout();
         layout.setAlignItems(VerticalLayout.Alignment.CENTER);
         layout.add(new H3("Anything as an MCP server"));
-        Span copy = new Span("Compose your Local Pass tools and proxied external tools into a standalone "
-                + "MCP server, run it with Docker and hand out the connection.");
+        Span copy = new Span("Compose your Local Pass tools, proxied external tools and the knowledge you "
+                + "embedded in Vector Database into a standalone MCP server, run it with Docker and hand out the "
+                + "connection.");
         copy.getStyle().set("max-width", "480px").set("text-align", "center");
         Button shipNew = new Button("Ship New Server", VaadinIcon.PLUS.create(),
                 e -> openShipFlow(null));
         shipNew.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-        layout.add(copy, shipNew);
+        Button openVectorDatabase = new Button("Open Vector Database", VaadinIcon.DATABASE.create(),
+                e -> UI.getCurrent().navigate(VectorStoreView.class));
+        openVectorDatabase.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
+        openVectorDatabase.setTooltipText("Embed documents first to ship them as search tools");
+        layout.add(copy, new HorizontalLayout(shipNew, openVectorDatabase));
         Div wrapper = new Div(layout);
         wrapper.setSizeFull();
         return wrapper;
@@ -275,7 +288,7 @@ public class ShipyardView extends ContentWorkspaceView {
 
     private void rebuildBundle(BundleEntry entry) {
         try {
-            openShipFlow(this.shipyardService.rebuildRequest(entry.name()));
+            openShipFlow(ShipFlowPrefill.of(this.shipyardService.rebuildRequest(entry.name())));
         } catch (IllegalStateException e) {
             VaadinUtils.showErrorNotification(e.getMessage());
         }

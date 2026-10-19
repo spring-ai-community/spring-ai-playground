@@ -224,7 +224,8 @@ class KnowledgeContributionTest {
         assertThat(dump.values()).allSatisfy(entry -> assertThat(((Map<?, ?>) ((Map<?, ?>) entry).get("metadata"))
                 .get(VectorStoreService.DOC_INFO_ID)).isEqualTo(this.shippedDocument.docInfoId()));
         assertThat(manifest.integrity().files()).containsKey("home/" + KnowledgeContribution.DUMP_FILE);
-        assertThat(manifest.provenance().sources()).containsKey("knowledge:search_qa_pipeline");
+        assertThat(manifest.provenance().sources()).containsKey("knowledge:search_qa_pipeline/pipeline")
+                .containsKey("knowledge:search_qa_pipeline/doc:QA Notes");
         assertThat(Files.readString(result.bundleDir().resolve("README.md"))).contains("## Knowledge")
                 .contains("`search_qa_pipeline`: 1 document(s), 2 chunks, top_k 5");
 
@@ -237,14 +238,14 @@ class KnowledgeContributionTest {
     void aPipelineEditChangesTheFingerprint() {
         ShipRequest request = this.bundleExportService.normalize(request(new Knowledge(this.pipeline.id(),
                 null, null, null)));
-        String before = this.bundleExportService.fingerprints(request).get("knowledge:search_qa_pipeline");
+        String before = this.bundleExportService.fingerprints(request).get("knowledge:search_qa_pipeline/pipeline");
 
         this.ragPipelineService.update(new RagPipeline(this.pipeline.id(), this.pipeline.name(),
                 this.pipeline.description(), this.pipeline.docInfoIds(), this.pipeline.preRetrieval(),
                 new RagPipeline.RetrievalConfig(null, 3, 0.9), this.pipeline.postRetrieval(),
                 this.pipeline.generation(), this.pipeline.createdAt(), this.pipeline.updatedAt()));
 
-        assertThat(this.bundleExportService.fingerprints(request).get("knowledge:search_qa_pipeline"))
+        assertThat(this.bundleExportService.fingerprints(request).get("knowledge:search_qa_pipeline/pipeline"))
                 .isNotEqualTo(before);
     }
 

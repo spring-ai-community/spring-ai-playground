@@ -16,6 +16,9 @@
 package org.springaicommunity.playground.webui.shipyard;
 
 import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.textfield.TextField;
+import com.vaadin.flow.component.textfield.IntegerField;
+import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.grid.Grid;
@@ -31,10 +34,13 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.tabs.Tab;
 import com.vaadin.flow.component.tabs.Tabs;
 import com.vaadin.flow.component.textfield.TextArea;
+import io.modelcontextprotocol.spec.McpSchema;
 import org.springaicommunity.playground.service.mcp.bundle.BundleArtifactWriter;
 import org.springaicommunity.playground.service.mcp.bundle.BundleDependencyMonitor;
 import org.springaicommunity.playground.service.mcp.bundle.BundleExportService;
 import org.springaicommunity.playground.service.mcp.bundle.BundleFreshnessService.Change;
+import org.springaicommunity.playground.service.mcp.bundle.KnowledgeContribution;
+import org.springaicommunity.playground.service.PersistenceServiceInterface;
 import org.springaicommunity.playground.service.mcp.bundle.BundleFreshnessService.SourceChange;
 import org.springaicommunity.playground.service.mcp.bundle.BundleManifest;
 import org.springaicommunity.playground.service.mcp.bundle.BundleRegistryService.BundleEntry;
@@ -64,6 +70,10 @@ public class ServerPageView extends Div {
     private final Map<Tab, Component> panelByTab = new LinkedHashMap<>();
     private final Div contentArea = new Div();
     private final Tabs tabs = new Tabs();
+    private final BundleEntry entry;
+    private final List<SourceChange> changes;
+    private final boolean live;
+    private Tab knowledgeTab;
 
     public ServerPageView(BundleEntry entry, DeployTarget target, DockerAvailability docker,
             ContainerStatus status, boolean managedByConfiguration, String image, Optional<String> authToken,
@@ -71,19 +81,19 @@ public class ServerPageView extends Div {
             List<SourceChange> changes, Actions actions) {
         this.shipyardService = shipyardService;
         this.connectionSnippetService = connectionSnippetService;
+        this.entry = entry;
+        this.changes = changes;
+        this.live = status.state() == ContainerState.RUNNING || status.state() == ContainerState.STARTING;
         int hostPort = status.hostPort() != null ? status.hostPort() : entry.effectiveHttpPort();
 
         add(hero(entry, target, docker, status, managedByConfiguration, !changes.isEmpty(), actions));
-        if (!changes.isEmpty()) {
-            add(outOfDateBanner(changes, managedByConfiguration,
-                    status.state() == ContainerState.RUNNING || status.state() == ContainerState.STARTING, actions));
-        }
 
         addTab("Overview", overviewPanel(entry, target, status, image, hostPort, authToken,
                 connectionSnippetService, testResult, actions));
         addTab("Tools (" + entry.manifest().contents().toolCount() + ")", toolsPanel(entry));
         if (!entry.manifest().contents().ragPipelines().isEmpty()) {
             addTab("Knowledge", knowledgePanel(entry));
+            this.knowledgeTab = this.panelByTab.keySet().stream().reduce((first, second) -> second).orElse(null);
         }
         addTab("Publish", publishPanel(entry, target));
         addTab("Files", filesPanel(entry));
@@ -94,6 +104,9 @@ public class ServerPageView extends Div {
         this.contentArea.getStyle().set("padding-top", "var(--lumo-space-m)");
         this.contentArea.add(this.panelByTab.values().iterator().next());
 
+        if (!changes.isEmpty()) {
+            add(outOfDateBanner(changes, managedByConfiguration, this.live, actions));
+        }
         add(this.tabs, this.contentArea);
         getStyle().set("padding", "var(--lumo-space-m) var(--lumo-space-l)")
                 .set("overflow-y", "auto").set("height", "100%");
@@ -191,9 +204,12 @@ public class ServerPageView extends Div {
             Actions actions) {
         Span title = new Span("Sources changed since this bundle was shipped");
         title.getStyle().set("font-weight", "600").set("display", "block");
-        Span detail = new Span(changes.stream()
+        List<String> parts = new ArrayList<>();
+        changes.stream().filter(change -> change.knowledge().isEmpty())
                 .map(change -> change.label() + (change.change() == Change.REMOVED ? " was removed" : " changed"))
-                .collect(Collectors.joining(", ")) + (managedByConfiguration
+                .forEach(parts::add);
+        parts.addAll(knowledgeSummaries(changes));
+        Span detail = new Span(String.join(", ", parts) + (managedByConfiguration
                         ? ". The configured server rebuilds on the next start." : ". The bundle still ships the "
                                 + "versions it was built with; rebuild to ship the current ones."));
         detail.getStyle().set("font-size", "var(--lumo-font-size-s)");
@@ -202,6 +218,11 @@ public class ServerPageView extends Div {
         banner.setWidthFull();
         banner.setAlignItems(HorizontalLayout.Alignment.CENTER);
         banner.expand(text);
+        if (changes.stream().anyMatch(change -> change.knowledge().isPresent()) && this.knowledgeTab != null) {
+            Button review = new Button("Review changes", e -> this.tabs.setSelectedTab(this.knowledgeTab));
+            review.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
+            banner.add(review);
+        }
         if (!managedByConfiguration) {
             Button rebuild = new Button("Rebuild", VaadinIcon.REFRESH.create(), e -> actions.rebuild().run());
             rebuild.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_SMALL);
@@ -219,6 +240,29 @@ public class ServerPageView extends Div {
                 .set("padding", "var(--lumo-space-s) var(--lumo-space-m)")
                 .set("margin", "var(--lumo-space-m) 0 0").set("box-sizing", "border-box");
         return banner;
+    }
+
+    static List<String> knowledgeSummaries(List<SourceChange> changes) {
+        Map<String, List<SourceChange>> byTool = new LinkedHashMap<>();
+        changes.forEach(change -> change.knowledge()
+                .ifPresent(key -> byTool.computeIfAbsent(key.tool(), tool -> new ArrayList<>()).add(change)));
+        List<String> summaries = new ArrayList<>();
+        byTool.forEach((tool, toolChanges) -> {
+            List<String> counts = new ArrayList<>();
+            long reEmbedded = toolChanges.stream().filter(change -> !change.knowledge().orElseThrow().pipeline()
+                    && change.change() == Change.CHANGED).count();
+            long deleted = toolChanges.stream().filter(change -> !change.knowledge().orElseThrow().pipeline()
+                    && change.change() == Change.REMOVED).count();
+            long added = toolChanges.stream().filter(change -> change.change() == Change.ADDED).count();
+            if (reEmbedded > 0) counts.add(reEmbedded + " re-embedded");
+            if (deleted > 0) counts.add(deleted + " deleted");
+            if (added > 0) counts.add(added + " added");
+            if (toolChanges.stream().anyMatch(change -> change.knowledge().orElseThrow().pipeline())) {
+                counts.add("pipeline changed");
+            }
+            summaries.add(tool + ": " + String.join(", ", counts));
+        });
+        return summaries;
     }
 
     private void showOverviewTab() {
@@ -292,6 +336,7 @@ public class ServerPageView extends Div {
                 .setFlexGrow(0);
         grid.addColumn(toolRisk -> toolRisk.hitl() ? "required" : "-").setHeader("HITL")
                 .setAutoWidth(true).setFlexGrow(0);
+        grid.addComponentColumn(this::tryButton).setHeader("Try").setAutoWidth(true).setFlexGrow(0);
         grid.setAllRowsVisible(true);
 
         VerticalLayout panel = new VerticalLayout(grid);
@@ -309,15 +354,100 @@ public class ServerPageView extends Div {
         return panel;
     }
 
-    private record KnowledgeRow(String tool, String source, String document, int chunks) {}
+    private Button tryButton(BundleManifest.ToolRisk toolRisk) {
+        Button tryButton = new Button("Try", VaadinIcon.PLAY.create(), e -> openTryDialog(toolRisk));
+        tryButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE, ButtonVariant.LUMO_SMALL);
+        tryButton.setEnabled(this.live);
+        tryButton.setTooltipText(this.live ? "Call this tool on the running server"
+                : "Run the server to try its tools");
+        return tryButton;
+    }
+
+    private void openTryDialog(BundleManifest.ToolRisk toolRisk) {
+        Dialog dialog = new Dialog();
+        dialog.setHeaderTitle("Try " + toolRisk.tool());
+        dialog.setWidth("640px");
+        boolean knowledge = "KNOWLEDGE".equals(toolRisk.kind());
+        TextField queryField = new TextField("Query");
+        queryField.setWidthFull();
+        IntegerField topKField = new IntegerField("top_k (optional)");
+        topKField.setMin(1);
+        TextArea argumentsField = new TextArea("Arguments (JSON)");
+        argumentsField.setValue("{}");
+        argumentsField.setWidthFull();
+        argumentsField.setMinHeight("120px");
+        Div output = new Div();
+        output.getStyle().set("white-space", "pre-wrap").set("font-size", "var(--lumo-font-size-s)")
+                .set("max-height", "40vh").set("overflow-y", "auto");
+        Button run = new Button("Run", VaadinIcon.PLAY.create(), e -> {
+            output.removeAll();
+            try {
+                Map<String, Object> arguments = knowledge ? knowledgeArguments(queryField.getValue(),
+                        topKField.getValue()) : parseArguments(argumentsField.getValue());
+                McpSchema.CallToolResult result = this.shipyardService.callTool(this.entry.name(), toolRisk.tool(),
+                        arguments);
+                String text = result.content().stream().filter(McpSchema.TextContent.class::isInstance)
+                        .map(McpSchema.TextContent.class::cast).map(McpSchema.TextContent::text)
+                        .collect(Collectors.joining("\n\n"));
+                Span answer = new Span(text.isBlank() ? "(no text content)" : text);
+                if (Boolean.TRUE.equals(result.isError())) {
+                    answer.getStyle().set("color", "var(--lumo-error-text-color)");
+                }
+                output.add(answer);
+            } catch (RuntimeException ex) {
+                Span failure = new Span("Call failed: " + ex.getMessage());
+                failure.getStyle().set("color", "var(--lumo-error-text-color)");
+                output.add(failure);
+            }
+        });
+        run.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        VerticalLayout layout = new VerticalLayout(knowledge ? new HorizontalLayout(queryField, topKField)
+                : argumentsField, output);
+        layout.setPadding(false);
+        dialog.add(layout);
+        dialog.getFooter().add(new Button("Close", e -> dialog.close()), run);
+        dialog.open();
+    }
+
+    private static Map<String, Object> knowledgeArguments(String query, Integer topK) {
+        Map<String, Object> arguments = new LinkedHashMap<>();
+        arguments.put("query", Objects.requireNonNullElse(query, ""));
+        if (topK != null) arguments.put("top_k", topK);
+        return arguments;
+    }
+
+    private static Map<String, Object> parseArguments(String json) {
+        if (json == null || json.isBlank()) return Map.of();
+        try {
+            return PersistenceServiceInterface.OBJECT_MAPPER.readValue(json,
+                    PersistenceServiceInterface.MAP_TYPE_REFERENCE);
+        } catch (RuntimeException e) {
+            throw new IllegalArgumentException("Arguments must be a JSON object: " + e.getMessage(), e);
+        }
+    }
+
+    private record KnowledgeRow(String tool, String source, String document, String chunks, String status) {}
 
     private Component knowledgePanel(BundleEntry entry) {
+        Map<String, SourceChange> changeByKey = new LinkedHashMap<>();
+        this.changes.forEach(change -> changeByKey.put(change.source(), change));
         List<KnowledgeRow> rows = new ArrayList<>();
         for (BundleManifest.RagPipelineRef ref : entry.manifest().contents().ragPipelines()) {
+            String source = Objects.requireNonNullElse(ref.source(), ref.id());
+            Map<String, Long> titleCounts = ref.documents().stream()
+                    .collect(Collectors.groupingBy(BundleManifest.DocumentRef::title, Collectors.counting()));
             for (BundleManifest.DocumentRef document : ref.documents()) {
-                rows.add(new KnowledgeRow(ref.alias(), Objects.requireNonNullElse(ref.source(), ref.id()),
-                        document.title(), document.chunks()));
+                String documentKey = titleCounts.getOrDefault(document.title(), 1L) > 1
+                        ? document.title() + "#" + document.docInfoId() : document.title();
+                SourceChange change = changeByKey.get(KnowledgeContribution.SOURCE_PREFIX + ref.alias()
+                        + KnowledgeContribution.DOCUMENT_SOURCE_SUFFIX + documentKey);
+                rows.add(new KnowledgeRow(ref.alias(), source, document.title(), String.valueOf(document.chunks()),
+                        change == null ? "Unchanged" : change.change() == Change.REMOVED ? "Removed" : "Changed"));
             }
+            this.changes.stream().filter(change -> change.change() == Change.ADDED)
+                    .filter(change -> change.knowledge().map(key -> key.tool().equals(ref.alias())).orElse(false))
+                    .forEach(change -> rows.add(new KnowledgeRow(ref.alias(), source,
+                            Objects.requireNonNullElse(change.detail(), change.label()), "-", "Added, not shipped")));
         }
         Span lead = new Span("A snapshot of the documents each knowledge tool searches, taken when the server was "
                 + "shipped. Re-ship to pick up changes; the Out of date banner tells you when.");
@@ -327,11 +457,23 @@ public class ServerPageView extends Div {
         grid.addColumn(KnowledgeRow::tool).setHeader("Tool").setAutoWidth(true).setFlexGrow(0);
         grid.addColumn(KnowledgeRow::document).setHeader("Document");
         grid.addColumn(KnowledgeRow::chunks).setHeader("Chunks").setAutoWidth(true).setFlexGrow(0);
+        grid.addColumn(KnowledgeRow::status).setHeader("Status").setAutoWidth(true).setFlexGrow(0);
         grid.addColumn(KnowledgeRow::source).setHeader("Source").setAutoWidth(true).setFlexGrow(0);
         grid.setAllRowsVisible(true);
         VerticalLayout panel = new VerticalLayout(lead, grid);
+        snapshotSize(entry).ifPresent(size -> panel.add(factLine("Snapshot", size + " vector dump in the bundle")));
         panel.setPadding(false);
         return panel;
+    }
+
+    private Optional<String> snapshotSize(BundleEntry entry) {
+        try {
+            return this.shipyardService.bundleFiles(entry.name()).stream()
+                    .filter(file -> file.path().endsWith("simpleVectorStore.json")).findFirst()
+                    .map(file -> sizeLabel(file.bytes()));
+        } catch (RuntimeException e) {
+            return Optional.empty();
+        }
     }
 
     private Component publishPanel(BundleEntry entry, DeployTarget target) {

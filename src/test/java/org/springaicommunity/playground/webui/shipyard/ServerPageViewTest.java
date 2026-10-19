@@ -229,7 +229,8 @@ class ServerPageViewTest extends SpringBrowserlessTest {
         assertThat(knowledge.getCellText(0, 0)).isEqualTo("search_handbook");
         assertThat(knowledge.getCellText(0, 1)).isEqualTo("Handbook");
         assertThat(knowledge.getCellText(0, 2)).isEqualTo("7");
-        assertThat(knowledge.getCellText(0, 3)).isEqualTo("kb-pipe");
+        assertThat(knowledge.getCellText(0, 3)).isEqualTo("Unchanged");
+        assertThat(knowledge.getCellText(0, 4)).isEqualTo("kb-pipe");
 
         test(tabs).select("Tools (2)");
         GridTester<Grid<?>, ?> tools = test($(Grid.class, page).first());
@@ -321,6 +322,79 @@ class ServerPageViewTest extends SpringBrowserlessTest {
         assertThat(spanTexts(page)).contains("Stop the server to rebuild");
         assertThat($(Button.class, page).withCondition(button -> "Rebuild".equals(button.getText())).first()
                 .isEnabled()).isFalse();
+    }
+
+    @Test
+    void knowledgeChangesAreSummarizedPerToolAndListedWithTheirStatus() {
+        shipBundle(Transport.BOTH, 18400);
+        BundleEntry shipped = this.bundleRegistryService.find(SERVER_NAME).orElseThrow();
+        BundleManifest manifest = shipped.manifest();
+        BundleManifest.RagPipelineRef ref = new BundleManifest.RagPipelineRef("kb-pipe",
+                new BundleManifest.Expose(true, false), "search_handbook", "Search the handbook", "kb-pipe", 3,
+                List.of(new BundleManifest.DocumentRef("doc-1", "Handbook", 7),
+                        new BundleManifest.DocumentRef("doc-2", "Policies", 4)));
+        BundleManifest withKnowledge = new BundleManifest(manifest.bundleVersion(), manifest.server(),
+                manifest.requires(), new BundleManifest.Contents(manifest.contents().tools(), null, List.of(ref), null),
+                manifest.risk(), manifest.integrity(), manifest.provenance());
+        BundleEntry entry = new BundleEntry(shipped.name(), withKnowledge, shipped.dir(), shipped.buildConfig());
+        List<SourceChange> changes = List.of(
+                new SourceChange("knowledge:search_handbook/doc:Handbook", Change.CHANGED, "Handbook"),
+                new SourceChange("knowledge:search_handbook/doc:Policies", Change.REMOVED, "Policies"),
+                new SourceChange("knowledge:search_handbook/doc:Release notes", Change.ADDED, "Release notes"),
+                new SourceChange("knowledge:search_handbook/pipeline", Change.CHANGED),
+                new SourceChange("tool:pageEchoTool", Change.CHANGED));
+
+        ServerPageView page = new ServerPageView(entry, DeployTarget.local(), new DockerAvailability(true, true, "29.3.1"),
+                new ContainerStatus(ContainerState.ABSENT, null), false, "latest", Optional.empty(),
+                this.connectionSnippetService, this.shipyardService, new Span(), changes, noActions());
+        UI.getCurrent().add(page);
+
+        assertThat(ServerPageView.knowledgeSummaries(changes))
+                .containsExactly("search_handbook: 1 re-embedded, 1 deleted, 1 added, pipeline changed");
+        assertThat(spanTexts(page)).anyMatch(text -> text.startsWith("pageEchoTool changed, search_handbook: "
+                + "1 re-embedded, 1 deleted, 1 added, pipeline changed."));
+        Tabs tabs = $(Tabs.class, page).first();
+        $(Button.class, page).withCondition(button -> "Review changes".equals(button.getText())).first().click();
+        assertThat(tabs.getSelectedTab().getLabel()).isEqualTo("Knowledge");
+        GridTester<Grid<?>, ?> knowledge = test($(Grid.class, page).first());
+        assertThat(knowledge.size()).isEqualTo(3);
+        assertThat(knowledge.getCellText(0, 3)).isEqualTo("Changed");
+        assertThat(knowledge.getCellText(1, 3)).isEqualTo("Removed");
+        assertThat(knowledge.getCellText(2, 1)).isEqualTo("Release notes");
+        assertThat(knowledge.getCellText(2, 3)).isEqualTo("Added, not shipped");
+    }
+
+    @Test
+    void theTryButtonOnlyWorksWhileTheServerRuns() {
+        shipBundle(Transport.BOTH, 18400);
+        BundleEntry entry = this.bundleRegistryService.find(SERVER_NAME).orElseThrow();
+
+        ServerPageView stopped = new ServerPageView(entry, DeployTarget.local(),
+                new DockerAvailability(true, true, "29.3.1"), new ContainerStatus(ContainerState.ABSENT, null), false,
+                "latest", Optional.empty(), this.connectionSnippetService, this.shipyardService, new Span(),
+                List.of(), noActions());
+        UI.getCurrent().add(stopped);
+        test($(Tabs.class, stopped).first()).select(toolsTabLabel(stopped));
+        GridTester<Grid<?>, ?> tools = test($(Grid.class, stopped).first());
+        assertThat(((Button) tools.getCellComponent(0, 5)).isEnabled()).isFalse();
+        UI.getCurrent().remove(stopped);
+
+        ServerPageView running = new ServerPageView(entry, DeployTarget.local(),
+                new DockerAvailability(true, true, "29.3.1"), new ContainerStatus(ContainerState.RUNNING, 18400),
+                false, "latest", Optional.empty(), this.connectionSnippetService, this.shipyardService, new Span(),
+                List.of(), noActions());
+        UI.getCurrent().add(running);
+        test($(Tabs.class, running).first()).select(toolsTabLabel(running));
+        GridTester<Grid<?>, ?> liveTools = test($(Grid.class, running).first());
+        Button tryButton = (Button) liveTools.getCellComponent(0, 5);
+        assertThat(tryButton.isEnabled()).isTrue();
+        test(tryButton).click();
+        assertThat($(Dialog.class).all().stream().anyMatch(Dialog::isOpened)).isTrue();
+    }
+
+    private String toolsTabLabel(ServerPageView page) {
+        return $(Tabs.class, page).first().getChildren().map(tab -> tab.getElement().getText())
+                .filter(label -> label.startsWith("Tools")).findFirst().orElseThrow();
     }
 
     @Test

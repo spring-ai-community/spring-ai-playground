@@ -21,17 +21,50 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 public class BundleFreshnessService {
 
-    public enum Change { CHANGED, REMOVED }
+    public enum Change { CHANGED, REMOVED, ADDED }
 
-    public record SourceChange(String source, Change change) {
+    public record SourceChange(String source, Change change, String detail) {
+
+        public SourceChange(String source, Change change) {
+            this(source, change, null);
+        }
 
         public String label() {
             int separator = source.indexOf(':');
             return separator < 0 ? source : source.substring(separator + 1);
+        }
+
+        public Optional<KnowledgeSourceKey> knowledge() {
+            return KnowledgeSourceKey.parse(this.source);
+        }
+    }
+
+    public record KnowledgeSourceKey(String tool, String document) {
+
+        public boolean pipeline() {
+            return this.document == null;
+        }
+
+        public static Optional<KnowledgeSourceKey> parse(String source) {
+            if (source == null || !source.startsWith(KnowledgeContribution.SOURCE_PREFIX)) return Optional.empty();
+            String rest = source.substring(KnowledgeContribution.SOURCE_PREFIX.length());
+            int slash = rest.indexOf('/');
+            if (slash < 0) return Optional.empty();
+            String tool = rest.substring(0, slash);
+            String part = rest.substring(slash);
+            if (part.equals(KnowledgeContribution.PIPELINE_SOURCE_SUFFIX)) {
+                return Optional.of(new KnowledgeSourceKey(tool, null));
+            }
+            if (part.startsWith(KnowledgeContribution.DOCUMENT_SOURCE_SUFFIX)) {
+                return Optional.of(new KnowledgeSourceKey(tool,
+                        part.substring(KnowledgeContribution.DOCUMENT_SOURCE_SUFFIX.length())));
+            }
+            return Optional.empty();
         }
     }
 
@@ -49,12 +82,23 @@ public class BundleFreshnessService {
         shipped.forEach((source, fingerprint) -> {
             String now = current.get(source);
             if (now == null) {
-                changes.add(new SourceChange(source, Change.REMOVED));
+                changes.add(new SourceChange(source, Change.REMOVED, documentOf(source)));
             } else if (!now.equals(fingerprint)) {
-                changes.add(new SourceChange(source, Change.CHANGED));
+                changes.add(new SourceChange(source, Change.CHANGED, documentOf(source)));
             }
         });
+        current.forEach((source, fingerprint) -> {
+            if (shipped.containsKey(source)) return;
+            KnowledgeSourceKey.parse(source).filter(key -> !key.pipeline())
+                    .filter(key -> shipped.keySet().stream().anyMatch(shippedSource -> shippedSource.startsWith(
+                            KnowledgeContribution.SOURCE_PREFIX + key.tool() + "/")))
+                    .ifPresent(key -> changes.add(new SourceChange(source, Change.ADDED, key.document())));
+        });
         return changes;
+    }
+
+    private static String documentOf(String source) {
+        return KnowledgeSourceKey.parse(source).map(KnowledgeSourceKey::document).orElse(null);
     }
 
 }

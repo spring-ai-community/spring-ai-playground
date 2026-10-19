@@ -24,6 +24,7 @@ import org.springaicommunity.playground.service.mcp.bundle.BundleRegistryService
 import org.springaicommunity.playground.service.mcp.bundle.DockerCliService.ContainerState;
 import org.springaicommunity.playground.service.mcp.risk.McpComposition;
 import org.springaicommunity.playground.service.tool.ToolSpec;
+import org.springaicommunity.playground.service.vectorstore.ConfiguredKnowledgeLoader;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.ApplicationListener;
@@ -53,13 +54,14 @@ public class ConfiguredBundleExporter implements ApplicationListener<Application
     private final DeployTargetService deployTargetService;
     private final BundleFreshnessService freshnessService;
     private final KnowledgeContribution knowledgeContribution;
+    private final ConfiguredKnowledgeLoader knowledgeLoader;
     private final Map<String, String> problems = new ConcurrentHashMap<>();
 
     public ConfiguredBundleExporter(SpringAiPlaygroundOptions playgroundOptions, Path springAiPlaygroundHomeDir,
             BundleExportService bundleExportService, BundleRegistryService registryService,
             BundleArtifactWriter artifactWriter, ToolSpecService toolSpecService,
             DeployTargetService deployTargetService, BundleFreshnessService freshnessService,
-            KnowledgeContribution knowledgeContribution) {
+            KnowledgeContribution knowledgeContribution, ConfiguredKnowledgeLoader knowledgeLoader) {
         this.configuredServers = playgroundOptions.shipyard().servers();
         this.homeDir = springAiPlaygroundHomeDir;
         this.bundleExportService = bundleExportService;
@@ -69,6 +71,7 @@ public class ConfiguredBundleExporter implements ApplicationListener<Application
         this.deployTargetService = deployTargetService;
         this.freshnessService = freshnessService;
         this.knowledgeContribution = knowledgeContribution;
+        this.knowledgeLoader = knowledgeLoader;
     }
 
     @Override
@@ -76,7 +79,7 @@ public class ConfiguredBundleExporter implements ApplicationListener<Application
         if (Files.isRegularFile(this.homeDir.resolve(BundleManifest.FILE_NAME))) {
             return;
         }
-        this.configuredServers.forEach(this::reconcile);
+        this.knowledgeLoader.whenLoaded().thenRun(() -> this.configuredServers.forEach(this::reconcile));
     }
 
     public Map<String, String> problems() {
@@ -139,7 +142,7 @@ public class ConfiguredBundleExporter implements ApplicationListener<Application
         runner.start();
     }
 
-    ShipRequest toRequest(ShipyardServer server) {
+    public ShipRequest toRequest(ShipyardServer server) {
         Map<String, String> toolIdsByName = this.toolSpecService.getToolSpecList().stream()
                 .collect(Collectors.toMap(ToolSpec::name, ToolSpec::toolId, (first, second) -> first));
         List<String> unknown = server.tools().stream().filter(name -> !toolIdsByName.containsKey(name)).toList();

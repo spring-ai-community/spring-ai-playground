@@ -26,6 +26,7 @@ import org.springaicommunity.playground.service.mcp.ManagementToolNames;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.tool.ToolManifest.Sandbox.RiskLevel;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
+import org.springaicommunity.playground.service.vectorstore.KnowledgeSearchService;
 import org.springaicommunity.playground.service.vectorstore.OfflineEtlPipelineService;
 import org.springaicommunity.playground.service.vectorstore.RagPipeline;
 import org.springaicommunity.playground.service.vectorstore.RagPipelineExecutor;
@@ -62,15 +63,16 @@ import java.util.stream.Collectors;
 public class KnowledgeContribution implements BundleContribution {
 
     public static final String TOOL_NAME_PREFIX = "search_";
-    public static final int MAX_TOP_K = 20;
+    public static final int MAX_TOP_K = KnowledgeSearchService.MAX_TOP_K;
     static final int MAX_TOOL_NAME_LENGTH = 64;
-    static final int OUTPUT_CHAR_BUDGET = 24_000;
+    static final int OUTPUT_CHAR_BUDGET = KnowledgeSearchService.OUTPUT_CHAR_BUDGET;
     static final String PIPELINES_DIR = "vectorstore/pipelines/";
-    public static final String CHUNK_INDEX_METADATA = "chunk_index";
+    public static final String CHUNK_INDEX_METADATA = KnowledgeSearchService.CHUNK_INDEX_METADATA;
     static final String DUMP_FILE = "vectorstore/simpleVectorStore/simpleVectorStore.json";
     static final Pattern TOOL_NAME_PATTERN = Pattern.compile("[a-z0-9_]{1,64}");
-    private static final String SOURCE_PREFIX = "knowledge:";
-    private static final String DOCUMENT_SOURCE_ID_PREFIX = "doc-";
+    public static final String SOURCE_PREFIX = "knowledge:";
+    public static final String PIPELINE_SOURCE_SUFFIX = "/pipeline";
+    public static final String DOCUMENT_SOURCE_SUFFIX = "/doc:";
     private static final int TITLES_IN_DESCRIPTION = 5;
     private static final Logger logger = LoggerFactory.getLogger(KnowledgeContribution.class);
 
@@ -90,6 +92,7 @@ public class KnowledgeContribution implements BundleContribution {
     private final ObjectProvider<RagPipelineExecutor> executorProvider;
     private final ObjectProvider<ToolSpecService> toolSpecServiceProvider;
     private final ObjectProvider<EmbeddingModel> embeddingModelProvider;
+    private final KnowledgeSearchService knowledgeSearchService;
     private final Path homeDir;
 
     public KnowledgeContribution(RagPipelineService ragPipelineService,
@@ -99,7 +102,8 @@ public class KnowledgeContribution implements BundleContribution {
             ObjectProvider<VectorStoreDocumentPersistenceService> persistenceProvider,
             ObjectProvider<RagPipelineExecutor> executorProvider,
             ObjectProvider<ToolSpecService> toolSpecServiceProvider,
-            ObjectProvider<EmbeddingModel> embeddingModelProvider, Path springAiPlaygroundHomeDir) {
+            ObjectProvider<EmbeddingModel> embeddingModelProvider, KnowledgeSearchService knowledgeSearchService,
+            Path springAiPlaygroundHomeDir) {
         this.ragPipelineService = ragPipelineService;
         this.documentsProvider = documentsProvider;
         this.vectorStoreProvider = vectorStoreProvider;
@@ -108,6 +112,7 @@ public class KnowledgeContribution implements BundleContribution {
         this.executorProvider = executorProvider;
         this.toolSpecServiceProvider = toolSpecServiceProvider;
         this.embeddingModelProvider = embeddingModelProvider;
+        this.knowledgeSearchService = knowledgeSearchService;
         this.homeDir = springAiPlaygroundHomeDir;
     }
 
@@ -117,10 +122,8 @@ public class KnowledgeContribution implements BundleContribution {
         if (sourceId.startsWith(ChatService.RAG_DOCUMENT_SOURCE_PREFIX)) {
             String docInfoId = sourceId.substring(ChatService.RAG_DOCUMENT_SOURCE_PREFIX.length());
             return knowledgeDocuments.stream().filter(info -> docInfoId.equals(info.docInfoId())).findFirst()
-                    .map(info -> new Source(sourceId, new RagPipeline(DOCUMENT_SOURCE_ID_PREFIX + docInfoId,
-                            info.title(), info.description(), List.of(docInfoId), null, null, null,
-                            new RagPipeline.GenerationConfig(true, null, null, false), 0L, 0L),
-                            List.of(info), List.of(), true));
+                    .map(info -> new Source(sourceId, KnowledgeSearchService.documentPipeline(info), List.of(info),
+                            List.of(), true));
         }
         return this.ragPipelineService.get(sourceId).map(pipeline -> {
             if (pipeline.docInfoIds().isEmpty()) {
@@ -161,7 +164,8 @@ public class KnowledgeContribution implements BundleContribution {
     }
 
     public static String defaultDescription(Source source) {
-        List<String> titles = source.documents().stream().map(VectorStoreDocumentInfo::title).toList();
+        List<String> titles = source.documents().stream().map(VectorStoreDocumentInfo::title)
+                .sorted(String.CASE_INSENSITIVE_ORDER).toList();
         StringBuilder description = new StringBuilder("Search the ").append(source.name())
                 .append(" knowledge base (").append(titles.size()).append(titles.size() == 1 ? " document" : " documents");
         if (!titles.isEmpty()) {
@@ -304,7 +308,7 @@ public class KnowledgeContribution implements BundleContribution {
                 : vectorStoreService == null ? null : vectorStoreService.getSearchRequestOption().similarityThreshold();
         RagPipeline.GenerationConfig generation = pipeline.generation();
         return new RagPipeline(pipeline.id(), pipeline.name(), pipeline.description(),
-                source.documents().stream().map(VectorStoreDocumentInfo::docInfoId).toList(),
+                source.documents().stream().map(VectorStoreDocumentInfo::docInfoId).sorted().toList(),
                 pipeline.preRetrieval(),
                 new RagPipeline.RetrievalConfig(retrieval.extraFilterExpression(),
                         topK != null ? topK : effectiveTopK(pipeline), threshold),
@@ -385,19 +389,31 @@ public class KnowledgeContribution implements BundleContribution {
             Optional<Source> resolved = resolve(knowledge.sourceId());
             if (resolved.isEmpty()) continue;
             Source source = resolved.get();
-            StringBuilder canonical = new StringBuilder();
+            String key = SOURCE_PREFIX + knowledge.toolName();
             RagPipeline frozen = freeze(source, knowledge.topK()).withTimestamps(0L, 0L);
-            canonical.append(PersistenceServiceInterface.OBJECT_MAPPER.writeValueAsString(frozen)).append('\n');
+            fingerprints.put(key + PIPELINE_SOURCE_SUFFIX, BundleExportService.sha256(
+                    PersistenceServiceInterface.OBJECT_MAPPER.writeValueAsString(frozen)
+                            .getBytes(StandardCharsets.UTF_8)));
+            Map<String, Long> titleCounts = source.documents().stream()
+                    .collect(Collectors.groupingBy(VectorStoreDocumentInfo::title, Collectors.counting()));
             source.documents().stream().sorted((first, second) -> first.docInfoId().compareTo(second.docInfoId()))
-                    .forEach(info -> canonical.append(info.docInfoId()).append('=')
-                            .append(documentFingerprint(info)).append('\n'));
-            fingerprints.put(SOURCE_PREFIX + knowledge.toolName(),
-                    BundleExportService.sha256(canonical.toString().getBytes(StandardCharsets.UTF_8)));
+                    .forEach(info -> fingerprints.put(key + DOCUMENT_SOURCE_SUFFIX + documentKey(info, titleCounts),
+                            documentFingerprint(info)));
         }
         return fingerprints;
     }
 
+    public static String documentKey(VectorStoreDocumentInfo info, Map<String, Long> titleCounts) {
+        return titleCounts.getOrDefault(info.title(), 1L) > 1 ? info.title() + "#" + info.docInfoId() : info.title();
+    }
+
+    public Optional<String> documentTitle(String docInfoId) {
+        return knowledgeDocuments().stream().filter(info -> info.docInfoId().equals(docInfoId))
+                .map(VectorStoreDocumentInfo::title).findFirst();
+    }
+
     private String documentFingerprint(VectorStoreDocumentInfo info) {
+        if (info.sourceFingerprint() != null) return info.sourceFingerprint();
         Optional<Path> saved = savedDocumentFile(info.docInfoId());
         if (saved.isPresent()) {
             try {
@@ -526,75 +542,34 @@ public class KnowledgeContribution implements BundleContribution {
             return McpSchema.CallToolResult.builder().isError(true)
                     .addTextContent("top_k must be between 1 and " + MAX_TOP_K).build();
         }
-        RagPipelineExecutor executor = this.executorProvider.getIfAvailable();
-        Optional<RagPipeline> pipeline = this.ragPipelineService.get(ref.id());
-        if (executor == null || pipeline.isEmpty()) {
+        KnowledgeSearchService.SearchResult result;
+        try {
+            result = this.knowledgeSearchService.search(ref.id(), queryArgument.toString(), topK, titlesOf(ref));
+        } catch (IllegalStateException e) {
             return McpSchema.CallToolResult.builder().isError(true)
                     .addTextContent("knowledge pipeline for '" + ref.alias() + "' is not available").build();
-        }
-        RagPipeline effective = topK == null ? pipeline.get() : withTopK(pipeline.get(), topK);
-        List<Document> documents;
-        try {
-            documents = executor.executeForChat(effective, queryArgument.toString(), List.of(), null).finalDocs();
         } catch (RuntimeException e) {
             logger.warn("Knowledge tool '{}' failed: {}", ref.alias(), e.getMessage());
             return McpSchema.CallToolResult.builder().isError(true)
                     .addTextContent("search failed: " + e.getMessage()).build();
         }
-        return render(ref, documents);
-    }
-
-    private static Integer chunkNumber(Document document) {
-        Object index = document.getMetadata().get(CHUNK_INDEX_METADATA);
-        return index instanceof Number number ? number.intValue() + 1 : null;
+        return toCallToolResult(result);
     }
 
     McpSchema.CallToolResult render(BundleManifest.RagPipelineRef ref, List<Document> documents) {
+        return toCallToolResult(this.knowledgeSearchService.render(documents, titlesOf(ref)));
+    }
+
+    static McpSchema.CallToolResult toCallToolResult(KnowledgeSearchService.SearchResult result) {
+        List<McpSchema.Content> content = result.asTexts().stream()
+                .<McpSchema.Content>map(McpSchema.TextContent::new).toList();
+        return McpSchema.CallToolResult.builder().content(content).structuredContent(result.asStructured()).build();
+    }
+
+    private static Map<String, String> titlesOf(BundleManifest.RagPipelineRef ref) {
         Map<String, String> titles = new LinkedHashMap<>();
         ref.documents().forEach(document -> titles.put(document.docInfoId(), document.title()));
-        knowledgeDocuments().forEach(info -> titles.put(info.docInfoId(), info.title()));
-        List<McpSchema.Content> content = new ArrayList<>();
-        List<Map<String, Object>> results = new ArrayList<>();
-        int used = 0;
-        boolean truncated = false;
-        int rank = 0;
-        for (Document document : documents) {
-            rank++;
-            String docInfoId = String.valueOf(document.getMetadata().get(VectorStoreService.DOC_INFO_ID));
-            String title = titles.getOrDefault(docInfoId, docInfoId);
-            Double score = document.getScore();
-            Integer chunk = chunkNumber(document);
-            String text = Objects.requireNonNullElse(document.getText(), "");
-            String header = "[" + rank + "] " + title + (chunk == null ? "" : " · chunk " + chunk)
-                    + (score == null ? "" : " · score " + String.format(Locale.ROOT, "%.2f", score));
-            int remaining = OUTPUT_CHAR_BUDGET - used - header.length() - 1;
-            if (remaining <= 0) {
-                truncated = true;
-                break;
-            }
-            if (text.length() > remaining) {
-                text = text.substring(0, remaining);
-                truncated = true;
-            }
-            content.add(new McpSchema.TextContent(header + "\n" + text));
-            Map<String, Object> entry = new LinkedHashMap<>();
-            entry.put("rank", rank);
-            entry.put("documentId", docInfoId);
-            entry.put("document", title);
-            if (chunk != null) entry.put("chunk", chunk);
-            if (score != null) entry.put("score", score);
-            entry.put("text", text);
-            results.add(entry);
-            used += header.length() + 1 + text.length();
-            if (truncated) break;
-        }
-        if (content.isEmpty()) {
-            content.add(new McpSchema.TextContent("No matching excerpts."));
-        }
-        Map<String, Object> structured = new LinkedHashMap<>();
-        structured.put("results", results);
-        structured.put("truncated", truncated);
-        return McpSchema.CallToolResult.builder().content(content).structuredContent(structured).build();
+        return titles;
     }
 
     private static Integer topKArgument(Object raw) {
@@ -605,15 +580,6 @@ public class KnowledgeContribution implements BundleContribution {
         } catch (NumberFormatException e) {
             return -1;
         }
-    }
-
-    private static RagPipeline withTopK(RagPipeline pipeline, int topK) {
-        RagPipeline.RetrievalConfig retrieval = pipeline.retrieval();
-        return new RagPipeline(pipeline.id(), pipeline.name(), pipeline.description(), pipeline.docInfoIds(),
-                pipeline.preRetrieval(),
-                new RagPipeline.RetrievalConfig(retrieval.extraFilterExpression(), topK,
-                        retrieval.similarityThreshold()),
-                pipeline.postRetrieval(), pipeline.generation(), pipeline.createdAt(), pipeline.updatedAt());
     }
 
     private List<VectorStoreDocumentInfo> knowledgeDocuments() {

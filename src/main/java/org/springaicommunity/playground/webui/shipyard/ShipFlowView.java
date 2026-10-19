@@ -16,6 +16,7 @@
 package org.springaicommunity.playground.webui.shipyard;
 
 import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.checkbox.Checkbox;
@@ -48,6 +49,8 @@ import org.springaicommunity.playground.service.mcp.bundle.ShipyardService.FlowD
 import org.springaicommunity.playground.service.mcp.bundle.ShippedTool;
 import org.springaicommunity.playground.service.mcp.risk.McpComposition;
 import org.springaicommunity.playground.service.tool.ToolCategoryCatalog;
+import org.springaicommunity.playground.webui.vectorstore.VectorStoreView;
+import org.springaicommunity.playground.service.vectorstore.KnowledgeSearchService;
 import org.springaicommunity.playground.service.tool.ToolManifest.Sandbox.RiskLevel;
 import org.springaicommunity.playground.service.tool.ToolSpec;
 import org.springaicommunity.playground.webui.VaadinUtils;
@@ -55,6 +58,7 @@ import org.springaicommunity.playground.webui.VaadinUtils;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -65,6 +69,8 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class ShipFlowView extends Div {
+
+    static final int TRY_EXCERPT_CHARS = 400;
 
     private static final String MODEL_FREE = "Model-free (recommended)";
     private static final String MODEL_DEPENDENT = "Requires a model";
@@ -85,6 +91,10 @@ public class ShipFlowView extends Div {
     private final Dialog knowledgeDialog = pickerDialog("Add knowledge");
     private final Map<String, ShipRequest.Knowledge> knowledgeEdits = new LinkedHashMap<>();
     private final Div shippedToolRows = new Div();
+    private final KnowledgeSearchService knowledgeSearchService;
+    private final Set<String> expandedKnowledge = new LinkedHashSet<>();
+    private final Map<String, String> tryQueries = new HashMap<>();
+    private final Map<String, List<String>> tryResults = new HashMap<>();
     private final RiskLevel proxiedMaxRisk;
 
     private final TextField nameField = new TextField("Server name");
@@ -106,11 +116,17 @@ public class ShipFlowView extends Div {
     private final Div issueSlot = new Div();
 
     public ShipFlowView(ShipyardService shipyardService, BundleExportService bundleExportService,
-            ToolCategoryCatalog categoryCatalog, ShipRequest prefill, Consumer<String> onShipped,
-            Runnable onCancel) {
+            ToolCategoryCatalog categoryCatalog, KnowledgeSearchService knowledgeSearchService,
+            ShipFlowPrefill prefill, Consumer<String> onShipped, Runnable onCancel) {
         this.shipyardService = shipyardService;
         this.bundleExportService = bundleExportService;
-        this.draft = shipyardService.draft(prefill);
+        this.knowledgeSearchService = knowledgeSearchService;
+        ShipRequest request = prefill == null ? null : prefill.request();
+        if (prefill != null) {
+            this.tryQueries.putAll(prefill.tryQueries());
+            this.expandedKnowledge.addAll(prefill.tryQueries().keySet());
+        }
+        this.draft = shipyardService.draft(request);
         this.onShipped = onShipped;
         this.onCancel = onCancel;
 
@@ -130,7 +146,7 @@ public class ShipFlowView extends Div {
         configureProxiedTools(this.draft.proxiedChoices(), this.draft.preselectedProxiedKeys());
         configureKnowledge(this.draft.knowledgeSources(), this.draft.knowledgePrefill());
         configureFields();
-        applyPrefill(prefill);
+        applyPrefill(request);
         this.customToolList.reset(this.draft.customToolIds());
         this.builtInToolList.reset(this.draft.builtInToolIds());
 
@@ -188,7 +204,11 @@ public class ShipFlowView extends Div {
         this.customDialog.add(this.customToolList);
         this.builtInDialog.add(this.builtInToolList);
         this.proxiedDialog.add(this.proxiedToolGroup);
-        this.knowledgeDialog.add(this.knowledgeGroup);
+        Button openVectorDatabase = new Button("Open Vector Database", VaadinIcon.DATABASE.create(),
+                e -> UI.getCurrent().navigate(VectorStoreView.class));
+        openVectorDatabase.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
+        openVectorDatabase.setTooltipText("Embed documents and build pipelines there; they show up here");
+        this.knowledgeDialog.add(this.knowledgeGroup, openVectorDatabase);
 
         this.nameField.setPlaceholder("my-tools-server");
         this.nameField.setWidthFull();
@@ -441,20 +461,112 @@ public class ShipFlowView extends Div {
         remove.setAriaLabel("Remove " + tool.name());
         remove.setTooltipText("Remove " + tool.name());
         HorizontalLayout row = new HorizontalLayout(kind, name, description, risk);
-        if (tool.kind() == ShippedTool.Kind.KNOWLEDGE) {
-            Button edit = new Button(VaadinIcon.PENCIL.create(), e -> openKnowledgeEditor(tool.name()));
-            edit.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE, ButtonVariant.LUMO_SMALL);
-            edit.setAriaLabel("Edit " + tool.name());
-            edit.setTooltipText("Edit tool name, description and top_k");
-            row.add(edit);
-        }
+        Optional<ShipRequest.Knowledge> knowledge = tool.kind() == ShippedTool.Kind.KNOWLEDGE
+                ? knowledgeByToolName(tool.name()) : Optional.empty();
+        boolean expanded = knowledge.map(entry -> this.expandedKnowledge.contains(entry.sourceId())).orElse(false);
+        knowledge.ifPresent(entry -> {
+            Button toggle = new Button((expanded ? VaadinIcon.ANGLE_UP : VaadinIcon.ANGLE_DOWN).create(), e -> {
+                if (!this.expandedKnowledge.remove(entry.sourceId())) this.expandedKnowledge.add(entry.sourceId());
+                refresh();
+            });
+            toggle.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE, ButtonVariant.LUMO_SMALL);
+            toggle.setAriaLabel("Edit " + tool.name());
+            toggle.setTooltipText("Edit tool name, description and top_k, and try a search");
+            row.add(toggle);
+        });
         row.add(remove);
         row.setWidthFull();
         row.setAlignItems(HorizontalLayout.Alignment.CENTER);
         row.expand(description);
         row.getStyle().set("gap", "var(--lumo-space-s)").set("padding", "var(--lumo-space-xs) var(--lumo-space-m)")
-                .set("border-bottom", "1px solid var(--lumo-contrast-5pct)").set("box-sizing", "border-box");
-        return row;
+                .set("box-sizing", "border-box");
+        Div block = new Div(row);
+        if (expanded) block.add(knowledgePanel(knowledge.get(), tool.name()));
+        block.getStyle().set("border-bottom", "1px solid var(--lumo-contrast-5pct)");
+        return block;
+    }
+
+    private Component knowledgePanel(ShipRequest.Knowledge current, String toolName) {
+        TextField nameField = new TextField("Tool name");
+        nameField.setValue(Objects.requireNonNullElse(current.toolName(), ""));
+        nameField.setHelperText("Lowercase letters, digits and '_' (max 64); what MCP clients call");
+        nameField.addValueChangeListener(e -> saveKnowledge(current, e.getValue(), current.description(),
+                current.topK()));
+        TextArea descriptionField = new TextArea("Description");
+        descriptionField.setValue(Objects.requireNonNullElse(current.description(), ""));
+        descriptionField.setHelperText("What clients read to decide when to search here");
+        descriptionField.setWidthFull();
+        descriptionField.addValueChangeListener(e -> saveKnowledge(current, current.toolName(), e.getValue(),
+                current.topK()));
+        IntegerField topKField = new IntegerField("Default top_k");
+        topKField.setValue(current.topK());
+        topKField.setMin(1);
+        topKField.setMax(KnowledgeContribution.MAX_TOP_K);
+        topKField.addValueChangeListener(e -> saveKnowledge(current, current.toolName(), current.description(),
+                e.getValue()));
+        HorizontalLayout fields = new HorizontalLayout(nameField, topKField);
+        fields.setWidthFull();
+        fields.expand(nameField);
+
+        TextField queryField = new TextField("Try a search");
+        queryField.setPlaceholder("What would a client ask this tool?");
+        queryField.setValue(this.tryQueries.getOrDefault(current.sourceId(), ""));
+        queryField.setWidthFull();
+        queryField.setValueChangeMode(ValueChangeMode.EAGER);
+        queryField.addValueChangeListener(e -> this.tryQueries.put(current.sourceId(), e.getValue()));
+        Div results = new Div();
+        results.getStyle().set("font-size", "var(--lumo-font-size-s)").set("white-space", "pre-wrap")
+                .set("max-height", "320px").set("overflow-y", "auto");
+        renderTryResults(results, current.sourceId());
+        Button run = new Button("Run", VaadinIcon.PLAY.create(), e -> {
+            this.tryResults.put(current.sourceId(), trySearch(current, queryField.getValue()));
+            renderTryResults(results, current.sourceId());
+        });
+        run.setAriaLabel("Try " + toolName);
+        run.addThemeVariants(ButtonVariant.LUMO_SMALL);
+        HorizontalLayout tryRow = new HorizontalLayout(queryField, run);
+        tryRow.setWidthFull();
+        tryRow.setAlignItems(HorizontalLayout.Alignment.END);
+        tryRow.expand(queryField);
+
+        VerticalLayout panel = new VerticalLayout(fields, descriptionField, tryRow, results);
+        panel.setSpacing(false);
+        panel.getStyle().set("background", "var(--lumo-contrast-5pct)")
+                .set("padding", "var(--lumo-space-s) var(--lumo-space-m)");
+        return panel;
+    }
+
+    private void saveKnowledge(ShipRequest.Knowledge current, String toolName, String description, Integer topK) {
+        this.knowledgeEdits.put(current.sourceId(), new ShipRequest.Knowledge(current.sourceId(),
+                toolName == null ? null : toolName.strip(), description == null ? null : description.strip(), topK));
+        refresh();
+    }
+
+    private List<String> trySearch(ShipRequest.Knowledge current, String query) {
+        if (query == null || query.isBlank()) return List.of("Enter a query first.");
+        try {
+            KnowledgeSearchService.SearchResult result = this.knowledgeSearchService.search(current.sourceId(),
+                    query, current.topK(), Map.of());
+            List<String> lines = new ArrayList<>(result.asTexts().stream()
+                    .map(text -> text.length() > TRY_EXCERPT_CHARS ? text.substring(0, TRY_EXCERPT_CHARS) + "…" : text)
+                    .toList());
+            if (result.truncated()) lines.add("(more excerpts cut by the output budget)");
+            return lines;
+        } catch (RuntimeException e) {
+            return List.of("Search failed: " + e.getMessage());
+        }
+    }
+
+    private void renderTryResults(Div results, String sourceId) {
+        results.removeAll();
+        List<String> lines = this.tryResults.get(sourceId);
+        if (lines == null) return;
+        lines.forEach(line -> {
+            Span excerpt = new Span(line);
+            excerpt.getStyle().set("display", "block").set("padding", "var(--lumo-space-xs) 0")
+                    .set("border-top", "1px solid var(--lumo-contrast-10pct)");
+            results.add(excerpt);
+        });
     }
 
     private void remove(ShippedTool tool) {
@@ -481,40 +593,6 @@ public class ShipFlowView extends Div {
                 .filter(knowledge -> toolName.equals(knowledge.toolName())).findFirst();
     }
 
-    private void openKnowledgeEditor(String toolName) {
-        ShipRequest.Knowledge current = knowledgeByToolName(toolName).orElse(null);
-        if (current == null) return;
-        Dialog dialog = new Dialog();
-        dialog.setHeaderTitle("Knowledge tool");
-        dialog.setWidth("560px");
-        TextField nameField = new TextField("Tool name");
-        nameField.setValue(Objects.requireNonNullElse(current.toolName(), ""));
-        nameField.setHelperText("Lowercase letters, digits and '_' (max 64); what MCP clients call");
-        nameField.setWidthFull();
-        TextArea descriptionField = new TextArea("Description");
-        descriptionField.setValue(Objects.requireNonNullElse(current.description(), ""));
-        descriptionField.setHelperText("What clients read to decide when to search here");
-        descriptionField.setWidthFull();
-        descriptionField.setMinHeight("120px");
-        IntegerField topKField = new IntegerField("Default top_k");
-        topKField.setValue(current.topK());
-        topKField.setMin(1);
-        topKField.setMax(KnowledgeContribution.MAX_TOP_K);
-        topKField.setHelperText("Excerpts per search when the caller does not pass top_k");
-        VerticalLayout layout = new VerticalLayout(nameField, descriptionField, topKField);
-        layout.setPadding(false);
-        dialog.add(layout);
-        Button save = new Button("Save", e -> {
-            this.knowledgeEdits.put(current.sourceId(), new ShipRequest.Knowledge(current.sourceId(),
-                    nameField.getValue().strip(), descriptionField.getValue().strip(), topKField.getValue()));
-            dialog.close();
-            refresh();
-        });
-        save.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-        dialog.getFooter().add(save, new Button("Cancel", e -> dialog.close()));
-        dialog.open();
-    }
-
     private static void deselect(BundleToolSelectionList list, String toolName) {
         list.reset(list.getSelectedTools().stream().filter(spec -> !spec.name().equals(toolName))
                 .map(ToolSpec::toolId).toList());
@@ -533,7 +611,8 @@ public class ShipFlowView extends Div {
             needs.add(needLine("No model", "boots without any model provider"));
         }
         if (models.chat() != null) {
-            needs.add(needLine("Chat model", models.chat().model() + " (" + models.chat().provider() + ")"));
+            needs.add(needLine("Chat model", models.chat().model() + " (" + models.chat().provider() + ")"
+                    + chatReason(request)));
         }
         if (models.embedding() != null) {
             needs.add(needLine("Embedding model", models.embedding().model() + " ("
@@ -541,12 +620,38 @@ public class ShipFlowView extends Div {
         }
         request.composedTools().stream().map(McpComposition.Member::serverId).distinct()
                 .forEach(server -> needs.add(needLine("Upstream", server + ", reachable from the container")));
+        snapshotLine(request).ifPresent(needs::add);
         long secrets = report.secretEnvCount();
         if (!report.envRequirements().isEmpty()) {
             needs.add(needLine("Environment", report.envRequirements().size() + " variable(s)"
                     + (secrets > 0 ? ", " + secrets + " secret" : "") + ", supplied when you run it"));
         }
         return needs;
+    }
+
+    private String chatReason(ShipRequest request) {
+        List<String> reasons = new ArrayList<>();
+        for (ShipRequest.Knowledge knowledge : request.knowledge()) {
+            this.knowledgeSearchService.snapshot(knowledge.sourceId())
+                    .filter(snapshot -> !snapshot.llmStages().isEmpty())
+                    .ifPresent(snapshot -> reasons.add(knowledge.toolName() + " runs "
+                            + String.join(", ", snapshot.llmStages())));
+        }
+        return reasons.isEmpty() ? "" : ", needed because " + String.join("; ", reasons);
+    }
+
+    private Optional<Component> snapshotLine(ShipRequest request) {
+        if (request.knowledge().isEmpty()) return Optional.empty();
+        int documents = 0;
+        int chunks = 0;
+        for (ShipRequest.Knowledge knowledge : request.knowledge()) {
+            Optional<KnowledgeSearchService.Snapshot> snapshot = this.knowledgeSearchService.snapshot(
+                    knowledge.sourceId());
+            documents += snapshot.map(KnowledgeSearchService.Snapshot::documents).orElse(0);
+            chunks += snapshot.map(KnowledgeSearchService.Snapshot::chunks).orElse(0);
+        }
+        return Optional.of(needLine("Snapshot", documents + " document(s), " + chunks
+                + " chunks frozen into the bundle; size shows after shipping"));
     }
 
     private static Component needLine(String label, String value) {
