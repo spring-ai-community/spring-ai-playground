@@ -339,7 +339,8 @@ class ToolManagementToolsBootTest {
         CallToolResult result = call("saip_tools_test", Map.of("draft", draftJson));
 
         assertThat(result.isError()).isTrue();
-        assertThat(text(result)).contains("saip_tools_test", "input validation failed", "/draft");
+        assertThat(text(result)).contains("saip_tools_test", "input validation failed",
+                "/draft: string found, object expected");
         assertThat(this.approvalMessages).isEmpty();
         assertThat(this.toolSpecService.getToolSpecAsOpt(TOOL)).isEmpty();
         assertThat(resource("saip://guide/tool-authoring/testing")).contains("never a string holding JSON");
