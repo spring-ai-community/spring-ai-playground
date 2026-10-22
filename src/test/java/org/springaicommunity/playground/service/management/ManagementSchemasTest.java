@@ -15,6 +15,7 @@
  */
 package org.springaicommunity.playground.service.management;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.modelcontextprotocol.server.McpServer;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.server.McpSyncServer;
@@ -73,7 +74,8 @@ class ManagementSchemasTest {
         ManagementApprovalGate gate = new ManagementApprovalGate(ManagementTestSupport.options(ApprovalMode.ALL),
                 mock(ObjectProvider.class),
                 ManagementTestSupport.auditLog(ManagementTestSupport.options(ApprovalMode.ALL),
-                        new McpRiskEventRingBuffer()));
+                        new McpRiskEventRingBuffer()),
+                new SimpleMeterRegistry());
         SyncToolSpecification specification = gate.wrap(tool);
         McpServerTransportProvider transportProvider = mock(McpServerTransportProvider.class);
         when(transportProvider.notifyClients(any(), any())).thenReturn(Mono.empty());

@@ -16,6 +16,7 @@
 package org.springaicommunity.playground.service.management;
 
 import com.fasterxml.jackson.annotation.JsonPropertyDescription;
+import io.modelcontextprotocol.server.McpServerFeatures.SyncResourceSpecification;
 import org.springaicommunity.playground.service.mcp.McpRegistrationService;
 import org.springaicommunity.playground.service.mcp.McpRegistrationService.CatalogRegistration;
 import org.springaicommunity.playground.service.mcp.McpRegistrationService.CustomRegistration;
@@ -36,6 +37,7 @@ import java.util.Map;
 public class McpManagementContribution implements ManagementToolContribution {
 
     public static final String CATEGORY = "mcp";
+    public static final String SERVERS_STATUS_URI = "saip://status/servers";
 
     private static final int CATALOG_LIMIT_DEFAULT = 20;
     private static final int CATALOG_LIMIT_MAX = 100;
@@ -87,6 +89,15 @@ public class McpManagementContribution implements ManagementToolContribution {
     @Override
     public String category() {
         return CATEGORY;
+    }
+
+    @Override
+    public List<SyncResourceSpecification> resources() {
+        return List.of(ManagementJson.statusResource(SERVERS_STATUS_URI, "servers-status",
+                "Registered MCP servers and their connection status",
+                "The same view as saip_mcp_list_servers, as JSON, read fresh on every read: status, error, "
+                        + "missing environment variables, OAuth authorization URL and risk level per server.",
+                () -> new ServersData(this.overviewService.servers())));
     }
 
     @Override

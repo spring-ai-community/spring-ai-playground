@@ -23,6 +23,7 @@ import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
 import org.springaicommunity.playground.service.mcp.bundle.BundleFreshnessService.SourceChange;
 import org.springaicommunity.playground.service.mcp.bundle.BundleRegistryService.BundleEntry;
+import org.springaicommunity.playground.service.mcp.bundle.DockerCliService.ContainerDetails;
 import org.springaicommunity.playground.service.mcp.bundle.DockerCliService.ContainerState;
 import org.springaicommunity.playground.service.mcp.bundle.DockerCliService.ContainerStatus;
 import org.springaicommunity.playground.service.mcp.bundle.DockerCliService.DockerAvailability;
@@ -256,6 +257,10 @@ public class ShipyardService {
 
     public String logsTail(String serverName, int lines) {
         return Objects.requireNonNullElse(this.deployTargetService.logsTail(serverName, lines), "");
+    }
+
+    public Optional<ContainerDetails> containerDetails(String serverName) {
+        return this.deployTargetService.containerDetails(serverName);
     }
 
     public List<BundleFile> bundleFiles(String serverName) {

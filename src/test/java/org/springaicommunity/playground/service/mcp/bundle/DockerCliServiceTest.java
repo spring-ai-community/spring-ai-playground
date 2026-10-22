@@ -16,6 +16,7 @@
 package org.springaicommunity.playground.service.mcp.bundle;
 
 import org.junit.jupiter.api.Test;
+import org.springaicommunity.playground.service.mcp.bundle.DockerCliService.ContainerDetails;
 import org.springaicommunity.playground.service.mcp.bundle.DockerCliService.ContainerState;
 import org.springaicommunity.playground.service.mcp.bundle.DockerCliService.ContainerStatus;
 import org.springaicommunity.playground.service.mcp.bundle.DockerCliService.DockerAvailability;
@@ -237,6 +238,28 @@ class DockerCliServiceTest {
 
         running.up(LOCAL, Path.of("/tmp/bundle"), "my-server", Map.of());
         assertThat(running.lastAuthToken("my-server")).isEmpty();
+    }
+
+    @Test
+    void logsTailKeepsTheContainerStderrLines() {
+        assertThat(service(new ProcResult(0, "out\n", "err\n")).logsTail(LOCAL, "my-server", 5))
+                .isEqualTo("out\nerr\n");
+        assertThat(service(new ProcResult(0, "out\n", "")).logsTail(LOCAL, "my-server", 5)).isEqualTo("out\n");
+        assertThat(service(new ProcResult(1, "", "no such container")).logsTail(LOCAL, "my-server", 5))
+                .isEqualTo("no such container");
+    }
+
+    @Test
+    void detailsParseTheInspectFormatAndAreEmptyForAnUnknownContainer() {
+        Optional<ContainerDetails> details = service(new ProcResult(0,
+                "running|2026-10-22T10:00:00Z|0001-01-01T00:00:00Z|0|2|healthy\n", "")).details(LOCAL, "my-server");
+
+        assertThat(details).contains(new ContainerDetails("running", "2026-10-22T10:00:00Z",
+                "0001-01-01T00:00:00Z", 0, 2, "healthy"));
+        assertThat(commands.getLast()).containsSequence("inspect", "--format", DockerCliService.DETAILS_FORMAT,
+                "saip-mcp-my-server");
+        assertThat(service(new ProcResult(1, "", "Error: No such object")).details(LOCAL, "my-server")).isEmpty();
+        assertThat(service(new ProcResult(0, "running|x\n", "")).details(LOCAL, "my-server")).isEmpty();
     }
 
     @Test

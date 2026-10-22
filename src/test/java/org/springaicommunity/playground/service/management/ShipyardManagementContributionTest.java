@@ -32,6 +32,7 @@ import org.springaicommunity.playground.service.mcp.bundle.ConnectionSnippetServ
 import org.springaicommunity.playground.service.mcp.bundle.ConnectionSnippetService.Snippet;
 import org.springaicommunity.playground.service.mcp.bundle.DeployTarget;
 import org.springaicommunity.playground.service.mcp.bundle.DeployTargetService;
+import org.springaicommunity.playground.service.mcp.bundle.DockerCliService.ContainerDetails;
 import org.springaicommunity.playground.service.mcp.bundle.DockerCliService.ContainerState;
 import org.springaicommunity.playground.service.mcp.bundle.DockerCliService.ContainerStatus;
 import org.springaicommunity.playground.service.mcp.bundle.DockerCliService.DockerAvailability;
@@ -41,6 +42,8 @@ import org.springaicommunity.playground.service.mcp.bundle.RunPlanner.RunRequest
 import org.springaicommunity.playground.service.mcp.bundle.ShipRequest;
 import org.springaicommunity.playground.service.mcp.bundle.ShipyardService;
 import org.springaicommunity.playground.service.mcp.bundle.ShipyardService.ServerState;
+import org.springaicommunity.playground.service.mcp.bundle.ShipyardService.ServerSummary;
+import org.springaicommunity.playground.service.management.ShipyardManagementContribution.LogsData;
 import org.springaicommunity.playground.service.management.ShipyardManagementContribution.ShipData;
 import org.springaicommunity.playground.service.management.ShipyardManagementContribution.StatusData;
 import org.springaicommunity.playground.service.management.ShipyardManagementContribution.TargetData;
@@ -58,6 +61,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -151,7 +156,7 @@ class ShipyardManagementContributionTest {
     @Test
     void shipSummarizesTheContentsForApprovalAndExportsTheBundle() {
         when(bundleExportService.validate(any())).thenReturn(report(List.of(), List.of("replaces its bundle")));
-        BundleManifest manifest = mock(BundleManifest.class, org.mockito.Mockito.RETURNS_DEEP_STUBS);
+        BundleManifest manifest = mock(BundleManifest.class, RETURNS_DEEP_STUBS);
         when(manifest.server().name()).thenReturn("field-kit");
         when(manifest.server().version()).thenReturn("0.1.0");
         when(manifest.contents().tools()).thenReturn(List.of("t-1", "t-2"));
@@ -241,6 +246,76 @@ class ShipyardManagementContributionTest {
     }
 
     @Test
+    void statusCarriesTheContainerDetailsDockerReports() {
+        BundleManifest manifest = mock(BundleManifest.class);
+        BundleEntry entry = new BundleEntry("field-kit", manifest, Path.of("/b/field-kit"), request);
+        when(shipyardService.state("field-kit")).thenReturn(state(entry, DeployTarget.local(),
+                ContainerState.STOPPED, Optional.empty()));
+        when(shipyardService.containerDetails("field-kit")).thenReturn(Optional.of(new ContainerDetails("exited",
+                "2026-10-22T10:00:00Z", "2026-10-22T10:05:00Z", 137, 2, "none")));
+
+        StatusData data = (StatusData) tool("saip_shipyard_status").handle(Map.of("server", "field-kit"),
+                ManagementCaller.ANONYMOUS).data();
+
+        assertThat(data.container().status()).isEqualTo("exited");
+        assertThat(data.container().exitCode()).isEqualTo(137);
+        assertThat(data.container().restartCount()).isEqualTo(2);
+        assertThat(data.container().finishedAt()).isEqualTo("2026-10-22T10:05:00Z");
+    }
+
+    @Test
+    void statusLeavesTheContainerOutWhenThereIsNone() {
+        BundleManifest manifest = mock(BundleManifest.class);
+        BundleEntry entry = new BundleEntry("field-kit", manifest, Path.of("/b/field-kit"), request);
+        when(shipyardService.state("field-kit")).thenReturn(state(entry, DeployTarget.local(),
+                ContainerState.ABSENT, Optional.empty()));
+
+        StatusData data = (StatusData) tool("saip_shipyard_status").handle(Map.of("server", "field-kit"),
+                ManagementCaller.ANONYMOUS).data();
+
+        assertThat(data.container()).isNull();
+        verify(shipyardService, never()).containerDetails(anyString());
+    }
+
+    @Test
+    void logsFilterTheTailByLevelAndText() {
+        when(shipyardService.logsTail("field-kit", 100)).thenReturn(String.join("\n",
+                "2026-10-22 10:00:00.001 [main] INFO  o.s.boot.Starter - Started in 3 s",
+                "2026-10-22 10:00:01.002 [main] WARN  o.s.p.Bundle - Ollama unreachable",
+                "Caused by: java.net.ConnectException: Connection refused"));
+
+        ManagementResult byLevel = tool("saip_shipyard_logs").handle(Map.of("server", "field-kit", "level", "warn"),
+                ManagementCaller.ANONYMOUS);
+        ManagementResult byText = tool("saip_shipyard_logs").handle(Map.of("server", "field-kit", "text", "REFUSED"),
+                ManagementCaller.ANONYMOUS);
+        ManagementResult plain = tool("saip_shipyard_logs").handle(Map.of("server", "field-kit"),
+                ManagementCaller.ANONYMOUS);
+
+        assertThat(byLevel.message()).isEqualTo("1 of 3 line(s) match.");
+        assertThat(((LogsData) byLevel.data()).text()).contains("Ollama unreachable").doesNotContain("Started");
+        assertThat(((LogsData) byText.data()).matched()).isEqualTo(1);
+        assertThat(((LogsData) byText.data()).text()).contains("Connection refused");
+        assertThat(plain.message()).isEqualTo("Last 100 line(s).");
+        assertThat(((LogsData) plain.data()).matched()).isEqualTo(3);
+    }
+
+    @Test
+    void theStatusResourceListsTheShippedServersAsJson() {
+        when(shipyardService.servers()).thenReturn(List.of(new ServerSummary("field-kit", Optional.empty(), false,
+                "bundle folder is missing")));
+
+        String json = ((TextResourceContents) contribution.resources().get(1).readHandler()
+                .apply(null, new ReadResourceRequest(ShipyardManagementContribution.SHIPYARD_STATUS_URI))
+                .contents().getFirst()).text();
+
+        assertThat(contribution.resources().get(1).resource().uri())
+                .isEqualTo(ShipyardManagementContribution.SHIPYARD_STATUS_URI);
+        assertThat(contribution.resources().get(1).resource().mimeType()).isEqualTo("application/json");
+        assertThat(json).contains("\"name\":\"field-kit\"", "\"state\":\"NOT_EXPORTED\"",
+                "bundle folder is missing");
+    }
+
+    @Test
     void logsClampTheLineCountAndDeleteGoesThroughTheMutabilityRule() {
         when(shipyardService.logsTail("field-kit", 1000)).thenReturn("line");
 
@@ -248,7 +323,7 @@ class ShipyardManagementContributionTest {
                 ManagementCaller.ANONYMOUS);
 
         assertThat(logs.message()).isEqualTo("Last 1000 line(s).");
-        org.mockito.Mockito.doThrow(new IllegalStateException("Stop the container before deleting the bundle"))
+        doThrow(new IllegalStateException("Stop the container before deleting the bundle"))
                 .when(shipyardService).requireMutable("field-kit", "deleting");
         assertThatThrownBy(() -> tool("saip_shipyard_delete").approvalFor(Map.of("server", "field-kit")))
                 .hasMessageContaining("Stop the container");

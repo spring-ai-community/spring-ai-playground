@@ -44,6 +44,7 @@ import org.springaicommunity.playground.observability.ObservabilityProperties;
 import org.springaicommunity.playground.observability.ObservabilityRingBuffer;
 import org.springaicommunity.playground.observability.logs.LogQueryService;
 import org.springaicommunity.playground.service.mcp.ManagementToolNames;
+import org.springaicommunity.playground.service.chat.HeadlessChatService;
 import org.springaicommunity.playground.service.mcp.McpRegistrationService;
 import org.springaicommunity.playground.service.mcp.McpServerOverviewService;
 import org.springaicommunity.playground.service.mcp.risk.McpExposureService;
@@ -96,7 +97,8 @@ class ManagementToolsCatalogTest {
                         new ObservabilityRingBuffer(new ObservabilityProperties()), mock(SystemMetricsSnapshot.class),
                         mock(ObjectProvider.class), mock(LogQueryService.class)),
                 new ToolsManagementContribution(mock(ToolSpecService.class), mock(ToolCategoryCatalog.class),
-                        ManagementTestSupport.options(ApprovalMode.DESTRUCTIVE)));
+                        ManagementTestSupport.options(ApprovalMode.DESTRUCTIVE)),
+                new ChatManagementContribution(mock(HeadlessChatService.class)));
     }
 
     private List<ManagementTool> allTools() {
@@ -110,7 +112,7 @@ class ManagementToolsCatalogTest {
         assertThat(tools).extracting(ManagementTool::name).doesNotHaveDuplicates()
                 .allMatch(name -> name.matches("^saip_[a-z0-9_]+$") && name.length() <= 64
                         && ManagementToolNames.isReserved(name));
-        assertThat(tools).hasSize(54);
+        assertThat(tools).hasSize(56);
     }
 
     @Test
@@ -121,13 +123,14 @@ class ManagementToolsCatalogTest {
             categories.add(tool.category());
         }
         assertThat(categories).containsExactlyInAnyOrder("mcp", "mcp-register", "expose", "monitor", "shipyard",
-                "knowledge", "tools");
+                "knowledge", "tools", "chat");
     }
 
     @Test
     void theWholeCatalogStaysWithinTheContextBudget() throws JsonProcessingException {
         ManagementApprovalGate gate = new ManagementApprovalGate(
-                ManagementTestSupport.options(ApprovalMode.DESTRUCTIVE), mock(ObjectProvider.class), auditLog);
+                ManagementTestSupport.options(ApprovalMode.DESTRUCTIVE), mock(ObjectProvider.class), auditLog,
+                new SimpleMeterRegistry());
         ObjectMapper mapper = new ObjectMapper();
 
         long total = 0;
@@ -146,7 +149,8 @@ class ManagementToolsCatalogTest {
         McpSyncServer server = McpServer.sync(transportProvider)
                 .capabilities(ServerCapabilities.builder().tools(true).build()).build();
         ManagementApprovalGate gate = new ManagementApprovalGate(
-                ManagementTestSupport.options(ApprovalMode.DESTRUCTIVE), mock(ObjectProvider.class), auditLog);
+                ManagementTestSupport.options(ApprovalMode.DESTRUCTIVE), mock(ObjectProvider.class), auditLog,
+                new SimpleMeterRegistry());
 
         for (ManagementTool tool : allTools()) {
             SyncToolSpecification specification = gate.wrap(tool);
@@ -160,7 +164,8 @@ class ManagementToolsCatalogTest {
     @Test
     void annotationsFollowTheApprovalLevel() {
         ManagementApprovalGate gate = new ManagementApprovalGate(
-                ManagementTestSupport.options(ApprovalMode.DESTRUCTIVE), mock(ObjectProvider.class), auditLog);
+                ManagementTestSupport.options(ApprovalMode.DESTRUCTIVE), mock(ObjectProvider.class), auditLog,
+                new SimpleMeterRegistry());
 
         for (ManagementTool tool : allTools()) {
             McpSchema.ToolAnnotations annotations = gate.wrap(tool).tool().annotations();

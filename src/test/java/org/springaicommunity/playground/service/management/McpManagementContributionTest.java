@@ -25,7 +25,11 @@ import org.springaicommunity.playground.service.mcp.McpRegistrationService.Custo
 import org.springaicommunity.playground.service.mcp.McpRegistrationService.RegistrationPlan;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.mcp.McpServerOverviewService;
+import io.modelcontextprotocol.spec.McpSchema.ReadResourceRequest;
+import io.modelcontextprotocol.spec.McpSchema.TextResourceContents;
 import org.springaicommunity.playground.service.mcp.McpServerOverviewService.CatalogOverview;
+import org.springaicommunity.playground.service.mcp.McpServerOverviewService.ServerOverview;
+import org.springaicommunity.playground.service.mcp.client.McpClientService.ServerStatus;
 import org.springaicommunity.playground.service.mcp.McpServerOverviewService.TransportOverview;
 import org.springaicommunity.playground.service.mcp.client.McpTransportType;
 import org.springaicommunity.playground.service.mcp.risk.McpRegistrationRiskPreview.RegistrationPreview;
@@ -153,6 +157,23 @@ class McpManagementContributionTest {
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("${ENV_NAME}");
         verify(registrationService, never()).planCustom(any(CustomRegistration.class), anyBoolean());
         verify(registrationService, never()).planCatalog(any(CatalogRegistration.class), anyBoolean());
+    }
+
+
+    @Test
+    void theServersStatusResourceReadsTheOverviewAsJson() {
+        when(overviewService.servers()).thenReturn(List.of(new ServerOverview("wiki", McpTransportType.STREAMABLE_HTTP,
+                ServerStatus.ERROR, "connection refused", null, Set.of(), RiskLevel.L2, "EXAMPLE", Set.of(),
+                "a wiki", false, false)));
+
+        var resource = contribution.resources().getFirst();
+        String json = ((TextResourceContents) resource.readHandler()
+                .apply(null, new ReadResourceRequest(McpManagementContribution.SERVERS_STATUS_URI)).contents()
+                .getFirst()).text();
+
+        assertThat(resource.resource().uri()).isEqualTo(McpManagementContribution.SERVERS_STATUS_URI);
+        assertThat(resource.resource().mimeType()).isEqualTo("application/json");
+        assertThat(json).contains("\"name\":\"wiki\"", "\"status\":\"ERROR\"", "connection refused");
     }
 
 }

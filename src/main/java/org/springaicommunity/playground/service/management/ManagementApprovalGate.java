@@ -15,7 +15,7 @@
  */
 package org.springaicommunity.playground.service.management;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
+import io.micrometer.core.instrument.MeterRegistry;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.server.McpSyncServerExchange;
 import io.modelcontextprotocol.spec.McpSchema;
@@ -36,8 +36,6 @@ import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import tools.jackson.core.type.TypeReference;
-import tools.jackson.databind.json.JsonMapper;
 
 import java.util.Map;
 import java.util.Optional;
@@ -47,11 +45,6 @@ import java.util.concurrent.TimeoutException;
 public class ManagementApprovalGate {
 
     private static final Logger logger = LoggerFactory.getLogger(ManagementApprovalGate.class);
-    private static final JsonMapper RESULT_MAPPER = JsonMapper.builder()
-            .changeDefaultPropertyInclusion(inclusion -> inclusion.withValueInclusion(JsonInclude.Include.NON_NULL)
-                    .withContentInclusion(JsonInclude.Include.NON_NULL))
-            .build();
-    private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() { };
     private static final Map<String, Object> CONFIRMATION_SCHEMA = Map.of("type", "object", "properties", Map.of());
     private static final int SUMMARY_LIMIT = 300;
 
@@ -62,19 +55,22 @@ public class ManagementApprovalGate {
     private final ObjectProvider<McpClientService> mcpClientServiceProvider;
     private final ManagementAuditLog auditLog;
     private final ApprovalWaitCountdown countdown;
+    private final MeterRegistry meterRegistry;
 
     @Autowired
     public ManagementApprovalGate(SpringAiPlaygroundOptions options,
-            ObjectProvider<McpClientService> mcpClientServiceProvider, ManagementAuditLog auditLog) {
-        this(options, mcpClientServiceProvider, auditLog, ApprovalWaitCountdown.of(options.hitl()));
+            ObjectProvider<McpClientService> mcpClientServiceProvider, ManagementAuditLog auditLog,
+            MeterRegistry meterRegistry) {
+        this(options, mcpClientServiceProvider, auditLog, meterRegistry, ApprovalWaitCountdown.of(options.hitl()));
     }
 
     ManagementApprovalGate(SpringAiPlaygroundOptions options,
             ObjectProvider<McpClientService> mcpClientServiceProvider, ManagementAuditLog auditLog,
-            ApprovalWaitCountdown countdown) {
+            MeterRegistry meterRegistry, ApprovalWaitCountdown countdown) {
         this.options = options;
         this.mcpClientServiceProvider = mcpClientServiceProvider;
         this.auditLog = auditLog;
+        this.meterRegistry = meterRegistry;
         this.countdown = countdown;
     }
 
@@ -145,6 +141,7 @@ public class ManagementApprovalGate {
             return Optional.empty();
         }
         if (!supportsElicitation(exchange.getClientCapabilities())) {
+            countDecision("denied");
             return Optional.of(new Stop(ManagementOutcome.DENIED, ManagementResult.failure("Tool '" + tool.name()
                     + "' was not run: it needs human approval and this client cannot ask for it (no elicitation "
                     + "support). Ask the user to run it from a client that supports elicitation, or to make the "
@@ -154,7 +151,8 @@ public class ManagementApprovalGate {
         try {
             ElicitRequest elicitRequest = ElicitRequest.builder(
                     "[" + approval.level() + "] " + caller.label() + " wants to run " + tool.name() + ": "
-                            + approval.summary() + " " + this.countdown.notice(), CONFIRMATION_SCHEMA).build();
+                            + sentence(approval.summary()) + " " + this.countdown.notice(), CONFIRMATION_SCHEMA)
+                    .build();
             decision = this.countdown.await(() -> exchange.createElicitation(elicitRequest),
                     (elapsed, total, message) -> caller.progress().report(elapsed, (double) total, message));
         } catch (RuntimeException e) {
@@ -163,6 +161,7 @@ public class ManagementApprovalGate {
                 return Optional.of(expired(tool));
             }
             logger.info("mgmt.approval.error tool={} error={}", tool.name(), e.getMessage());
+            countDecision("elicit-failed");
             return Optional.of(new Stop(ManagementOutcome.DENIED, ManagementResult.failure("Tool '" + tool.name()
                     + "' was not run: the approval request failed.")));
         }
@@ -171,13 +170,25 @@ public class ManagementApprovalGate {
             return Optional.of(expired(tool));
         }
         if (decision == null || decision.action() != ElicitResult.Action.ACCEPT) {
+            countDecision("declined");
             return Optional.of(new Stop(ManagementOutcome.DECLINED, ManagementResult.failure("Tool '" + tool.name()
                     + "' was not run: the user declined. Do not retry it for this request.")));
         }
+        countDecision("approved");
         return Optional.empty();
     }
 
+    private static String sentence(String summary) {
+        String trimmed = summary.strip();
+        return trimmed.endsWith(".") || trimmed.endsWith("!") || trimmed.endsWith("?") ? trimmed : trimmed + ".";
+    }
+
+    private void countDecision(String outcome) {
+        this.meterRegistry.counter("mcp.hitl.decision", "outcome", outcome, "side", "server").increment();
+    }
+
     private Stop expired(ManagementTool tool) {
+        countDecision("timeout");
         return new Stop(ManagementOutcome.TIMEOUT, ManagementResult.failure("Tool '" + tool.name()
                 + "' was not run: no approval within " + this.countdown.waitSeconds()
                 + " s. Do not retry it for this request; ask the user to run it from the app if it is still needed."));
@@ -197,9 +208,27 @@ public class ManagementApprovalGate {
         Map<String, Object> meta = request.meta();
         boolean interactive = meta != null
                 && Boolean.TRUE.equals(meta.get(McpServerHitlToolGate.INTERACTIVE_HITL_META_KEY));
+        ManagementProgress progress = progressOf(exchange, request);
         return new ManagementCaller(info == null || info.name() == null ? "unknown" : info.name(),
                 info == null || info.version() == null ? "" : info.version(), interactive,
-                supportsElicitation(exchange.getClientCapabilities()), selfLoopback, progressOf(exchange, request));
+                supportsElicitation(exchange.getClientCapabilities()), selfLoopback, progress,
+                elicitationOf(exchange, progress));
+    }
+
+    private ManagementElicitation elicitationOf(McpSyncServerExchange exchange, ManagementProgress progress) {
+        if (!supportsElicitation(exchange.getClientCapabilities())) return ManagementElicitation.UNAVAILABLE;
+        return message -> {
+            ElicitRequest elicitRequest = ElicitRequest.builder(message + " " + this.countdown.notice(),
+                    CONFIRMATION_SCHEMA).build();
+            try {
+                return Optional.of(this.countdown.await(() -> exchange.createElicitation(elicitRequest),
+                        (elapsed, total, tick) -> progress.report(elapsed, (double) total, tick)));
+            } catch (RuntimeException e) {
+                if (isTimeout(e)) return Optional.of(McpServerHitlToolGate.approvalExpired());
+                logger.info("mgmt.elicitation.error error={}", e.getMessage());
+                return Optional.empty();
+            }
+        };
     }
 
     private static ManagementProgress progressOf(McpSyncServerExchange exchange, CallToolRequest request) {
@@ -219,9 +248,9 @@ public class ManagementApprovalGate {
         long durationMs = (System.nanoTime() - startNanos) / 1_000_000L;
         this.auditLog.record(new ManagementAuditLog.Entry(System.currentTimeMillis(), caller.label(), tool.name(),
                 level, outcome, summarize(arguments, result), durationMs));
-        Map<String, Object> structured = RESULT_MAPPER.convertValue(result, MAP_TYPE);
+        Map<String, Object> structured = ManagementJson.toMap(result);
         return CallToolResult.builder()
-                .addTextContent(RESULT_MAPPER.writeValueAsString(structured))
+                .addTextContent(ManagementJson.write(structured))
                 .structuredContent(structured)
                 .isError(!result.ok())
                 .build();

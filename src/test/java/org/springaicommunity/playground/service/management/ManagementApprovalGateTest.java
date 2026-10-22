@@ -15,6 +15,7 @@
  */
 package org.springaicommunity.playground.service.management;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.server.McpSyncServerExchange;
 import io.modelcontextprotocol.spec.McpSchema.CallToolRequest;
@@ -59,6 +60,7 @@ class ManagementApprovalGateTest {
     private final McpClientService clientService = mock(McpClientService.class);
     private final McpRiskEventRingBuffer riskEvents = new McpRiskEventRingBuffer();
     private final AtomicInteger handlerCalls = new AtomicInteger();
+    private final SimpleMeterRegistry meters = new SimpleMeterRegistry();
 
     @BeforeEach
     void setUp() {
@@ -74,7 +76,11 @@ class ManagementApprovalGateTest {
         SpringAiPlaygroundOptions options = ManagementTestSupport.options(mode);
         ManagementAuditLog auditLog = ManagementTestSupport.auditLog(options, riskEvents);
         auditHolder[0] = auditLog;
-        return new ManagementApprovalGate(options, clientServiceProvider, auditLog);
+        return new ManagementApprovalGate(options, clientServiceProvider, auditLog, meters);
+    }
+
+    private double decisions(String outcome) {
+        return meters.counter("mcp.hitl.decision", "outcome", outcome, "side", "server").count();
     }
 
     private ManagementTool readTool() {
@@ -151,6 +157,28 @@ class ManagementApprovalGateTest {
     }
 
     @Test
+    void theCallerCanConfirmThroughTheClientsElicitationAndGetsNothingWithoutIt() {
+        ManagementTool asking = ManagementTool.named("saip_test_ask", "test", EchoInput.class).data(EchoData.class)
+                .description("ask").handle((input, caller) -> ManagementResult.ok(
+                        caller.elicitation().confirm("run " + input.text() + "?")
+                                .map(decision -> String.valueOf(decision.action())).orElse("unavailable"),
+                        new EchoData(input.text())));
+        McpSyncServerExchange eliciting = ManagementTestSupport.exchange("cursor", true);
+        when(eliciting.createElicitation(any())).thenReturn(new ElicitResult(ElicitResult.Action.ACCEPT, Map.of()));
+        McpSyncServerExchange silent = ManagementTestSupport.exchange("desktop", false);
+
+        CallToolResult accepted = call(ApprovalMode.DESTRUCTIVE, asking, eliciting, Map.of("text", "x"));
+        CallToolResult unavailable = call(ApprovalMode.DESTRUCTIVE, asking, silent, Map.of("text", "x"));
+
+        assertThat(text(accepted)).contains("\"message\":\"ACCEPT\"");
+        ArgumentCaptor<ElicitRequest> captor = ArgumentCaptor.forClass(ElicitRequest.class);
+        verify(eliciting).createElicitation(captor.capture());
+        assertThat(captor.getValue().message()).isEqualTo("run x? Answer within 180 s, or the call is refused.");
+        assertThat(text(unavailable)).contains("\"message\":\"unavailable\"");
+        verify(silent, never()).createElicitation(any());
+    }
+
+    @Test
     void destructiveToolAsksAndRunsWhenAccepted() {
         McpSyncServerExchange exchange = ManagementTestSupport.exchange("cursor", true);
         when(exchange.createElicitation(any())).thenReturn(new ElicitResult(ElicitResult.Action.ACCEPT, Map.of()));
@@ -162,7 +190,9 @@ class ManagementApprovalGateTest {
         ArgumentCaptor<ElicitRequest> captor = ArgumentCaptor.forClass(ElicitRequest.class);
         verify(exchange).createElicitation(captor.capture());
         assertThat(captor.getValue().message()).contains("[DESTRUCTIVE]", "cursor 1.0.0", "delete x");
-        assertThat(captor.getValue().message()).endsWith("delete x Answer within 180 s, or the call is refused.");
+        assertThat(captor.getValue().message()).endsWith("delete x. Answer within 180 s, or the call is refused.");
+        assertThat(decisions("approved")).isEqualTo(1.0);
+        assertThat(decisions("declined")).isZero();
     }
 
     @Test
@@ -174,7 +204,7 @@ class ManagementApprovalGateTest {
         });
         SpringAiPlaygroundOptions options = ManagementTestSupport.options(ApprovalMode.DESTRUCTIVE);
         ManagementApprovalGate gate = new ManagementApprovalGate(options, clientServiceProvider,
-                ManagementTestSupport.auditLog(options, riskEvents), new ApprovalWaitCountdown(180, Duration.ofMillis(20)));
+                ManagementTestSupport.auditLog(options, riskEvents), meters, new ApprovalWaitCountdown(180, Duration.ofMillis(20)));
 
         CallToolResult result = gate.wrap(destructiveTool()).callHandler().apply(exchange,
                 new CallToolRequest("saip_test_delete", Map.of("text", "x"), Map.of("progressToken", "tok-2")));
@@ -193,7 +223,7 @@ class ManagementApprovalGateTest {
         when(exchange.createElicitation(any())).thenReturn(McpServerHitlToolGate.approvalExpired());
         SpringAiPlaygroundOptions options = ManagementTestSupport.options(ApprovalMode.DESTRUCTIVE);
         ManagementAuditLog auditLog = ManagementTestSupport.auditLog(options, riskEvents);
-        ManagementApprovalGate gate = new ManagementApprovalGate(options, clientServiceProvider, auditLog);
+        ManagementApprovalGate gate = new ManagementApprovalGate(options, clientServiceProvider, auditLog, meters);
 
         CallToolResult result = gate.wrap(destructiveTool()).callHandler()
                 .apply(exchange, new CallToolRequest("saip_test_delete", Map.of("text", "x")));
@@ -203,6 +233,7 @@ class ManagementApprovalGateTest {
         assertThat(text(result)).contains("no approval within 180 s");
         assertThat(auditLog.snapshot()).singleElement()
                 .extracting(ManagementAuditLog.Entry::outcome).isEqualTo(ManagementOutcome.TIMEOUT);
+        assertThat(decisions("timeout")).isEqualTo(1.0);
     }
 
     @Test
@@ -214,7 +245,7 @@ class ManagementApprovalGateTest {
         });
         SpringAiPlaygroundOptions options = ManagementTestSupport.options(ApprovalMode.DESTRUCTIVE);
         ManagementAuditLog auditLog = ManagementTestSupport.auditLog(options, riskEvents);
-        ManagementApprovalGate gate = new ManagementApprovalGate(options, clientServiceProvider, auditLog,
+        ManagementApprovalGate gate = new ManagementApprovalGate(options, clientServiceProvider, auditLog, meters,
                 new ApprovalWaitCountdown(1, Duration.ofMillis(200)));
 
         CallToolResult result = gate.wrap(destructiveTool()).callHandler()
@@ -233,7 +264,7 @@ class ManagementApprovalGateTest {
         when(exchange.createElicitation(any())).thenReturn(new ElicitResult(ElicitResult.Action.DECLINE, Map.of()));
         SpringAiPlaygroundOptions options = ManagementTestSupport.options(ApprovalMode.DESTRUCTIVE);
         ManagementAuditLog auditLog = ManagementTestSupport.auditLog(options, riskEvents);
-        ManagementApprovalGate gate = new ManagementApprovalGate(options, clientServiceProvider, auditLog);
+        ManagementApprovalGate gate = new ManagementApprovalGate(options, clientServiceProvider, auditLog, meters);
 
         CallToolResult result = gate.wrap(destructiveTool()).callHandler()
                 .apply(exchange, new CallToolRequest("saip_test_delete", Map.of("text", "x")));
@@ -243,6 +274,8 @@ class ManagementApprovalGateTest {
         assertThat(text(result)).contains("declined");
         assertThat(auditLog.snapshot()).singleElement()
                 .extracting(ManagementAuditLog.Entry::outcome).isEqualTo(ManagementOutcome.DECLINED);
+        assertThat(decisions("declined")).isEqualTo(1.0);
+        assertThat(decisions("approved")).isZero();
         assertThat(riskEvents.snapshot()).singleElement()
                 .extracting(McpRiskEventRingBuffer.RiskEvent::type).isEqualTo("MANAGEMENT");
     }
@@ -256,6 +289,7 @@ class ManagementApprovalGateTest {
         assertThat(result.isError()).isTrue();
         assertThat(handlerCalls.get()).isZero();
         assertThat(text(result)).contains("no elicitation support");
+        assertThat(decisions("denied")).isEqualTo(1.0);
     }
 
     @Test
@@ -356,7 +390,7 @@ class ManagementApprovalGateTest {
         McpSyncServerExchange exchange = ManagementTestSupport.exchange("cursor", true);
         SpringAiPlaygroundOptions options = ManagementTestSupport.options(ApprovalMode.ALL);
         ManagementAuditLog auditLog = ManagementTestSupport.auditLog(options, riskEvents);
-        ManagementApprovalGate gate = new ManagementApprovalGate(options, clientServiceProvider, auditLog);
+        ManagementApprovalGate gate = new ManagementApprovalGate(options, clientServiceProvider, auditLog, meters);
 
         CallToolResult result = gate.wrap(refusing).callHandler()
                 .apply(exchange, new CallToolRequest("saip_test_plan", Map.of("text", "wiki")));
@@ -388,7 +422,7 @@ class ManagementApprovalGateTest {
     void auditSummaryMasksSensitiveArguments() {
         SpringAiPlaygroundOptions options = ManagementTestSupport.options(ApprovalMode.ALL);
         ManagementAuditLog auditLog = ManagementTestSupport.auditLog(options, riskEvents);
-        ManagementApprovalGate gate = new ManagementApprovalGate(options, clientServiceProvider, auditLog);
+        ManagementApprovalGate gate = new ManagementApprovalGate(options, clientServiceProvider, auditLog, meters);
         ManagementTool tool = ManagementTool.named("saip_test_secret", "test", SecretInput.class)
                 .description("secret").handle((input, caller) -> ManagementResult.ok("ok", null));
         McpSyncServerExchange exchange = ManagementTestSupport.exchange("cursor", true);
