@@ -20,6 +20,7 @@ import com.vaadin.flow.component.button.Button;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
+import org.springaicommunity.playground.service.mcp.McpRegistrationService;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
 import org.springaicommunity.playground.service.mcp.catalog.McpCategoryService;
 import org.springaicommunity.playground.service.mcp.catalog.McpTagSuggestionService;
@@ -54,6 +55,7 @@ class McpServerConfigViewTest {
     private final McpCategoryService categoryService = mock(McpCategoryService.class);
     private final McpTagSuggestionService tagService = mock(McpTagSuggestionService.class);
     private final McpRegistrationRiskPreview riskPreview = mock(McpRegistrationRiskPreview.class);
+    private final McpRegistrationService registrationService = mock(McpRegistrationService.class);
 
     @Test
     void aRegisteredServerThatNeverConnectedCanBeConnectedWithoutEditing() {
@@ -88,7 +90,38 @@ class McpServerConfigViewTest {
         when(riskPreview.preview(any(RegistrationInput.class)))
                 .thenReturn(new RegistrationPreview(RiskLevel.L5, null, Map.of(), false));
         return new McpServerConfigView(saved, infoService, clientService, categoryService, tagService, riskPreview,
-                new PropertyChangeSupport(this));
+                registrationService, new PropertyChangeSupport(this));
+    }
+
+    @Test
+    void aSavedServerOffersReconnectAndAnUnsavedFormDoesNot() {
+        assertThat(reconnectButton(viewForSavedServer(1_000L)).isVisible()).isTrue();
+
+        McpServerInfo unsaved = new McpServerInfo(McpTransportType.STREAMABLE_HTTP, "new-server", "", 1L, 1L,
+                "{\"url\":\"" + URL + "\"}", McpServerInfo.DEFAULT_CATEGORY, Set.of(), null);
+        when(infoService.getMcpServerInfos()).thenReturn(Map.of());
+        when(riskPreview.preview(any(RegistrationInput.class)))
+                .thenReturn(new RegistrationPreview(RiskLevel.L5, null, Map.of(), false));
+        McpServerConfigView view = new McpServerConfigView(unsaved, infoService, clientService, categoryService,
+                tagService, riskPreview, registrationService, new PropertyChangeSupport(this));
+
+        assertThat(reconnectButton(view).isVisible()).isFalse();
+    }
+
+    @Test
+    void theBuiltInServerOffersNoReconnect() {
+        when(clientService.isSelfLoopback(SERVER_NAME)).thenReturn(true);
+
+        assertThat(reconnectButton(viewForSavedServer(1_000L)).isVisible()).isFalse();
+    }
+
+    private static Button reconnectButton(Component root) {
+        return descendants(root)
+                .filter(Button.class::isInstance)
+                .map(Button.class::cast)
+                .filter(button -> "Reconnect".equals(button.getText()))
+                .findFirst()
+                .orElseThrow();
     }
 
     private static Button saveAndConnectButton(Component root) {

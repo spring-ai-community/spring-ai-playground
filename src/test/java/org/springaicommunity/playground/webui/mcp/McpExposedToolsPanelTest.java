@@ -21,6 +21,7 @@ import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.details.Details;
+import com.vaadin.flow.component.html.Span;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.mockito.ArgumentCaptor;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
@@ -47,6 +48,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -143,6 +145,137 @@ class McpExposedToolsPanelTest extends SpringBrowserlessTest {
         verify(exposedTools).apply(captor.capture());
         assertThat(captor.getValue().members()).extracting(McpComposition.Member::toolName,
                 McpComposition.Member::hitl).containsExactlyInAnyOrder(tuple("read", false), tuple("search", true));
+    }
+
+    private record Rig(McpExposedToolService exposedTools, McpCompositionService composition,
+                       McpClientService client, McpToolRiskEvaluator evaluator, ToolSpecService toolSpec,
+                       McpServerInfo server) {
+
+        static Rig twoTools() {
+            McpServerInfo server = new McpServerInfo(McpTransportType.STREAMABLE_HTTP, "wiki", "", 0L, 0L, "{}");
+            McpSchema.Tool first = McpSchema.Tool.builder().name("read").description("Reads")
+                    .inputSchema(Map.of("type", "object")).build();
+            McpSchema.Tool second = McpSchema.Tool.builder().name("search").description("Searches")
+                    .inputSchema(Map.of("type", "object")).build();
+            McpExposedToolService exposedTools = mock(McpExposedToolService.class);
+            when(exposedTools.composableServers()).thenReturn(List.of(server));
+            McpClientService client = mock(McpClientService.class);
+            when(client.getToolListAsOpt(server)).thenReturn(Optional.of(List.of(first, second)));
+            McpToolRiskEvaluator evaluator = mock(McpToolRiskEvaluator.class);
+            when(evaluator.evaluateServer(server)).thenReturn(new McpToolRiskEvaluator.ServerRiskView(RiskLevel.L1,
+                    Map.of(), null));
+            when(evaluator.evaluateTool(any(McpServerInfo.class), any(McpSchema.Tool.class))).thenReturn(
+                    new McpToolRiskEvaluator.ToolRiskView(RiskLevel.L2, RiskLevel.L2, RiskLevel.L2, null,
+                            new McpToolPoisoningScanner.ScanResult(true, List.of())));
+            McpCompositionService composition = mock(McpCompositionService.class);
+            when(composition.getExposed()).thenReturn(Optional.empty());
+            ToolSpecService toolSpec = mock(ToolSpecService.class);
+            when(toolSpec.exposureMode()).thenReturn(ExposureMode.BOTH);
+            return new Rig(exposedTools, composition, client, evaluator, toolSpec, server);
+        }
+
+        McpExposedToolsPanel panel(UsageEventTracker tracker) {
+            return new McpExposedToolsPanel(this.exposedTools, this.composition, this.client, this.evaluator,
+                    this.toolSpec, tracker);
+        }
+
+        void exposedAll(boolean hitl) {
+            List<McpComposition.Member> members = List.of(
+                    new McpComposition.Member("wiki", "read", "wiki_read", null, hitl, ""),
+                    new McpComposition.Member("wiki", "search", "wiki_search", null, true, ""));
+            when(this.composition.getExposed()).thenReturn(Optional.of(new McpComposition(
+                    McpCompositionService.EXPOSED_ID, "Exposed Tools", "", members, true, RiskLevel.L5, 0L, 0L,
+                    0L)));
+        }
+    }
+
+    private Component mount(McpExposedToolsPanel panel) {
+        Component root = panel.build();
+        UI.getCurrent().add(root);
+        $(Details.class, root).all().forEach(details -> details.setOpened(true));
+        return root;
+    }
+
+    private List<Checkbox> rowSelects(Component root) {
+        return $(Checkbox.class, root).all().stream().filter(box -> box.getLabel() == null).toList();
+    }
+
+    private List<Checkbox> labelled(Component root, String label) {
+        return $(Checkbox.class, root).all().stream().filter(box -> label.equals(box.getLabel())).toList();
+    }
+
+    private Checkbox markAll(Component root) {
+        return $(Checkbox.class, root).all().stream()
+                .filter(box -> box.getLabel() != null && box.getLabel().startsWith("Mark all")).findFirst()
+                .orElseThrow();
+    }
+
+    @Test
+    void markAllTickedBeforeSelectingReachesTheRowsSelectedLater() {
+        Rig rig = Rig.twoTools();
+        McpExposedToolsPanel panel = rig.panel(this.usageEventTracker);
+        Component root = mount(panel);
+
+        markAll(root).setValue(true);
+        rowSelects(root).forEach(box -> box.setValue(true));
+
+        assertThat(labelled(root, "HITL")).hasSize(2).allMatch(Checkbox::getValue);
+        panel.apply();
+        ArgumentCaptor<ExposureRequest> captor = ArgumentCaptor.forClass(ExposureRequest.class);
+        verify(rig.exposedTools()).apply(captor.capture());
+        assertThat(captor.getValue().members()).extracting(McpComposition.Member::hitl).containsExactly(true, true);
+    }
+
+    @Test
+    void untickingOneRowTurnsMarkAllOffAndLeavesTheOtherRowTicked() {
+        Rig rig = Rig.twoTools();
+        Component root = mount(rig.panel(this.usageEventTracker));
+        rowSelects(root).forEach(box -> box.setValue(true));
+        markAll(root).setValue(true);
+
+        labelled(root, "HITL").getFirst().setValue(false);
+
+        assertThat(markAll(root).getValue()).isFalse();
+        assertThat(labelled(root, "HITL").get(1).getValue()).isTrue();
+    }
+
+    @Test
+    void markAllReflectsWhetherEverySavedToolIsHitlWhenTheDrawerOpens() {
+        Rig everyToolHitl = Rig.twoTools();
+        everyToolHitl.exposedAll(true);
+        assertThat(markAll(mount(everyToolHitl.panel(this.usageEventTracker))).getValue()).isTrue();
+
+        Rig oneToolWithoutHitl = Rig.twoTools();
+        oneToolWithoutHitl.exposedAll(false);
+        assertThat(markAll(mount(oneToolWithoutHitl.panel(this.usageEventTracker))).getValue()).isFalse();
+    }
+
+    @Test
+    void aChangedDefinitionShowsAcceptAndOnlyAcceptedKeysReachTheService() {
+        Rig rig = Rig.twoTools();
+        rig.exposedAll(false);
+        when(rig.exposedTools().awaitsRereview("wiki", "read")).thenReturn(true);
+        McpExposedToolsPanel panel = rig.panel(this.usageEventTracker);
+        Component root = mount(panel);
+
+        List<Checkbox> accepts = labelled(root, "Accept new definition");
+        assertThat(accepts).hasSize(1);
+        assertThat($(Span.class, root).all().stream().map(Span::getText))
+                .anyMatch(text -> text.startsWith("1 tool(s) withheld"))
+                .anyMatch(text -> text.equals("Definition changed"))
+                .anyMatch(text -> text.equals("wiki_read · changed"));
+
+        panel.apply();
+        ArgumentCaptor<ExposureRequest> captor = ArgumentCaptor.forClass(ExposureRequest.class);
+        verify(rig.exposedTools()).apply(captor.capture());
+        assertThat(captor.getValue().acknowledgedChanges()).isEmpty();
+
+        accepts.getFirst().setValue(true);
+        assertThat($(Span.class, root).all().stream().map(Span::getText))
+                .noneMatch(text -> text.startsWith("1 tool(s) withheld"));
+        panel.apply();
+        verify(rig.exposedTools(), times(2)).apply(captor.capture());
+        assertThat(captor.getValue().acknowledgedChanges()).containsExactly("wiki::read");
     }
 
     @Test

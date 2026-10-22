@@ -25,6 +25,7 @@ import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import org.springaicommunity.playground.service.mcp.McpRegistrationService;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
 import org.springaicommunity.playground.service.mcp.catalog.McpCategoryService;
@@ -45,7 +46,7 @@ public class McpContentView extends VerticalLayout {
     public McpContentView(McpServerInfo mcpServerInfo, McpServerInfoService mcpServerInfoService,
             McpClientService mcpClientService, McpCategoryService mcpCategoryService,
             McpTagSuggestionService mcpTagSuggestionService, McpToolRiskEvaluator riskEvaluator,
-            McpRegistrationRiskPreview registrationRiskPreview,
+            McpRegistrationRiskPreview registrationRiskPreview, McpRegistrationService registrationService,
             PropertyChangeSupport mcpServerInfoChangeSupport) {
         this.mcpServerInfo = mcpServerInfo;
 
@@ -56,7 +57,7 @@ public class McpContentView extends VerticalLayout {
 
         McpServerConfigView mcpServerConfigView = new McpServerConfigView(mcpServerInfo, mcpServerInfoService,
                 mcpClientService, mcpCategoryService, mcpTagSuggestionService, registrationRiskPreview,
-                mcpServerInfoChangeSupport);
+                registrationService, mcpServerInfoChangeSupport);
         mcpServerConfigView.setWidthFull();
         add(mcpServerConfigView);
 

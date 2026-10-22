@@ -15,6 +15,7 @@
  */
 package org.springaicommunity.playground.webui.mcp;
 
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.combobox.ComboBox;
@@ -35,8 +36,10 @@ import com.vaadin.flow.component.radiobutton.RadioButtonGroup;
 import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.textfield.TextArea;
 import com.vaadin.flow.component.textfield.TextField;
+import org.springaicommunity.playground.service.mcp.McpRegistrationService;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
+import org.springaicommunity.playground.service.mcp.McpServerOverviewService.ServerOverview;
 import org.springaicommunity.playground.service.mcp.catalog.CategoryDef;
 import org.springaicommunity.playground.service.mcp.catalog.McpCategoryService;
 import org.springaicommunity.playground.service.mcp.catalog.McpTagSuggestionService;
@@ -64,6 +67,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Executors;
 
 import static org.springaicommunity.playground.webui.mcp.McpServerView.MCP_CONNECTION_CHANGE_EVENT;
 
@@ -134,6 +138,7 @@ public class McpServerConfigView extends VerticalLayout {
     private final McpCategoryService mcpCategoryService;
     private final McpTagSuggestionService mcpTagSuggestionService;
     private final McpRegistrationRiskPreview mcpRegistrationRiskPreview;
+    private final McpRegistrationService mcpRegistrationService;
     private final PropertyChangeSupport mcpServerInfoChangeSupport;
 
     private final Div riskPreviewPanel = new Div();
@@ -141,6 +146,7 @@ public class McpServerConfigView extends VerticalLayout {
 
     private Button saveAndConnectButton;
     private Button testConnectionButton;
+    private Button reconnectButton;
 
     private boolean populating;
     private boolean nameChanged = false;
@@ -164,6 +170,7 @@ public class McpServerConfigView extends VerticalLayout {
             McpClientService mcpClientService, McpCategoryService mcpCategoryService,
             McpTagSuggestionService mcpTagSuggestionService,
             McpRegistrationRiskPreview mcpRegistrationRiskPreview,
+            McpRegistrationService mcpRegistrationService,
             PropertyChangeSupport mcpServerInfoChangeSupport) {
         this.mcpServerInfo = mcpServerInfo;
         this.mcpServerInfoService = mcpServerInfoService;
@@ -171,6 +178,7 @@ public class McpServerConfigView extends VerticalLayout {
         this.mcpCategoryService = mcpCategoryService;
         this.mcpTagSuggestionService = mcpTagSuggestionService;
         this.mcpRegistrationRiskPreview = mcpRegistrationRiskPreview;
+        this.mcpRegistrationService = mcpRegistrationService;
         this.mcpServerInfoChangeSupport = mcpServerInfoChangeSupport;
         buildLayout();
         populateFields();
@@ -272,6 +280,12 @@ public class McpServerConfigView extends VerticalLayout {
         testConnectionButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         testConnectionButton.setTooltipText("Try to initialize without saving - verifies URL, headers, and env vars");
 
+        reconnectButton = new Button("Reconnect", VaadinIcon.REFRESH.create(), e -> reconnect());
+        reconnectButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_CONTRAST);
+        reconnectButton.setTooltipText("Start the saved connection again without editing it, then re-sync the "
+                + "tools it exposes - the same step as the management tool saip_mcp_reconnect");
+        reconnectButton.setVisible(false);
+
         serverNameField.addValueChangeListener(e -> {
             nameChanged = !Objects.equals(e.getValue(), originalName);
             validateNameField();
@@ -328,7 +342,7 @@ public class McpServerConfigView extends VerticalLayout {
 
         add(httpExtrasGroup, oauthEnabledCheckbox, oauthSubForm, stdioGroup);
 
-        HorizontalLayout footer = new HorizontalLayout(saveAndConnectButton, testConnectionButton);
+        HorizontalLayout footer = new HorizontalLayout(saveAndConnectButton, testConnectionButton, reconnectButton);
         footer.setSpacing(true);
         footer.setAlignItems(FlexComponent.Alignment.CENTER);
 
@@ -714,7 +728,47 @@ public class McpServerConfigView extends VerticalLayout {
         boolean isNewOrGhost = !isPersisted() || neverConnected();
         boolean isValid = validateNameField();
         saveAndConnectButton.setEnabled((hasChanges || isNewOrGhost) && isValid && !isAppManagedBuiltIn());
+        reconnectButton.setVisible(isPersisted() && !isAppManagedBuiltIn());
         refreshRiskPreview();
+    }
+
+    private void reconnect() {
+        UI ui = UI.getCurrent();
+        String serverName = this.mcpServerInfo.serverName();
+        this.reconnectButton.setEnabled(false);
+        Executors.newVirtualThreadPerTaskExecutor().submit(() -> {
+            ServerOverview overview;
+            try {
+                overview = this.mcpRegistrationService.reconnect(serverName);
+            } catch (RuntimeException e) {
+                ui.access(() -> {
+                    this.reconnectButton.setEnabled(true);
+                    VaadinUtils.showErrorNotification("Reconnect failed: " + e.getMessage());
+                });
+                return;
+            }
+            ui.access(() -> {
+                this.reconnectButton.setEnabled(true);
+                notifyReconnectOutcome(overview);
+                this.mcpServerInfoChangeSupport.firePropertyChange(McpServerView.MCP_CONNECTION_RECONNECT_EVENT,
+                        null, this.mcpServerInfo);
+            });
+        });
+    }
+
+    private void notifyReconnectOutcome(ServerOverview overview) {
+        switch (overview.status()) {
+            case OK -> VaadinUtils.showInfoNotification("Reconnected '" + overview.name() + "' - "
+                    + this.mcpClientService.getToolListAsOpt(this.mcpServerInfo).map(List::size).orElse(0)
+                    + " tool(s).");
+            case MISSING_CONFIG -> VaadinUtils.showErrorNotification("Not connected. Set "
+                    + String.join(", ", overview.missingEnv())
+                    + " as an environment variable, restart the app, then Reconnect again.");
+            case AWAITING_AUTHORIZATION -> VaadinUtils.showInfoNotification(
+                    "Awaiting OAuth authorization - click Authorize above to grant access.");
+            case ERROR -> VaadinUtils.showErrorNotification("Reconnect failed: " + overview.error());
+            case OFFLINE -> VaadinUtils.showErrorNotification("Reconnect failed: the server is not connected.");
+        }
     }
 
     private boolean neverConnected() {
