@@ -58,6 +58,9 @@ public class DockerCliService {
     public static final String CONTAINER_AUTH_TOKEN_ENV = "SPRING_AI_PLAYGROUND_MCPSERVER_AUTHTOKEN";
     private static final String DEFAULT_EXECUTABLE = "docker";
 
+    static final String DETAILS_FORMAT = "{{.State.Status}}|{{.State.StartedAt}}|{{.State.FinishedAt}}|"
+            + "{{.State.ExitCode}}|{{.RestartCount}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}";
+
     public record ProcResult(int exitCode, String stdout, String stderr) {
 
         public boolean ok() {
@@ -335,7 +338,37 @@ public class DockerCliService {
         ProcResult result = this.commandRunner.run(
                 command(target, "logs", "--tail", Integer.toString(Math.max(1, lines)),
                         containerName(serverName)), Map.of(), COMMAND_TIMEOUT);
-        return result.ok() ? result.stdout() : result.stderr();
+        if (!result.ok()) return result.stderr();
+        if (result.stderr().isBlank()) return result.stdout();
+        if (result.stdout().isBlank()) return result.stderr();
+        return result.stdout().stripTrailing() + "\n" + result.stderr();
+    }
+
+    public record ContainerDetails(String status, String startedAt, String finishedAt, Integer exitCode,
+                                   Integer restartCount, String health) {
+    }
+
+    public Optional<ContainerDetails> details(DeployTarget target, String serverName) {
+        ProcResult result;
+        try {
+            result = this.commandRunner.run(command(target, "inspect", "--format", DETAILS_FORMAT,
+                    containerName(serverName)), Map.of(), COMMAND_TIMEOUT);
+        } catch (RuntimeException e) {
+            return Optional.empty();
+        }
+        if (!result.ok() || result.stdout().isBlank()) return Optional.empty();
+        String[] parts = result.stdout().strip().split("\\|", -1);
+        if (parts.length < 6) return Optional.empty();
+        return Optional.of(new ContainerDetails(parts[0], parts[1], parts[2], parseInt(parts[3]),
+                parseInt(parts[4]), parts[5]));
+    }
+
+    private static Integer parseInt(String value) {
+        try {
+            return Integer.valueOf(value.strip());
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     public static String containerName(String serverName) {

@@ -146,6 +146,17 @@ class ManagementToolsBootTest {
     }
 
     @Test
+    void theStatusResourcesAndTheChatToolsAreOfferedWithTheOthers() {
+        assertThat(toolNames()).contains("saip_chat_ask", "saip_chat_list_conversations");
+        assertThat(this.client.listResources().resources()).extracting(Resource::uri)
+                .contains("saip://status/servers", "saip://status/exposure", "saip://status/shipyard");
+        TextResourceContents servers = (TextResourceContents) this.client
+                .readResource(new ReadResourceRequest("saip://status/servers")).contents().getFirst();
+        assertThat(servers.mimeType()).isEqualTo("application/json");
+        assertThat(servers.text()).contains("\"name\":\"" + UPSTREAM + "\"");
+    }
+
+    @Test
     void theProxyGuideIsOfferedAsResourcesAndAPrompt() {
         assertThat(this.client.listResources().resources()).extracting(Resource::uri)
                 .contains("saip://guide/proxy", "saip://guide/risk-levels");

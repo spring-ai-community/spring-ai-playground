@@ -40,6 +40,8 @@ import org.springaicommunity.playground.service.mcp.bundle.ConfiguredBundleExpor
 import org.springaicommunity.playground.service.mcp.bundle.ConnectionSnippetService;
 import org.springaicommunity.playground.service.mcp.bundle.DeployTarget;
 import org.springaicommunity.playground.service.mcp.bundle.DeployTargetService;
+import org.springaicommunity.playground.observability.logs.LogQueryService;
+import org.springaicommunity.playground.service.mcp.bundle.DockerCliService.ContainerState;
 import org.springaicommunity.playground.service.mcp.bundle.DockerCliService.DockerAvailability;
 import org.springaicommunity.playground.service.mcp.bundle.RunPlanner;
 import org.springaicommunity.playground.service.mcp.bundle.RunPlanner.RunPlan;
@@ -58,6 +60,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -66,6 +69,7 @@ public class ShipyardManagementContribution implements ManagementToolContributio
 
     public static final String CATEGORY = "shipyard";
     public static final String GUIDE_URI = "saip://guide/shipyard";
+    public static final String SHIPYARD_STATUS_URI = "saip://status/shipyard";
     public static final String PROMPT_NAME = "saip_shipyard_server";
 
     static final int LOG_LINES_DEFAULT = 100;
@@ -99,7 +103,11 @@ public class ShipyardManagementContribution implements ManagementToolContributio
 
     public record LogsInput(@JsonPropertyDescription("Shipped server name.") String server,
                             @Nullable @JsonPropertyDescription("Number of trailing log lines, default 100, max 1000.")
-                            Integer lines) {
+                            Integer lines,
+                            @Nullable @JsonPropertyDescription("Only lines of this level: ERROR, WARN, INFO, DEBUG or TRACE.")
+                            String level,
+                            @Nullable @JsonPropertyDescription("Only lines that contain this text, ignoring case.")
+                            String text) {
     }
 
     public record RunInput(
@@ -202,12 +210,16 @@ public class ShipyardManagementContribution implements ManagementToolContributio
     public record SnippetData(String client, String content) {
     }
 
-    public record StatusData(String name, String state, String target, String endpoint, int hostPort,
-                             boolean tokenConfigured, List<String> unavailable, List<String> changedSinceShipped,
-                             boolean managedByConfiguration, List<SnippetData> connect) {
+    public record ContainerData(String status, String startedAt, String finishedAt, Integer exitCode,
+                                Integer restartCount, String health) {
     }
 
-    public record LogsData(String name, int lines, String text) {
+    public record StatusData(String name, String state, String target, String endpoint, int hostPort,
+                             boolean tokenConfigured, List<String> unavailable, List<String> changedSinceShipped,
+                             boolean managedByConfiguration, List<SnippetData> connect, ContainerData container) {
+    }
+
+    public record LogsData(String name, int lines, int matched, String text) {
     }
 
     public record TargetData(String name, String where, boolean local, boolean dockerCliFound, boolean dockerUp,
@@ -239,7 +251,14 @@ public class ShipyardManagementContribution implements ManagementToolContributio
                         + "container and connecting clients.")
                 .mimeType(MARKDOWN).build();
         return List.of(new SyncResourceSpecification(resource, (exchange, request) -> new ReadResourceResult(
-                List.of(new TextResourceContents(GUIDE_URI, MARKDOWN, ProxyGuideContribution.read("shipyard.md"))))));
+                List.of(new TextResourceContents(GUIDE_URI, MARKDOWN, ProxyGuideContribution.read("shipyard.md"))))),
+                ManagementJson.statusResource(SHIPYARD_STATUS_URI, "shipyard-status",
+                        "Shipped MCP servers and their container state",
+                        "The same view as saip_shipyard_list_servers, as JSON, read fresh on every read: bundle "
+                                + "contents, container state, endpoint, target and whether a source changed since "
+                                + "it was shipped.",
+                        () -> new ServersData(this.shipyardService.servers().stream().map(this::serverData)
+                                .toList())));
     }
 
     @Override
@@ -404,8 +423,10 @@ public class ShipyardManagementContribution implements ManagementToolContributio
     private ManagementTool status() {
         return ManagementTool.named("saip_shipyard_status", CATEGORY, ServerInput.class).data(StatusData.class)
                 .description("Container state of a shipped server, its endpoint and target, dependencies that are "
-                        + "unavailable right now, sources that changed since it was shipped, and connection "
-                        + "snippets for clients. A bearer token is never included; the person reads it in the app.")
+                        + "unavailable right now, sources that changed since it was shipped, the container's "
+                        + "health (docker status, start and exit times, exit code, restart count, health check) "
+                        + "and connection snippets for clients. A bearer token is never included; the person "
+                        + "reads it in the app.")
                 .idempotent()
                 .handle((input, caller) -> {
                     ServerState state = this.shipyardService.state(input.server());
@@ -421,7 +442,7 @@ public class ShipyardManagementContribution implements ManagementToolContributio
                                     .map(dependency -> dependency.name() + " (" + dependency.kind() + "): "
                                             + dependency.detail()).toList(),
                             state.changes().stream().map(change -> change.change() + " " + change.source()).toList(),
-                            state.managedByConfiguration(), connect);
+                            state.managedByConfiguration(), connect, containerData(state));
                     return ManagementResult.ok("'" + data.name() + "' is " + data.state() + " on "
                             + state.target().where() + (state.changes().isEmpty() ? "." : ", out of date."), data);
                 });
@@ -430,14 +451,23 @@ public class ShipyardManagementContribution implements ManagementToolContributio
     private ManagementTool logs() {
         return ManagementTool.named("saip_shipyard_logs", CATEGORY, LogsInput.class).data(LogsData.class)
                 .description("Trailing container log lines of a shipped server, for example to see why it did not "
-                        + "start.")
+                        + "start. Filter by level or text like saip_monitor_logs_tail; the filters apply to the "
+                        + "requested tail, so raise lines to look further back.")
                 .idempotent()
                 .handle((input, caller) -> {
                     int lines = input.lines() == null ? LOG_LINES_DEFAULT
                             : Math.max(1, Math.min(input.lines(), LOG_LINES_MAX));
                     String text = this.shipyardService.logsTail(input.server(), lines);
-                    return ManagementResult.ok(text.isBlank() ? "No log output." : "Last " + lines + " line(s).",
-                            new LogsData(input.server(), lines, ManagementSecrets.maskText(text)));
+                    List<String> all = text.isBlank() ? List.of() : List.of(text.split("\\R"));
+                    List<String> matched = all.stream()
+                            .filter(line -> matchesLevel(line, input.level()))
+                            .filter(line -> matchesText(line, input.text()))
+                            .toList();
+                    boolean filtered = hasText(input.level()) || hasText(input.text());
+                    String message = filtered ? matched.size() + " of " + all.size() + " line(s) match."
+                            : text.isBlank() ? "No log output." : "Last " + lines + " line(s).";
+                    return ManagementResult.ok(message, new LogsData(input.server(), lines, matched.size(),
+                            ManagementSecrets.maskText(String.join("\n", matched))));
                 });
     }
 
@@ -498,6 +528,30 @@ public class ShipyardManagementContribution implements ManagementToolContributio
 
     private String ollamaEndpoint(String requested) {
         return requested == null || requested.isBlank() ? this.runPlanner.defaultOllamaEndpoint() : requested;
+    }
+
+    private ContainerData containerData(ServerState state) {
+        if (state.status().state() == ContainerState.ABSENT) return null;
+        return this.shipyardService.containerDetails(state.entry().name())
+                .map(details -> new ContainerData(details.status(), details.startedAt(), details.finishedAt(),
+                        details.exitCode(), details.restartCount(), details.health()))
+                .orElse(null);
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private static boolean matchesLevel(String line, String level) {
+        if (!hasText(level)) return true;
+        String wanted = level.strip().toUpperCase(Locale.ROOT);
+        LogQueryService.LogLine parsed = LogQueryService.parse(line);
+        if (parsed != null && hasText(parsed.level())) return wanted.equals(parsed.level());
+        return line.toUpperCase(Locale.ROOT).contains(" " + wanted + " ");
+    }
+
+    private static boolean matchesText(String line, String text) {
+        return !hasText(text) || line.toLowerCase(Locale.ROOT).contains(text.strip().toLowerCase(Locale.ROOT));
     }
 
     private ServerData serverData(ServerSummary summary) {

@@ -15,6 +15,7 @@
  */
 package org.springaicommunity.playground.service.management;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncPromptSpecification;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncResourceSpecification;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncResourceTemplateSpecification;
@@ -96,7 +97,7 @@ class ManagementToolRegistrarTest {
         SpringAiPlaygroundOptions options = new SpringAiPlaygroundOptions(null, false, null, null, null, null, null,
                 null, management, null);
         ManagementApprovalGate gate = new ManagementApprovalGate(options, mock(ObjectProvider.class),
-                ManagementTestSupport.auditLog(options, new McpRiskEventRingBuffer()));
+                ManagementTestSupport.auditLog(options, new McpRiskEventRingBuffer()), new SimpleMeterRegistry());
         return new ManagementToolRegistrar(options, syncServerProvider, toolSpecService, authTokenService,
                 contributions, gate, homeDir, environment);
     }

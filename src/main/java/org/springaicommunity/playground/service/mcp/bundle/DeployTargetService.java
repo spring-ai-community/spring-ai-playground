@@ -23,6 +23,7 @@ import org.springaicommunity.playground.SpringAiPlaygroundOptions.ShipyardTarget
 import org.springaicommunity.playground.service.PersistenceServiceInterface;
 import org.springaicommunity.playground.service.mcp.bundle.BundleRegistryService.BundleEntry;
 import org.springaicommunity.playground.service.mcp.bundle.DeployTarget.Origin;
+import org.springaicommunity.playground.service.mcp.bundle.DockerCliService.ContainerDetails;
 import org.springaicommunity.playground.service.mcp.bundle.DockerCliService.ContainerStatus;
 import org.springaicommunity.playground.service.mcp.bundle.DockerCliService.DockerAvailability;
 import org.springaicommunity.playground.service.mcp.bundle.DockerCliService.DockerContext;
@@ -196,6 +197,10 @@ public class DeployTargetService {
 
     public String logsTail(String serverName, int lines) {
         return this.dockerCliService.logsTail(targetOf(serverName), serverName, lines);
+    }
+
+    public Optional<ContainerDetails> containerDetails(String serverName) {
+        return this.dockerCliService.details(targetOf(serverName), serverName);
     }
 
     public Optional<String> authToken(String serverName) {

@@ -17,7 +17,11 @@ package org.springaicommunity.playground.service.management;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import io.modelcontextprotocol.spec.McpSchema.ReadResourceRequest;
+import io.modelcontextprotocol.spec.McpSchema.TextResourceContents;
 import org.springaicommunity.playground.service.mcp.risk.ExposureChange;
+import org.springaicommunity.playground.service.mcp.risk.ExposureView;
+import org.springaicommunity.playground.service.tool.ToolSpecService.ExposureMode;
 import org.springaicommunity.playground.service.mcp.risk.ExposureChange.Operation;
 import org.springaicommunity.playground.service.mcp.risk.ExposureOutcome;
 import org.springaicommunity.playground.service.mcp.risk.ExposurePlan;
@@ -199,6 +203,23 @@ class ExposeManagementContributionTest {
         assertThat(result.ok()).isTrue();
         assertThat(result.message()).startsWith("Preview:");
         verify(exposureService, never()).commit(any());
+    }
+
+
+    @Test
+    void theExposureStatusResourceReadsTheViewAsJson() {
+        when(exposureService.view()).thenReturn(new ExposureView(ExposureMode.BOTH, RiskLevel.L3, false,
+                List.of(new ExposureView.ViewMember("wiki", "read", "wiki_read", null, true, RiskLevel.L2,
+                        "AWAITING_REREVIEW", true, false))));
+
+        var resource = contribution.resources().getFirst();
+        String json = ((TextResourceContents) resource.readHandler()
+                .apply(null, new ReadResourceRequest(ExposeManagementContribution.EXPOSURE_STATUS_URI)).contents()
+                .getFirst()).text();
+
+        assertThat(resource.resource().uri()).isEqualTo(ExposeManagementContribution.EXPOSURE_STATUS_URI);
+        assertThat(json).contains("\"alias\":\"wiki_read\"", "\"fingerprint\":\"AWAITING_REREVIEW\"",
+                "\"maxRisk\":\"L3\"");
     }
 
 }

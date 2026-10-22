@@ -17,6 +17,7 @@ package org.springaicommunity.playground.service.management;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyDescription;
+import io.modelcontextprotocol.server.McpServerFeatures.SyncResourceSpecification;
 import org.springaicommunity.playground.service.mcp.risk.ExposureChange;
 import org.springaicommunity.playground.service.mcp.risk.ExposureChange.Operation;
 import org.springaicommunity.playground.service.mcp.risk.ExposureOutcome;
@@ -44,6 +45,7 @@ import java.util.stream.Collectors;
 public class ExposeManagementContribution implements ManagementToolContribution {
 
     public static final String CATEGORY = "expose";
+    public static final String EXPOSURE_STATUS_URI = "saip://status/exposure";
 
     private static final Set<String> TOOL_KEYS = Set.of("name", "alias", "description", "hitl");
     private static final int SUMMARY_NAMES = 10;
@@ -104,6 +106,15 @@ public class ExposeManagementContribution implements ManagementToolContribution 
     @Override
     public String category() {
         return CATEGORY;
+    }
+
+    @Override
+    public List<SyncResourceSpecification> resources() {
+        return List.of(ManagementJson.statusResource(EXPOSURE_STATUS_URI, "exposure-status",
+                "Exposed tools of registered MCP servers",
+                "The same view as saip_expose_get, as JSON, read fresh on every read: exposed name, human "
+                        + "approval, risk, fingerprint status, visibility, risk cap and exposure mode.",
+                this.exposureService::view));
     }
 
     @Override
