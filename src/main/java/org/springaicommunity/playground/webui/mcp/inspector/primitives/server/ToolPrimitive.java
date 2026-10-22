@@ -48,11 +48,14 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 public class ToolPrimitive extends Div {
 
     private final ToolInfo tool;
     private final McpServerInfo serverInfo;
+    private static final String PROGRESS_TOKEN_META_KEY = "progressToken";
+
     private final McpClientService clientService;
     private final Map<String, AbstractField<?, ?>> fields = new LinkedHashMap<>();
     private final InlineResultPanel inlineResultPanel = new InlineResultPanel();
@@ -220,7 +223,9 @@ public class ToolPrimitive extends Div {
             String error = null;
             try {
                 result = this.clientService.callTool(this.serverInfo, this.tool.name(), args,
-                        Map.of(McpServerHitlToolGate.INTERACTIVE_HITL_META_KEY, true)).orElse(null);
+                        Map.of(McpServerHitlToolGate.INTERACTIVE_HITL_META_KEY, true,
+                                PROGRESS_TOKEN_META_KEY, "inspector-" + UUID.randomUUID().toString().substring(0, 8)))
+                        .orElse(null);
             } catch (Exception ex) {
                 error = ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage();
             } finally {

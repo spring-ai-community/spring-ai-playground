@@ -211,6 +211,15 @@ class McpClientServiceUnitTest {
     }
 
     @Test
+    void progressNotificationsAreDescribedWithTokenTotalAndMessage() {
+        assertThat(McpClientService.describeProgress(new McpSchema.ProgressNotification("inspector-1a2b", 20, 180.0,
+                "Waiting for approval: 160 s left")))
+                .isEqualTo("Progress [inspector-1a2b]: 20.0 / 180.0 Waiting for approval: 160 s left");
+        assertThat(McpClientService.describeProgress(new McpSchema.ProgressNotification("t-1", 1, null, null)))
+                .isEqualTo("Progress [t-1]: 1.0");
+    }
+
+    @Test
     void statusEntryFactoryMethodsSetStatusCorrectly() {
         StatusEntry ok = StatusEntry.ok();
         StatusEntry err = StatusEntry.error("boom");
@@ -229,6 +238,17 @@ class McpClientServiceUnitTest {
 
         assertThat(service.inspectorCallAwaitsApproval(external, "trigger-sampling-request")).isFalse();
         assertThat(service.requestTimeout()).isEqualTo(Duration.ofSeconds(20));
+    }
+
+    @Test
+    void inspectorCallOfAManagementToolWaitsForTheApprovalWindow() {
+        McpServerInfo builtIn = new McpServerInfo(McpTransportType.STREAMABLE_HTTP, "spring-ai-playground-built-in-mcp",
+                "", 0L, 0L, "{}");
+        when(serverInfoService.getDefaultMcpServerInfo()).thenReturn(builtIn);
+
+        assertThat(service.inspectorCallAwaitsApproval(builtIn, "saip_tools_publish")).isTrue();
+        assertThat(service.inspectorCallAwaitsApproval(builtIn, "saip_tools_list")).isTrue();
+        assertThat(service.inspectorCallAwaitsApproval(builtIn, "extractPageContent")).isFalse();
     }
 
     private static <T> ObjectProvider<T> presentProvider(T value) {

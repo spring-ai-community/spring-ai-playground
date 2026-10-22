@@ -32,15 +32,18 @@ import org.springaicommunity.playground.SpringAiPlaygroundOptions.ApprovalMode;
 import org.springaicommunity.playground.observability.McpRiskEventRingBuffer;
 import org.springaicommunity.playground.service.management.ManagementTestSupport.EchoData;
 import org.springaicommunity.playground.service.management.ManagementTestSupport.EchoInput;
+import org.springaicommunity.playground.service.mcp.ApprovalWaitCountdown;
 import org.springaicommunity.playground.service.mcp.McpServerHitlToolGate;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springframework.beans.factory.ObjectProvider;
 
+import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -159,6 +162,69 @@ class ManagementApprovalGateTest {
         ArgumentCaptor<ElicitRequest> captor = ArgumentCaptor.forClass(ElicitRequest.class);
         verify(exchange).createElicitation(captor.capture());
         assertThat(captor.getValue().message()).contains("[DESTRUCTIVE]", "cursor 1.0.0", "delete x");
+        assertThat(captor.getValue().message()).endsWith("delete x Answer within 180 s, or the call is refused.");
+    }
+
+    @Test
+    void waitingForApprovalStreamsProgressWhenTheRequestCarriesAToken() {
+        McpSyncServerExchange exchange = ManagementTestSupport.exchange("cursor", true);
+        when(exchange.createElicitation(any())).thenAnswer(invocation -> {
+            Thread.sleep(150);
+            return new ElicitResult(ElicitResult.Action.ACCEPT, Map.of());
+        });
+        SpringAiPlaygroundOptions options = ManagementTestSupport.options(ApprovalMode.DESTRUCTIVE);
+        ManagementApprovalGate gate = new ManagementApprovalGate(options, clientServiceProvider,
+                ManagementTestSupport.auditLog(options, riskEvents), new ApprovalWaitCountdown(180, Duration.ofMillis(20)));
+
+        CallToolResult result = gate.wrap(destructiveTool()).callHandler().apply(exchange,
+                new CallToolRequest("saip_test_delete", Map.of("text", "x"), Map.of("progressToken", "tok-2")));
+
+        assertThat(result.isError()).isFalse();
+        ArgumentCaptor<ProgressNotification> captor = ArgumentCaptor.forClass(ProgressNotification.class);
+        verify(exchange, atLeastOnce()).progressNotification(captor.capture());
+        assertThat(captor.getValue().progressToken()).isEqualTo("tok-2");
+        assertThat(captor.getValue().total()).isEqualTo(180.0);
+        assertThat(captor.getValue().message()).endsWith(" s left");
+    }
+
+    @Test
+    void anApprovalTheInspectorLetExpireIsAuditedAsATimeout() {
+        McpSyncServerExchange exchange = ManagementTestSupport.exchange("cursor", true);
+        when(exchange.createElicitation(any())).thenReturn(McpServerHitlToolGate.approvalExpired());
+        SpringAiPlaygroundOptions options = ManagementTestSupport.options(ApprovalMode.DESTRUCTIVE);
+        ManagementAuditLog auditLog = ManagementTestSupport.auditLog(options, riskEvents);
+        ManagementApprovalGate gate = new ManagementApprovalGate(options, clientServiceProvider, auditLog);
+
+        CallToolResult result = gate.wrap(destructiveTool()).callHandler()
+                .apply(exchange, new CallToolRequest("saip_test_delete", Map.of("text", "x")));
+
+        assertThat(result.isError()).isTrue();
+        assertThat(handlerCalls.get()).isZero();
+        assertThat(text(result)).contains("no approval within 180 s");
+        assertThat(auditLog.snapshot()).singleElement()
+                .extracting(ManagementAuditLog.Entry::outcome).isEqualTo(ManagementOutcome.TIMEOUT);
+    }
+
+    @Test
+    void anAnswerThatArrivesAfterTheWaitIsAuditedAsATimeout() {
+        McpSyncServerExchange exchange = ManagementTestSupport.exchange("cursor", true);
+        when(exchange.createElicitation(any())).thenAnswer(invocation -> {
+            Thread.sleep(1500);
+            return new ElicitResult(ElicitResult.Action.ACCEPT, Map.of());
+        });
+        SpringAiPlaygroundOptions options = ManagementTestSupport.options(ApprovalMode.DESTRUCTIVE);
+        ManagementAuditLog auditLog = ManagementTestSupport.auditLog(options, riskEvents);
+        ManagementApprovalGate gate = new ManagementApprovalGate(options, clientServiceProvider, auditLog,
+                new ApprovalWaitCountdown(1, Duration.ofMillis(200)));
+
+        CallToolResult result = gate.wrap(destructiveTool()).callHandler()
+                .apply(exchange, new CallToolRequest("saip_test_delete", Map.of("text", "x")));
+
+        assertThat(result.isError()).isTrue();
+        assertThat(handlerCalls.get()).isZero();
+        assertThat(text(result)).contains("no approval within 1 s");
+        assertThat(auditLog.snapshot()).singleElement()
+                .extracting(ManagementAuditLog.Entry::outcome).isEqualTo(ManagementOutcome.TIMEOUT);
     }
 
     @Test

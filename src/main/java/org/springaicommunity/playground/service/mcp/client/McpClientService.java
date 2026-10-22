@@ -134,7 +134,7 @@ public class McpClientService {
 
     private final Map<McpTransportType, McpClientPropertiesService<?>> typeMcpClientPropertiesServiceMap;
     private final Map<String, McpClientOps> connectingMcpClientOpsMap;
-    private final Map<String, McpClientOps> approvalAwareClientOpsMap = new ConcurrentHashMap<>();
+    private final Map<String, ApprovalAwareClient> approvalAwareClientOpsMap = new ConcurrentHashMap<>();
     private final SpringAiPlaygroundOptions.Hitl hitl;
     private final ObjectProvider<ToolSpecService> toolSpecServiceProvider;
 
@@ -301,11 +301,12 @@ public class McpClientService {
         return s.length() > 240 ? s.substring(0, 240) + "…" : s;
     }
 
-    private static String describeProgress(McpSchema.ProgressNotification n) {
+    static String describeProgress(McpSchema.ProgressNotification notification) {
         StringBuilder sb = new StringBuilder("Progress");
-        if (n.progressToken() != null) sb.append(" [").append(n.progressToken()).append("]");
-        sb.append(": ").append(n.progress());
-        if (n.total() != null) sb.append(" / ").append(n.total());
+        if (notification.progressToken() != null) sb.append(" [").append(notification.progressToken()).append("]");
+        sb.append(": ").append(notification.progress());
+        if (notification.total() != null) sb.append(" / ").append(notification.total());
+        if (notification.message() != null && !notification.message().isBlank()) sb.append(" ").append(notification.message());
         return sb.toString();
     }
 
@@ -586,12 +587,61 @@ public class McpClientService {
     }
 
     private void closeApprovalAwareClient(String key) {
-        McpClientOps approvalAware = this.approvalAwareClientOpsMap.remove(key);
+        ApprovalAwareClient approvalAware = this.approvalAwareClientOpsMap.remove(key);
         if (approvalAware == null) return;
         try {
-            approvalAware.close();
+            approvalAware.retire();
         } catch (RuntimeException e) {
             logger.warn("Failed to close approval-aware MCP client: key={}", key, e);
+        }
+    }
+
+    static final class ApprovalAwareClient {
+
+        private final McpClientOps ops;
+        private int inFlight;
+        private boolean retired;
+
+        ApprovalAwareClient(McpClientOps ops) {
+            this.ops = ops;
+        }
+
+        McpClientOps ops() {
+            return this.ops;
+        }
+
+        synchronized boolean acquire() {
+            if (this.retired) return false;
+            this.inFlight++;
+            return true;
+        }
+
+        synchronized void release() {
+            this.inFlight--;
+            closeWhenRetiredAndIdle();
+        }
+
+        synchronized void retire() {
+            this.retired = true;
+            closeWhenRetiredAndIdle();
+        }
+
+        private void closeWhenRetiredAndIdle() {
+            if (this.retired && this.inFlight == 0) this.ops.close();
+        }
+
+    }
+
+    private Optional<McpSchema.CallToolResult> callThroughApprovalAwareClient(McpServerInfo mcpServerInfo,
+            String toolName, Map<String, Object> args, Map<String, Object> meta) {
+        ApprovalAwareClient client = approvalAwareClientOps(mcpServerInfo);
+        while (!client.acquire()) {
+            client = approvalAwareClientOps(mcpServerInfo);
+        }
+        try {
+            return Optional.ofNullable(client.ops().callTool(toolName, args, meta));
+        } finally {
+            client.release();
         }
     }
 
@@ -600,11 +650,12 @@ public class McpClientService {
             return false;
         }
         if (!isBuiltInServer(mcpServerInfo)) return false;
+        if (ManagementToolNames.isReserved(toolName)) return true;
         ToolSpecService toolSpecService = this.toolSpecServiceProvider.getIfAvailable();
         return toolSpecService != null && toolSpecService.requiresApproval(toolName);
     }
 
-    private McpClientOps approvalAwareClientOps(McpServerInfo mcpServerInfo) {
+    private ApprovalAwareClient approvalAwareClientOps(McpServerInfo mcpServerInfo) {
         return this.approvalAwareClientOpsMap.computeIfAbsent(clientKey(mcpServerInfo), key -> {
             McpServerInfo current = currentBuiltInServerInfo(mcpServerInfo);
             Implementation info = new Implementation(
@@ -612,7 +663,8 @@ public class McpClientService {
                     mcpClientCommonProperties.getVersion());
             logger.info("Creating approval-aware MCP client: serverName={}, requestTimeout={}",
                     current.serverName(), this.hitl.transportTimeout());
-            return newClientOps(buildMcpClientTransport(current), info, this.hitl.transportTimeout());
+            return new ApprovalAwareClient(
+                    newClientOps(buildMcpClientTransport(current), info, this.hitl.transportTimeout()));
         });
     }
 
@@ -826,9 +878,9 @@ public class McpClientService {
             boolean approvalCall = connected != null && awaitsHumanApproval(mcpServerInfo, toolName, meta);
             Duration callTimeout = approvalCall ? this.hitl.transportTimeout() : requestTimeout();
             try {
-                McpClientOps caller = approvalCall ? approvalAwareClientOps(mcpServerInfo) : connected;
-                Optional<McpSchema.CallToolResult> result = Optional.ofNullable(caller)
-                        .map(mcpClientOps -> mcpClientOps.callTool(toolName, args, meta));
+                Optional<McpSchema.CallToolResult> result = approvalCall
+                        ? callThroughApprovalAwareClient(mcpServerInfo, toolName, args, meta)
+                        : Optional.ofNullable(connected).map(mcpClientOps -> mcpClientOps.callTool(toolName, args, meta));
                 long durMs = (System.nanoTime() - startNs) / 1_000_000L;
                 boolean ok = result.map(r -> !Boolean.TRUE.equals(r.isError())).orElse(false);
                 logger.info("mcp.tool.done cid={} server={} tool={} durationMs={} ok={} via=inspector",
