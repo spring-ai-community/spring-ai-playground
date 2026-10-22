@@ -28,6 +28,7 @@ import com.vaadin.flow.spring.annotation.SpringComponent;
 import com.vaadin.flow.spring.annotation.UIScope;
 import org.springaicommunity.playground.service.analytics.UsageAnalyticsService;
 import org.springaicommunity.playground.service.management.ManagementToolRegistrar;
+import org.springaicommunity.playground.service.mcp.McpRegistrationService;
 import org.springaicommunity.playground.service.mcp.McpServerAuthTokenService;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
@@ -67,6 +68,7 @@ public class McpServerView extends ContentWorkspaceView {
     public static final String MCP_CONNECTION_SELECT_EVENT = "MCP_CONNECTION_SELECT_EVENT";
     public static final String MCP_CONNECTION_CHANGE_EVENT = "MCP_CONNECTION_CHANGE_EVENT";
     public static final String MCP_CONNECTION_DELETE_EVENT = "MCP_CONNECTION_DELETE_EVENT";
+    public static final String MCP_CONNECTION_RECONNECT_EVENT = "MCP_CONNECTION_RECONNECT_EVENT";
 
     private final McpServerInfoService mcpServerInfoService;
     private final McpClientService mcpClientService;
@@ -74,6 +76,7 @@ public class McpServerView extends ContentWorkspaceView {
     private final McpTagSuggestionService mcpTagSuggestionService;
     private final McpToolRiskEvaluator mcpToolRiskEvaluator;
     private final McpRegistrationRiskPreview mcpRegistrationRiskPreview;
+    private final McpRegistrationService mcpRegistrationService;
     private final McpExposedToolService mcpExposedToolService;
     private final McpCompositionService mcpCompositionService;
     private final ToolSpecService toolSpecService;
@@ -93,8 +96,10 @@ public class McpServerView extends ContentWorkspaceView {
             McpExposedToolService mcpExposedToolService, McpCompositionService mcpCompositionService,
             ToolSpecService toolSpecService, UsageAnalyticsService usageAnalyticsService,
             UsageEventTracker usageEventTracker, McpServerAuthTokenService mcpServerAuthTokenService,
-            ShipyardService shipyardService, ManagementToolRegistrar managementRegistrar) {
+            ShipyardService shipyardService, ManagementToolRegistrar managementRegistrar,
+            McpRegistrationService mcpRegistrationService) {
         this.shipyardService = shipyardService;
+        this.mcpRegistrationService = mcpRegistrationService;
         this.managementRegistrar = managementRegistrar;
         this.mcpServerInfoService = mcpServerInfoService;
         this.mcpClientService = mcpClientService;
@@ -130,6 +135,10 @@ public class McpServerView extends ContentWorkspaceView {
                 case MCP_CONNECTION_DELETE_EVENT -> {
                     this.mcpServerConnectionView.updateMcpConnections();
                     addNewMcpServerDetails();
+                }
+                case MCP_CONNECTION_RECONNECT_EVENT -> {
+                    this.mcpServerConnectionView.updateMcpConnections();
+                    this.mcpServerConnectionView.selectMcpConnectionContent(newMcpServerInfo);
                 }
             }
         });
@@ -209,7 +218,7 @@ public class McpServerView extends ContentWorkspaceView {
         this.mcpContentView =
                 new McpContentView(mcpServerInfo, this.mcpServerInfoService, this.mcpClientService,
                         this.mcpCategoryService, this.mcpTagSuggestionService,
-                        this.mcpToolRiskEvaluator, this.mcpRegistrationRiskPreview,
+                        this.mcpToolRiskEvaluator, this.mcpRegistrationRiskPreview, this.mcpRegistrationService,
                         this.mcpServerInfoChangeSupport);
 
         VaadinUtils.getUi(this).access(() -> setContent(this.mcpContentView));

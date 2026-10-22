@@ -262,9 +262,51 @@ class McpExposedToolServiceTest {
         assertThat(result).isSameAs(exposed);
         verify(rig.toolSpecService()).setExposureMode(ExposureMode.COMPOSED_ONLY);
         verify(rig.compositionService()).upsertExposed(members, RiskLevel.L3);
-        verify(rig.hashLedger()).approveRereview("files", "read");
+        verify(rig.hashLedger(), never()).approveRereview(any(), any());
         verify(rig.riskEvaluator()).evaluateTool(server, read);
         verify(rig.riskEvaluator(), times(1)).evaluateTool(any(), any(McpSchema.Tool.class));
+    }
+
+    @Test
+    void exposureRequestApprovesOnlyTheAcknowledgedChangedDefinitions() {
+        Rig rig = Rig.create();
+        McpSchema.Tool read = tool("read");
+        McpSchema.Tool search = tool("search");
+        McpServerInfo server = rig.connectedServer("files", read, search);
+        when(rig.serverInfoService().read()).thenReturn(List.of(server));
+        rig.inherentRisk(server, read, RiskLevel.L2);
+        rig.inherentRisk(server, search, RiskLevel.L2);
+        List<McpComposition.Member> members = List.of(
+                new McpComposition.Member("files", "read", "files_read", null, false, ""),
+                new McpComposition.Member("files", "search", "files_search", null, false, ""));
+        McpComposition exposed = new McpComposition(McpCompositionService.EXPOSED_ID, "Exposed Tools", "",
+                members, true, RiskLevel.L3, 0L, 0L, 0L);
+        when(rig.compositionService().upsertExposed(members, RiskLevel.L3)).thenReturn(exposed);
+        when(rig.compositionService().getExposed()).thenReturn(Optional.of(exposed));
+        when(rig.toolSpecService().exposureMode()).thenReturn(ExposureMode.BOTH);
+        when(rig.provider().getToolCallbacksFor(exposed)).thenReturn(new ToolCallback[0]);
+        when(rig.toolSpecService().getExternalMcpToolNames()).thenReturn(Set.of());
+
+        rig.service().apply(new ExposureRequest(ExposureMode.BOTH, members, RiskLevel.L3, Set.of("files::search")));
+
+        verify(rig.hashLedger()).approveRereview("files", "search");
+        verify(rig.hashLedger(), never()).approveRereview("files", "read");
+    }
+
+    @Test
+    void awaitsRereviewIsTrueOnlyForAFingerprintThatIsNotActive() {
+        Rig rig = Rig.create();
+        when(rig.hashLedger().get("files", "changed")).thenReturn(Optional.of(new McpToolHashLedger.Fingerprint(
+                "files", "changed", "h2", "scheme", 0L, null, null,
+                McpToolHashLedger.Fingerprint.LifecycleStatus.AWAITING_REREVIEW)));
+        when(rig.hashLedger().get("files", "same")).thenReturn(Optional.of(new McpToolHashLedger.Fingerprint(
+                "files", "same", "h1", "scheme", 0L, null, null,
+                McpToolHashLedger.Fingerprint.LifecycleStatus.ACTIVE)));
+        when(rig.hashLedger().get("files", "unknown")).thenReturn(Optional.empty());
+
+        assertThat(rig.service().awaitsRereview("files", "changed")).isTrue();
+        assertThat(rig.service().awaitsRereview("files", "same")).isFalse();
+        assertThat(rig.service().awaitsRereview("files", "unknown")).isFalse();
     }
 
     @Test
@@ -288,6 +330,8 @@ class McpExposedToolServiceTest {
 
         assertThat(request.members()).isEmpty();
         assertThat(request.maxRisk()).isEqualTo(RiskLevel.L5);
+        assertThat(request.acknowledgedChanges()).isEmpty();
+        assertThat(new ExposureRequest(ExposureMode.BOTH, null, null, null).acknowledgedChanges()).isEmpty();
         assertThatThrownBy(() -> new ExposureRequest(null, List.of(), RiskLevel.L3))
                 .isInstanceOf(IllegalArgumentException.class);
     }

@@ -69,12 +69,18 @@ public class McpExposedToolService {
         this.riskEvaluator = riskEvaluator;
     }
 
-    public record ExposureRequest(ExposureMode mode, List<McpComposition.Member> members, RiskLevel maxRisk) {
+    public record ExposureRequest(ExposureMode mode, List<McpComposition.Member> members, RiskLevel maxRisk,
+            Set<String> acknowledgedChanges) {
 
         public ExposureRequest {
             if (mode == null) throw new IllegalArgumentException("exposure mode must not be null");
             members = members == null ? List.of() : List.copyOf(members);
             if (maxRisk == null) maxRisk = RiskLevel.L5;
+            acknowledgedChanges = acknowledgedChanges == null ? Set.of() : Set.copyOf(acknowledgedChanges);
+        }
+
+        public ExposureRequest(ExposureMode mode, List<McpComposition.Member> members, RiskLevel maxRisk) {
+            this(mode, members, maxRisk, Set.of());
         }
     }
 
@@ -86,7 +92,14 @@ public class McpExposedToolService {
             sync();
             return this.compositionService.getExposed().orElse(null);
         }
-        return apply(request.members(), request.maxRisk());
+        return apply(request.members(), request.maxRisk(), request.acknowledgedChanges());
+    }
+
+    public boolean awaitsRereview(String serverId, String toolName) {
+        return this.hashLedger.get(serverId, toolName)
+                .map(McpToolHashLedger.Fingerprint::status)
+                .filter(status -> status != McpToolHashLedger.Fingerprint.LifecycleStatus.ACTIVE)
+                .isPresent();
     }
 
     public List<McpServerInfo> composableServers() {
@@ -112,7 +125,6 @@ public class McpExposedToolService {
                     .findFirst();
             if (tool.isEmpty()) continue;
             RiskLevel inherent = this.riskEvaluator.evaluateTool(server, tool.get()).inherentLevel();
-            // inherent risk, not hitl-lowered: hitl has no runtime gate so it must not lift the cap
             if (inherent.ordinal() > cap.ordinal()) {
                 throw new IllegalArgumentException("Tool '" + member.toolName() + "' on '" + member.serverId()
                         + "' has inherent risk " + inherent + " above the cap " + cap
