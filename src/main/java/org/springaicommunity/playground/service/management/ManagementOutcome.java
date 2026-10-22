@@ -16,5 +16,5 @@
 package org.springaicommunity.playground.service.management;
 
 public enum ManagementOutcome {
-    OK, ERROR, REFUSED, DECLINED, DENIED
+    OK, ERROR, REFUSED, DECLINED, DENIED, TIMEOUT
 }

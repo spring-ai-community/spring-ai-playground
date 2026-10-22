@@ -30,15 +30,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions.ApprovalMode;
+import org.springaicommunity.playground.service.mcp.ApprovalWaitCountdown;
 import org.springaicommunity.playground.service.mcp.McpServerHitlToolGate;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeoutException;
 
 @Component
 public class ManagementApprovalGate {
@@ -58,12 +61,21 @@ public class ManagementApprovalGate {
     private final SpringAiPlaygroundOptions options;
     private final ObjectProvider<McpClientService> mcpClientServiceProvider;
     private final ManagementAuditLog auditLog;
+    private final ApprovalWaitCountdown countdown;
 
+    @Autowired
     public ManagementApprovalGate(SpringAiPlaygroundOptions options,
             ObjectProvider<McpClientService> mcpClientServiceProvider, ManagementAuditLog auditLog) {
+        this(options, mcpClientServiceProvider, auditLog, ApprovalWaitCountdown.of(options.hitl()));
+    }
+
+    ManagementApprovalGate(SpringAiPlaygroundOptions options,
+            ObjectProvider<McpClientService> mcpClientServiceProvider, ManagementAuditLog auditLog,
+            ApprovalWaitCountdown countdown) {
         this.options = options;
         this.mcpClientServiceProvider = mcpClientServiceProvider;
         this.auditLog = auditLog;
+        this.countdown = countdown;
     }
 
     public SyncToolSpecification wrap(ManagementTool tool) {
@@ -140,19 +152,42 @@ public class ManagementApprovalGate {
         }
         ElicitResult decision;
         try {
-            decision = exchange.createElicitation(ElicitRequest.builder(
+            ElicitRequest elicitRequest = ElicitRequest.builder(
                     "[" + approval.level() + "] " + caller.label() + " wants to run " + tool.name() + ": "
-                            + approval.summary(), CONFIRMATION_SCHEMA).build());
+                            + approval.summary() + " " + this.countdown.notice(), CONFIRMATION_SCHEMA).build();
+            decision = this.countdown.await(() -> exchange.createElicitation(elicitRequest),
+                    (elapsed, total, message) -> caller.progress().report(elapsed, (double) total, message));
         } catch (RuntimeException e) {
+            if (isTimeout(e)) {
+                logger.info("mgmt.approval.timeout tool={}", tool.name());
+                return Optional.of(expired(tool));
+            }
             logger.info("mgmt.approval.error tool={} error={}", tool.name(), e.getMessage());
             return Optional.of(new Stop(ManagementOutcome.DENIED, ManagementResult.failure("Tool '" + tool.name()
-                    + "' was not run: the approval request failed or timed out.")));
+                    + "' was not run: the approval request failed.")));
+        }
+        if (McpServerHitlToolGate.isApprovalExpired(decision)) {
+            logger.info("mgmt.approval.timeout tool={}", tool.name());
+            return Optional.of(expired(tool));
         }
         if (decision == null || decision.action() != ElicitResult.Action.ACCEPT) {
             return Optional.of(new Stop(ManagementOutcome.DECLINED, ManagementResult.failure("Tool '" + tool.name()
                     + "' was not run: the user declined. Do not retry it for this request.")));
         }
         return Optional.empty();
+    }
+
+    private Stop expired(ManagementTool tool) {
+        return new Stop(ManagementOutcome.TIMEOUT, ManagementResult.failure("Tool '" + tool.name()
+                + "' was not run: no approval within " + this.countdown.waitSeconds()
+                + " s. Do not retry it for this request; ask the user to run it from the app if it is still needed."));
+    }
+
+    private static boolean isTimeout(Throwable error) {
+        for (Throwable cause = error; cause != null; cause = cause.getCause() == cause ? null : cause.getCause()) {
+            if (cause instanceof TimeoutException) return true;
+        }
+        return false;
     }
 
     private ManagementCaller callerOf(McpSyncServerExchange exchange, CallToolRequest request) {

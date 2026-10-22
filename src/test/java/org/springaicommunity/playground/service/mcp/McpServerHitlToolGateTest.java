@@ -24,6 +24,7 @@ import io.modelcontextprotocol.spec.McpSchema.ClientCapabilities;
 import io.modelcontextprotocol.spec.McpSchema.ElicitRequest;
 import io.modelcontextprotocol.spec.McpSchema.ElicitResult;
 import io.modelcontextprotocol.spec.McpSchema.Implementation;
+import io.modelcontextprotocol.spec.McpSchema.ProgressNotification;
 import io.modelcontextprotocol.spec.McpSchema.TextContent;
 import io.modelcontextprotocol.spec.McpSchema.Tool;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,6 +37,7 @@ import org.springaicommunity.playground.service.tool.ToolManifest.HumanInTheLoop
 import org.springaicommunity.playground.service.tool.ToolManifest.Sandbox.RiskLevel;
 import org.springframework.beans.factory.ObjectProvider;
 
+import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -47,6 +49,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -323,6 +326,45 @@ class McpServerHitlToolGateTest {
         ArgumentCaptor<ElicitRequest> captor = ArgumentCaptor.forClass(ElicitRequest.class);
         verify(exchange).createElicitation(captor.capture());
         assertTrue(captor.getValue().message().startsWith("Approve running tool"));
+    }
+
+    @Test
+    void elicitationMessageEndsWithTheWaitNotice() {
+        McpSyncServerExchange exchange = exchange("cursor", true);
+        when(exchange.createElicitation(any())).thenReturn(new ElicitResult(ElicitResult.Action.ACCEPT, Map.of()));
+
+        invoke(decorated(required(), RiskLevel.L2), exchange);
+
+        ArgumentCaptor<ElicitRequest> captor = ArgumentCaptor.forClass(ElicitRequest.class);
+        verify(exchange).createElicitation(captor.capture());
+        assertTrue(captor.getValue().message().endsWith("? Answer within 45 s, or the call is refused."));
+    }
+
+    @Test
+    void waitingForApprovalStreamsProgressOnlyWhenTheRequestCarriesAToken() {
+        McpServerHitlToolGate fastGate = new McpServerHitlToolGate(mcpClientServiceProvider, meterRegistry,
+                deniedToolCallRecorder, new ApprovalWaitCountdown(45, Duration.ofMillis(20)));
+        SyncToolSpecification specification = fastGate.decorate(baseSpec(), required(), null);
+        McpSyncServerExchange withToken = exchange("cursor", true);
+        McpSyncServerExchange withoutToken = exchange("cursor", true);
+        for (McpSyncServerExchange exchange : new McpSyncServerExchange[] {withToken, withoutToken}) {
+            when(exchange.createElicitation(any())).thenAnswer(invocation -> {
+                Thread.sleep(150);
+                return new ElicitResult(ElicitResult.Action.ACCEPT, Map.of());
+            });
+        }
+
+        specification.callHandler().apply(withToken, CallToolRequest.builder().name("writeFile")
+                .arguments(Map.of("path", "/tmp/x")).progressToken("tok-1").build());
+        specification.callHandler().apply(withoutToken, new CallToolRequest("writeFile", Map.of("path", "/tmp/x")));
+
+        ArgumentCaptor<ProgressNotification> captor = ArgumentCaptor.forClass(ProgressNotification.class);
+        verify(withToken, atLeastOnce()).progressNotification(captor.capture());
+        assertEquals("tok-1", captor.getValue().progressToken());
+        assertEquals(45.0, captor.getValue().total());
+        assertTrue(captor.getValue().message().endsWith(" s left"));
+        verify(withoutToken, never()).progressNotification(any());
+        assertEquals(2, delegateCalls.get());
     }
 
     @Test
