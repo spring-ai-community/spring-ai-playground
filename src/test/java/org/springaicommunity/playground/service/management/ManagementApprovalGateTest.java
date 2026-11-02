@@ -20,19 +20,21 @@ import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.server.McpSyncServerExchange;
 import io.modelcontextprotocol.spec.McpSchema.CallToolRequest;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
-import io.modelcontextprotocol.spec.McpSchema.ProgressNotification;
+import io.modelcontextprotocol.spec.McpSchema.ElicitFormRequest;
 import io.modelcontextprotocol.spec.McpSchema.ElicitRequest;
 import io.modelcontextprotocol.spec.McpSchema.ElicitResult;
 import io.modelcontextprotocol.spec.McpSchema.Implementation;
+import io.modelcontextprotocol.spec.McpSchema.ProgressNotification;
 import io.modelcontextprotocol.spec.McpSchema.TextContent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springaicommunity.playground.SpringAiPlaygroundOptions;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions.ApprovalMode;
+import org.springaicommunity.playground.SpringAiPlaygroundOptions;
 import org.springaicommunity.playground.observability.McpRiskEventRingBuffer;
 import org.springaicommunity.playground.service.management.ManagementTestSupport.EchoData;
 import org.springaicommunity.playground.service.management.ManagementTestSupport.EchoInput;
+import org.springaicommunity.playground.service.mcp.ApprovalConfirmation;
 import org.springaicommunity.playground.service.mcp.ApprovalWaitCountdown;
 import org.springaicommunity.playground.service.mcp.McpServerHitlToolGate;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
@@ -164,7 +166,7 @@ class ManagementApprovalGateTest {
                                 .map(decision -> String.valueOf(decision.action())).orElse("unavailable"),
                         new EchoData(input.text())));
         McpSyncServerExchange eliciting = ManagementTestSupport.exchange("cursor", true);
-        when(eliciting.createElicitation(any())).thenReturn(new ElicitResult(ElicitResult.Action.ACCEPT, Map.of()));
+        when(eliciting.createElicitation(any())).thenReturn(ApprovalConfirmation.accepted());
         McpSyncServerExchange silent = ManagementTestSupport.exchange("desktop", false);
 
         CallToolResult accepted = call(ApprovalMode.DESTRUCTIVE, asking, eliciting, Map.of("text", "x"));
@@ -181,7 +183,7 @@ class ManagementApprovalGateTest {
     @Test
     void destructiveToolAsksAndRunsWhenAccepted() {
         McpSyncServerExchange exchange = ManagementTestSupport.exchange("cursor", true);
-        when(exchange.createElicitation(any())).thenReturn(new ElicitResult(ElicitResult.Action.ACCEPT, Map.of()));
+        when(exchange.createElicitation(any())).thenReturn(ApprovalConfirmation.accepted());
 
         CallToolResult result = call(ApprovalMode.DESTRUCTIVE, destructiveTool(), exchange, Map.of("text", "x"));
 
@@ -200,7 +202,7 @@ class ManagementApprovalGateTest {
         McpSyncServerExchange exchange = ManagementTestSupport.exchange("cursor", true);
         when(exchange.createElicitation(any())).thenAnswer(invocation -> {
             Thread.sleep(150);
-            return new ElicitResult(ElicitResult.Action.ACCEPT, Map.of());
+            return ApprovalConfirmation.accepted();
         });
         SpringAiPlaygroundOptions options = ManagementTestSupport.options(ApprovalMode.DESTRUCTIVE);
         ManagementApprovalGate gate = new ManagementApprovalGate(options, clientServiceProvider,
@@ -241,7 +243,7 @@ class ManagementApprovalGateTest {
         McpSyncServerExchange exchange = ManagementTestSupport.exchange("cursor", true);
         when(exchange.createElicitation(any())).thenAnswer(invocation -> {
             Thread.sleep(1500);
-            return new ElicitResult(ElicitResult.Action.ACCEPT, Map.of());
+            return ApprovalConfirmation.accepted();
         });
         SpringAiPlaygroundOptions options = ManagementTestSupport.options(ApprovalMode.DESTRUCTIVE);
         ManagementAuditLog auditLog = ManagementTestSupport.auditLog(options, riskEvents);
@@ -299,7 +301,7 @@ class ManagementApprovalGateTest {
         verify(destructiveMode, never()).createElicitation(any());
 
         McpSyncServerExchange allMode = ManagementTestSupport.exchange("cursor", true);
-        when(allMode.createElicitation(any())).thenReturn(new ElicitResult(ElicitResult.Action.ACCEPT, Map.of()));
+        when(allMode.createElicitation(any())).thenReturn(ApprovalConfirmation.accepted());
         call(ApprovalMode.ALL, writeTool(), allMode, Map.of("text", "x"));
         verify(allMode).createElicitation(any());
     }
@@ -339,7 +341,7 @@ class ManagementApprovalGateTest {
                 .approval(ApprovalLevel.WRITE, input -> ManagementApproval.write("risky").markHighRisk())
                 .handle((input, caller) -> ManagementResult.ok("ran", null));
         McpSyncServerExchange exchange = ManagementTestSupport.exchange("cursor", true);
-        when(exchange.createElicitation(any())).thenReturn(new ElicitResult(ElicitResult.Action.ACCEPT, Map.of()));
+        when(exchange.createElicitation(any())).thenReturn(ApprovalConfirmation.accepted());
 
         call(ApprovalMode.DESTRUCTIVE, highRisk, exchange, Map.of("text", "x"));
 
@@ -437,4 +439,29 @@ class ManagementApprovalGateTest {
     record SecretInput(String apiToken) {
     }
 
+    @Test
+    void theQuestionAsksForOneRequiredApproveField() {
+        McpSyncServerExchange exchange = ManagementTestSupport.exchange("cursor", true);
+        when(exchange.createElicitation(any())).thenReturn(ApprovalConfirmation.accepted());
+
+        call(ApprovalMode.DESTRUCTIVE, destructiveTool(), exchange, Map.of("text", "x"));
+
+        ArgumentCaptor<ElicitRequest> captor = ArgumentCaptor.forClass(ElicitRequest.class);
+        verify(exchange).createElicitation(captor.capture());
+        assertThat(((ElicitFormRequest) captor.getValue()).requestedSchema()).isEqualTo(ApprovalConfirmation.SCHEMA);
+    }
+
+    @Test
+    void anAcceptWithoutTheApproveFieldIsADecline() {
+        McpSyncServerExchange exchange = ManagementTestSupport.exchange("codex", true);
+        when(exchange.createElicitation(any())).thenReturn(new ElicitResult(ElicitResult.Action.ACCEPT, Map.of()));
+
+        CallToolResult result = call(ApprovalMode.DESTRUCTIVE, destructiveTool(), exchange, Map.of("text", "x"));
+
+        assertThat(result.isError()).isTrue();
+        assertThat(handlerCalls.get()).isZero();
+        assertThat(text(result)).contains("declined");
+        assertThat(decisions("declined")).isEqualTo(1.0);
+        assertThat(decisions("approved")).isZero();
+    }
 }

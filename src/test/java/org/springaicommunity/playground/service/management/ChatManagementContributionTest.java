@@ -18,15 +18,16 @@ package org.springaicommunity.playground.service.management;
 import io.modelcontextprotocol.spec.McpSchema.ElicitResult;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springaicommunity.playground.service.chat.HeadlessChatService;
 import org.springaicommunity.playground.service.chat.HeadlessChatService.ConversationSummary;
 import org.springaicommunity.playground.service.chat.HeadlessChatService.HeadlessChatRequest;
 import org.springaicommunity.playground.service.chat.HeadlessChatService.HeadlessChatResult;
 import org.springaicommunity.playground.service.chat.HeadlessChatService.Stage;
 import org.springaicommunity.playground.service.chat.HeadlessChatService.StageKind;
 import org.springaicommunity.playground.service.chat.HeadlessChatService.ToolCallSummary;
+import org.springaicommunity.playground.service.chat.HeadlessChatService;
 import org.springaicommunity.playground.service.management.ChatManagementContribution.AskData;
 import org.springaicommunity.playground.service.management.ChatManagementContribution.ConversationsData;
+import org.springaicommunity.playground.service.mcp.ApprovalConfirmation;
 import org.springaicommunity.playground.service.mcp.McpServerHitlToolGate;
 import org.springaicommunity.playground.service.tool.HumanQuestion;
 import org.springaicommunity.playground.service.tool.HumanQuestionHandler;
@@ -64,7 +65,7 @@ class ChatManagementContributionTest {
         List<String> progress = new ArrayList<>();
         ManagementCaller caller = new ManagementCaller("cursor", "1", false, true, false,
                 (value, total, message) -> progress.add(message), message -> Optional.of(
-                        new ElicitResult(ElicitResult.Action.ACCEPT, Map.of())));
+                        ApprovalConfirmation.accepted()));
 
         ManagementResult result = tool("saip_chat_ask").handle(Map.of("prompt", "what time is it",
                 "tools", List.of("getCurrentTime"), "timeoutSeconds", 30), caller);
@@ -122,8 +123,9 @@ class ChatManagementContributionTest {
         HumanQuestion question = HumanQuestion.approval("c1", "Tool approval required",
                 "Run getCurrentTime with {\"timeZone\":\"UTC\"}?", RiskLevel.L4);
         ManagementCaller noElicitation = new ManagementCaller("desktop", "1", false, false, false);
-        ManagementCaller accepting = caller(Optional.of(new ElicitResult(ElicitResult.Action.ACCEPT, Map.of())));
+        ManagementCaller accepting = caller(Optional.of(ApprovalConfirmation.accepted()));
         ManagementCaller declining = caller(Optional.of(new ElicitResult(ElicitResult.Action.DECLINE, Map.of())));
+        ManagementCaller bareAccept = caller(Optional.of(new ElicitResult(ElicitResult.Action.ACCEPT, Map.of())));
         ManagementCaller expired = caller(Optional.of(McpServerHitlToolGate.approvalExpired()));
         ManagementCaller failing = caller(Optional.empty());
 
@@ -131,6 +133,7 @@ class ChatManagementContributionTest {
                 "Decline");
         assertThat(new ElicitationQuestionHandler(accepting).ask(List.of(question))).containsEntry("c1", "Approve");
         assertThat(new ElicitationQuestionHandler(declining).ask(List.of(question))).containsEntry("c1", "Decline");
+        assertThat(new ElicitationQuestionHandler(bareAccept).ask(List.of(question))).containsEntry("c1", "Decline");
         assertThat(new ElicitationQuestionHandler(expired).ask(List.of(question))).containsEntry("c1",
                 HumanQuestionHandler.TIMEOUT_ANSWER);
         assertThat(new ElicitationQuestionHandler(failing).ask(List.of(question))).containsEntry("c1", "Decline");

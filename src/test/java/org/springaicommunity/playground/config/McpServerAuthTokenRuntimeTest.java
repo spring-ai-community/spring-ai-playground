@@ -18,14 +18,15 @@ package org.springaicommunity.playground.config;
 import org.junit.jupiter.api.AfterEach;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.junit.jupiter.api.Test;
-import org.springaicommunity.playground.service.mcp.McpServerAuthTokenService;
+import org.springaicommunity.playground.service.mcp.ApprovalConfirmation;
 import org.springaicommunity.playground.service.mcp.McpServerAuthTokenService.AccessMode;
+import org.springaicommunity.playground.service.mcp.McpServerAuthTokenService;
 import org.springaicommunity.playground.service.mcp.McpServerHitlToolGate;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
-import org.springaicommunity.playground.service.tool.ToolSpecService;
 import org.springaicommunity.playground.service.mcp.client.McpNotificationStore;
+import org.springaicommunity.playground.service.tool.ToolSpecService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.ai.tool.function.FunctionToolCallback;
 import org.springframework.ai.tool.ToolCallback;
@@ -123,7 +124,7 @@ class McpServerAuthTokenRuntimeTest {
                     () -> this.mcpClientService.snapshotPendingElicitations(beforeToken), list -> !list.isEmpty());
             assertThat(pending).hasSize(1);
             this.mcpClientService.completeElicitation(beforeToken, pending.getFirst().id(),
-                    new McpSchema.ElicitResult(McpSchema.ElicitResult.Action.ACCEPT, Map.of()));
+                    ApprovalConfirmation.accepted());
 
             McpSchema.CallToolResult result = pendingCall.get(20, TimeUnit.SECONDS).orElseThrow();
             assertThat(result.isError()).isNotEqualTo(Boolean.TRUE);

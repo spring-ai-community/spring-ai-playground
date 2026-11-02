@@ -151,11 +151,12 @@ public class ToolPrimitive extends Div {
         actions.setPadding(false);
         actions.setAlignItems(FlexComponent.Alignment.CENTER);
         actions.getStyle().set("margin-top", "0.4em").set("gap", "0.6em").set("flex-wrap", "wrap");
-        if (InspectorHelpers.requiresNoInput(pending.request())) {
+        if (InspectorHelpers.isConfirmation(pending.request())) {
             Button accept = new Button("Accept", VaadinIcon.CHECK.create(), click -> answer(pending,
-                    McpSchema.ElicitResult.Action.ACCEPT));
+                    InspectorHelpers.acceptance(pending.request())));
             accept.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_PRIMARY);
-            Button decline = new Button("Decline", click -> answer(pending, McpSchema.ElicitResult.Action.DECLINE));
+            Button decline = new Button("Decline", click -> answer(pending,
+                    new McpSchema.ElicitResult(McpSchema.ElicitResult.Action.DECLINE, Map.of())));
             decline.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY);
             actions.add(accept, decline);
         }
@@ -172,9 +173,8 @@ public class ToolPrimitive extends Div {
         hideApprovalPanel();
     }
 
-    private void answer(McpNotificationStore.PendingElicitation pending, McpSchema.ElicitResult.Action action) {
-        this.clientService.completeElicitation(this.serverInfo, pending.id(),
-                new McpSchema.ElicitResult(action, Map.of()));
+    private void answer(McpNotificationStore.PendingElicitation pending, McpSchema.ElicitResult result) {
+        this.clientService.completeElicitation(this.serverInfo, pending.id(), result);
         hideApprovalPanel();
     }
 

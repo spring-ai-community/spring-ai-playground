@@ -231,10 +231,10 @@ public class McpServerInspectorView extends VerticalLayout {
         review.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY_INLINE);
         HorizontalLayout row = new HorizontalLayout(text);
         row.setAlignItems(FlexComponent.Alignment.CENTER);
-        if (InspectorHelpers.requiresNoInput(elicitation.request())) {
+        if (InspectorHelpers.isConfirmation(elicitation.request())) {
             Button accept = new Button("Accept", click -> {
                 this.clientService.completeElicitation(this.serverInfo, elicitation.id(),
-                        new McpSchema.ElicitResult(McpSchema.ElicitResult.Action.ACCEPT, Map.of()));
+                        InspectorHelpers.acceptance(elicitation.request()));
                 prompt.close();
             });
             accept.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_PRIMARY);

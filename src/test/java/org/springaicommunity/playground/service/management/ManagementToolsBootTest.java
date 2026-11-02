@@ -35,9 +35,10 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springaicommunity.playground.service.mcp.ApprovalConfirmation;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
-import org.springaicommunity.playground.service.mcp.McpServerInfoService;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService.McpServerRegistration;
+import org.springaicommunity.playground.service.mcp.McpServerInfoService;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.service.mcp.client.McpTransportType;
 import org.springaicommunity.playground.service.mcp.client.TestStdioMcpServer;
@@ -107,7 +108,8 @@ class ManagementToolsBootTest {
                 .capabilities(ClientCapabilities.builder().elicitation().build())
                 .elicitation(request -> {
                     this.approvalMessages.add(request.message());
-                    return new ElicitResult(this.decision.get(), Map.of());
+                    return this.decision.get() == ElicitResult.Action.ACCEPT ? ApprovalConfirmation.accepted()
+                            : new ElicitResult(this.decision.get(), Map.of());
                 })
                 .build();
         this.client.initialize();

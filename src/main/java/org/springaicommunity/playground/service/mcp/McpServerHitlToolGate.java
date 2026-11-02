@@ -47,8 +47,6 @@ public class McpServerHitlToolGate {
 
     private static final Logger logger = LoggerFactory.getLogger(McpServerHitlToolGate.class);
 
-    private static final Map<String, Object> CONFIRMATION_SCHEMA = Map.of("type", "object", "properties", Map.of());
-
     public static final String INTERACTIVE_HITL_META_KEY = "playgroundInteractiveHitl";
     public static final String APPROVAL_EXPIRED_META_KEY = "playgroundApprovalExpired";
 
@@ -173,7 +171,7 @@ public class McpServerHitlToolGate {
     }
 
     private static boolean isApproved(ElicitResult result) {
-        return result != null && result.action() == ElicitResult.Action.ACCEPT;
+        return ApprovalConfirmation.isApproved(result);
     }
 
     public static boolean isApprovalExpired(ElicitResult result) {
@@ -198,7 +196,7 @@ public class McpServerHitlToolGate {
         return ElicitRequest.builder(
                 riskPrefix(riskLevel) + renderPrompt(promptTemplate, request.name(), request.arguments())
                         + " " + this.countdown.notice(),
-                CONFIRMATION_SCHEMA).build();
+                ApprovalConfirmation.SCHEMA).build();
     }
 
     private static ApprovalWaitCountdown.Ticker progressTicker(McpSyncServerExchange exchange,
