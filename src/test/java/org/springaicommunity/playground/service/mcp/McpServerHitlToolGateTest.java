@@ -21,6 +21,7 @@ import io.modelcontextprotocol.server.McpSyncServerExchange;
 import io.modelcontextprotocol.spec.McpSchema.CallToolRequest;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 import io.modelcontextprotocol.spec.McpSchema.ClientCapabilities;
+import io.modelcontextprotocol.spec.McpSchema.ElicitFormRequest;
 import io.modelcontextprotocol.spec.McpSchema.ElicitRequest;
 import io.modelcontextprotocol.spec.McpSchema.ElicitResult;
 import io.modelcontextprotocol.spec.McpSchema.Implementation;
@@ -32,8 +33,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
-import org.springaicommunity.playground.service.tool.ToolManifest.HumanInTheLoop;
 import org.springaicommunity.playground.service.tool.ToolManifest.HumanInTheLoop.Mode;
+import org.springaicommunity.playground.service.tool.ToolManifest.HumanInTheLoop;
 import org.springaicommunity.playground.service.tool.ToolManifest.Sandbox.RiskLevel;
 import org.springframework.beans.factory.ObjectProvider;
 
@@ -127,7 +128,7 @@ class McpServerHitlToolGateTest {
     @Test
     void externalClientApprovalRunsTool() {
         McpSyncServerExchange exchange = exchange("cursor", true);
-        when(exchange.createElicitation(any())).thenReturn(new ElicitResult(ElicitResult.Action.ACCEPT, Map.of()));
+        when(exchange.createElicitation(any())).thenReturn(ApprovalConfirmation.accepted());
 
         CallToolResult result = invoke(decorated(required()), exchange);
 
@@ -229,7 +230,7 @@ class McpServerHitlToolGateTest {
     @Test
     void approvedCallIsNotRecordedAsDenied() {
         McpSyncServerExchange exchange = exchange("cursor", true);
-        when(exchange.createElicitation(any())).thenReturn(new ElicitResult(ElicitResult.Action.ACCEPT, Map.of()));
+        when(exchange.createElicitation(any())).thenReturn(ApprovalConfirmation.accepted());
 
         invoke(decorated(required()), exchange);
 
@@ -263,7 +264,7 @@ class McpServerHitlToolGateTest {
     void loopbackInspectorCallWithMetaElicits() {
         String loopbackClient = "spring-ai-playground - " + LOOPBACK_NAME;
         McpSyncServerExchange exchange = exchange(loopbackClient, true);
-        when(exchange.createElicitation(any())).thenReturn(new ElicitResult(ElicitResult.Action.ACCEPT, Map.of()));
+        when(exchange.createElicitation(any())).thenReturn(ApprovalConfirmation.accepted());
 
         CallToolResult result = invokeInteractive(decorated(required()), exchange);
 
@@ -276,7 +277,7 @@ class McpServerHitlToolGateTest {
     void inspectorTestClientElicits() {
         String testClient = "spring-ai-playground" + McpClientService.TEST_CLIENT_INFIX + LOOPBACK_NAME;
         McpSyncServerExchange exchange = exchange(testClient, true);
-        when(exchange.createElicitation(any())).thenReturn(new ElicitResult(ElicitResult.Action.ACCEPT, Map.of()));
+        when(exchange.createElicitation(any())).thenReturn(ApprovalConfirmation.accepted());
 
         CallToolResult result = invoke(decorated(required()), exchange);
 
@@ -307,7 +308,7 @@ class McpServerHitlToolGateTest {
     @Test
     void elicitationMessageCarriesRiskPrefix() {
         McpSyncServerExchange exchange = exchange("cursor", true);
-        when(exchange.createElicitation(any())).thenReturn(new ElicitResult(ElicitResult.Action.ACCEPT, Map.of()));
+        when(exchange.createElicitation(any())).thenReturn(ApprovalConfirmation.accepted());
 
         invoke(decorated(required(), RiskLevel.L5), exchange);
 
@@ -319,7 +320,7 @@ class McpServerHitlToolGateTest {
     @Test
     void elicitationMessageWithoutLevelHasNoPrefix() {
         McpSyncServerExchange exchange = exchange("cursor", true);
-        when(exchange.createElicitation(any())).thenReturn(new ElicitResult(ElicitResult.Action.ACCEPT, Map.of()));
+        when(exchange.createElicitation(any())).thenReturn(ApprovalConfirmation.accepted());
 
         invoke(decorated(required()), exchange);
 
@@ -331,7 +332,7 @@ class McpServerHitlToolGateTest {
     @Test
     void elicitationMessageEndsWithTheWaitNotice() {
         McpSyncServerExchange exchange = exchange("cursor", true);
-        when(exchange.createElicitation(any())).thenReturn(new ElicitResult(ElicitResult.Action.ACCEPT, Map.of()));
+        when(exchange.createElicitation(any())).thenReturn(ApprovalConfirmation.accepted());
 
         invoke(decorated(required(), RiskLevel.L2), exchange);
 
@@ -350,7 +351,7 @@ class McpServerHitlToolGateTest {
         for (McpSyncServerExchange exchange : new McpSyncServerExchange[] {withToken, withoutToken}) {
             when(exchange.createElicitation(any())).thenAnswer(invocation -> {
                 Thread.sleep(150);
-                return new ElicitResult(ElicitResult.Action.ACCEPT, Map.of());
+                return ApprovalConfirmation.accepted();
             });
         }
 
@@ -381,5 +382,30 @@ class McpServerHitlToolGateTest {
     void renderPromptFallsBackToDefaultTemplate() {
         String rendered = McpServerHitlToolGate.renderPrompt(null, "writeFile", Map.of());
         assertTrue(rendered.contains("writeFile"));
+    }
+
+    @Test
+    void acceptWithoutTheApproveFieldIsADecline() {
+        McpSyncServerExchange exchange = exchange("codex", true);
+        when(exchange.createElicitation(any())).thenReturn(new ElicitResult(ElicitResult.Action.ACCEPT, Map.of()));
+
+        CallToolResult result = invoke(decorated(required()), exchange);
+
+        assertEquals(0, delegateCalls.get());
+        assertTrue(result.isError());
+        Implementation client = exchange.getClientInfo();
+        verify(deniedToolCallRecorder).recordExternalClientDenial(any(), eq(client), eq("declined"));
+    }
+
+    @Test
+    void theQuestionAsksForOneRequiredApproveField() {
+        McpSyncServerExchange exchange = exchange("cursor", true);
+        when(exchange.createElicitation(any())).thenReturn(ApprovalConfirmation.accepted());
+
+        invoke(decorated(required()), exchange);
+
+        ArgumentCaptor<ElicitRequest> captor = ArgumentCaptor.forClass(ElicitRequest.class);
+        verify(exchange).createElicitation(captor.capture());
+        assertEquals(ApprovalConfirmation.SCHEMA, ((ElicitFormRequest) captor.getValue()).requestedSchema());
     }
 }

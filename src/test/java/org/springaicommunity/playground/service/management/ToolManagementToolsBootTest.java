@@ -42,13 +42,14 @@ import org.springaicommunity.playground.service.management.ToolsManagementContri
 import org.springaicommunity.playground.service.management.ToolsManagementContribution.ParamSpec;
 import org.springaicommunity.playground.service.management.ToolsManagementContribution.SandboxSpec;
 import org.springaicommunity.playground.service.management.ToolsManagementContribution.VariableSpec;
+import org.springaicommunity.playground.service.mcp.ApprovalConfirmation;
 import org.springaicommunity.playground.service.tool.ToolManifest.HumanInTheLoop;
-import org.springaicommunity.playground.service.tool.ToolSpec;
 import org.springaicommunity.playground.service.tool.ToolSpec.JsonSchemaType;
 import org.springaicommunity.playground.service.tool.ToolSpec.ToolParamSpec;
-import org.springaicommunity.playground.service.tool.ToolSpecService;
+import org.springaicommunity.playground.service.tool.ToolSpec;
 import org.springaicommunity.playground.service.tool.ToolSpecService.ToolDraftInput;
 import org.springaicommunity.playground.service.tool.ToolSpecService.ToolMcpServerSetting;
+import org.springaicommunity.playground.service.tool.ToolSpecService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -117,7 +118,8 @@ class ToolManagementToolsBootTest {
                 .capabilities(ClientCapabilities.builder().elicitation().build())
                 .elicitation(request -> {
                     this.approvalMessages.add(request.message());
-                    return new ElicitResult(this.decision.get(), Map.of());
+                    return this.decision.get() == ElicitResult.Action.ACCEPT ? ApprovalConfirmation.accepted()
+                            : new ElicitResult(this.decision.get(), Map.of());
                 })
                 .build();
         this.client.initialize();

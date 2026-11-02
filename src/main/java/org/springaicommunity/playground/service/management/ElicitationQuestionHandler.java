@@ -18,6 +18,7 @@ package org.springaicommunity.playground.service.management;
 import io.modelcontextprotocol.spec.McpSchema.ElicitResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springaicommunity.playground.service.mcp.ApprovalConfirmation;
 import org.springaicommunity.playground.service.mcp.McpServerHitlToolGate;
 import org.springaicommunity.playground.service.tool.HumanQuestion;
 import org.springaicommunity.playground.service.tool.HumanQuestionHandler;
@@ -60,7 +61,7 @@ public final class ElicitationQuestionHandler implements HumanQuestionHandler {
             logger.info("mgmt.chat.hitl.timeout question={}", question.header());
             return TIMEOUT_ANSWER;
         }
-        if (decision.get().action() == ElicitResult.Action.ACCEPT) {
+        if (ApprovalConfirmation.isApproved(decision.get())) {
             logger.info("mgmt.chat.hitl.approved question={}", question.header());
             return question.approveLabel();
         }

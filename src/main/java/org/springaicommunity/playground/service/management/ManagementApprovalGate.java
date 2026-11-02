@@ -30,6 +30,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions.ApprovalMode;
+import org.springaicommunity.playground.service.mcp.ApprovalConfirmation;
 import org.springaicommunity.playground.service.mcp.ApprovalWaitCountdown;
 import org.springaicommunity.playground.service.mcp.McpServerHitlToolGate;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
@@ -45,7 +46,6 @@ import java.util.concurrent.TimeoutException;
 public class ManagementApprovalGate {
 
     private static final Logger logger = LoggerFactory.getLogger(ManagementApprovalGate.class);
-    private static final Map<String, Object> CONFIRMATION_SCHEMA = Map.of("type", "object", "properties", Map.of());
     private static final int SUMMARY_LIMIT = 300;
 
     private record Stop(ManagementOutcome outcome, ManagementResult result) {
@@ -151,8 +151,8 @@ public class ManagementApprovalGate {
         try {
             ElicitRequest elicitRequest = ElicitRequest.builder(
                     "[" + approval.level() + "] " + caller.label() + " wants to run " + tool.name() + ": "
-                            + sentence(approval.summary()) + " " + this.countdown.notice(), CONFIRMATION_SCHEMA)
-                    .build();
+                            + sentence(approval.summary()) + " " + this.countdown.notice(),
+                    ApprovalConfirmation.SCHEMA).build();
             decision = this.countdown.await(() -> exchange.createElicitation(elicitRequest),
                     (elapsed, total, message) -> caller.progress().report(elapsed, (double) total, message));
         } catch (RuntimeException e) {
@@ -169,7 +169,7 @@ public class ManagementApprovalGate {
             logger.info("mgmt.approval.timeout tool={}", tool.name());
             return Optional.of(expired(tool));
         }
-        if (decision == null || decision.action() != ElicitResult.Action.ACCEPT) {
+        if (!ApprovalConfirmation.isApproved(decision)) {
             countDecision("declined");
             return Optional.of(new Stop(ManagementOutcome.DECLINED, ManagementResult.failure("Tool '" + tool.name()
                     + "' was not run: the user declined. Do not retry it for this request.")));
@@ -219,7 +219,7 @@ public class ManagementApprovalGate {
         if (!supportsElicitation(exchange.getClientCapabilities())) return ManagementElicitation.UNAVAILABLE;
         return message -> {
             ElicitRequest elicitRequest = ElicitRequest.builder(message + " " + this.countdown.notice(),
-                    CONFIRMATION_SCHEMA).build();
+                    ApprovalConfirmation.SCHEMA).build();
             try {
                 return Optional.of(this.countdown.await(() -> exchange.createElicitation(elicitRequest),
                         (elapsed, total, tick) -> progress.report(elapsed, (double) total, tick)));
