@@ -4,9 +4,9 @@ description: Default Tools - Utilities reference. 26 pure-compute tools - text, 
 
 The 26 tools in `default-tool-specs-builtin.json` (16) and `default-tool-specs-builtin-helpers.json` (10) cover text manipulation, date arithmetic, math, security scanners, encoding, cryptographic primitives, and CSV serialisation / parsing. They share one property - **no network, no filesystem, no env vars**. Everything runs in-memory at sandbox **L0** by default; the only outside helpers in play are `safety.parser.csv` for `formatCsv` / `parseCsv` and `crypto.subtle` for the crypto group - both still purely in-memory.
 
-Because they ride on JVM stdlib - `java.security.MessageDigest`, `javax.crypto`, JCE, the JDK regex engine - every one of these runs identically on macOS, Windows, and Linux. See [Tool Studio: Cross-platform by design](../tool-studio/index.md#cross-platform-by-design) for the mechanics.
+Because they ride on the JVM - `java.security.MessageDigest` and `javax.crypto` behind `crypto.subtle`, and GraalJS for regex and `Intl` - every one of these runs identically on macOS, Windows, and Linux. See [Tool Studio: Cross-platform by design](../tool-studio/index.md#cross-platform-by-design) for the mechanics.
 
-The 26 tools split by concern.
+The 26 tools split by concern into text, datetime, math, security, encoding, crypto, and CSV data; each card's type line names its group.
 
 ## Browse the 26 utilities { #browse-the-utilities }
 
@@ -1931,7 +1931,7 @@ The 26 utilities are deliberately I/O-free, which makes them perfect for chains 
 - **Time math chain** - `parseDate(text)` → `dateMath(text, amount, unit)` → `formatDate(text, pattern, timeZone)` to normalise a user-supplied datetime to a target zone with a single call.
 - **PII / secret scrub** - `piiDetect(text)` + `secretPatternDetect(text)` over a chat transcript before forwarding it to a model - both return `[{type, masked, index}]` so the agent can redact in-place.
 
-[Tutorial 8: Default Tool Recipes](../../tutorials/8-default-tool-recipes.md) walks one of these end-to-end (the text-shell ETL chain).
+[Tutorial 8: Default Tool Recipes](../../tutorials/8-default-tool-recipes.md) uses `evalExpression` inside Recipe 4 (`kimchiPremium`) to compute a spread; the chains above are patterns to build yourself.
 
 ## Keys & secrets
 

@@ -14,7 +14,7 @@ This is the canonical *"try an agentic workflow"* task on the Home checklist. No
 
 ## Steps
 
-1. In **Agentic Chat**, switch to a tool-capable model (`qwen3.5:9b` works; `gemma4:e4b` chains more reliably for longer prompts), open the tool menu above the prompt, tick **Manual built-in tool selection**, and pick **both** `getWeather` and `sendSlackMessage` - the per-chat selection starts empty. `sendSlackMessage` only appears in that list once `SLACK_WEBHOOK_URL` is set: without it the tool sits under **DRAFTS** in Tool Studio and is never exposed.
+1. In **Agentic Chat**, switch to a tool-capable model (`qwen3.5:9b` works; `gemma4:e4b` chains more reliably for longer prompts), open the tool menu above the prompt, tick **Manual built-in tool selection**, and pick **both** `getWeather` and `sendSlackMessage` - the per-chat selection starts empty. `sendSlackMessage` is not in the shipped **Starter 5**, so the picker does not list it on its own: once `SLACK_WEBHOOK_URL` is set (without it the tool sits under **DRAFTS** and cannot be exposed), tick it in Tool Studio's **Built-in MCP Server Native Tools** drawer (gear icon) and click **Confirm**, or leave **Dynamic tool discovery** on and let the model find it.
 2. Send this prompt verbatim:
 
     ```text
@@ -28,6 +28,7 @@ This is the canonical *"try an agentic workflow"* task on the Home checklist. No
     - the assistant calls `getWeather` with `Seoul`
     - the tool returns a compact weather payload
     - the assistant reasons over the result and calls `sendSlackMessage` with a short natural-language summary
+    - the chat stops on **Tool approval required** for `sendSlackMessage` (it ships behind human approval), showing the message text it is about to post and an `m:ss left` countdown beside **Decline** - click **Approve** (see [Tutorial 11](11-human-approval.md))
     - the assistant's final turn confirms the post
 
 4. Open Slack and verify the message landed.

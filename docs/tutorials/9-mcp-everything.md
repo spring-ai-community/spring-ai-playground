@@ -1,4 +1,4 @@
-description: Tutorial 9 - activate MCP Everything from the catalog and drive every Inspector primitive (Tools · Resources · Prompts · Roots · Sampling · Elicitation).
+description: Tutorial 9 - activate MCP Everything from the catalog and drive every Inspector primitive (Tools · Resources · Prompts · Ping · Notifications · Roots · Sampling · Elicitation).
 
 # Tutorial 9 - MCP Everything: All 8 Primitives in One Walkthrough
 
@@ -8,7 +8,7 @@ description: Tutorial 9 - activate MCP Everything from the catalog and drive eve
     Activate **MCP Everything** from the Default MCP Servers and drive every Inspector primitive - Tools, Resources, Prompts, Ping, Notifications, Roots, Sampling, Elicitation - against a single server in one sitting. No credentials, no tenant setup; everything in this tutorial runs against a server that has no auth surface.
 
 !!! info "Why MCP Everything"
-    MCP Everything is the official MCP working group's reference test server. It is the **only** publicly available server that intentionally implements every protocol primitive - including the inverted client-side ones (Sampling, Elicitation) that real-world servers usually skip. If a primitive doesn't light up here, the bug is almost certainly on the *client* side (the playground), which is exactly why it's catalogued in the first place. For the per-primitive matrix and the catalog template, see [Default MCP Servers → Examples → MCP-Everything](../features/default-mcp-catalog/examples.md#MCP-Everything). For the spec-level "what each primitive is" explanation, see [MCP Inspector](../features/mcp-server/inspector.md).
+    MCP Everything is the official MCP working group's reference test server. It is the **only** publicly available server that intentionally implements every protocol primitive - including the inverted client-side ones (Sampling, Elicitation) that real-world servers usually skip. If a primitive doesn't light up here, the bug is almost certainly on the *client* side (the playground), which is exactly why it's cataloged in the first place. For the per-primitive matrix and the catalog template, see [Default MCP Servers → Examples → MCP-Everything](../features/default-mcp-catalog/examples.md#MCP-Everything). For the spec-level "what each primitive is" explanation, see [MCP Inspector](../features/mcp-server/inspector.md).
 
 ## Prerequisites - Node.js 18+ (or Docker)
 
@@ -64,7 +64,7 @@ The catalog template ships per-OS STDIO commands that fetch and spawn `@modelcon
     Use the official `mcp/everything` image - it speaks the protocol over the container's stdin/stdout, which is what a STDIO connection needs, and **Test Connection** reports `Connection OK - discovered 8 tool(s).`
 
     !!! warning "The Docker image is an older build with a smaller surface"
-        `mcp/everything` publishes **8 tools and 3 prompts** under different names - `add`, `annotatedMessage`, `echo`, `getResourceReference`, `getTinyImage`, `longRunningOperation`, `printEnv`, `sampleLLM`, and `simple_prompt` / `complex_prompt` / `resource_prompt`. The `npx` path pulls the current release and publishes **15 tools and 4 prompts** (`get-sum`, `get-annotated-message`, `trigger-sampling-request`, `trigger-elicitation-request`, `completable-prompt`, ...). Sections 3, 5, 8 and 9 below name the current tools, so **use the Node path to follow this walkthrough**; the container is fine as a quick smoke test that the playground's stdio client works at all.
+        `mcp/everything` publishes **8 tools and 3 prompts** under different names - `add`, `annotatedMessage`, `echo`, `getResourceReference`, `getTinyImage`, `longRunningOperation`, `printEnv`, `sampleLLM`, and `simple_prompt` / `complex_prompt` / `resource_prompt`. The `npx` path pulls the current release and publishes **4 prompts** and **16 tools** to a plain client, plus the callback triggers when the client supports sampling, elicitation and roots - **20 tools** on the playground's live connection (`get-sum`, `get-annotated-message`, `trigger-sampling-request`, `trigger-elicitation-request`, `completable-prompt`, ...). Sections 3, 5, 8 and 9 below name the current tools, so **use the Node path to follow this walkthrough**; the container is fine as a quick smoke test that the playground's stdio client works at all.
 
     The `tzolov/mcp-everything-server:v2` image is the *HTTP* packaging of the same server: it prints `MCP Streamable HTTP Server listening on port 3001` and writes nothing to stdout, so a STDIO connection to it never initializes. To reach that one, publish the port (`docker run -p 3001:3001 tzolov/mcp-everything-server:v2`) and set the transport to **Streamable HTTP** against `http://localhost:3001` with endpoint `/mcp`.
 
@@ -86,11 +86,11 @@ The catalog template ships per-OS STDIO commands that fetch and spawn `@modelcon
         The same mechanism applies to all 8 stdio entries in the catalog - Git, Puppeteer, Playwright, Memory, Sequential Thinking, SQLite, Brave Search, and MCP Everything. Each ships in three OS-specific JSON variants (`default-mcp-specs-stdio-mac.json` / `-linux.json` / `-windows.json` under `src/main/resources/mcp/`), and the sidebar surfaces only the variant matching your host so the pre-filled command works without editing. macOS / Linux variants use `npx` or `uvx`; Windows variants use `npx.cmd`. See [MCP Server → Catalog & Sidebar Filtering](../features/mcp-server/index.md#catalog-sidebar-filtering) for the mechanism.
 
 4. *(Docker alternative only)* Replace **Command** with `docker` and **Arguments** with `run`, `-i`, `--rm`, `mcp/everything` - and read the warning in the Docker tab above first: that image is an older build and does not carry the tools the rest of this walkthrough names. If `docker` is not on the `PATH` the playground's own process sees, use its absolute path.
-5. Click **Test Connection** first - its tooltip says it all: *Try to initialize without saving - verifies URL, headers, and env vars*. A transient client runs `initialize` + one-shot `listTools` without touching the live connection map, and reports back as `Connection OK - discovered 13 tool(s).` A green OK tells you the spawn + JSON-RPC handshake works on your host. (The live connection lists more - see the note under Tools.)
+5. Click **Test Connection** first - its tooltip says it all: *Try to initialize without saving - verifies URL, headers, and env vars*. A transient client runs `initialize` + one-shot `listTools` without touching the live connection map, and reports back as `Connection OK - discovered 16 tool(s).` A green OK tells you the spawn + JSON-RPC handshake works on your host. (The live connection lists more - see the note under Tools.)
 6. Click **Save & Connect**. The row moves from **Inactive MCP** into **Active MCP** under the `Example` category, and the status dot turns green.
 
 ![MCP Everything activation form pre-filled with the STDIO command npx and its arguments, the L1 Safe server chip, and the row selected under Active MCP](../assets/images/tutorials/9-mcp-everything/01-catalog-activate.png)
-*The configuration form opens already filled in with the host-OS variant - `npx` on macOS/Linux, `npx.cmd` on Windows - with the transport switched to **STDIO** so the URL/Endpoint pair is replaced by **Command** + numbered **Arguments** and an **Environment variables** row. The server risk chip reads `Server: L1 - Safe` (a catalogued community server, not an unverified one). **Save & Connect** then promotes the row into Active MCP under the Example group.*
+*The configuration form opens already filled in with the host-OS variant - `npx` on macOS/Linux, `npx.cmd` on Windows - with the transport switched to **STDIO** so the URL/Endpoint pair is replaced by **Command** + numbered **Arguments** and an **Environment variables** row. The server risk chip reads `Server: L1 - Safe` (a cataloged community server, not an unverified one). **Save & Connect** then promotes the row into Active MCP under the Example group.*
 
 !!! tip "If the status dot stays gray or turns red"
     The most common causes are missing `npx` on `PATH` (Node not installed or shell not refreshed), or the host blocking the npm registry. Switch to the Docker variant on the same form and click **Save & Connect** again - that bypasses both.
@@ -110,7 +110,7 @@ Ping proves the JSON-RPC channel is alive end-to-end *independent of any tool or
 
 ## 3. Tools - call three representative tools
 
-Switch to the **Tools** tab. Each tool the server publishes from `tools/list` renders as a full-width card: the display name, its **risk chip**, the raw MCP tool name underneath (`echo`, `get-sum`, ...), the server's behaviour hints as chips (`read-only`, `idempotent`, `open-world`), the schema-typed inputs, and a play button whose tooltip reads **Run tool**. The header counts `15 tools`, two more than the transient **Test Connection** probe reported: MCP Everything states that its two callback triggers (`trigger-sampling-request`, `trigger-elicitation-request`) require a client that advertised the matching capability, and only the live connection does. You'll exercise three tools that demonstrate three different shapes of input and output.
+Switch to the **Tools** tab. Each tool the server publishes from `tools/list` renders as a full-width card: the display name, its **risk chip**, the raw MCP tool name underneath (`echo`, `get-sum`, ...), the server's behavior hints as chips (`read-only`, `idempotent`, `open-world`), the schema-typed inputs, and a play button whose tooltip reads **Run tool**. The header counts `20 tools` with the server-everything release `npx` pulled at the time of writing (the number follows that package), more than the transient **Test Connection** probe reported: MCP Everything lists its callback triggers (`trigger-sampling-request`, `trigger-elicitation-request` and the like) only to a client that advertised the matching capability, and only the live connection does. You'll exercise three tools that demonstrate three different shapes of input and output.
 
 ### Echo - the simplest possible round-trip
 
@@ -147,7 +147,7 @@ This is how the Inspector's input controls track JSON Schema - boolean → check
 
 ## 4. Resources - static URIs and templated URIs
 
-Switch to the **Resources** tab. The Inspector splits the section into two sub-sections - `RESOURCES (N)` for the server's static URIs and `RESOURCE TEMPLATES (N)` for parameterised templates.
+Switch to the **Resources** tab. The Inspector splits the section into two sub-sections - `RESOURCES (N)` for the server's static URIs and `RESOURCE TEMPLATES (N)` for parameterized templates.
 
 ### Read a static resource
 
@@ -160,7 +160,7 @@ Switch to the **Resources** tab. The Inspector splits the section into two sub-s
 
 ### Read a templated resource
 
-1. Below the static list, the `RESOURCE TEMPLATES 2` section exposes two parameterised templates - `demo://resource/dynamic/text/{resourceId}` and `demo://resource/dynamic/blob/{resourceId}`.
+1. Below the static list, the `RESOURCE TEMPLATES 2` section exposes two parameterized templates - `demo://resource/dynamic/text/{resourceId}` and `demo://resource/dynamic/blob/{resourceId}`.
 2. Pick the **Dynamic Text Resource** template. The card renders a `VARIABLES` block with a JSON-Schema-typed input for `resourceId`. The description warns that the variable **must be an integer**.
 3. Type `42` into `resourceId` and click the play button (tooltip: **Expand template and read**). The server substitutes the variable, resolves the URI to `demo://resource/dynamic/text/42`, and returns a body keyed on the variable - `Resource 42: This is a plaintext resource created at ...`.
 
@@ -171,7 +171,7 @@ See [Inspector → Resources](../features/mcp-server/inspector.md#resources) for
 
 ## 5. Prompts - simple, arguments, and completable
 
-Switch to the **Prompts** tab. Prompts are named, parameterised message templates the server can render for the client. MCP Everything publishes four - `simple-prompt`, `args-prompt`, `completable-prompt`, and `resource-prompt` (which embeds a resource reference) - covering the shapes you'll meet in the wild.
+Switch to the **Prompts** tab. Prompts are named, parameterized message templates the server can render for the client. MCP Everything publishes four - `simple-prompt`, `args-prompt`, `completable-prompt`, and `resource-prompt` (which embeds a resource reference) - covering the shapes you'll meet in the wild.
 
 ### `simple-prompt` - no arguments
 
@@ -204,7 +204,7 @@ See [Inspector → Prompts](../features/mcp-server/inspector.md#prompts) for the
 
 Notifications are *unsolicited* messages from the server to the client - list-changed events, structured log records, progress updates. Switching to the Notifications tab right after connect already shows a few - MCP Everything emits a `TOOLS_CHANGED` notification on every reconnect so the client can re-fetch `tools/list`.
 
-1. Switch to **Notifications**. You'll already see a small set of `TOOLS_CHANGED` rows - `Tools list changed (15)`, timestamped around when MCP Everything finished its initial handshake. Each row shows a topic chip, a one-line summary, and the clock time it arrived.
+1. Switch to **Notifications**. You'll already see a small set of `TOOLS_CHANGED` rows - `Tools list changed (20)`, timestamped around when MCP Everything finished its initial handshake. Each row shows a topic chip, a one-line summary, and the clock time it arrived.
 2. Anything the server pushes later joins the same feed. Triggering sampling (section 8) adds a red `SAMPLING_REQUEST` row - `Sampling request received (1 messages)` - the moment the server calls back into the client.
 3. **Set logging level...** sends `logging/setLevel` *to the server*, changing what it decides to push; it is not a client-side filter. **Clear** empties the local feed.
 
@@ -212,7 +212,7 @@ Notifications are *unsolicited* messages from the server to the client - list-ch
 *Server push notifications only surface here - chat will never show them, so this tab is the source of truth for what change events a server actually emits. The feed also models `PROGRESS` records; those arrive only when the caller supplies a progress token, which the Inspector's tool calls do not, so running **Trigger Long Running Operation Tool** adds nothing here.*
 
 !!! tip "Why this tab matters"
-    The chat surface does not surface server push notifications - they only land here. This tab is the canonical way to verify that an external server actually emits the change events it claims to before you wire that behaviour into chat-side code.
+    The chat surface does not surface server push notifications - they only land here. This tab is the canonical way to verify that an external server actually emits the change events it claims to before you wire that behavior into chat-side code.
 
 ## 7. Roots - advertise a directory to the server
 
@@ -227,8 +227,7 @@ A *root* is a file or URI the playground (acting as the MCP client) advertises t
 ![Roots tab with the ADD ROOT form and a CONFIGURED ROOTS (1) list holding mcp-demo / file:///tmp/mcp-demo](../assets/images/tutorials/9-mcp-everything/11-roots-advertised.png)
 *The ADD ROOT form takes a URI plus an optional human-readable label (its placeholders show the shape: `file:///path/to/dir` and `project-source`). Both are required - submitting an empty pair reports `URI and Name are required`. The added root lands under **CONFIGURED ROOTS (1)**.*
 
-!!! warning "Roots capability negotiation"
-    The root is added to the local list, but the push to the server fails with a **`Failed: Client must be configured with roots capabilities`** toast - the playground's MCP client does not declare the `roots` capability during `initialize`. So the server never learns about it. The form, the local list, and the protocol path are wired; the client-side capability advertisement is on the roadmap.
+The toast reads `Root added`, and the server sees it: back on **Tools**, run **Get Roots List Tool** (`get-roots-list`) and the response lists your root by name and URI. Both fields are required, and adding the same URI twice fails with `Failed: A root with this URI is already configured: <uri>`.
 
 !!! note "Roots are advisory, not enforcement"
     Adding a root does **not** grant the server filesystem access. It only tells the server "if you do filesystem-style operations, here are the URIs I've opted to expose." Enforcement lives in the playground's sandbox (`safety.fs`), not in the roots list. See [Inspector → Roots](../features/mcp-server/inspector.md#roots) for the spec context.
@@ -242,28 +241,28 @@ A *root* is a file or URI the playground (acting as the MCP client) advertises t
 3. Type the assistant message into **YOUR RESPONSE (TEXT)** and click **Send**. The playground wraps your text as an `assistant` message with `stopReason: END_TURN` and returns it to the server.
 4. **Decline** answers instead with the fixed text `User declined.` and `stopReason: STOP_SEQUENCE` - still a well-formed result, so the server can branch its agent loop on it.
 
-![Sampling tab with a Sampling request card - the REQUEST envelope, a YOUR RESPONSE (TEXT) box, and Send / Decline buttons](../assets/images/tutorials/9-mcp-everything/12-sampling-elicitation.png)
+![Sampling tab with a Sampling request card - the m:ss left to answer countdown, the REQUEST envelope, a YOUR RESPONSE (TEXT) box, and Send / Decline buttons](../assets/images/tutorials/9-mcp-everything/12-sampling-elicitation.png)
 *Incoming `sampling/createMessage` requests render as cards with the server's full request, a free-text response box, and Send / Decline.*
 
 !!! warning "You are the model here"
     This is a manual seam, not an automatic one: the playground does **not** run the server's prompt through a model. Whatever you type in the response box is what the server receives as the assistant turn. Nothing is sent to Ollama or OpenAI, and no tokens are spent.
 
 !!! warning "The triggering tool call times out"
-    The `trigger-sampling-request` call blocks on your answer and gives up after 20 seconds - the Tools card reports a crash (`TimeoutException`) even though the Sampling card is still sitting there waiting. Answer the card anyway; the timeout only ends the tool call, not the sampling request.
+    The `trigger-sampling-request` call blocks on your answer, and an Inspector call to an external server waits only for the ordinary MCP client request timeout (20 s by default). The running card says so - `Running... answer any Sampling or Elicitation request from its tab before the call times out.` with a countdown - and past it the card shows `No response from the server within 20 s (MCP client request timeout).` The Sampling card itself stays open for the full approval wait, but an answer sent after the tool call ended no longer reaches its result, so answer within the 20 seconds. **Decline** returns `User declined.` to the server.
 
 ## 9. Elicitation - answer a question the server asks the user
 
 *Elicitation* is the third inverted primitive - the server asks the *user* a question mid-conversation by sending an `elicitation/create` request with a `prompt` plus a `requestedSchema` describing what answer it expects. The playground renders the form, the human fills it, the answer goes back.
 
 1. From **Tools**, click the play button on the **Trigger Elicitation Request Tool** card (no inputs).
-2. Switch to the **Elicitation** tab. A card lands under `PENDING ELICITATION REQUESTS` carrying the server's prompt - `Please provide inputs for the following fields:` - and a **FORM** rendered from its `requestedSchema`. MCP Everything asks for a deliberately wide spread of types: a required `name`, a `check` checkbox, free text, an email, a URL, a date, an integer, a number, and four enum fields (single- and multi-select, titled and untitled).
+2. The running card on the Tools tab shows `Approval needed: Please provide inputs for the following fields:` with a **Review** link; click it (or switch to the **Elicitation** tab yourself). A card lands under `PENDING ELICITATION REQUESTS` carrying the server's prompt - `Please provide inputs for the following fields:` - and a **FORM** rendered from its `requestedSchema`. MCP Everything asks for a deliberately wide spread of types: a required `name`, a `check` checkbox, free text, an email, a URL, a date, an integer, a number, and four enum fields (single- and multi-select, titled and untitled).
 3. Fill the form and click **Accept** - the answers ship back as an `ElicitResult` with action `ACCEPT`.
 4. **Decline** and **Cancel** send the other two spec-defined actions (`DECLINE`, `CANCEL`) with an empty payload, so the server can tell "no thanks" apart from "not now".
 
-![Elicitation tab with the server's form rendered from requestedSchema - name, a check box, firstLine, email, homepage, birthdate and more](../assets/images/tutorials/9-mcp-everything/13-elicitation-form.png)
+![Elicitation tab with the server's form rendered from requestedSchema - the m:ss left to answer countdown, then name, a check box, firstLine, email, homepage, birthdate and more](../assets/images/tutorials/9-mcp-everything/13-elicitation-form.png)
 *Same seam as Sampling, but the response area is a JSON-Schema-typed form instead of a text box - each field carries the server's own description, and required ones are marked with a `•`.*
 
-The same 20-second tool timeout applies: `trigger-elicitation-request` crashes while the card waits for you. Answer the card anyway.
+The same 20-second tool timeout applies: answer the form before the Tools card's countdown runs out. Declining returns `User declined to provide the requested information.` with `"action": "decline"` as a normal result.
 
 ## Cleanup
 

@@ -36,7 +36,7 @@ Manage Stripe payments, customers, subscriptions, invoices, refunds, product cat
 
 **Stability** - GA · **Tier** - Tier 2
 
-**Required env** - -
+**Required env** - `STRIPE_OAUTH_CLIENT_ID`
 
 **Tags** - global
 
@@ -90,7 +90,7 @@ Manage PayPal orders, refunds, payouts, subscriptions, and invoicing through Pay
 
 **Stability** - GA · **Tier** - Tier 2
 
-**Required env** - -
+**Required env** - `PAYPAL_OAUTH_CLIENT_ID`
 
 **Tags** - global
 
@@ -143,7 +143,7 @@ Square payments, catalogue, inventory, customers, and orders across locations. B
 
 **Stability** - BETA · **Tier** - Tier 2
 
-**Required env** - -
+**Required env** - `SQUARE_OAUTH_CLIENT_ID`
 
 **Tags** - global · beta
 
@@ -190,7 +190,7 @@ HubSpot CRM contacts, companies, deals, pipelines, lists, and engagements. OAuth
 
 **Stability** - GA · **Tier** - Tier 2
 
-**Required env** - -
+**Required env** - `HUBSPOT_OAUTH_CLIENT_ID`
 
 **Tags** - global
 
@@ -242,7 +242,7 @@ Intercom conversations, contacts, tags, segments, and help-centre articles. US w
 
 **Stability** - GA · **Tier** - Tier 2
 
-**Required env** - -
+**Required env** - `INTERCOM_OAUTH_CLIENT_ID`
 
 **Tags** - us
 
@@ -292,7 +292,7 @@ Run Mixpanel product analytics queries - events, funnels, retention, cohorts, an
 
 **Stability** - GA · **Tier** - Tier 2
 
-**Required env** - -
+**Required env** - `MIXPANEL_OAUTH_CLIENT_ID`
 
 **Tags** - global
 
@@ -345,7 +345,7 @@ Browse Figma files, frames, components, styles, comments, and design system toke
 
 **Stability** - GA · **Tier** - Tier 2
 
-**Required env** - -
+**Required env** - `FIGMA_OAUTH_CLIENT_ID`
 
 **Tags** - global
 
@@ -398,7 +398,7 @@ Manage Canva designs, brand kits, folders, templates, and assets through the off
 
 **Stability** - GA · **Tier** - Tier 2
 
-**Required env** - -
+**Required env** - `CANVA_OAUTH_CLIENT_ID`
 
 **Tags** - global
 
@@ -440,7 +440,7 @@ Manage Webflow sites, CMS collections, items, and form submissions via OAuth (SS
 
 **Stability** - GA · **Tier** - Tier 2
 
-**Required env** - -
+**Required env** - `WEBFLOW_OAUTH_CLIENT_ID`
 
 **Tags** - global
 
@@ -492,7 +492,7 @@ Google Maps Places, Directions, Distance Matrix, Geocoding, and Street View for 
 
 **Stability** - GA · **Tier** - Tier 2
 
-**Required env** - -
+**Required env** - `MAPS_GROUNDING_OAUTH_CLIENT_ID`
 
 **Tags** - global · geo
 

@@ -40,6 +40,8 @@ RAG fails quietly. A wrong chunk boundary, a mismatched embedding model, or a si
 
 That last point is why the desktop launcher warns before you switch embedding models on a populated store.
 
+What you index here does not have to stay in the app. [Shipyard](mcp-server/index.md#shipyard) ships a pipeline or a document as a `search_` tool inside a standalone MCP server: a frozen snapshot of the chunks and their vectors that answers any MCP client without the playground running ([Tutorial 19](../tutorials/19-knowledge-server-to-chatgpt.md)). And the indexing itself can be done by an AI: the `saip_knowledge_*` [management tools](mcp-server/management-tools.md#building-the-knowledge-behind-a-search-tool) ingest files from the configured ingest roots, URLs or text, build pipelines, run the same search the shipped tool runs, and hand the result to the `saip_shipyard_*` tools ([Tutorial 21](../tutorials/21-ai-builds-a-knowledge-server.md)).
+
 ## Vector store providers
 
 The Playground uses the standard Spring AI `VectorStore` abstraction, so the surface works against any supported provider without application code changes. The default is `SimpleVectorStore`, an in-process store that keeps setup to zero.
@@ -52,6 +54,8 @@ Spring AI supports Apache Cassandra, Azure Cosmos DB, Azure Vector Search, Chrom
 - [Pipeline Studio](rag/pipeline-studio.md) - authoring a Modular RAG pipeline and testing it against the real executor
 - [Runtime: RAG in Chat](rag/runtime.md) - selecting a pipeline in Agentic Chat and reading the retrieval trace
 - [Chat Attachments](rag/chat-attachments.md) - files dropped on the chat prompt, routed by size, and registered here with one click
+- [Shipyard](mcp-server/index.md#shipyard) - shipping a pipeline or a document as a `search_` tool in a standalone MCP server; [Shipyard Architecture](../shipyard-architecture.md#contributions) describes what the knowledge snapshot freezes
+- [Management Tools](mcp-server/management-tools.md#building-the-knowledge-behind-a-search-tool) - the `saip_knowledge_*` tools an AI uses to index, search and ship knowledge
 
 Hands-on paths:
 

@@ -37,6 +37,8 @@ Each headline metric carries a 60-sample sparkline showing the trend:
 | Process CPU | Current process CPU percentage (live gauge) | `MeterRegistry` `process.cpu.usage` |
 | Active LLM ops | Number of in-flight Spring AI operations | `MeterRegistry` `LongTaskTimer` active counts (ChatClient + Advisor + Vector store) |
 
+A ninth card, **Projected cost / month**, sits under the Tokens & Cost charts rather than in the top row: it extrapolates the spend in the current window to a day and a month, and reads `$0.00` until at least one priced LLM call lands in the window.
+
 ## Charts - six sections, fifteen charts
 
 Each section maps to one dedicated tab.
@@ -61,7 +63,7 @@ Each section maps to one dedicated tab.
 | Chart | Type | Reading |
 |---|---|---|
 | Tool calls / minute | Line | Spike → agent in a tool-heavy phase (e.g. multi-step research) |
-| Transport mix | Donut - in-process / stdio / Streamable HTTP / SSE | If one transport dominates unexpectedly, the agent is rerouting through it |
+| Transport mix | Donut - `in-process` / `pipe` (STDIO) / `tcp` (Streamable HTTP, SSE) | If one transport dominates unexpectedly, the agent is rerouting through it |
 | Top tools | Horizontal bar (by call count) | "Which tool is the agent reaching for most" |
 | Top MCP servers | Horizontal bar (excludes in-process) | "Which external dependency is busiest" |
 

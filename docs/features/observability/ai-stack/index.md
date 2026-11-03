@@ -12,7 +12,7 @@ flowchart LR
     Span --> Filt
     Filt -->|in-process| TS["Tool Studio"]
     Filt -->|stdio · http · sse| MS["MCP Servers"]
-    VSpan["db.vector.client<br/>.operation"] --> VD["Vector Database"]
+    VLog["Vector operation log<br/>(memory only)"] --> VD["Vector Database"]
     Prim["MCP primitive<br/>observations"] --> MI["MCP Inspector"]
     Risk["saip.risk.signal +<br/>sandbox / HITL guards"] --> SF["Safety"]
     Trace["TraceRecord stream"] --> Agg["Conversation<br/>Aggregator"]
@@ -30,7 +30,7 @@ The discriminator that powers the Tool Studio / MCP Servers split is `McpToolObs
 
     ---
 
-    `spring.ai.tool` spans without `mcp.method.name` (in-process) + `sandbox.guard.blocked` counter. In-process tool latency, error rate, sandbox prevention count.
+    `spring.ai.tool` spans that run in-process, through the built-in server's loopback, or against a tool the built-in server proxies, plus external-client calls and denied calls + `sandbox.guard.blocked` counter. Tool latency, error rate, sandbox prevention count.
 
 -   :material-server:{ .lg .middle } **[MCP Servers](mcp-servers.md)**
 
@@ -48,7 +48,7 @@ The discriminator that powers the Tool Studio / MCP Servers split is `McpToolObs
 
     ---
 
-    `db.vector.client.operation` spans. RAG query rate, top_k distribution, similarity thresholds, multi-DB mix.
+    Memory-only vector operation log. RAG query rate, top_k distribution, similarity thresholds, multi-DB mix, recent searches.
 
 -   :material-chat-processing:{ .lg .middle } **[Agentic Chat](agentic-chat.md)**
 

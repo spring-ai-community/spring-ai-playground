@@ -2,11 +2,11 @@ description: Default Tools - Global reference. 21 tools that call public HTTPS A
 
 # Default Tools - Global
 
-The 21 tools in `default-tool-specs-network.json` call **public global HTTPS endpoints** - most of them anonymous, all of them outside Korea. Categories span code (GitHub), encyclopedia (Wikipedia), forum (Hacker News, Stack Overflow), finance (CoinGecko, open.er-api.com), geo (ipapi.co, mledoze/countries, Nominatim, sunrise-sunset, USGS), weather (Open-Meteo), and government data (Nager.Date public holidays).
+The 21 tools in `default-tool-specs-network.json` call **public global HTTPS endpoints** - all of them anonymous and outside Korea. Categories span code (GitHub), encyclopedia (Wikipedia), forum (Hacker News, Stack Overflow), finance (CoinGecko, open.er-api.com), geo (ipapi.co, mledoze/countries, Nominatim, sunrise-sunset, USGS), weather (Open-Meteo), and government data (Nager.Date public holidays).
 
 None of them need an API key - they live entirely off the providers' anonymous rate-limit tiers. Tool actions execute with host-`allowlist` egress, so every fetch goes through [the SSRF four-layer guard](../tool-studio/index.md#ssrf-four-layer-guard) regardless of whether the destination is a literal IP or a DNS host.
 
-The grouping below mirrors the `tags` axis each tool carries - the same axis you can filter by in the Tool Studio tool list.
+Each card carries the tool's `tags` - the same axis you can filter by in the Tool Studio tool list.
 
 ## Browse the 21 global APIs { #browse-the-global-apis }
 
@@ -1616,19 +1616,19 @@ return (data.features || []).map(f => {
 
 ## Composition patterns (anonymous-API chains)
 
-All 22 run anonymously off rate-limit tiers, so they are the cheapest tools to chain - no credential plumbing, just URL composition:
+All 21 run anonymously off rate-limit tiers, so they are the cheapest tools to chain - no credential plumbing, just URL composition:
 
 - **City → coordinates → forecast** - `geocodeAddress(address)` (Nominatim) → `getOpenMeteoForecast(lat, lon, days)` so the agent can answer "is it raining tomorrow in *city*?" without hard-coding lat/lon.
 - **Release radar** - `getGithubLatestRelease(owner, repo)` → run `openaiResponseGenerator` over the `.body` to get a three-sentence release-notes digest.
 - **Knowledge cross-check** - `searchWikipedia(title)` + `searchHackerNews(query)` + `searchStackOverflow(query)` in parallel; the agent reconciles the three views.
-- **IP triage** - `getIpInfo(ip)` → branch on `country_code` / `org` → call `getRecentEarthquakes(lat, lon)` or `getOpenMeteoForecast(lat, lon)` for the same coordinates.
+- **IP triage** - `getIpInfo(ip)` → branch on `country_code` / `org` → `getOpenMeteoForecast(latitude, longitude)` for the same coordinates, or `getRecentEarthquakes(minMagnitude, lookbackHours)` to check recent seismic activity.
 - **arXiv → summary** - `searchArxiv(query)` → top-N abstracts as prompt fragments → `openaiResponseGenerator` for a literature snapshot.
 
 [Tutorial 8: Default Tool Recipes](../../tutorials/8-default-tool-recipes.md) walks the first two patterns (geo-anchored weather + release radar) end-to-end.
 
 ## Keys & secrets
 
-**None.** All 22 endpoints are anonymous. Rate limits are the real constraint:
+**None.** All 21 endpoints are anonymous. Rate limits are the real constraint:
 
 | Provider | Anonymous quota |
 |---|---|

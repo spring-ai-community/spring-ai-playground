@@ -54,7 +54,7 @@ The Logs tab parses each line into: `time · level · logger · user · session 
 The footer carries these actions:
 
 - **Copy raw line** - copies the unparsed line to the clipboard.
-- **Open trace** - navigates to the [Traces tab](traces.md) filtered by this line's `traceId`, the bridge from a single log line to the full span tree of the request that produced it. If the line has no `traceId`, it reports that instead.
+- **Open trace** - switches to the [Traces tab](traces.md) and opens the Trace Detail dialog for this line's `traceId`, the bridge from a single log line to the full span tree of the request that produced it. If the line has no `traceId`, it reports that instead.
 - **Open in chat** - shown when the line carries a `conv`; opens that conversation thread.
 - **Close** - dismisses the dialog.
 

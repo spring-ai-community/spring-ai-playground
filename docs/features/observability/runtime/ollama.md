@@ -26,7 +26,7 @@ description: Local Ollama runtime - detected platform/accelerator, models loaded
 
 ## Controls
 
-Ollama reads the [Observability global refresh interval](../index.md#global-settings); the trend charts honour the time window, while the live KPIs and the loaded-models list are always current. Platform is auto-detected from `os.name` / `os.arch` and can be forced with `spring.ai.playground.observability.ollama.platform` (`auto` | `apple-silicon` | `linux` | `windows` | `mac-intel`) for misdetection or screenshots. When Ollama is not the active provider the tab shows an inactive empty-state.
+Ollama reads the [Observability global refresh interval](../index.md#global-settings); the trend charts honor the time window, while the live KPIs and the loaded-models list are always current. Platform is auto-detected from `os.name` / `os.arch` and can be forced with `spring.ai.playground.observability.ollama.platform` (`auto` | `apple-silicon` | `linux` | `windows` | `mac-intel`) for misdetection or screenshots. When Ollama is not the active provider the tab shows an inactive empty-state.
 
 ## KPI cards (seven)
 
