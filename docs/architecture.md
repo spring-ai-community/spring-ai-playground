@@ -17,6 +17,8 @@ This page is the map; each of the other architecture documents drills into one l
 - [Agent Loop](agent-loop-architecture.md) - the round governance wrapped around Spring AI's tool-calling loop
 - [Context Engineering](context-engineering-architecture.md) - what enters the model's context on each chat turn
 - [AI Agent Observability](observability-architecture.md) - the trace pipeline behind the in-app dashboards
+- [Shipyard Architecture](shipyard-architecture.md) - how what passed its gates leaves the app as a standalone MCP server bundle
+- [AI Operations Architecture](ai-operations-architecture.md) - how an external AI operates the app over MCP, behind one approval gate
 
 ## Overview { #overview }
 
@@ -53,7 +55,7 @@ That framing drives every other choice on this page:
 
 The application is easiest to think about as five layers. Each layer has a well-defined responsibility and a narrow interface with the one above it.
 
-![Runtime layer diagram - five stacked layers from Electron launcher down to external runtimes, with the Spring AI integration layer showing the four-advisor ChatClient chain, the built-in and client MCP adapters, the human-in-the-loop approval gates, and encrypted OAuth token storage](assets/images/architecture-layers.svg){ loading=lazy }
+![Runtime layer diagram - five stacked layers from Electron launcher down to external runtimes: the seven UI surfaces including Shipyard, the backend services including ShipyardService and the saip_* management tools, the Spring AI integration layer with the ChatClient chain, the built-in MCP server carrying your tools plus the management tools, the MCP client and the human-in-the-loop gate, and the external runtimes including the Docker engines Shipyard ships to](assets/images/architecture-layers.svg){ loading=lazy }
 
 ### Layer 1 - Desktop Launcher (Electron)
 
@@ -77,6 +79,7 @@ Hand-written **Vaadin Flow** views under `src/main/java/org/springaicommunity/pl
 | `webui/mcp` | `McpServerView`, `McpServerConnectionView`, `McpServerConfigView` | Sidebar (Built-in / Active / Inactive catalog), connection form, Inspector for built-in and external MCP servers |
 | `webui/vectorstore` | `VectorStoreView` | Document upload, chunk inspection, search |
 | `webui/chat` | `ChatView` | Agentic Chat with tools and RAG |
+| `webui/shipyard` | `ShipyardView`, `ServerPageView`, `ShipFlowView` | Shipyard: the servers you shipped, the single-screen ship flow (tools, proxied tools, knowledge, Advanced), the run and targets dialogs, and the Connect section with per-client snippets |
 | `webui/observability` | `ObservabilityView` | Fourteen dashboards (Overview · Tokens & Cost · AI Models · Tool Studio · MCP Servers · MCP Inspector · Vector Database · Agentic Chat · Safety · Host · Ollama · Web Application · Logs · Traces) + Trace Detail / Conversation Thread / Model Pricing Manager dialogs |
 | `webui/common/sidebar` | `SidebarFilterBar`, `CategoryGroupDetails`, `SidebarItemLayout` | Shared widgets used by both the MCP Server sidebar and the Tool Studio tool list - search + Categories MultiSelect + Tags MultiSelect, collapsible per-category groups, status dot · name · pills row |
 
@@ -88,18 +91,21 @@ Per-feature services under `src/main/java/org/springaicommunity/playground/servi
 
 | Package | Key services | Owns |
 |---|---|---|
-| `service/chat` | `ChatService`, `ChatHistoryService` | Chat execution, history, tool/RAG composition |
+| `service/chat` | `ChatService`, `ChatHistoryService`, `ChatTurnService`, `ChatToolResolver`, `ChatSessionService`, `ChatTurnRecorder`, `ProviderReadinessService`, `HeadlessChatService` (one turn without the screen, for `saip_chat_ask`) | Chat execution, history, tool/RAG composition; one turn end to end (`ChatTurnService` resolves the turn's tools through `ChatToolResolver`, then streams through `ChatService`), the per-tab chat session, and model-provider readiness |
 | `service/tool` | `ToolSpecService`, `ToolCategoryCatalog`, `ChipListBinding`, `DefaultToolPresetCatalog`, `DefaultToolsPreference{Resolver,Service}`, `ToolActivationCalculator`, `McpToolDefinition` + `ToolManifest` envelope | Tool definitions, preset/preference resolution, draft/exposure state |
 | `service/tool/runtime` | `JsToolExecutor`, `JsRuntimeGlobals`, `SafeHttpFetch`, `SafeFs`, `JsHelperException` | GraalVM sandbox, `fetch` SSRF guard, `safety.fs`, `safety.parser.*` |
 | `service/tool/policy` | `EffectivePolicyResolver`, `SandboxPostureCalculator` | Per-tool capability overrides + **sandbox** risk-level (L0-L5) calculation (distinct from the MCP connection/exposure risk in `service/mcp/risk`) |
 | `service/agent` | `AgentLoopManager`, `AgentTurn`, `AgentLoopHarness`, `AgentRoundInterceptor` (`LoopGuard` / `HitlApproval` / `FileUpload` / `ImageReference`), `AgentTurnMessages` | The **agent loop** layer that wraps Spring AI's tool-calling loop: per-turn state, round bounds, and the chat-side interceptor chain (HITL approval, interactive upload/image, loop guards) - see [Agent Loop](agent-loop-architecture.md) |
 | `service/mcp` | `McpServerInfoService`, `McpServerHitlToolGate` | Built-in MCP server metadata and the server-side human-in-the-loop elicitation gate - see [Human-in-the-Loop Approval](hitl-architecture.md) |
 | `service/oauth` | `EncryptedFileOAuth2AuthorizedClientRepository`, `OAuthTokenEncryptor`, `McpClientRegistrationRepository`, `McpOAuth2AuthorizationCodeRequestCustomizer` | OAuth 2.1 for external MCP connections - encrypted-at-rest token store, dynamic client registration, authorization-code customizer |
-| `service/mcp/catalog` | `McpCatalogService`, `McpCategoryService`, `McpTagSuggestionService` | 58-entry preset catalog (50 remote + 8 stdio per OS) - loaded from `default-mcp-specs.json` and `default-mcp-specs-stdio-{mac,linux,windows}.json`, plus the 14-row `default-mcp-categories.json` taxonomy (13 catalog-facing categories + `CUSTOM` reserved for user-added entries), plus dynamic tag suggestions for the Config form; each entry carries `trustSignals` + `docsAdequate` metadata consumed by the risk model |
+| `service/mcp/catalog` | `McpCatalogService`, `McpCategoryService`, `McpTagSuggestionService` | 58-entry preset catalog (50 remote + 8 stdio per OS) - loaded from `default-mcp-specs.json` and `default-mcp-specs-stdio-{mac,linux,windows}.json`, plus the 15-row `default-mcp-categories.json` taxonomy (14 catalog-facing categories + `CUSTOM` reserved for user-added entries), plus dynamic tag suggestions for the Config form; each entry carries `trustSignals` + `docsAdequate` metadata consumed by the risk model |
 | `service/mcp/client` | `McpClientService`, `Mcp*PropertiesService` | External MCP clients across STDIO / HTTP / SSE |
 | `service/mcp/risk` | `McpServerRiskCalculator`, `McpToolPublishRiskCalculator`, `McpToolRiskComposer`, `McpToolPoisoningScanner`, `McpToolHashLedger`, `McpCompositionService`, `McpCompositionShadowingRules`, `McpExposedToolService`, `WrappedExternalToolCallback` | L0-L5 risk scoring for external servers/tools (transport · auth · trust · doc axes + floor rules), tool-description poisoning scan, fingerprint ledger for change detection, and tool **composition** that re-exposes upstream tools on the built-in server with alias / description / HITL overrides - see [MCP Server Safety](mcp-server-safety.md) |
 | `service/util` | `SecretMasking`, `EnvVarResolver` | Resolve `${ENV_VAR}` placeholders against the OS env; sweep connection-error notifications + per-call logs to replace any resolved secret value with `***` |
-| `service/vectorstore` | `VectorStoreService`, `OfflineEtlPipelineService`, `RagPipelineService`, `RagPipelineExecutor` | Tika ingestion, chunking, embedding, search, staged retrieval |
+| `service/vectorstore` | `VectorStoreService`, `OfflineEtlPipelineService`, `RagPipelineService`, `RagPipelineExecutor`, `KnowledgeIngestService`, `ConfiguredKnowledgeLoader` | Tika ingestion, chunking, embedding, search, staged retrieval; ingest by path (inside the ingest roots), URL or text for the management tools, and the documents and pipelines declared in configuration |
+| `service/mcp/bundle` | `ShipyardService`, `BundleRegistryService`, `BundleContribution` (`ToolsContribution` / `ProxiedToolsContribution` / `KnowledgeContribution`), `BundleFreshnessService`, `DeployTargetService`, `DockerCliService` | Shipyard: validates a ship request, writes the bundle from the contributions (tools, proxied tools, a frozen knowledge snapshot), keeps the registry of shipped servers, builds and runs them on the `local` or a remote Docker target, probes health and reports **Out of date** when a source changed after shipping |
+| `service/management` | `ManagementToolRegistrar`, `ManagementApprovalGate`, `ManagementAuditLog`, one `*ManagementContribution` per area (`tools`, `mcp`, `mcp-register`, `expose`, `knowledge`, `shipyard`, `monitor`, `chat`), the guide contributions | The `saip_*` [management tools](features/mcp-server/management-tools.md) an external AI uses to operate the app over `/mcp`: registered only while a bearer token is required, each call passing the approval gate (read / write / destructive, asked through MCP elicitation) and the audit log the Safety dashboard shows |
+| `service/home` | `ReleaseCheckService` | Latest-release check against GitHub Releases for the Home page |
 | `service/identity` | `DeviceIdProvider`, `UserIdentityService`, `MdcIdentityFilter` (in `config`) | Stable per-device id - salted SHA-256 of the OS machine id, persisted to `identity/installation.json`; injected into MDC as `userId` / `sessionId` for log + trace correlation (see [Observability → Device-based identity](observability-architecture.md#device-identity)) |
 | `observability` *(top-level)* | `ObservabilityCollector`, `ObservabilityRingBuffer`, `ObservabilityTimeSeries`, `ModelPricingService` | Micrometer `ObservationHandler` pipeline + ring buffer / time series / JSON persistence that backs the Observability dashboards - a sibling of `service/`, shown here because it is runtime backend. Full design: [AI Agent Observability](observability-architecture.md) |
 
@@ -110,11 +116,11 @@ Persistence is pluggable via `PersistenceServiceInterface` and coordinated by `S
 
 Thin adapter layer configured in `SpringAiPlaygroundApplication` and related Spring `@Configuration` classes.
 
-- `ChatClient` is built once from **all `Advisor` beans injected as an array** (`chatClientBuilder.defaultAdvisors(Advisor[])`), ordered by each advisor's `getOrder()`. They are **`MessageChatMemoryAdvisor`** (`DEFAULT_CHAT_MEMORY_PRECEDENCE_ORDER`), **`SpringAiPlaygroundRagAdvisor`** (`ToolCallingAdvisor.DEFAULT_ORDER - 2`), **`AttachedDocumentRagAdvisor`** (`- 1`, so a selected RAG source augments before attachment context is layered on), Spring AI's **`ToolCallingAdvisor`** (static tools) or **`ToolSearchToolCallingAdvisor`** (dynamic discovery), which own the tool-calling loop, and **`SimpleLoggerAdvisor`**. Both RAG advisors sit between chat memory and the tool-calling advisor on purpose: after memory has merged history and stored the raw question, and ahead of the loop that re-invokes the rest of the chain once per tool round, so retrieval runs once per turn rather than once per round. Both are given `AgentLoopManager` as their `ToolCallingManager`, so every round runs through the [agent loop](agent-loop-architecture.md) - round bounds, the [human-in-the-loop approval gate](hitl-architecture.md), and the interactive interceptors - before any tool executes.
-- `ChatMemory` defaults to `MessageWindowChatMemory` (last 10 messages) backed by `InMemoryChatMemoryRepository`.
+- `ChatClient` is built once from the **`Advisor` beans injected as an array** (`chatClientBuilder.defaultAdvisors(Advisor[])`), minus the tool-calling advisors, ordered by each advisor's `getOrder()`. They are **`MessageChatMemoryAdvisor`** (`DEFAULT_CHAT_MEMORY_PRECEDENCE_ORDER`), **`SpringAiPlaygroundRagAdvisor`** (`ToolCallingAdvisor.DEFAULT_ORDER - 2`), **`AttachedDocumentRagAdvisor`** (`- 1`, so a selected RAG source augments before attachment context is layered on) and **`SimpleLoggerAdvisor`**. `ChatService` adds the tool-calling advisor per request: Spring AI's **`ToolCallingAdvisor`** (static tools) or **`ToolSearchToolCallingAdvisor`** (dynamic discovery), which own the tool-calling loop. Both RAG advisors sit between chat memory and the tool-calling advisor on purpose: after memory has merged history and stored the raw question, and ahead of the loop that re-invokes the rest of the chain once per tool round, so retrieval runs once per turn rather than once per round. Both tool-calling advisors are given `AgentLoopManager` as their `ToolCallingManager`, so every round runs through the [agent loop](agent-loop-architecture.md) - round bounds, the [human-in-the-loop approval gate](hitl-architecture.md), and the interactive interceptors - before any tool executes.
+- `ChatMemory` defaults to `MessageWindowChatMemory` (keeps up to `history-max-messages`, 2000 by default) backed by `InMemoryChatMemoryRepository`; the memory advisor wraps it in `LlmWindowChatMemory`, which hands the model only the last `memory-max-messages` (10 by default) - see [Context Engineering](context-engineering-architecture.md).
 - `VectorStore` defaults to `SimpleVectorStore` (in-memory). Swap via Spring profile or user configuration.
 - `EmbeddingModel` is resolved from the active model profile (Ollama by default, OpenAI optional).
-- **Built-in MCP Server** - wired through `spring-ai-starter-mcp-server` and exposes published Tool Studio tools over **Streamable HTTP at `/mcp`**. Runs in-process inside the JVM.
+- **Built-in MCP Server** - wired through `spring-ai-starter-mcp-server` and exposes published Tool Studio tools over **Streamable HTTP at `/mcp`**. Runs in-process inside the JVM. While the server requires a bearer token, `ManagementToolRegistrar` adds the `saip_*` management tools, the `saip://guide/*` resources and the `saip://status/*` resources to the same server, so an external AI operates the app through the protocol it already speaks.
 - **MCP Client** - wired through `spring-ai-starter-mcp-client` to connect out to external MCP servers.
 - **AgentLoopManager** - the project's `ToolCallingManager` implementation that governs each round of the chat tool-calling loop. It wraps the Spring AI default manager and adds per-turn round bounds, repeat/decline guards, and an interceptor chain (HITL approval, interactive upload/image) - see [Agent Loop](agent-loop-architecture.md).
 
@@ -126,6 +132,7 @@ Everything outside the JVM:
 - **Vector databases** (optional) - pgvector, Weaviate, Qdrant, Milvus, and any other Spring AI `VectorStore`. These are opt-in: add the corresponding starter dependency, rebuild, and configure the bean. The default `SimpleVectorStore` is in-process and lives in Layer 4.
 - **External MCP servers** - connect through STDIO (spawned process), Streamable HTTP, or legacy SSE.
 - **Document readers** - Apache Tika handles PDF, DOCX, HTML, and others.
+- **Docker engines** - the `local` engine this machine's CLI uses and any remote Shipyard target (a Docker context or `DOCKER_HOST`). Shipyard builds one `saip-mcp/<name>:<version>` image per shipped server there and runs the container, which serves its tools and knowledge without the playground.
 
 ## Feature Modules
 
@@ -139,6 +146,9 @@ flowchart LR
     CHAT[Agentic Chat]
     HITL[Human-in-the-Loop<br/>approval gate]
     OBS[Observability]
+    SHIP[Shipyard]
+    DOCK[Shipped MCP servers<br/>Docker, no playground]
+    MGMT[Management tools<br/>external AI over /mcp]
 
     TS -- "publishes tools" --> BUILTIN
     MCPV -. "inspects · tests" .-> BUILTIN
@@ -153,6 +163,17 @@ flowchart LR
     EXT -. "spans" .-> OBS
     VDB -. "spans" .-> OBS
     HITL -. "spans" .-> OBS
+    TS -- "Local Pass tools" --> SHIP
+    MCPV -- "proxied tools" --> SHIP
+    VDB -- "RAG knowledge" --> SHIP
+    SHIP -- "builds · runs" --> DOCK
+    BUILTIN -- "offers saip_* tools" --> MGMT
+    MGMT -- "same services" --> TS
+    MGMT -- "same services" --> MCPV
+    MGMT -- "same services" --> VDB
+    MGMT -- "same services" --> SHIP
+    MGMT -- "asks before destructive steps" --> HITL
+    MGMT -. "audit trail" .-> OBS
 ```
 
 The main surfaces are **connected parts of one workflow**, not isolated demos:
@@ -162,6 +183,8 @@ The main surfaces are **connected parts of one workflow**, not isolated demos:
 - **Vector Database** prepares indexed knowledge for retrieval.
 - **Agentic Chat** composes tools (from the Built-in MCP Server or External MCP Servers) and retrieved documents into one conversational runtime.
 - **Human-in-the-Loop** is a cross-cutting runtime gate - a tool flagged for approval pauses before it runs, asking the user in Chat (dialog) or the calling client (MCP elicitation). See [Human-in-the-Loop Approval](hitl-architecture.md).
+- **Shipyard** is the exit: what passed its gates in Tool Studio, the Composed Tools drawer and the Vector Database leaves the app as a standalone MCP server bundle that runs in Docker, carrying its approval gates with it. See [Shipyard Architecture](shipyard-architecture.md).
+- **Management tools** put an external AI at the controls: the built-in MCP server offers `saip_*` tools that call the same services the screens call, so an AI authors, registers, indexes and ships with your approval at each destructive step and every call on the audit trail. See [AI Operations Architecture](ai-operations-architecture.md).
 - **Observability** is the read-only visibility layer - every other surface emits `gen_ai.*` / `spring.ai.tool` / `db.vector.client.operation` spans into the `ObservabilityCollector`, which assembles per-turn `TraceRecord`s and exposes them through fourteen dashboards. See [AI Agent Observability](observability-architecture.md) for the pipeline.
 
 ## Key Data Flows
@@ -260,7 +283,7 @@ Chunking is a separate user step from embedding, so chunks are reviewable before
 
 ### Flow 4 - Chat advisor chain (memory + RAG)
 
-Every chat request passes through the `ChatClient` advisor chain before it reaches the model. The chain is assembled from all `Advisor` beans injected as an array (`defaultAdvisors(Advisor[])`) and ordered by each advisor's `getOrder()` - **MessageChatMemoryAdvisor**, **SpringAiPlaygroundRagAdvisor**, **AttachedDocumentRagAdvisor**, Spring AI's **ToolCallingAdvisor** / **ToolSearchToolCallingAdvisor** (which own the tool-calling loop and delegate each round to `AgentLoopManager` - the [agent loop](agent-loop-architecture.md) and [human-in-the-loop gate](hitl-architecture.md); see Flow 5).
+Every chat request passes through the `ChatClient` advisor chain before it reaches the model. The chain is assembled from the `Advisor` beans injected as an array (`defaultAdvisors(Advisor[])`) and ordered by each advisor's `getOrder()` - **MessageChatMemoryAdvisor**, **SpringAiPlaygroundRagAdvisor**, **AttachedDocumentRagAdvisor** - and `ChatService` adds Spring AI's **ToolCallingAdvisor** or **ToolSearchToolCallingAdvisor** per request (they own the tool-calling loop and delegate each round to `AgentLoopManager` - the [agent loop](agent-loop-architecture.md) and [human-in-the-loop gate](hitl-architecture.md); see Flow 5).
 
 ```mermaid
 sequenceDiagram
@@ -268,7 +291,7 @@ sequenceDiagram
     participant CS as ChatService
     participant CCL as ChatClient
     participant MEM as Memory advisor
-    participant CMEM as ChatMemory<br/>(MessageWindow, last 10)
+    participant CMEM as ChatMemory<br/>(LLM window, last 10)
     participant RAG as RAG advisor (ours)
     participant EX as RagPipelineExecutor
     participant VS as VectorStore
@@ -330,6 +353,8 @@ Tool callbacks come from MCP clients, not from code you compile in. When a user 
 sequenceDiagram
     autonumber
     participant CCV as Chat view
+    participant CTS as ChatTurnService
+    participant CTR as ChatToolResolver
     participant MCS as MCP client
     participant PROV as Sync · Async<br/>ToolCallbackProvider
     participant CCL as ChatClient
@@ -339,11 +364,14 @@ sequenceDiagram
     participant MCP as MCP Server<br/>(built-in · STDIO · HTTP · SSE)
     participant UI as UI stream
 
-    CCV->>MCS: buildToolCallbackProviders(selected servers)
-    MCS-->>CCV: ToolCallbackProvider per server
-    CCV->>PROV: getToolCallbacks()
-    PROV-->>CCV: ToolCallback list
-    CCV->>CCL: .toolCallbacks(callbacks) + toolContext(MCP_PROCESS_MESSAGE_CONSUMER)
+    CCV->>CTS: send(turn request)
+    CTS->>CTR: resolve(tool preferences)
+    CTR->>MCS: buildToolCallbackProviders(selected servers)
+    MCS-->>CTR: ToolCallbackProvider per server
+    CTR->>PROV: getToolCallbacks()
+    PROV-->>CTR: ToolCallback list
+    CTR-->>CTS: ToolCallback list
+    CTS->>CCL: .toolCallbacks(callbacks) + toolContext(MCP_PROCESS_MESSAGE_CONSUMER) via ChatService
     CCL->>MODEL: prompt with tool definitions
     MODEL-->>CCL: assistant message with tool_calls
     CCL->>TCM: executeToolCalls(prompt, response)
@@ -369,6 +397,7 @@ sequenceDiagram
     autonumber
     participant U as User
     participant CCV as Chat view
+    participant CTS as ChatTurnService
     participant CS as ChatService
     participant CCL as ChatClient
     participant ADV as Advisor chain<br/>(Flow 4)
@@ -379,7 +408,8 @@ sequenceDiagram
     participant UI as UI stream
 
     U->>CCV: prompt + RAG source + selected MCP servers
-    CCV->>CS: stream(prompt, ragSourceId, toolCallbacks, consumers)
+    CCV->>CTS: send(prompt, RAG source, tool preferences)
+    CTS->>CS: stream(prompt, ragSourceId, toolCallbacks, consumers)
     CS->>CCL: prompt().user(..).toolCallbacks(..).advisors(..)
     CCL->>ADV: before(request)
     ADV->>VSS: RAG pipeline / attachment search (if a source or attachment is present)
@@ -401,13 +431,32 @@ sequenceDiagram
 
 Retrieved documents, every tool call, every tool result, and any reasoning trace are all surfaced in the UI - the agent's path from question to answer is explicit rather than hidden.
 
+### Flow 7 - Shipping a standalone server
+
+1. **Shipyard** (or **Ship MCP Server** from Tool Studio, MCP Server or Pipeline Studio) opens the ship flow with the tested Tool Studio tools, the proxied tools of the Composed Tools drawer and the RAG pipelines and documents as choices; `KnowledgeSuggestService` proposes one `search_` tool per source.
+2. `ShipyardService` validates the request (name, tools, knowledge, port, the models the bundle needs) and asks each `BundleContribution` for its part: `ToolsContribution` freezes the tool specs, `ProxiedToolsContribution` the upstream connections and aliases, `KnowledgeContribution` the pipeline as configured with the chunks and vectors of its documents.
+3. `BundleExportService` writes `saip-bundle.json`, the `Dockerfile`, `compose.yaml`, a README and `server.json` under `<home>/mcp/bundles/<name>/`; `BundleRegistryService` records the server.
+4. **Run** builds `saip-mcp/<name>:<version>` on the chosen Docker target and starts the container; `BundleHealthProbe` reports `STARTING` until the server answers, then `RUNNING`. The container boots fail-closed from the manifest and keeps each tool's approval flag, so a HITL tool asks the client that calls it there too.
+5. `BundleFreshnessService` compares the bundle with the live sources afterwards and marks the server **Out of date** when a tool, an upstream or a document changed, until it is shipped again.
+
+The same flow runs from configuration (`spring.ai.playground.shipyard.servers`, written by `ConfiguredBundleExporter` at startup) and from an AI over `saip_shipyard_validate`, `saip_shipyard_ship` and `saip_shipyard_run`; the run step asks for approval with the exact `docker compose` command. The [Shipyard Architecture](shipyard-architecture.md) page covers the bundle contract, the contributions and the container in full.
+
+### Flow 8 - An external AI operates the app
+
+1. The built-in server requires a bearer token, so `ManagementToolRegistrar` registers the `saip_*` tools of the enabled categories, the `saip://guide/*` resources and the prompts next to the published tools.
+2. An external client (ChatGPT, Claude Code, Cursor, any client with elicitation) reads a guide, then calls the tools; each call passes `ManagementApprovalGate`, which names the caller, checks the tool's approval level against `spring.ai.playground.management.approval`, and for a destructive step issues an MCP elicitation to the client with what will change. No answer within the approval wait, a decline, or a client that cannot ask ends the call refused.
+3. The handler calls the same service a screen would (`ToolSpecService`, `McpExposureService`, `KnowledgeIngestService`, `ShipyardService`, `HeadlessChatService`), so the result appears on the screens exactly as if a person had done it.
+4. `ManagementAuditLog` records the call with its level, outcome and client; **Observability -> Safety** lists it under **Management tool calls**, destructive ones also under **Recent risk events**, and `saip_monitor_*` returns the same rows to the AI.
+
+The [AI Operations Architecture](ai-operations-architecture.md) page covers the registration conditions, the gate's full decision sequence, every contribution and the guides the app serves to the AI.
+
 ## Safe Tool Spec
 
-The **Safe Tool Specification** is the on-disk contract that makes the "Safe Local Execution Layer" claim concrete. Every tool - bundled in the playground's catalog (`src/main/resources/tool/default-tool-specs-*.json`) or authored in Tool Studio (saved under `~/spring-ai-playground/tool/save/`) - serializes into one JSON document with three coupled concerns: identity the model sees, code the runtime executes, and safety posture the sandbox will enforce. The name distinguishes it from generic tool specs (MCP's `tools/list` schema, OpenAI function calling) that describe an interface but say nothing about *what is safe to let an agent run.*
+The **Safe Tool Specification** is the on-disk contract that makes the "Safe Local Execution Layer" claim concrete. Every tool - bundled in the playground's catalog (`src/main/resources/tool/default-tool-specs*.json`) or authored in Tool Studio (saved under `~/spring-ai-playground/tool/save/`) - serializes into one JSON document with three coupled concerns: identity the model sees, code the runtime executes, and safety posture the sandbox will enforce. The name distinguishes it from generic tool specs (MCP's `tools/list` schema, OpenAI function calling) that describe an interface but say nothing about *what is safe to let an agent run.*
 
 The spec maps directly onto the four parts of the product positioning:
 
-- **Safe** - the spec carries a `sandboxOverrides` block (author intent) that `SandboxPostureCalculator` resolves into an enforced `toolSafety` block. No tool reaches the MCP server until those two are reconciled and the spec earns its Local Pass.
+- **Safe** - the spec carries a `sandboxOverrides` block (author intent) that `EffectivePolicyResolver` enforces on every call and `SandboxPostureCalculator` scores as the Risk Level. No tool reaches the MCP server until the spec earns its Local Pass.
 - **Local** - specs persist to the author's own host (`~/spring-ai-playground/tool/save/`); the bundled catalog ships the same JSON shape pre-filled. Nothing about a spec leaves the machine unless an MCP client over the loopback asks for it.
 - **Execution Layer** - the spec carries the JS action body and the input shape the runtime invokes. `draft: true` means the spec has not yet earned a Local Pass and is not exposed; flipping that flag is what publishes the tool.
 - **for AI Agent Tools** - `name`, `description`, and `params` are *model-visible* (they drive tool selection and argument typing through MCP); `staticVariables` is server-side config the model never sees, sourced from `${ENV_VAR}` placeholders.
@@ -417,9 +466,9 @@ The spec maps directly onto the four parts of the product positioning:
 A safe tool spec carries two safety-related blocks that look similar but serve opposite directions:
 
 - **`sandboxOverrides`** - what the *author* declared they need (broader network mode, FS access, additional class-allowlist entries). This is the editable surface in Tool Studio's Sandbox & Capabilities pane. Missing or null fields mean "baseline" - no override.
-- **`toolSafety`** - what the *runtime* will actually enforce. `SandboxPostureCalculator` reads `sandboxOverrides` plus the baseline policy and produces a resolved snapshot. The Risk Level badge (L0-L5) the UI shows is computed from this block, and the audit log records this block on every invocation.
+- **`toolSafety`** - a descriptive snapshot of the resolved posture, shipped with the bundled catalog specs. The runtime does not read it: `EffectivePolicyResolver` builds the enforced `EffectivePolicy` from `sandboxOverrides` plus the baseline on every call, and `SandboxPostureCalculator` computes the Risk Level badge (L0-L5) the UI shows from the same `sandboxOverrides`.
 
-The split exists so that (1) the editable intent and the enforced posture cannot drift, (2) verifying a foreign spec's safety properties only needs reading `toolSafety`, and (3) the audit log captures what was *actually enforced*, not what the author *asked for*.
+The split keeps the editable intent apart from the posture it resolves to. Because the runtime always resolves from `sandboxOverrides`, the intent and the enforced posture cannot drift, and verifying a foreign spec means re-running the resolver rather than trusting its `toolSafety` block.
 
 For the full document grammar - every field, JSON Schema, resolution algorithm, network mode behavioral table, Risk Level computation, versioning policy, validation error model, and canonical examples - see [**Safe Tool Specification 1.0**](safe-tool-specification.md). For the resolver internals and threat-to-layer mapping, see [AI Agent Tool Safety](safety-architecture.md). For the Tool Studio UI form that writes this JSON, see [Tool Studio → Sandbox & Capabilities](features/tool-studio/index.md#sandbox-capabilities).
 
@@ -427,7 +476,7 @@ For the full document grammar - every field, JSON Schema, resolution algorithm, 
 
 Tool Studio is the only part of the system that runs user-authored code. The implementation models safety as three independent layers - an always-on Java-level sandbox, a per-tool override surface with a visible risk badge, and a transport-level security layer in front of the MCP endpoint.
 
-For the system-level reference (three-layer diagram, policy resolution, per-execution enforcement, threat-to-layer mapping, known limitations, and the next-pass HITL design), see → [**AI Agent Tool Safety Architecture**](safety-architecture.md).
+For the system-level reference (three-layer diagram, policy resolution, per-execution enforcement, threat-to-layer mapping, known limitations, and where the human-in-the-loop gate fits), see → [**AI Agent Tool Safety Architecture**](safety-architecture.md).
 
 For the user-facing surface (override fields, Risk Level rules, SSRF four-layer steps), see → [Tool Studio → Safety](features/tool-studio/index.md#safety) and [Tool Studio → Sandbox & Capabilities](features/tool-studio/index.md#sandbox-capabilities).
 
@@ -463,6 +512,8 @@ State is serialized as JSON under the user home directory. The default `SimpleVe
 | New tool | Tool Studio (runtime, no rebuild) or a Spring bean exposing a `ToolCallback` |
 | Custom advisor | Register an additional `Advisor` bean; picked up by `ChatClient` builder |
 | Custom persistence | Implement `PersistenceServiceInterface` |
+| New Shipyard target | **Targets** in the Shipyard header, or `spring.ai.playground.shipyard.targets` with a Docker context or `DOCKER_HOST` |
+| New management tool | A `ManagementToolContribution` bean in `service/management`; `ManagementToolRegistrar` registers its tools under one of the categories, behind the approval gate and the audit log |
 
 ## Why This Shape
 
@@ -473,4 +524,6 @@ The five-layer model is deliberate. Each capability has a dedicated runtime area
 - [Overview](index.md) - product positioning, quick start path, and documentation map
 - [Getting Started](getting-started/index.md) - install, configure, and run the app
 - [Features](features/index.md) - what each product area does and how to use it
-- [Tutorials](tutorials/index.md) - end-to-end walkthroughs that exercise these flows
+- [Shipyard Architecture](shipyard-architecture.md) - the bundle contract, the contributions and the fail-closed container behind Flow 7
+- [AI Operations Architecture](ai-operations-architecture.md) - the registration, the gate and the audit trail behind Flow 8
+- [Tutorials](tutorials/index.md) - end-to-end walkthroughs that exercise these flows, Tutorials 18 to 22 with an AI at the controls

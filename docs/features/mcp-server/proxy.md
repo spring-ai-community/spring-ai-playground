@@ -115,4 +115,5 @@ Tools composed here can also leave the app: [Shipyard](index.md#shipyard) lists 
 - [MCP Server](index.md) - connections, transports, OAuth, the sidebar catalog
 - [MCP Inspector](inspector.md) - exercise a connection's tools (with per-tool risk chips) before proxying them
 - [Management Tools](management-tools.md) - let an external AI client choose and expose these tools over MCP, with the same risk cap and HITL rules
+- [AI Guides, Templates and Samples](ai-guides.md#proxy) - the proxy guide an AI follows for the same job
 - [Default MCP Servers](../default-mcp-catalog/index.md) - the 58 preset connections you can proxy from

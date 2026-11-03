@@ -8,7 +8,7 @@ The MCP Server screen is where you pick, configure, and inspect a single MCP con
 
 - It validates tools that **Spring AI Playground itself** publishes through the built-in MCP server (always pinned to the top of the sidebar).
 - It is the client-side inspection surface for **external MCP servers** - anything you activate from the catalog, or any custom STDIO / HTTP / SSE / OAuth 2.1 server you wire up by hand.
-- With a **bearer token** on, the built-in server also offers the `saip_*` [management tools](management-tools.md), through which an external AI does what these screens do (author and publish tools, register and proxy servers, index knowledge, ship servers) with your approval at each destructive step; and the **Shipyard** tab ([below](#shipyard)) ships what passed as a standalone MCP server.
+- With a **bearer token** on, the built-in server also offers the `saip_*` [management tools](management-tools.md), through which an external AI does what these screens do (author and publish tools, register and proxy servers, index knowledge, ship servers) with your approval at each destructive step; and the **Shipyard** tab ([below](#shipyard)) ships what passed as a standalone MCP server. [AI Guides, Templates and Samples](ai-guides.md) shows what the built-in server teaches that AI.
 
 ## Catalog & Sidebar Filtering { #catalog-sidebar-filtering }
 

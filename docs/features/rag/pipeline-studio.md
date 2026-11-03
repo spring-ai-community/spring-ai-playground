@@ -148,3 +148,4 @@ Embedding a document while no RAG pipeline exists yet also creates a pipeline na
 
 - [Runtime: RAG in Chat](runtime.md) - selecting a pipeline in a conversation and reading its trace
 - [Offline: Indexing](offline-etl.md) - preparing the chunks this pipeline retrieves
+- [AI Guides, Templates and Samples](../mcp-server/ai-guides.md#knowledge) - the knowledge guide an AI follows to build and ship a pipeline over MCP
