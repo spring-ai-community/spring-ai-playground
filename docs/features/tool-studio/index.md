@@ -16,7 +16,7 @@ The authoring screen has two working halves that fold into a single page:
 ![Tool spec form - tool name, description, structured parameters](../../assets/images/tool-studio-form.png)
 *Top of Tool Studio: tool name / category / tags, free-form tool description, and structured parameters (Parameter #1 with required flag, name, type, description, and a test value the local sandbox actually executes against).*
 
-An external AI client can author tools the same way over MCP, through the `saip_tools_*` [management tools](../mcp-server/management-tools.md#writing-a-tool): the same drafts, the same Local Pass, the same exposure settings, with a person approving each publish. [Tutorial 18](../../tutorials/18-ai-authors-a-tool.md) walks through it.
+An external AI client can author tools the same way over MCP, guided by the [authoring guide and example tools](../mcp-server/ai-guides.md#tool-authoring) the app serves, through the `saip_tools_*` [management tools](../mcp-server/management-tools.md#writing-a-tool): the same drafts, the same Local Pass, the same exposure settings, with a person approving each publish. [Tutorial 18](../../tutorials/18-ai-authors-a-tool.md) walks through it.
 
 ## What Tool Studio Does
 

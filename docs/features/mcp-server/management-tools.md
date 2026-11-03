@@ -46,7 +46,7 @@ The AI does not need this site. The app serves its own guides as MCP resources, 
 | `knowledge` | `saip://guide/knowledge` | `saip_knowledge_server` |
 | `shipyard` | `saip://guide/shipyard` | `saip_shipyard_server` |
 
-A guide sits one layer above the tools: each management tool does one step, and the guide is the procedure that strings several of them together, the same role an [Agent Skill](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills) plays above the tools a host can call. It also follows the same progressive disclosure: a short overview points to narrower resources, so the AI reads only the part it needs. `saip_create_tool` returns its guide as an embedded resource; the other three prompts tell the AI to read their guide first. What the app builds, tests and ships are tools; the guides only teach an AI to operate the app. [AI Operations Architecture](../../ai-operations-architecture.md#guides) lists which component serves which guide.
+A guide sits one layer above the tools: each management tool does one step, and the guide is the procedure that strings several of them together, the same role an [Agent Skill](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills) plays above the tools a host can call. It also follows the same progressive disclosure: a short overview points to narrower resources, so the AI reads only the part it needs. `saip_create_tool` returns its guide as an embedded resource; the other three prompts tell the AI to read their guide first. What the app builds, tests and ships are tools; the guides only teach an AI to operate the app. [AI Operations Architecture](../../ai-operations-architecture.md#guides) lists which component serves which guide, and [AI Guides, Templates and Samples](ai-guides.md) shows the full text of every guide, the four prompts and the example tools, with how to read them yourself in the Inspector or with curl.
 
 ## Tool areas
 
@@ -217,6 +217,7 @@ These are configuration only: nothing an AI can call changes them, and the drawe
 
 ## Related
 
+- [AI Guides, Templates and Samples](ai-guides.md) - the guides, prompts and example tools these tools come with, word for word
 - [Tool Studio](../tool-studio/index.md) and the [Safe Tool Specification](../../safe-tool-specification.md) - what the `tools` tools write
 - [MCP Server Proxy](proxy.md) - the drawer the `expose` tools drive
 - [MCP Server Safety](../../mcp-server-safety.md) - risk levels, the poisoning scan and the fingerprint ledger
