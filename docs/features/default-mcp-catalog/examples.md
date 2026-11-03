@@ -51,10 +51,10 @@ MCP Everything is the only server in the ecosystem that *intentionally* implemen
 | Inspector tab | What MCP Everything exposes |
 |---|---|
 | **Tools** | 15 tools, shown in the Inspector as **Echo Tool**, **Get Sum Tool**, **Print Environment Tool**, **Get Tiny Image Tool**, **GZip File as Resource Tool**, **Get Annotated Message Tool**, **Get Resource Links Tool**, **Get Resource Reference Tool**, **Get Structured Content Tool**, **Trigger Long Running Operation Tool**, **Trigger Sampling Request Tool**, **Trigger Elicitation Request Tool**, **Toggle Simulated Logging**, **Toggle Subscriber Updates**, **Simulate Research Query** - different argument schemas, progress notifications, and content shapes. As a vendor-official STDIO server they each compose to <span class="rl rl-l2">L2 - Low</span>; confirm the live set and exact tool names on the connection's [Inspector](../mcp-server/inspector.md#tools) |
-| **Resources** | static resources (`test://static/resource/1` ... `100`) plus parameterised resource templates (`demo://resource/dynamic/text/{resourceId}` and `demo://resource/dynamic/blob/{resourceId}`) that render against the JSON-Schema-typed input panel |
+| **Resources** | static resources (`demo://resource/static/document/...`, 7 in the current build) plus parameterised resource templates (`demo://resource/dynamic/text/{resourceId}` and `demo://resource/dynamic/blob/{resourceId}`) that render against the JSON-Schema-typed input panel |
 | **Prompts** | `simple-prompt` (no args), `args-prompt` (city + state), `completable-prompt` (Team Management with an MCP-completion-backed `department` argument) |
 | **Notifications** | live feed of `notifications/message`, `resources/updated`, `resources/list_changed`, `prompts/list_changed`, `tools/list_changed` - toggle on with `Toggle Subscriber Updates` to start the periodic resource-updated stream |
-| **Sampling** | `Trigger Sampling Request Tool` invokes `sampling/createMessage` back into the playground (client primitive); the request lands as a Sampling-tab card with Approve / Reject |
+| **Sampling** | `Trigger Sampling Request Tool` invokes `sampling/createMessage` back into the playground (client primitive); the request lands as a Sampling-tab card with **Send** / **Decline** |
 | **Elicitation** | `Trigger Elicitation Request Tool` invokes `elicitation/create` (client primitive); the Elicitation tab renders the requested form |
 | **Roots** | calls `roots/list` on startup - the Roots tab shows what was asked; if no roots are advertised, the server proceeds anyway |
 | **Logging** | structured log records the Inspector folds into Notifications (`Toggle Simulated Logging` toggles the cadence) |
@@ -62,7 +62,7 @@ MCP Everything is the only server in the ecosystem that *intentionally* implemen
 
 If any of these don't behave as documented, the bug is almost certainly in the playground's client implementation, not in the server - which is the whole reason MCP Everything is shipped as the test target.
 
-**Step-by-step walkthrough** - drive every row of the table above against a live MCP Everything connection in [Tutorial 9: MCP Everything - All 8 Primitives in One Walkthrough](../../tutorials/9-mcp-everything.md). Sample inputs (Echo, Add, Annotated Message), expected outputs (text + base64 image content), and the Sampling / Elicitation Approve-Reject cards are all spelled out there.
+**Step-by-step walkthrough** - drive every row of the table above against a live MCP Everything connection in [Tutorial 9: MCP Everything - All 8 Primitives in One Walkthrough](../../tutorials/9-mcp-everything.md). Sample inputs (Echo, Add, Annotated Message), expected outputs (text + base64 image content), and the Sampling (Send / Decline) and Elicitation (Accept / Decline / Cancel) cards are all spelled out there.
 
 !!! tip "Hosted OAuth variant is intentionally not catalogued"
     The MCP working group also publishes a Streamable HTTP variant of MCP Everything at `https://example-server.modelcontextprotocol.io/` that requires an OAuth dance. That endpoint exists for spec-conformance demos and isn't included as a catalog entry - first-time users should hit the STDIO variant which needs no credentials at all. If you want to exercise the OAuth flow specifically, add a Custom Server entry pointing at that URL with the OAuth 2.1 preset.
@@ -106,10 +106,10 @@ Cognition's hosted, free, no-auth Streamable HTTP server that answers natural-la
 
 **Tools** - discovered on connect; the three this server publishes (all read-only, so each scores <span class="rl rl-l2">L2 - Low</span> on its own connection's Inspector):
 
-??? abstract "Tools (3) - read_wiki_structure · read_wiki_contents · ask_question"
+??? abstract "Tools (3) - read_wiki_structure · read_wiki_contents · ask_wiki_question"
     - **`read_wiki_structure`** - list the documentation topics / sections for a repo. <span class="rl rl-l2">L2 - Low</span>
     - **`read_wiki_contents`** - fetch the full generated wiki text for a repo. <span class="rl rl-l2">L2 - Low</span>
-    - **`ask_question`** - ask a natural-language question about a repo. <span class="rl rl-l2">L2 - Low</span>
+    - **`ask_wiki_question`** - ask a natural-language question about a repo. <span class="rl rl-l2">L2 - Low</span>
 
 **Why this server is catalogued under Examples**
 
@@ -117,7 +117,7 @@ DeepWiki is catalogued under Examples rather than Search because its primary use
 
 **Description (full)**
 
-Free, no-auth Streamable HTTP server by Cognition that answers natural-language questions about any public GitHub repo, backed by auto-generated wikis. Three read-only tools - `read_wiki_structure`, `read_wiki_contents`, `ask_question`.
+Free, no-auth Streamable HTTP server by Cognition that answers natural-language questions about any public GitHub repo, backed by auto-generated wikis. Three read-only tools - `read_wiki_structure`, `read_wiki_contents`, `ask_wiki_question`.
 
 **Docs** - [deepwiki.com](https://deepwiki.com)
 

@@ -15,6 +15,7 @@
  */
 package org.springaicommunity.playground.webui.chat;
 
+import org.springaicommunity.playground.service.chat.ChatClientAction;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

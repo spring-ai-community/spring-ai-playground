@@ -1,5 +1,6 @@
+videos: bonus
 title: Observability
-description: Fourteen in-app dashboards surfacing what a Spring AI Playground agent did - token economics, tool and MCP behaviour, RAG quality, host runtime, Ollama monitoring, and a live trace tail.
+description: Fourteen in-app dashboards surfacing what a Spring AI Playground agent did - token economics, tool and MCP behavior, RAG quality, host runtime, Ollama monitoring, and a live trace tail.
 
 # Observability
 
@@ -19,7 +20,7 @@ The dashboards are designed around three roles, all of which can be the same per
 - **Operator** - monitoring a deployment over time: cost trends, error rates, MCP server health, system load. Lives in **Overview**, **Tokens & Cost**, **MCP Servers**, **Host**.
 - **Investigator** - drilling into a specific incident from a log line back to the originating model decision. Lives in **Logs**, **Traces**, **Trace Detail dialog**.
 
-Every dashboard is read-only and passive - opening it never alters trace data or model behaviour.
+Every dashboard is read-only and passive - opening it never alters trace data or model behavior.
 
 ## Sidebar map - fourteen dashboards in four groups
 
@@ -61,7 +62,7 @@ The Overview tab is the landing surface - every group has its own dedicated tabs
 
 Every dashboard shares one `ObservabilityGlobalSettings` singleton - so picking *Last 1H* on the Tokens & Cost tab and clicking over to AI Models shows the same hour, and changing the refresh interval applies everywhere at once. Three surfaces touch this state:
 
-- **Header time-window picker** - top-right of every dashboard, six chips: `Last 5m · 10m · 20m · 30m · 1h · 3h` (default **30m**). Clicking a chip switches the sliding window and retickes charts.
+- **Header time-window picker** - top-right of every dashboard, six chips: `Last 5m · 10m · 20m · 30m · 1h · 3h` (default **30m**). Clicking a chip switches the sliding window and re-ticks the charts.
 - **Header refresh chip** - beside the time-window picker. Quick-pick `Off · 1s · 2s · 5s · 10s · 30s · 60s` (default **5s**). When **Off**, charts only update on manual refresh.
 - **Cog drawer (Observability settings)** - opened by the gear icon. Three sections:
 
@@ -99,42 +100,46 @@ flowchart LR
         S7["Ollama server"]
     end
     Trace["TraceRecord"]
+    VLog["Vector operation log<br/>(memory only)"]
     Prim["MCP primitive<br/>observations"]
     Met["MeterRegistry +<br/>SystemMetrics"]
     Log["Rolling app log"]
     OllamaApi["Ollama<br/>/api/ps · /api/tags"]
     S1 --> Trace
     S2 --> Trace
-    S4 --> Trace
+    S4 --> VLog
     S3 --> Prim
     S5 --> Met
     S6 --> Log
     S7 --> OllamaApi
-    subgraph TDASH["Trace-fed dashboards (8)"]
+    subgraph TDASH["Trace-fed dashboards (7)"]
         direction TB
         D1["Overview"]
         D2["Tokens & Cost"]
         D3["AI Models"]
         D4["Tool Studio"]
         D5["MCP Servers"]
-        D6["Vector DB"]
-        D7["Agentic Chat"]
-        D8["Traces"]
+        D6["Agentic Chat"]
+        D7["Traces"]
     end
     Trace --> TDASH
+    VLog --> VDB["Vector DB"]
     Prim --> MI["MCP Inspector"]
     Met --> RUN["Host ·<br/>Web Application"]
     OllamaApi --> OLL["Ollama"]
     Log --> LG["Logs"]
+    Risk["Risk counters ·<br/>risk events ·<br/>management audit log"] --> SF["Safety"]
 ```
 
-The five streams are independent and the dashboards mix them differently:
+The seven streams are independent and the dashboards mix them differently:
 
-- **`TraceRecord` stream** - every chat turn becomes one `TraceRecord`, but so does every Tool Studio test run and every Vector Database operation that fires through Spring AI. That single record carries `gen_ai.*` / `spring.ai.tool` / `db.vector.client.operation` child spans and surfaces across **Overview, Tokens & Cost, AI Models, Tool Studio, MCP Servers, Vector Database, Agentic Chat, and Traces**. A Tool Studio test that never touches chat still populates the Tool Studio dashboard plus Overview / Traces.
+- **`TraceRecord` stream** - every chat turn becomes exactly one `TraceRecord` - including the retrieval, tool and nested model spans that ran inside it - and so does every Tool Studio test run. That single record carries `gen_ai.*` / `spring.ai.tool` / `db.vector.client.operation` child spans and surfaces across **Overview, Tokens & Cost, AI Models, Tool Studio, MCP Servers, Agentic Chat, and Traces**. A Tool Studio test that never touches chat still populates the Tool Studio dashboard plus Overview / Traces.
+- **Vector operation log** - every vector-store query, add and delete (from a pipeline, a document upload, a chat attachment, or a search on the Vector Database screen) is recorded in a memory-only log that feeds the **Vector Database** dashboard. It is not persisted and resets on restart.
 - **MCP primitive observations** - when you browse or invoke through the MCP Inspector (list tools, read resources, get prompts, sampling, elicitation), separate observations fire and feed only the **MCP Inspector** dashboard. Independent of trace.
 - **`MeterRegistry` + system metrics** - JVM heap, GC, threads, CPU, HTTP, Tomcat sessions, logback level counts are always live (no user action needed) and feed **Host** and **Web Application**.
 - **Ollama HTTP API** - when Ollama is the active chat provider, the **Ollama** dashboard polls the local server's `/api/ps` and `/api/tags` directly (running models, VRAM, installed inventory) - independent of traces and `MeterRegistry`.
 - **Application log stream** - anything any code logs is tailed live and feeds **Logs**.
+- **Risk counters, risk-event buffer and management audit log** - `saip.risk.signal`, `saip.tool.risk`, `mcp.hitl.decision` and `sandbox.guard.blocked` counters, the recent risk events, and the in-memory trail of `saip_*` management tool calls feed **Safety**.
 
 So clicking through MCP Inspector primitives, running a Tool Studio test, or uploading a document in Vector Database all generate data on their own dashboards even without sending a single chat message. Conversely, only the chat surface generates the conversation-level aggregates on Agentic Chat.
 

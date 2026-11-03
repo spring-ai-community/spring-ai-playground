@@ -25,19 +25,65 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 
 @Component
 public class ChatImageStore {
 
     public static final String IMAGES_DIR = "images";
+
+    public static final int MAX_IMAGES = 5;
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final ToolWorkspace workspace;
+    private final Map<String, List<Staged>> pendingByConversation = new ConcurrentHashMap<>();
 
     public ChatImageStore(ToolWorkspace workspace) {
         this.workspace = workspace;
+    }
+
+    public Staged stage(String conversationId, byte[] content, String originalFileName, String mimeType,
+            String exifJson) throws IOException {
+        synchronized (this.pendingByConversation) {
+            if (pendingCount(conversationId) >= MAX_IMAGES)
+                throw new IllegalStateException("You can attach up to " + MAX_IMAGES + " images.");
+            Stored stored = store(conversationId, content, originalFileName, mimeType, exifJson);
+            Staged staged = new Staged(stored.hash(), originalFileName, mimeType,
+                    content == null ? new byte[0] : content);
+            this.pendingByConversation.computeIfAbsent(conversationId, id -> new ArrayList<>()).add(staged);
+            return staged;
+        }
+    }
+
+    public List<Staged> pending(String conversationId) {
+        synchronized (this.pendingByConversation) {
+            return List.copyOf(this.pendingByConversation.getOrDefault(conversationId, List.of()));
+        }
+    }
+
+    public int pendingCount(String conversationId) {
+        return pending(conversationId).size();
+    }
+
+    public List<Staged> takePending(String conversationId) {
+        synchronized (this.pendingByConversation) {
+            List<Staged> taken = this.pendingByConversation.remove(conversationId);
+            return taken == null ? List.of() : List.copyOf(taken);
+        }
+    }
+
+    public boolean removePending(String conversationId, Staged image) {
+        synchronized (this.pendingByConversation) {
+            List<Staged> staged = this.pendingByConversation.get(conversationId);
+            return staged != null && staged.remove(image);
+        }
+    }
+
+    public void discardPending(String conversationId) {
+        takePending(conversationId);
     }
 
     public Stored store(String conversationId, byte[] content, String originalFileName, String mimeType,
@@ -154,6 +200,8 @@ public class ChatImageStore {
     }
 
     public record Stored(String path, String hash, String fileName, String mimeType, long bytes, boolean deduped) {}
+
+    public record Staged(String hash, String fileName, String mimeType, byte[] bytes) {}
 
     public record Loaded(byte[] bytes, String mimeType, String hash) {}
 

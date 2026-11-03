@@ -30,33 +30,22 @@ import org.springaicommunity.playground.observability.McpRiskEventRingBuffer;
 import org.springaicommunity.playground.observability.McpRiskEventRingBuffer.RiskEvent;
 import org.springaicommunity.playground.observability.Window;
 import org.springaicommunity.playground.observability.system.SystemMetricsSnapshot;
-import org.springaicommunity.playground.service.mcp.McpServerInfo;
+import org.springaicommunity.playground.service.chat.ProviderReadinessService;
+import org.springaicommunity.playground.service.mcp.McpServerAuthTokenService;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
-import org.springaicommunity.playground.service.mcp.client.McpClientService;
+import org.springaicommunity.playground.service.mcp.McpServerInfoService.ExternalServerSummary;
 import org.springaicommunity.playground.service.mcp.risk.McpRiskEvents;
-import org.springaicommunity.playground.service.tool.ToolActivationCalculator;
-import org.springaicommunity.playground.service.tool.ToolSpec;
-import org.springaicommunity.playground.service.tool.ToolSpecPersistenceService;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
+import org.springaicommunity.playground.service.tool.ToolSpecService.BuiltinEnvSnapshot;
 import org.springaicommunity.playground.webui.mcp.McpServerView;
 import org.springaicommunity.playground.webui.observability.ObservabilityView;
 import org.springaicommunity.playground.webui.tool.ToolStudioView;
-import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.embedding.EmbeddingModel;
-import org.springframework.ai.embedding.EmbeddingOptions;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.env.Environment;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
-import java.util.TreeMap;
 
 class HomeSystemPanel extends Div {
 
@@ -70,10 +59,7 @@ class HomeSystemPanel extends Div {
 
     private final Environment environment;
     private final ToolSpecService toolSpecService;
-    private final ToolSpecPersistenceService toolSpecPersistenceService;
-    private final ToolActivationCalculator toolActivationCalculator;
     private final McpServerInfoService mcpServerInfoService;
-    private final McpClientService mcpClientService;
     private final ObservabilityTimeSeries observabilityTimeSeries;
     private final SystemMetricsSnapshot systemMetricsSnapshot;
     private final McpRiskEventRingBuffer mcpRiskEventRingBuffer;
@@ -85,29 +71,20 @@ class HomeSystemPanel extends Div {
     private Icon envChevron;
     private boolean envExpanded;
 
-    HomeSystemPanel(ObjectProvider<ChatModel> chatModelProvider,
-            ObjectProvider<EmbeddingModel> embeddingModelProvider,
-            Optional<EmbeddingOptions> embeddingOptions,
+    HomeSystemPanel(ProviderReadinessService readinessService,
             Environment environment,
             ToolSpecService toolSpecService,
-            ToolSpecPersistenceService toolSpecPersistenceService,
-            ToolActivationCalculator toolActivationCalculator,
             McpServerInfoService mcpServerInfoService,
-            McpClientService mcpClientService,
             ObservabilityTimeSeries observabilityTimeSeries,
             SystemMetricsSnapshot systemMetricsSnapshot,
             McpRiskEventRingBuffer mcpRiskEventRingBuffer) {
         this.environment = environment;
         this.toolSpecService = toolSpecService;
-        this.toolSpecPersistenceService = toolSpecPersistenceService;
-        this.toolActivationCalculator = toolActivationCalculator;
         this.mcpServerInfoService = mcpServerInfoService;
-        this.mcpClientService = mcpClientService;
         this.observabilityTimeSeries = observabilityTimeSeries;
         this.systemMetricsSnapshot = systemMetricsSnapshot;
         this.mcpRiskEventRingBuffer = mcpRiskEventRingBuffer;
-        this.providerStatus = new HomeProviderStatus(
-                chatModelProvider, embeddingModelProvider, embeddingOptions, environment);
+        this.providerStatus = new HomeProviderStatus(readinessService);
 
         setWidthFull();
         getStyle()
@@ -183,42 +160,47 @@ class HomeSystemPanel extends Div {
         return pill;
     }
 
+    private static String postureLabel(McpServerAuthTokenService.ExposurePosture posture) {
+        return switch (posture.kind()) {
+            case LOCALHOST_ONLY -> "localhost only";
+            case TOKEN_REQUIRED -> "token required";
+            case OPEN -> "Bound " + posture.boundAddress() + " \u00b7 no auth";
+        };
+    }
+
+    private static String postureDetail(McpServerAuthTokenService.ExposurePosture posture) {
+        return switch (posture.kind()) {
+            case LOCALHOST_ONLY -> "Only this machine can reach the built-in MCP server.";
+            case TOKEN_REQUIRED -> "The built-in MCP server is reachable on " + posture.boundAddress()
+                    + " and requires a bearer token on /mcp.";
+            case OPEN -> "Anyone on your network can reach the built-in MCP server and call exposed tools. "
+                    + "Set server.address=localhost to restrict it to this machine, or pick Bearer token "
+                    + "in the MCP Server settings drawer.";
+        };
+    }
+
     private Component buildBindPosture() {
-        String address = environment.getProperty("server.address", "").trim();
-        boolean localhostOnly = address.equals("localhost")
-                || address.equals("127.0.0.1") || address.equals("::1");
-        if (localhostOnly) {
+        McpServerAuthTokenService.ExposurePosture posture =
+                this.mcpServerInfoService.exposurePosture(environment.getProperty("server.address", ""));
+        if (posture.kind() != McpServerAuthTokenService.PostureKind.OPEN) {
             Div pill = pill("var(--lumo-success-color)");
-            pill.getElement().setAttribute("title",
-                    "Only this machine can reach the built-in MCP server.");
-            Span text = new Span("localhost only");
-            pill.add(text);
-            return pill;
-        }
-        String boundAddress = address.isEmpty() ? "0.0.0.0" : address;
-        if (this.mcpServerInfoService.builtInServerTokenRequired()) {
-            Div pill = pill("var(--lumo-success-color)");
-            pill.getElement().setAttribute("title", "The built-in MCP server is reachable on " + boundAddress
-                    + " and requires a bearer token on /mcp.");
-            pill.add(new Span("token required"));
+            pill.getElement().setAttribute("title", postureDetail(posture));
+            pill.add(new Span(postureLabel(posture)));
             return pill;
         }
         Div pill = pill("var(--lumo-warning-color)");
         pill.getStyle()
                 .set("border-color", "var(--lumo-warning-color-50pct)")
                 .set("background-color", "var(--lumo-warning-color-10pct)");
-        pill.getElement().setAttribute("title",
-                "Anyone on your network can reach the built-in MCP server and call exposed tools. "
-                        + "Set server.address=localhost to restrict it to this machine, or pick Bearer token "
-                        + "in the MCP Server settings drawer.");
-        Span text = new Span("Bound " + boundAddress + " · no auth");
+        pill.getElement().setAttribute("title", postureDetail(posture));
+        Span text = new Span(postureLabel(posture));
         text.getStyle().set("color", "var(--lumo-warning-text-color)");
         pill.add(text);
         return pill;
     }
 
     private void render() {
-        EnvSnapshot env = envSnapshot();
+        BuiltinEnvSnapshot env = this.toolSpecService.builtinEnvSnapshot();
         renderEnvPill(env);
         buildEnvDetail(env);
         body.removeAll();
@@ -229,41 +211,13 @@ class HomeSystemPanel extends Div {
         body.add(buildReadinessChips(env), buildKpis(), buildRisk());
     }
 
-    private EnvSnapshot envSnapshot() {
-        List<ToolSpec> defaults = toolSpecPersistenceService.getDefaultToolSpecs();
-        Map<String, List<String>> toolsByVar = new TreeMap<>();
-        Set<String> missingVars = new LinkedHashSet<>();
-        long blockedTools = 0;
-        for (ToolSpec spec : defaults) {
-            List<String> missing = toolActivationCalculator.missingEnvVars(spec);
-            if (!missing.isEmpty()) blockedTools++;
-            missingVars.addAll(missing);
-            for (String envVar : toolActivationCalculator.declaredEnvVars(spec)) {
-                toolsByVar.computeIfAbsent(envVar, k -> new ArrayList<>()).add(spec.name());
-            }
-        }
-        return new EnvSnapshot(defaults.size(), blockedTools, toolsByVar, missingVars);
-    }
-
-    private Component buildReadinessChips(EnvSnapshot env) {
-        int total = env.totalTools();
+    private Component buildReadinessChips(BuiltinEnvSnapshot env) {
         long needKeys = env.blockedTools();
-        long localPassed = total - needKeys;
-
-        McpServerInfo defaultInfo = mcpServerInfoService.getDefaultMcpServerInfo();
-        List<McpServerInfo> external = mcpServerInfoService.getMcpServerInfos().values().stream()
-                .flatMap(List::stream)
-                .filter(info -> !Objects.equals(info, defaultInfo))
-                .toList();
-        long awaiting = external.stream()
-                .filter(info -> mcpClientService.getStatus(info).status()
-                        == McpClientService.ServerStatus.AWAITING_AUTHORIZATION)
-                .count();
-        long connected = external.size() - awaiting;
-
-        Set<String> defaultIds = toolSpecPersistenceService.getDefaultToolIds();
-        long exposed = toolSpecService.getToolMcpServerSetting().exposedToolIds().stream()
-                .filter(defaultIds::contains).count();
+        long localPassed = env.localPassed();
+        ExternalServerSummary servers = this.mcpServerInfoService.externalServerSummary();
+        long awaiting = servers.awaitingAuthorization();
+        long connected = servers.connected();
+        long exposed = env.exposedBuiltins();
 
         Div grid = new Div();
         grid.getStyle()
@@ -328,7 +282,7 @@ class HomeSystemPanel extends Div {
             envChevron.getStyle().set("transform", envExpanded ? "rotate(180deg)" : "none");
     }
 
-    private void renderEnvPill(EnvSnapshot env) {
+    private void renderEnvPill(BuiltinEnvSnapshot env) {
         envPill.removeAll();
         boolean missing = !env.missingVars().isEmpty();
         envPill.getStyle()
@@ -379,7 +333,7 @@ class HomeSystemPanel extends Div {
         envPill.add(dot, name, HomeUi.divider(), status, envChevron);
     }
 
-    private void buildEnvDetail(EnvSnapshot env) {
+    private void buildEnvDetail(BuiltinEnvSnapshot env) {
         envDetail.removeAll();
         envDetail.setVisible(envExpanded);
         envDetail.getStyle()
@@ -461,7 +415,7 @@ class HomeSystemPanel extends Div {
         return label;
     }
 
-    private Component envVarGrid(EnvSnapshot env, boolean missingGroup) {
+    private Component envVarGrid(BuiltinEnvSnapshot env, boolean missingGroup) {
         Div grid = new Div();
         grid.getStyle()
                 .set("display", "grid")
@@ -697,15 +651,4 @@ class HomeSystemPanel extends Div {
 
     private record RiskLevel(String key, String label, String color) {}
 
-    private record EnvSnapshot(int totalTools, long blockedTools,
-            Map<String, List<String>> toolsByVar, Set<String> missingVars) {
-
-        int totalVars() {
-            return toolsByVar.size();
-        }
-
-        int setVars() {
-            return totalVars() - missingVars.size();
-        }
-    }
 }

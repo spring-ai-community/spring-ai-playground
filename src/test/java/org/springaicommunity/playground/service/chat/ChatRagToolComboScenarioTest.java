@@ -69,6 +69,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.atLeast;
@@ -418,14 +419,16 @@ class ChatRagToolComboScenarioTest {
     }
 
     @Test
-    void attachmentCapIsAUiGuardRatherThanAServiceContract() throws Exception {
+    void attachmentCapIsEnforcedByTheService() throws Exception {
         String conversationId = newConversationId();
-        for (int i = 0; i < ChatDocumentIntakeService.MAX_ATTACHMENTS + 1; i++)
+        for (int i = 0; i < ChatDocumentIntakeService.MAX_ATTACHMENTS; i++)
             awaitSettled(conversationId, attachSmall(conversationId, "at03-" + i + ".txt").attachId());
 
-        assertThat(this.intakeService.list(conversationId))
-                .as("AT-03 the service itself does not enforce MAX_ATTACHMENTS")
-                .hasSize(ChatDocumentIntakeService.MAX_ATTACHMENTS + 1);
+        assertThatThrownBy(() -> attachSmall(conversationId, "at03-extra.txt"))
+                .as("AT-03 the service enforces MAX_ATTACHMENTS so every caller gets the same cap")
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("You can attach up to " + ChatDocumentIntakeService.MAX_ATTACHMENTS + " documents.");
+        assertThat(this.intakeService.list(conversationId)).hasSize(ChatDocumentIntakeService.MAX_ATTACHMENTS);
     }
 
     @Test

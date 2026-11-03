@@ -15,6 +15,7 @@
  */
 package org.springaicommunity.playground.service.mcp.risk;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springaicommunity.playground.service.tool.ToolManifest.Sandbox.RiskLevel;
@@ -30,6 +31,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 public final class WrappedExternalToolCallback implements ToolCallback {
@@ -37,6 +39,8 @@ public final class WrappedExternalToolCallback implements ToolCallback {
     private static final Logger logger = LoggerFactory.getLogger(WrappedExternalToolCallback.class);
 
     private final ToolCallback delegate;
+    public static final String PROXIED_CALL_METER = "mcp.proxied.call";
+
     private final String compositionId;
     private final String compositionName;
     private final String exposedAlias;
@@ -48,6 +52,7 @@ public final class WrappedExternalToolCallback implements ToolCallback {
     private final String floorTrigger;
     private final Set<String> secrets;
     private final ToolDefinition aliasedDefinition;
+    private final MeterRegistry meterRegistry;
 
     public WrappedExternalToolCallback(ToolCallback delegate, String compositionId, String compositionName,
             String exposedAlias, String upstreamServerId, String upstreamTransport,
@@ -59,6 +64,14 @@ public final class WrappedExternalToolCallback implements ToolCallback {
     public WrappedExternalToolCallback(ToolCallback delegate, String compositionId, String compositionName,
             String exposedAlias, String descriptionOverride, String upstreamServerId, String upstreamTransport,
             McpToolRiskComposer.Composed risk, Set<String> secrets) {
+        this(delegate, compositionId, compositionName, exposedAlias, descriptionOverride, upstreamServerId,
+                upstreamTransport, risk, secrets, null);
+    }
+
+    public WrappedExternalToolCallback(ToolCallback delegate, String compositionId, String compositionName,
+            String exposedAlias, String descriptionOverride, String upstreamServerId, String upstreamTransport,
+            McpToolRiskComposer.Composed risk, Set<String> secrets, MeterRegistry meterRegistry) {
+        this.meterRegistry = meterRegistry;
         this.delegate = delegate;
         this.compositionId = compositionId;
         this.compositionName = compositionName;
@@ -97,12 +110,20 @@ public final class WrappedExternalToolCallback implements ToolCallback {
         return invoke(() -> this.delegate.call(toolInput, toolContext));
     }
 
-    private String invoke(Supplier<String> action) {
-        String cid = UUID.randomUUID().toString().substring(0, 8);
-        McpInvocationContext context = McpInvocationContext.forWrappedExternal(cid,
+    public Map<String, String> upstreamDimensions() {
+        return invocationContext(null).toMdc();
+    }
+
+    private McpInvocationContext invocationContext(String cid) {
+        return McpInvocationContext.forWrappedExternal(cid,
                 this.compositionId, this.compositionName, this.exposedAlias,
                 this.upstreamServerId, this.delegate.getToolDefinition().name(), this.upstreamTransport,
                 this.finalRiskLevel, this.serverRiskLevel, this.publishRiskLevel, this.floorTrigger);
+    }
+
+    private String invoke(Supplier<String> action) {
+        String cid = UUID.randomUUID().toString().substring(0, 8);
+        McpInvocationContext context = invocationContext(cid);
         Map<String, String> previousMdc = context.pushMdc();
         long startNs = System.nanoTime();
         try {
@@ -115,6 +136,7 @@ public final class WrappedExternalToolCallback implements ToolCallback {
             long durMs = (System.nanoTime() - startNs) / 1_000_000L;
             logger.info("mcp.tool.done cid={} via={} alias={} durationMs={} risk={}",
                     cid, context.via(), this.exposedAlias, durMs, this.finalRiskLevel);
+            recordCall("ok", durMs);
             return result;
         } catch (RuntimeException e) {
             long durMs = (System.nanoTime() - startNs) / 1_000_000L;
@@ -122,10 +144,20 @@ public final class WrappedExternalToolCallback implements ToolCallback {
             logger.warn("mcp.tool.crash cid={} via={} alias={} durationMs={} risk={} error={}",
                     cid, context.via(), this.exposedAlias, durMs, this.finalRiskLevel,
                     SecretMasking.mask(msg, this.secrets));
+            recordCall("error", durMs);
             throw e;
         } finally {
             McpInvocationContext.popMdc(previousMdc);
         }
+    }
+
+    private void recordCall(String outcome, long durationMs) {
+        if (this.meterRegistry == null) {
+            return;
+        }
+        this.meterRegistry.timer(PROXIED_CALL_METER, "alias", this.exposedAlias, "server", this.upstreamServerId,
+                "tool", this.delegate.getToolDefinition().name(), "outcome", outcome)
+                .record(durationMs, TimeUnit.MILLISECONDS);
     }
 
     // Input schema is always passed through unchanged so the upstream contract stays intact.

@@ -140,9 +140,21 @@ public class ChatHistoryServiceTest {
         ChatHistory chatHistory = chatHistoryService.createChatHistory("systemPrompt", chatOptions);
         ChatHistory updated = chatHistoryService.updateChatHistory(chatHistory);
 
-        assertEquals("New chat", updated.title());
+        assertNull(updated.title());
         assertTrue(chatHistoryService.getChatHistoryList().stream()
                 .anyMatch(h -> h.conversationId().equals(chatHistory.conversationId())));
+    }
+
+    @Test
+    void placeholderTitleIsReplacedOnceTheFirstUserMessageArrives() {
+        ChatHistory chatHistory = chatHistoryService.createChatHistory("systemPrompt", chatOptions);
+        ChatHistory placeholder = chatHistoryService.updateChatHistory(chatHistory);
+        assertNull(placeholder.title());
+
+        this.chatMemory.add(chatHistory.conversationId(), new UserMessage("Summarize the handbook"));
+        ChatHistory titled = chatHistoryService.updateChatHistory(placeholder);
+
+        assertEquals("Summarize the handbo...", titled.title());
     }
 
     @Test

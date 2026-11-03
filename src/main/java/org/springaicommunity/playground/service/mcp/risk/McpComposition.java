@@ -76,6 +76,14 @@ public record McpComposition(
             this(serverId, toolName, exposedAlias, null, false, contentHash);
         }
 
+        public static Member of(String serverId, String toolName, String alias, String descriptionOverride,
+                String originalDescription, boolean hitl) {
+            String resolvedAlias = alias == null || alias.isBlank() ? defaultAlias(serverId, toolName) : alias.trim();
+            String override = descriptionOverride == null || descriptionOverride.equals(originalDescription)
+                    ? null : descriptionOverride;
+            return new Member(serverId, toolName, resolvedAlias, override, hitl, "");
+        }
+
         public static String defaultAlias(String serverId, String toolName) {
             if (serverId == null) serverId = "unknown";
             if (toolName == null) toolName = "unknown";

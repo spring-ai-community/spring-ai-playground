@@ -2,7 +2,7 @@ description: Default MCP Servers - Dev & Project Management reference: 12 preset
 
 # Default MCP Servers - Dev & Project Management
 
-Code hosting, issue trackers, code-quality monitors, learning content, and local repo helpers. Mixes vendor-official remote entries (GitHub, Linear, Atlassian Rovo, Sentry, Asana, Azure DevOps, Microsoft Learn, Context7, Korean Law) with community stdio entries from `modelcontextprotocol/servers` (Git, Puppeteer, Playwright).
+Code hosting, issue trackers, code-quality monitors, learning content, and local repo helpers. Mixes vendor-official remote entries (GitHub, Linear, Atlassian Rovo, Sentry, Asana, Azure DevOps, Microsoft Learn, Context7), the community-run Korean Law MCP, and stdio entries (Git and Puppeteer from `modelcontextprotocol/servers`, Playwright from Microsoft).
 
 ## Entries (12)
 
@@ -36,7 +36,7 @@ Create, query, and update Linear issues, projects, cycles, and teams. Linear's o
 
 **Stability** - GA · **Tier** - Tier 1
 
-**Required env** - -
+**Required env** - `LINEAR_OAUTH_CLIENT_ID`
 
 **Tags** - global
 
@@ -78,7 +78,7 @@ Read and update Jira issues and Confluence pages via Atlassian's official Rovo M
 
 **Stability** - GA · **Tier** - Tier 1
 
-**Required env** - -
+**Required env** - `ATLASSIAN_OAUTH_CLIENT_ID`
 
 **Tags** - global
 
@@ -132,7 +132,7 @@ Search and manage GitHub repositories, issues, pull requests, code reviews, and 
 
 **Stability** - GA · **Tier** - Tier 1
 
-**Required env** - `GITHUB_PERSONAL_ACCESS_TOKEN`
+**Required env** - `GITHUB_PERSONAL_ACCESS_TOKEN` · `GITHUB_OAUTH_CLIENT_ID`
 
 **Tags** - global
 
@@ -231,7 +231,7 @@ Investigate Sentry issues and events across projects, query alert rules, release
 
 **Stability** - GA · **Tier** - Tier 1
 
-**Required env** - -
+**Required env** - `SENTRY_OAUTH_CLIENT_ID`
 
 **Tags** - global
 
@@ -285,7 +285,7 @@ Manage Asana tasks, projects, sections, and custom fields across workspaces. Asa
 
 **Stability** - GA · **Tier** - Tier 2
 
-**Required env** - -
+**Required env** - `ASANA_OAUTH_CLIENT_ID`
 
 **Tags** - global
 
@@ -339,7 +339,7 @@ Query and update Azure DevOps repos, work items (Boards), pipelines, and pull re
 
 **Stability** - PREVIEW · **Tier** - Tier 2
 
-**Required env** - `AZURE_DEVOPS_ORG`
+**Required env** - `AZURE_DEVOPS_ORG` · `AZURE_DEVOPS_OAUTH_CLIENT_ID`
 
 **Tags** - global · preview
 
@@ -494,7 +494,7 @@ Repo: https://github.com/chrisryugj/korean-law-mcp
 
 **Args** - `mcp-server-git --repository .`
 
-**OS variants** - mac · linux · win (catalog picks the entry matching the host OS automatically; macOS / Linux use `npx` or `uvx`; Windows uses `npx.cmd`).
+**OS variants** - mac · linux · win (catalog picks the entry matching the host OS automatically; every OS runs it with `uvx`).
 
 **Auth** - STDIO
 
@@ -697,7 +697,7 @@ Mixed-auth page - OAuth for remote vendor surfaces, none for the community stdio
 | Microsoft Learn | None (free) | - |
 | Context7 | None (free) | - |
 | Korean Law MCP | None (free) | - |
-| Git (stdio) | None | Node.js 18+ for `npx` (macOS / Linux) or `npx.cmd` (Windows) |
+| Git (stdio) | None | `uv` installed (the entry runs `uvx mcp-server-git`) |
 | Puppeteer (stdio) | None | Node.js 18+ - first run downloads a Chromium |
 | Playwright (stdio) | None | Node.js 18+ - first run downloads browser binaries |
 

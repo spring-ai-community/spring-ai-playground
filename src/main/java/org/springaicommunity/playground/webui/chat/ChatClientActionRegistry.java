@@ -15,6 +15,7 @@
  */
 package org.springaicommunity.playground.webui.chat;
 
+import org.springaicommunity.playground.service.chat.ChatClientAction;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;

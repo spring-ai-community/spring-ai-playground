@@ -52,6 +52,8 @@ import static org.springaicommunity.playground.webui.chat.ChatView.CHAT_HISTORY_
 
 public class ChatHistoryView extends WorkspaceSidebar implements BeforeEnterObserver {
 
+    public static final String UNTITLED_CHAT_LABEL = "New chat";
+
     private static final String LAST_SELECTED_CHAT_HISTORY = "lastSelectedChatHistory";
     private final PersistentUiDataStorage persistentUiDataStorage;
     private final PropertyChangeSupport chatHistoryChangeSupport;
@@ -106,7 +108,7 @@ public class ChatHistoryView extends WorkspaceSidebar implements BeforeEnterObse
         this.chatHistoryListBox.addClassName("custom-list-box");
         this.chatHistoryListBox.setItems(List.of());
         this.chatHistoryListBox.setRenderer(new ComponentRenderer<>(chatHistory -> {
-            Span title = listItemText(chatHistory.title());
+            Span title = listItemText(displayTitle(chatHistory));
             title.getElement().setAttribute("title",
                     LocalDateTime.ofInstant(Instant.ofEpochMilli(chatHistory.createTimestamp()),
                             ZoneId.systemDefault()).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
@@ -116,6 +118,11 @@ public class ChatHistoryView extends WorkspaceSidebar implements BeforeEnterObse
                 event -> notifyChatHistorySelection(event.getOldValue(), event.getValue()));
 
         setSidebarContent(verticalScroller(this.chatHistoryListBox));
+    }
+
+    public static String displayTitle(ChatHistory chatHistory) {
+        String title = chatHistory.title();
+        return Objects.isNull(title) || title.isBlank() ? UNTITLED_CHAT_LABEL : title;
     }
 
     private void notifyChatHistorySelection(ChatHistory oldChatHistory, ChatHistory newChatHistory) {
@@ -130,7 +137,7 @@ public class ChatHistoryView extends WorkspaceSidebar implements BeforeEnterObse
 
     private void renameHistory() {
         this.getCurrentChatHistoryAsOpt().ifPresent(chatHistory -> {
-            Dialog dialog = VaadinUtils.headerDialog("Rename: " + chatHistory.title());
+            Dialog dialog = VaadinUtils.headerDialog("Rename: " + displayTitle(chatHistory));
             dialog.setModality(ModalityMode.STRICT);
             dialog.setResizable(true);
             dialog.addThemeVariants(DialogVariant.LUMO_NO_PADDING);
@@ -141,7 +148,8 @@ public class ChatHistoryView extends WorkspaceSidebar implements BeforeEnterObse
 
             TextField titleTextField = new TextField();
             titleTextField.setWidthFull();
-            titleTextField.setValue(chatHistory.title());
+            titleTextField.setValue(Objects.requireNonNullElse(chatHistory.title(), ""));
+            titleTextField.setPlaceholder(UNTITLED_CHAT_LABEL);
             titleTextField.addFocusListener(event ->
                     titleTextField.getElement().executeJs("this.inputElement.select();")
             );
@@ -164,7 +172,7 @@ public class ChatHistoryView extends WorkspaceSidebar implements BeforeEnterObse
 
     private void deleteHistory() {
         this.getCurrentChatHistoryAsOpt().ifPresent(chatHistory -> {
-            Dialog dialog = VaadinUtils.headerDialog("Delete: " + chatHistory.title());
+            Dialog dialog = VaadinUtils.headerDialog("Delete: " + displayTitle(chatHistory));
             dialog.setModality(ModalityMode.STRICT);
 
             VerticalLayout content = new VerticalLayout();

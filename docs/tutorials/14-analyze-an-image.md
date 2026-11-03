@@ -1,3 +1,4 @@
+videos: ep6
 description: Tutorial 14 - attach images to Agentic Chat, have a local vision model analyze the pixels, turn the stored EXIF into a table and a map, and re-reference an image later with describeImage.
 
 # Tutorial 14 - Attach and Analyze Images

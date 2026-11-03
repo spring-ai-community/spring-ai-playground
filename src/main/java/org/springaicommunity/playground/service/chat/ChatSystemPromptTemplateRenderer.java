@@ -27,10 +27,6 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-// Spring AI TemplateRenderer for {{variable}} system-prompt templates. Double braces (industry convention) are used
-// instead of the ST4 single-brace default so literal { } in prompts (JSON examples, code) never collide with
-// variables. Token form: {{name}}, {{name:type}}, {{name:type(args)}}, each optionally ending in =default.
-// Types: text (default), multiline, number(min,max), select(a,b,c), list(a,b,c, max=N).
 @Component
 public class ChatSystemPromptTemplateRenderer implements TemplateRenderer {
 
@@ -40,8 +36,39 @@ public class ChatSystemPromptTemplateRenderer implements TemplateRenderer {
             Integer limit, String defaultValue) {
     }
 
-    private static final Pattern VARIABLE =
+    private static final Pattern VARIABLE_TOKEN_PATTERN =
             Pattern.compile("\\{\\{(\\w+)(?::(\\w+)(?:\\(([^)]*)\\))?)?(?:=([^}]*))?\\}\\}");
+
+    public String token(VariableSpec spec) {
+        StringBuilder token = new StringBuilder("{{").append(spec.name());
+        List<String> options = spec.options() == null ? List.of() : spec.options();
+        switch (spec.type() == null ? VariableType.TEXT : spec.type()) {
+            case MULTILINE -> token.append(":multiline");
+            case NUMBER -> {
+                token.append(":number");
+                if (spec.min() != null || spec.max() != null)
+                    token.append('(').append(numberText(spec.min())).append(',').append(numberText(spec.max()))
+                            .append(')');
+            }
+            case SELECT -> token.append(":select(").append(String.join(",", options)).append(')');
+            case LIST -> {
+                token.append(":list");
+                List<String> parts = new ArrayList<>();
+                if (!options.isEmpty()) parts.add(String.join(",", options));
+                if (spec.limit() != null) parts.add("max=" + spec.limit());
+                if (!parts.isEmpty()) token.append('(').append(String.join(", ", parts)).append(')');
+            }
+            default -> { }
+        }
+        if (spec.defaultValue() != null && !spec.defaultValue().isBlank())
+            token.append('=').append(spec.defaultValue().trim());
+        return token.append("}}").toString();
+    }
+
+    public static String numberText(Double value) {
+        if (value == null) return "";
+        return value % 1 == 0 ? String.valueOf(value.longValue()) : String.valueOf(value);
+    }
 
     public List<String> variables(String template) {
         return variableSpecs(template).stream().map(VariableSpec::name).toList();
@@ -50,7 +77,7 @@ public class ChatSystemPromptTemplateRenderer implements TemplateRenderer {
     public List<VariableSpec> variableSpecs(String template) {
         if (template == null) return List.of();
         Map<String, VariableSpec> ordered = new LinkedHashMap<>();
-        Matcher matcher = VARIABLE.matcher(template);
+        Matcher matcher = VARIABLE_TOKEN_PATTERN.matcher(template);
         while (matcher.find()) {
             ordered.putIfAbsent(matcher.group(1),
                     toSpec(matcher.group(1), matcher.group(2), matcher.group(3), matcher.group(4)));
@@ -60,7 +87,7 @@ public class ChatSystemPromptTemplateRenderer implements TemplateRenderer {
 
     public String render(String template, Map<String, String> values) {
         if (template == null || template.isBlank()) return "";
-        Matcher matcher = VARIABLE.matcher(template);
+        Matcher matcher = VARIABLE_TOKEN_PATTERN.matcher(template);
         StringBuilder rendered = new StringBuilder();
         while (matcher.find()) {
             String value = values == null ? null : values.get(matcher.group(1));

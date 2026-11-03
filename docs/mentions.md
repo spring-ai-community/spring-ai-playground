@@ -22,6 +22,12 @@ Josh Long featured the project in the weekly Spring ecosystem roundup:
 
 Contributed from this project and accepted into the OWASP MCP Top 10 as one of its recommended controls. The document is written vendor-neutrally as a host-side control pattern that needs no cooperation from upstream servers; Spring AI Playground is cited as its open-source reference implementation, with `SandboxPostureCalculator`, `McpToolPublishRiskCalculator`, `McpServerRiskCalculator` and `McpToolHashLedger` linked per mechanism.
 
+## Books
+
+**[The Complete Guide to AI Agent Development with Spring AI 2.0](https://jm-lab.github.io/spring-ai-agent-book/)** - Wikibooks, September 17, 2026, in Korean
+
+Written by Jemin Huh, this project's lead maintainer. Its [Spring AI Playground appendix](https://jm-lab.github.io/spring-ai-agent-book/appendix/23-spring-ai-playground/) introduces the app and connects the book's MCP servers to it. The companion site is free in English and Korean; the [book](https://wikibook.co.kr/springai-agents/) itself is in Korean.
+
 ## Ecosystem listings
 
 - **[Spring AI Community - Spring AI Playground](https://springaicommunity.mintlify.app/projects/incubating/spring-ai-playground)** - project page on the Spring AI Community documentation site, carrying the Incubating status badge.
@@ -35,4 +41,4 @@ Automatically indexed by MCP server directories:
 
 ## Adding to this page
 
-Found a talk, article, or listing that references Spring AI Playground? Open an issue or a pull request against `docs/mentions.md`. Self-authored posts and announcements are tracked in the release notes instead, so this page stays limited to third-party coverage and to contributions accepted into third-party projects.
+Found a talk, article, or listing that references Spring AI Playground? Open an issue or a pull request against `docs/mentions.md`. Self-authored posts and announcements are tracked in the release notes instead, so this page stays limited to third-party coverage, to contributions accepted into third-party projects, and to published books, with the author's relation to the project stated.

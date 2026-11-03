@@ -65,7 +65,7 @@ public class RootsTab extends VerticalLayout {
                 "Configured Roots (" + roots.size() + ")"));
         for (McpSchema.Root r : roots) {
             rootsListContainer.add(new RootPrimitive(r, () -> {
-                clientService.removeRoot(serverInfo, r.name());
+                clientService.removeRoot(serverInfo, r.uri());
                 render();
             }));
         }

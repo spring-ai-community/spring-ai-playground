@@ -2,7 +2,7 @@ description: Default MCP Servers - Search reference: 6 preset MCP connections wi
 
 # Default MCP Servers - Search
 
-Web search and content retrieval. Remote services (Tavily, Exa, Firecrawl, Jina AI, SerpAPI) expect a vendor API key via `${VAR}` placeholders in the headers; the community stdio entry (`Brave Search`) needs `BRAVE_API_KEY` in the `env` section. All five remote services have a free tier sufficient for tutorial-scale use.
+Web search and content retrieval. Remote services (Tavily, Exa, Firecrawl, Jina AI, SerpAPI) expect a vendor API key via `${VAR}` placeholders in the headers (SerpAPI: in the URL); the vendor-official stdio entry (`Brave Search`) needs `BRAVE_API_KEY` in the `env` section. All five remote services have a free tier sufficient for tutorial-scale use.
 
 ## Entries (6)
 
@@ -309,7 +309,7 @@ Required - set BRAVE_API_KEY in the env section below (treat as a secret).
 
 ## Workflow combinations { #combinations }
 
-Five remote search services and one community stdio entry. They're substitutable but each has a different latency / quality / quota profile, so the meaningful "combination" is **choosing one as primary and one as fallback**:
+Five remote search services and one stdio entry. They're substitutable but each has a different latency / quality / quota profile, so the meaningful "combination" is **choosing one as primary and one as fallback**:
 
 - **Primary + fallback** - `Tavily` (LLM-tuned answers) primary, `Exa` (semantic search) fallback. Tavily fails fast on quota; Exa picks up.
 - **Crawl + index** - `Firecrawl` (crawls + structured extract) feeding a downstream Vector Database run. Good when the agent needs the *content* of pages, not just the URLs.
@@ -319,7 +319,7 @@ Five remote search services and one community stdio entry. They're substitutable
 
 ## Auth & secrets { #auth-secrets }
 
-All six entries are API-key gated. Set the key as a `${VAR}` placeholder in the form (header for remote, env for stdio):
+All six entries are API-key gated. Set the key as a `${VAR}` placeholder in the form (header for remote, URL for SerpAPI, env for stdio):
 
 | Connection | Auth | Env / header |
 |---|---|---|
@@ -327,7 +327,7 @@ All six entries are API-key gated. Set the key as a `${VAR}` placeholder in the 
 | Exa | API key | `x-api-key: ${EXA_API_KEY}` |
 | Firecrawl | Bearer | `Authorization: Bearer ${FIRECRAWL_API_KEY}` |
 | Jina AI | Bearer | `Authorization: Bearer ${JINA_API_KEY}` |
-| SerpAPI | API key (query param style; configurable as `${SERPAPI_API_KEY}`) | per-vendor docs |
+| SerpAPI | API key | in the URL path: `https://mcp.serpapi.com/${SERPAPI_API_KEY}/mcp` |
 | Brave Search (stdio) | API key | `env.BRAVE_API_KEY = ${BRAVE_API_KEY}` |
 
 Every remote vendor on this page ships a free tier large enough for tutorial-scale agent use - the free quotas are intended for evaluation, not production, but a single agent session won't exhaust them.

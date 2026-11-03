@@ -43,6 +43,18 @@ public final class FormatUtils {
         return String.format(Locale.ROOT, "%.1f%%", v * 100);
     }
 
+    public static String formatTokenCount(Long tokens) {
+        return tokens == null ? "—" : String.valueOf(tokens);
+    }
+
+    public static String formatTokens(Long inputTokens, Long outputTokens) {
+        return formatTokenCount(inputTokens) + "/" + formatTokenCount(outputTokens);
+    }
+
+    public static String formatNumberOrDash(Long number) {
+        return number == null ? "—" : formatNumber(number);
+    }
+
     public static String formatNumber(long n) {
         if (n < 1000) return String.valueOf(n);
         if (n < 1_000_000) return String.format(Locale.ROOT, "%.1fk", n / 1000.0);

@@ -33,6 +33,7 @@ plugins:
         color: "#FFFFFF"
 hooks:
   - docs-overrides/hooks/count_guard.py
+  - docs-overrides/hooks/related_videos.py
 theme:
   name: material
   custom_dir: docs-overrides
@@ -87,6 +88,8 @@ nav:
           - "Agent Loop": agent-loop-architecture.md
           - "Context Engineering": context-engineering-architecture.md
           - "AI Agent Observability": observability-architecture.md
+      - "Shipyard Architecture": shipyard-architecture.md
+      - "AI Operations Architecture": ai-operations-architecture.md
   - "Features":
       - features/index.md
       - "Tool Studio":
@@ -111,6 +114,8 @@ nav:
               - "Examples": features/default-mcp-catalog/examples.md
           - "MCP Inspector": features/mcp-server/inspector.md
           - "MCP Server Proxy": features/mcp-server/proxy.md
+          - "Management Tools": features/mcp-server/management-tools.md
+          - "AI Guides, Templates and Samples": features/mcp-server/ai-guides.md
       - "RAG":
           - "Overview": features/vector-database.md
           - "Offline: Indexing": features/rag/offline-etl.md
@@ -161,10 +166,15 @@ nav:
       - "11. Approve a Tool in Chat": tutorials/11-human-approval.md
       - "12. Template to Preset": tutorials/12-template-to-preset.md
       - "13. Upload and Analyze a File": tutorials/13-upload-a-file.md
-      - "14. Attach and Analyze an Image": tutorials/14-analyze-an-image.md
+      - "14. Attach and Analyze Images": tutorials/14-analyze-an-image.md
       - "15. Investigate Documents": tutorials/15-investigate-documents.md
       - "16. Public API to MCP Server": tutorials/16-public-api-to-mcp-server.md
       - "17. Attach a Document": tutorials/17-attach-a-document.md
+      - "18. Let an AI Author a Tool": tutorials/18-ai-authors-a-tool.md
+      - "19. Knowledge Server to ChatGPT": tutorials/19-knowledge-server-to-chatgpt.md
+      - "20. MCP Servers Through a Safety Net": tutorials/20-ai-registers-an-mcp-server.md
+      - "21. AI Builds a Knowledge Server": tutorials/21-ai-builds-a-knowledge-server.md
+      - "22. Let an AI Use the Chat": tutorials/22-ai-chat-as-a-subagent.md
   # Changelog is published in the repo as CHANGELOG.md (and rendered at
   # /changelog/ when reached by URL via the docs/changelog.md include).
   # Intentionally omitted from main nav to avoid duplicating GitHub-hosted

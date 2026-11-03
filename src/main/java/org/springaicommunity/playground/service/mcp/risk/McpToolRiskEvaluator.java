@@ -15,6 +15,7 @@
  */
 package org.springaicommunity.playground.service.mcp.risk;
 
+import io.modelcontextprotocol.spec.McpSchema;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
@@ -82,6 +83,23 @@ public class McpToolRiskEvaluator {
         return new ServerRiskView(result.level(), result.axisScores(), result.floorTrigger());
     }
 
+    public ToolRiskView evaluateTool(McpServerInfo info, McpSchema.Tool tool) {
+        if (tool == null) return evaluateTool(info, null, null, null);
+        return evaluateTool(info, tool.name(), tool.description(), propertySchemas(tool.inputSchema()));
+    }
+
+    @SuppressWarnings("unchecked")
+    static Map<String, Map<String, Object>> propertySchemas(Map<String, Object> inputSchema) {
+        if (inputSchema == null || !(inputSchema.get("properties") instanceof Map<?, ?> properties)) return Map.of();
+        Map<String, Map<String, Object>> out = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> property : properties.entrySet()) {
+            Map<String, Object> propertySchema = property.getValue() instanceof Map<?, ?> map
+                    ? (Map<String, Object>) map : Map.of();
+            out.put(String.valueOf(property.getKey()), propertySchema);
+        }
+        return out;
+    }
+
     public ToolRiskView evaluateTool(McpServerInfo info, String toolName, String description,
             Map<String, Map<String, Object>> propertySchemas) {
         McpToolPoisoningScanner.ScanResult scan = this.poisoningScanner.scan(description);
@@ -90,11 +108,19 @@ public class McpToolRiskEvaluator {
         }
         emitPoisoningHit(info.serverName(), toolName, scan);
         if (isSelfBuiltin(info)) {
-            RiskLevel inherent = this.toolSpecService.getSandboxRiskLevel(toolName);
+            RiskLevel inherent = this.toolSpecService.gatingRiskLevel(toolName);
             boolean hitlMitigates = this.toolSpecService.requiresApproval(toolName) && scan.clean();
             RiskLevel effective = McpToolRiskComposer.applyHitlMitigation(inherent, hitlMitigates);
             return new ToolRiskView(effective, inherent, effective, null, scan);
         }
+        JsonNode schemaNode = toSchemaNode(propertySchemas);
+        McpToolRiskComposer.Composed composed = composedRisk(info, toolName, description, schemaNode);
+        return new ToolRiskView(composed.finalLevel(), composed.finalLevel(), composed.publishLevel(),
+                composed.floorTrigger(), scan);
+    }
+
+    public McpToolRiskComposer.Composed composedRisk(McpServerInfo info, String toolName, String description,
+            JsonNode schemaNode) {
         Optional<McpCatalogEntry> entry = this.catalogService.findByServerName(info.serverName());
         McpServerRiskCalculator.Inputs serverInputs = this.inputsResolver.resolveServerInputs(info,
                 entry.orElse(null), entry.isEmpty(), false);
@@ -102,15 +128,12 @@ public class McpToolRiskEvaluator {
 
         Optional<McpToolDescriptor> catalogTool = entry.flatMap(e -> e.tools().stream()
                 .filter(t -> toolName.equals(t.name())).findFirst());
-        JsonNode schemaNode = toSchemaNode(propertySchemas);
         boolean trustedServer = entry.isPresent() && !entry.get().trustSignals().isEmpty();
         McpToolPublishRiskCalculator.Inputs toolInputs = this.inputsResolver.resolveToolInputs(info.serverName(),
                 toolName, description, schemaNode, catalogTool, trustedServer);
         McpToolPublishRiskCalculator.Result toolResult = this.publishCalc.compute(toolInputs);
 
-        McpToolRiskComposer.Composed composed = this.composer.composeWrappedExternal(serverResult, toolResult);
-        return new ToolRiskView(composed.finalLevel(), composed.finalLevel(), composed.publishLevel(),
-                composed.floorTrigger(), scan);
+        return this.composer.composeWrappedExternal(serverResult, toolResult);
     }
 
     public boolean isSelfBuiltin(McpServerInfo info) {

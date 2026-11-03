@@ -36,51 +36,43 @@ import org.springaicommunity.playground.SpringAiPlaygroundOptions;
 import org.springaicommunity.playground.service.analytics.UsageAnalyticsService;
 import org.springaicommunity.playground.service.chat.ChatDocumentIntakeService;
 import org.springaicommunity.playground.service.chat.ChatExportService;
-import org.springaicommunity.playground.service.chat.ChatExtraOptions;
 import org.springaicommunity.playground.service.chat.ChatHistory;
 import org.springaicommunity.playground.service.chat.ChatHistoryService;
 import org.springaicommunity.playground.service.chat.ChatService;
+import org.springaicommunity.playground.service.chat.ChatSessionService;
+import org.springaicommunity.playground.service.chat.ChatSessionService.NewChatRequest;
+import org.springaicommunity.playground.service.chat.ChatSessionService.PresetToolMatch;
 import org.springaicommunity.playground.service.chat.ChatStreamRegistry;
 import org.springaicommunity.playground.service.chat.ChatSystemPromptPresetCatalog.Preset;
 import org.springaicommunity.playground.service.chat.ChatSystemPromptPresetService;
 import org.springaicommunity.playground.service.chat.ChatSystemPromptTemplateRenderer;
 import org.springaicommunity.playground.service.chat.ChatToolPreferences;
+import org.springaicommunity.playground.service.chat.ChatToolResolver;
+import org.springaicommunity.playground.service.chat.ChatTurnService;
 import org.springaicommunity.playground.service.chat.OllamaModelDownloadService;
-import org.springaicommunity.playground.service.chat.ReasoningEffort;
 import org.springaicommunity.playground.service.chat.VisionCapabilityService;
-import org.springaicommunity.playground.service.mcp.McpServerInfoService;
-import org.springaicommunity.playground.service.mcp.risk.McpCompositionToolCallbackProvider;
 import org.springaicommunity.playground.service.tool.ChatImageStore;
 import org.springaicommunity.playground.service.tool.ConversationFileUploadStore;
 import org.springaicommunity.playground.service.tool.ToolActivationCalculator;
 import org.springaicommunity.playground.service.tool.ToolSpec;
-import org.springaicommunity.playground.service.tool.ToolSpecPersistenceService;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
-import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.webui.PersistentUiDataStorage;
 import org.springaicommunity.playground.webui.SpringAiPlaygroundAppLayout;
 import org.springaicommunity.playground.webui.UsageEventTracker;
 import org.springaicommunity.playground.webui.VaadinUtils;
 import org.springaicommunity.playground.webui.common.ContentWorkspaceView;
 import org.springaicommunity.playground.webui.common.WorkspaceSettingsDrawer;
-import org.springaicommunity.playground.webui.tool.ExposedToolsSelector;
 import org.springframework.ai.chat.prompt.ChatOptions;
 
 import java.beans.PropertyChangeSupport;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
-import java.util.Set;
 import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.springaicommunity.playground.webui.VaadinUtils.styledButton;
 
@@ -101,13 +93,12 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
     private final ChatService chatService;
     private final Consumer<ChatHistory> completeChatHistoryConsumer;
     private final ChatHistoryService chatHistoryService;
-    private final McpClientService mcpClientService;
+    private final ChatTurnService chatTurnService;
+    private final ChatToolResolver chatToolResolver;
     private final ToolSpecService toolSpecService;
-    private final ToolSpecPersistenceService toolSpecPersistenceService;
+    private final ChatSessionService chatSessionService;
     private final ToolActivationCalculator toolActivationCalculator;
-    private final McpServerInfoService mcpServerInfoService;
     private final ChatExportService chatExportService;
-    private final McpCompositionToolCallbackProvider compositionProvider;
     private final SpringAiPlaygroundOptions playgroundOptions;
     private final ChatClientActionRegistry clientActionRegistry;
     private final ConversationFileUploadStore fileUploadStore;
@@ -127,14 +118,15 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
     private String pageTitle = DEFAULT_PAGE_TITLE;
 
     public ChatView(PersistentUiDataStorage persistentUiDataStorage, ChatService chatService,
-            ChatHistoryService chatHistoryService, McpClientService mcpClientService,
-            ToolSpecService toolSpecService, ToolSpecPersistenceService toolSpecPersistenceService,
+            ChatHistoryService chatHistoryService, ChatTurnService chatTurnService,
+            ChatToolResolver chatToolResolver,
+            ToolSpecService toolSpecService, ChatSessionService chatSessionService,
             ToolActivationCalculator toolActivationCalculator,
-            McpServerInfoService mcpServerInfoService, ChatExportService chatExportService,
+            ChatExportService chatExportService,
             ChatSystemPromptPresetService chatSystemPromptPresetService,
             ChatSystemPromptTemplateRenderer chatSystemPromptTemplateRenderer,
             OllamaModelDownloadService ollamaModelDownloadService,
-            McpCompositionToolCallbackProvider compositionProvider, SpringAiPlaygroundOptions playgroundOptions,
+            SpringAiPlaygroundOptions playgroundOptions,
             ChatClientActionRegistry clientActionRegistry, ConversationFileUploadStore fileUploadStore,
             ChatImageStore imageStore, ChatDocumentIntakeService documentIntakeService,
             VisionCapabilityService visionCapabilityService, UsageAnalyticsService usageAnalyticsService,
@@ -142,16 +134,15 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
         this.persistentUiDataStorage = persistentUiDataStorage;
         this.chatService = chatService;
         this.chatHistoryService = chatHistoryService;
-        this.mcpClientService = mcpClientService;
+        this.chatTurnService = chatTurnService;
+        this.chatToolResolver = chatToolResolver;
         this.toolSpecService = toolSpecService;
-        this.toolSpecPersistenceService = toolSpecPersistenceService;
+        this.chatSessionService = chatSessionService;
         this.toolActivationCalculator = toolActivationCalculator;
-        this.mcpServerInfoService = mcpServerInfoService;
         this.chatExportService = chatExportService;
         this.chatSystemPromptPresetService = chatSystemPromptPresetService;
         this.chatSystemPromptTemplateRenderer = chatSystemPromptTemplateRenderer;
         this.ollamaModelDownloadService = ollamaModelDownloadService;
-        this.compositionProvider = compositionProvider;
         this.playgroundOptions = playgroundOptions;
         this.clientActionRegistry = clientActionRegistry;
         this.fileUploadStore = fileUploadStore;
@@ -216,27 +207,8 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
         promptsIcon.setTooltipText("Prompt Library");
         getHeaderEndMenuBar().addItem(promptsIcon, event -> new PromptLibraryDialog(
                 this.chatSystemPromptPresetService, this.chatSystemPromptTemplateRenderer,
-                this::applyPromptFromLibrary, this::toolReadiness, builtinToolSpecs(),
+                this::applyPromptFromLibrary, this.toolSpecService::readiness, this.toolSpecService.defaultTools(),
                 this.toolSpecService::riskLevelOf, this.toolSpecService::categoryOf).open());
-    }
-
-    private List<ToolSpec> builtinToolSpecs() {
-        return this.toolSpecPersistenceService.getDefaultToolSpecs().stream()
-                .filter(spec -> spec.name() != null).toList();
-    }
-
-    private PromptLibraryDialog.ToolReadiness toolReadiness(String toolName) {
-        return this.toolSpecService.getToolSpecAsOpt(toolName)
-                .map(this::toolReadiness)
-                .orElse(PromptLibraryDialog.ToolReadiness.NOT_ENABLED);
-    }
-
-    private PromptLibraryDialog.ToolReadiness toolReadiness(ToolSpec spec) {
-        if (this.toolActivationCalculator.calculate(spec) != ToolActivationCalculator.State.ACTIVE)
-            return PromptLibraryDialog.ToolReadiness.NEEDS_SETUP;
-        return this.toolSpecService.getToolMcpServerSetting().exposedToolIds().contains(spec.toolId())
-                ? PromptLibraryDialog.ToolReadiness.READY
-                : PromptLibraryDialog.ToolReadiness.NOT_EXPOSED;
     }
 
     private void applyPromptFromLibrary(Preset preset) {
@@ -249,7 +221,7 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
         this.chatModelSettingView = new ChatModelSettingView(this.chatService.getModels(),
                 this.chatContentView.getSystemPrompt(), this.chatContentView.getChatOption(),
                 this.chatContentView.getExtraOptions(), this.chatService.getChatProvider(),
-                this.chatSystemPromptPresetService, this.ollamaModelDownloadService, builtinToolSpecs(),
+                this.chatSystemPromptPresetService, this.ollamaModelDownloadService, this.toolSpecService.defaultTools(),
                 this.toolSpecService::riskLevelOf, this.toolSpecService::categoryOf,
                 this.chatService.getDefaultMemoryWindow(),
                 this::presetToolMissingKeys, enabled -> {
@@ -285,7 +257,7 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
             return;
         }
         String model = this.chatModelSettingView.getChatOptions().getModel();
-        if (!this.ollamaModelDownloadService.isDownloaded(model)) {
+        if (!this.chatSessionService.isModelDownloaded(model)) {
             new ModelDownloadDialog(model, this.ollamaModelDownloadService, () -> {
                 this.usageEventTracker.track(VaadinUtils.getUi(this), "model_downloaded",
                         Map.of("model", model, "via", "app"));
@@ -300,14 +272,22 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
                     ? ChatToolPreferences.defaults().withDynamicTools(true) : ChatToolPreferences.defaults());
             return;
         }
-        openPresetExposureDialog(resolvePresetTools(presetTools));
+        openPresetExposureDialog(this.chatSessionService.resolvePresetTools(presetTools));
     }
 
     private void commitSettingsAndNewChat(ChatToolPreferences toolPreferences) {
+        startChat(this.chatSessionService.startChat(newChatRequest(toolPreferences)));
+    }
+
+    private NewChatRequest newChatRequest(ChatToolPreferences toolPreferences) {
+        return new NewChatRequest(this.chatModelSettingView.getSystemPromptTextArea(),
+                this.chatModelSettingView.getChatOptions(), this.chatModelSettingView.getChatExtraOptions(),
+                toolPreferences);
+    }
+
+    private void startChat(ChatHistory chatHistory) {
         this.chatHistoryView.clearSelectHistory();
-        changeChatContent(this.chatHistoryService.createChatHistory(
-                this.chatModelSettingView.getSystemPromptTextArea(), this.chatModelSettingView.getChatOptions(),
-                this.chatModelSettingView.getChatExtraOptions(), toolPreferences));
+        changeChatContent(chatHistory);
         this.settingsDrawer.close();
         trackSettingsApplied();
     }
@@ -334,47 +314,8 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
     }
 
     private void applyPresetExposureAndNewChat(List<ToolSpec> matched) {
-        syncBuiltinExposureToPreset(matched);
-        commitSettingsAndNewChat(presetPreferences(matched));
-    }
-
-    private void syncBuiltinExposureToPreset(List<ToolSpec> matched) {
-        this.toolSpecPersistenceService.exposeBuiltinToolsAsPreference(
-                matched.stream().map(ToolSpec::name).toList());
-    }
-
-    private ChatToolPreferences presetPreferences(List<ToolSpec> matched) {
-        Set<String> toolIds = matched.stream().map(ToolSpec::toolId)
-                .collect(Collectors.toCollection(LinkedHashSet::new));
-        return new ChatToolPreferences(true, toolIds, null, Map.of(), ReasoningEffort.DEFAULT, false);
-    }
-
-    private record PresetToolMatch(List<ToolSpec> matched, Map<String, String> unmatched) {}
-
-    private PresetToolMatch resolvePresetTools(List<String> presetTools) {
-        Set<String> defaultIds = this.toolSpecPersistenceService.getDefaultToolIds();
-        Map<String, ToolSpec> exposableBuiltinsByName = ExposedToolsSelector
-                .exposableBuiltinsFrom(this.toolSpecService.getToolSpecList(), defaultIds,
-                        this.toolActivationCalculator)
-                .stream()
-                .collect(Collectors.toMap(ToolSpec::name, Function.identity(), (a, b) -> a, LinkedHashMap::new));
-        List<ToolSpec> matched = new ArrayList<>();
-        Map<String, String> unmatched = new LinkedHashMap<>();
-        for (String name : presetTools) {
-            ToolSpec spec = exposableBuiltinsByName.get(name);
-            if (spec != null) matched.add(spec);
-            else unmatched.put(name, unavailableReason(name));
-        }
-        return new PresetToolMatch(matched, unmatched);
-    }
-
-    private String unavailableReason(String toolName) {
-        return switch (toolReadiness(toolName)) {
-            case READY -> "not a built-in default tool";
-            case NOT_EXPOSED -> "un-checked in MCP exposure";
-            case NEEDS_SETUP -> "needs setup (publish or API key)";
-            case NOT_ENABLED -> "not enabled";
-        };
+        startChat(this.chatSessionService.startChatWithPresetTools(
+                newChatRequest(ChatToolPreferences.defaults()), matched));
     }
 
     private void openPresetExposureDialog(PresetToolMatch match) {
@@ -401,8 +342,8 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
             skippedHeading.getStyle().set("margin-top", "var(--lumo-space-s)")
                     .set("font-size", "var(--lumo-font-size-s)");
             body.add(skippedHeading);
-            match.unmatched().forEach((name, reason) -> {
-                Span line = new Span(name + " - " + reason);
+            match.unmatched().forEach((name, issue) -> {
+                Span line = new Span(name + " - " + issueText(issue));
                 line.getStyle().set("color", "var(--lumo-error-text-color)")
                         .set("font-size", "var(--lumo-font-size-s)");
                 body.add(line);
@@ -421,32 +362,8 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
     }
 
     private void addNewChatContent() {
-        Preset def = defaultChatPreset();
-        if (def == null) {
-            addNewChatContent(this.chatService.getSystemPrompt(), this.chatService.getDefaultOptions());
-            return;
-        }
-        String prompt = (def.prompt() == null || def.prompt().isBlank())
-                ? this.chatService.getSystemPrompt() : def.prompt();
-        ChatToolPreferences prefs = def.dynamicTools()
-                ? ChatToolPreferences.defaults().withDynamicTools(true)
-                : ChatToolPreferences.defaults();
         this.chatHistoryView.clearSelectHistory();
-        changeChatContent(this.chatHistoryService.createChatHistory(prompt, this.chatService.getDefaultOptions(),
-                ChatExtraOptions.defaults(), prefs));
-    }
-
-    private Preset defaultChatPreset() {
-        String id = this.playgroundOptions.chat().defaultPreset();
-        if (id == null || id.isBlank()) return null;
-        return this.chatSystemPromptPresetService.presets().stream()
-                .filter(preset -> id.equals(preset.id())).findFirst().orElse(null);
-    }
-
-    private void addNewChatContent(String systemPrompt, ChatOptions chatOptions) {
-        this.chatHistoryView.clearSelectHistory();
-        changeChatContent(this.chatHistoryService.createChatHistory(systemPrompt, chatOptions,
-                ChatExtraOptions.defaults()));
+        changeChatContent(this.chatSessionService.newDefaultChat());
     }
 
     private void changeChatContent(ChatHistory chatHistory) {
@@ -458,10 +375,9 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
             return;
 
         this.chatContentView = new ChatContentView(this.chatService, this.chatHistoryService, chatHistory,
-                this.completeChatHistoryConsumer, this.mcpClientService,
-                this.toolSpecService, this.toolSpecPersistenceService, this.toolActivationCalculator,
-                this.mcpServerInfoService, this.chatExportService,
-                this.compositionProvider, this.playgroundOptions, this.clientActionRegistry, this.fileUploadStore,
+                this.completeChatHistoryConsumer, this.chatTurnService, this.chatToolResolver,
+                this.toolSpecService, this.chatExportService,
+                this.playgroundOptions, this.clientActionRegistry, this.fileUploadStore,
                 this.imageStore, this.documentIntakeService, this.visionCapabilityService, this.usageAnalyticsService,
                 this.usageEventTracker, this.chatStreamRegistry);
         ChatOptions chatOptions = chatHistory.chatOptions();
@@ -538,5 +454,14 @@ public class ChatView extends ContentWorkspaceView implements BeforeEnterObserve
     private static String pageTitleOf(ChatHistory chatHistory) {
         String title = chatHistory.title();
         return Objects.isNull(title) || title.isBlank() ? DEFAULT_PAGE_TITLE : title;
+    }
+
+    private static String issueText(ChatSessionService.PresetToolIssue issue) {
+        return switch (issue) {
+            case NOT_A_DEFAULT_TOOL -> "not a built-in default tool";
+            case NOT_EXPOSED -> "un-checked in MCP exposure";
+            case NEEDS_SETUP -> "needs setup (publish or API key)";
+            case NOT_ENABLED -> "not enabled";
+        };
     }
 }

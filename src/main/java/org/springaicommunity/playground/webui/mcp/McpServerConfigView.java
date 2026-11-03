@@ -15,11 +15,7 @@
  */
 package org.springaicommunity.playground.webui.mcp;
 
-import tools.jackson.core.JacksonException;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
-import tools.jackson.databind.node.ArrayNode;
-import tools.jackson.databind.node.ObjectNode;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.combobox.ComboBox;
@@ -40,20 +36,20 @@ import com.vaadin.flow.component.radiobutton.RadioButtonGroup;
 import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.textfield.TextArea;
 import com.vaadin.flow.component.textfield.TextField;
+import org.springaicommunity.playground.service.mcp.McpRegistrationService;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
+import org.springaicommunity.playground.service.mcp.McpServerOverviewService.ServerOverview;
 import org.springaicommunity.playground.service.mcp.catalog.CategoryDef;
 import org.springaicommunity.playground.service.mcp.catalog.McpCategoryService;
 import org.springaicommunity.playground.service.mcp.catalog.McpTagSuggestionService;
 import org.springaicommunity.playground.service.mcp.client.HttpConnectionParametersWithExtras;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
+import org.springaicommunity.playground.service.mcp.client.McpConnectionSpec;
 import org.springaicommunity.playground.service.mcp.client.McpClientService.TestConnectionResult;
 import org.springaicommunity.playground.service.mcp.client.McpTransportType;
-import org.springaicommunity.playground.service.mcp.risk.McpAuthMode;
 import org.springaicommunity.playground.service.mcp.risk.McpRegistrationRiskPreview;
 import org.springaicommunity.playground.service.tool.ChipListBinding;
-import org.springaicommunity.playground.service.tool.ToolManifest.Sandbox.RiskLevel;
-import org.springaicommunity.playground.service.util.SecretMasking;
 import org.springaicommunity.playground.webui.JsonEditorWrapper;
 import org.springaicommunity.playground.webui.VaadinUtils;
 import org.springaicommunity.playground.webui.tool.StaticVariableForm;
@@ -64,30 +60,20 @@ import java.beans.PropertyChangeSupport;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.EnumMap;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
-import java.util.function.Consumer;
-import java.util.regex.Pattern;
+import java.util.concurrent.Executors;
 
 import static org.springaicommunity.playground.webui.mcp.McpServerView.MCP_CONNECTION_CHANGE_EVENT;
 
 @NpmPackage(value = "jsoneditor", version = "10.2.0")
 @NpmPackage(value = "ace-builds", version = "1.43.2")
 public class McpServerConfigView extends VerticalLayout {
-
-    // Restrict to safe chars so a server name can't escape the persistence directory.
-    private static final Pattern SAFE_SERVER_NAME = Pattern.compile("[A-Za-z0-9._-]+");
-
-    private static final String HEADERS_KEY = "headers";
-    private static final String REQUIRED_ENV_KEY = "requiredEnv";
-    private static final String OAUTH_KEY = "oauth";
-
-    private static final ObjectMapper FORM_OBJECT_MAPPER = new ObjectMapper();
 
     public enum HeaderPreset {
         NONE("Insert auth header preset…", null, null),
@@ -117,6 +103,9 @@ public class McpServerConfigView extends VerticalLayout {
     private final MultiSelectComboBox<String> tagsField = new MultiSelectComboBox<>("Tags");
     private final Span createdLabel = new Span();
     private final Span updatedLabel = new Span();
+
+    private static final String APP_MANAGED_HINT = "The built-in server connection is managed by the app and "
+            + "cannot be edited here. Use the gear icon for its access settings.";
 
     private final H4 connectionHeader = new H4("MCP Connection");
     private final RadioButtonGroup<McpTransportType> transportRadioButtonGroup = new RadioButtonGroup<>();
@@ -149,14 +138,17 @@ public class McpServerConfigView extends VerticalLayout {
     private final McpCategoryService mcpCategoryService;
     private final McpTagSuggestionService mcpTagSuggestionService;
     private final McpRegistrationRiskPreview mcpRegistrationRiskPreview;
+    private final McpRegistrationService mcpRegistrationService;
     private final PropertyChangeSupport mcpServerInfoChangeSupport;
 
     private final Div riskPreviewPanel = new Div();
-    private RiskLevel lastPreviewedLevel = RiskLevel.L1;
+    private McpRegistrationRiskPreview.RegistrationPreview lastPreview;
 
     private Button saveAndConnectButton;
     private Button testConnectionButton;
+    private Button reconnectButton;
 
+    private boolean populating;
     private boolean nameChanged = false;
     private boolean descChanged = false;
     private boolean jsonChanged = false;
@@ -178,6 +170,7 @@ public class McpServerConfigView extends VerticalLayout {
             McpClientService mcpClientService, McpCategoryService mcpCategoryService,
             McpTagSuggestionService mcpTagSuggestionService,
             McpRegistrationRiskPreview mcpRegistrationRiskPreview,
+            McpRegistrationService mcpRegistrationService,
             PropertyChangeSupport mcpServerInfoChangeSupport) {
         this.mcpServerInfo = mcpServerInfo;
         this.mcpServerInfoService = mcpServerInfoService;
@@ -185,10 +178,10 @@ public class McpServerConfigView extends VerticalLayout {
         this.mcpCategoryService = mcpCategoryService;
         this.mcpTagSuggestionService = mcpTagSuggestionService;
         this.mcpRegistrationRiskPreview = mcpRegistrationRiskPreview;
+        this.mcpRegistrationService = mcpRegistrationService;
         this.mcpServerInfoChangeSupport = mcpServerInfoChangeSupport;
         buildLayout();
         populateFields();
-        refreshRiskPreview();
     }
 
     private void buildLayout() {
@@ -287,6 +280,12 @@ public class McpServerConfigView extends VerticalLayout {
         testConnectionButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         testConnectionButton.setTooltipText("Try to initialize without saving - verifies URL, headers, and env vars");
 
+        reconnectButton = new Button("Reconnect", VaadinIcon.REFRESH.create(), e -> reconnect());
+        reconnectButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_CONTRAST);
+        reconnectButton.setTooltipText("Start the saved connection again without editing it, then re-sync the "
+                + "tools it exposes - the same step as the management tool saip_mcp_reconnect");
+        reconnectButton.setVisible(false);
+
         serverNameField.addValueChangeListener(e -> {
             nameChanged = !Objects.equals(e.getValue(), originalName);
             validateNameField();
@@ -343,7 +342,7 @@ public class McpServerConfigView extends VerticalLayout {
 
         add(httpExtrasGroup, oauthEnabledCheckbox, oauthSubForm, stdioGroup);
 
-        HorizontalLayout footer = new HorizontalLayout(saveAndConnectButton, testConnectionButton);
+        HorizontalLayout footer = new HorizontalLayout(saveAndConnectButton, testConnectionButton, reconnectButton);
         footer.setSpacing(true);
         footer.setAlignItems(FlexComponent.Alignment.CENTER);
 
@@ -351,29 +350,29 @@ public class McpServerConfigView extends VerticalLayout {
     }
 
     private void refreshRiskPreview() {
+        if (populating) return;
         riskPreviewPanel.setVisible(true);
         riskPreviewPanel.removeAll();
-        if (this.mcpClientService.isSelfLoopback(serverNameField.getValue())) {
-            lastPreviewedLevel = RiskLevel.L0;
-            McpRiskChip chip = new McpRiskChip(RiskLevel.L0, null, "Server")
-                    .withTooltip("Built-in MCP server - risk model bypassed (spec § 5.4)");
-            riskPreviewPanel.add(chip);
-            return;
-        }
         try {
-            McpRegistrationRiskPreview.WizardInput input = buildWizardInputFromForm();
-            McpRegistrationRiskPreview.PreviewResult result = mcpRegistrationRiskPreview.preview(input);
-            lastPreviewedLevel = result.serverResult().level();
-            StringBuilder why = new StringBuilder("Why ").append(lastPreviewedLevel.name()).append(": ");
+            McpRegistrationRiskPreview.RegistrationPreview result = mcpRegistrationRiskPreview.preview(
+                    new McpRegistrationRiskPreview.RegistrationInput(serverNameField.getValue(),
+                            transportRadioButtonGroup.getValue(), urlField.getValue(), rowHeaders(),
+                            Boolean.TRUE.equals(oauthEnabledCheckbox.getValue())));
+            lastPreview = result;
+            if (result.builtIn()) {
+                riskPreviewPanel.add(new McpRiskChip(result.level(), null, "Server")
+                        .withTooltip("Built-in MCP server - risk model bypassed (spec § 5.4)"));
+                return;
+            }
+            StringBuilder why = new StringBuilder("Why ").append(result.level().name()).append(": ");
             boolean first = true;
             for (Map.Entry<String, String> rationale : result.rationale().entrySet()) {
                 if (!first) why.append(" · ");
                 why.append(rationale.getKey()).append('=').append(rationale.getValue());
                 first = false;
             }
-            McpRiskChip chip = new McpRiskChip(lastPreviewedLevel,
-                    result.serverResult().floorTrigger(), "Server").withTooltip(why.toString());
-            riskPreviewPanel.add(chip);
+            riskPreviewPanel.add(new McpRiskChip(result.level(), result.floorTrigger(), "Server")
+                    .withTooltip(why.toString()));
         } catch (RuntimeException ex) {
             Span hint = new Span("Risk preview unavailable: " + ex.getMessage());
             hint.getStyle().set("color", "var(--lumo-error-text-color)");
@@ -381,43 +380,7 @@ public class McpServerConfigView extends VerticalLayout {
         }
     }
 
-    private McpRegistrationRiskPreview.WizardInput buildWizardInputFromForm() {
-        McpTransportType transport = transportRadioButtonGroup.getValue();
-        String url = transport == McpTransportType.STDIO ? null : urlField.getValue();
-        McpAuthMode authMode = resolveAuthModeFromForm();
-        return new McpRegistrationRiskPreview.WizardInput(
-                serverNameField.getValue(),
-                transport,
-                url,
-                authMode,
-                null,
-                null,
-                null,
-                true,
-                true,
-                null,
-                List.of());
-    }
 
-    private McpAuthMode resolveAuthModeFromForm() {
-        if (Boolean.TRUE.equals(oauthEnabledCheckbox.getValue())) {
-            return McpAuthMode.OAUTH_STANDARD;
-        }
-        for (StaticVariableForm row : headerRows) {
-            String key = row.getKey();
-            if (key == null) continue;
-            String lower = key.toLowerCase();
-            if (lower.equals("authorization")) {
-                String value = row.getValue();
-                if (value != null && value.toLowerCase().startsWith("bearer")) return McpAuthMode.BEARER;
-                return McpAuthMode.API_KEY;
-            }
-            if (lower.contains("api-key") || lower.contains("apikey") || lower.contains("x-api-key")) {
-                return McpAuthMode.API_KEY;
-            }
-        }
-        return McpAuthMode.NONE;
-    }
 
     private boolean isPersisted() {
         if (mcpServerInfo == null || mcpServerInfo.serverName() == null) return false;
@@ -664,6 +627,11 @@ public class McpServerConfigView extends VerticalLayout {
         headerActionsRow.getStyle().set("gap", "var(--lumo-space-xs)");
 
         httpExtrasGroup.add(headersHeader, headersHelp, headerActionsRow, headersContainer);
+        if (isAppManagedBuiltIn()) {
+            headerActionsRow.setVisible(false);
+            headersHelp.setText(APP_MANAGED_HINT);
+            saveAndConnectButton.setTooltipText(APP_MANAGED_HINT);
+        }
     }
 
     private void buildOauthGroup() {
@@ -748,34 +716,69 @@ public class McpServerConfigView extends VerticalLayout {
     }
 
     private boolean validateNameField() {
-        String name = serverNameField.getValue();
-        if (name == null || name.isBlank()) {
-            serverNameField.setInvalid(true);
-            serverNameField.setErrorMessage("Server name cannot be empty");
-            return false;
-        }
-        if (name.contains(" ")) {
-            serverNameField.setInvalid(true);
-            serverNameField.setErrorMessage("Server name cannot contain spaces");
-            return false;
-        }
-        if (!SAFE_SERVER_NAME.matcher(name).matches()) {
-            serverNameField.setInvalid(true);
-            serverNameField.setErrorMessage("Server name may only contain letters, digits, '.', '_', '-'");
-            return false;
-        }
-        serverNameField.setInvalid(false);
-        serverNameField.setErrorMessage(null);
-        return true;
+        Optional<String> nameError = McpServerInfoService.serverNameError(serverNameField.getValue());
+        serverNameField.setInvalid(nameError.isPresent());
+        serverNameField.setErrorMessage(nameError.orElse(null));
+        return nameError.isEmpty();
     }
 
     private void updateSaveButtonState() {
         boolean hasChanges = nameChanged || descChanged || jsonChanged || transportChanged || extrasChanged
                 || categoryChanged || tagsChanged;
-        boolean isNewOrGhost = !isPersisted();
+        boolean isNewOrGhost = !isPersisted() || neverConnected();
         boolean isValid = validateNameField();
-        saveAndConnectButton.setEnabled((hasChanges || isNewOrGhost) && isValid);
+        saveAndConnectButton.setEnabled((hasChanges || isNewOrGhost) && isValid && !isAppManagedBuiltIn());
+        reconnectButton.setVisible(isPersisted() && !isAppManagedBuiltIn());
         refreshRiskPreview();
+    }
+
+    private void reconnect() {
+        UI ui = UI.getCurrent();
+        String serverName = this.mcpServerInfo.serverName();
+        this.reconnectButton.setEnabled(false);
+        Executors.newVirtualThreadPerTaskExecutor().submit(() -> {
+            ServerOverview overview;
+            try {
+                overview = this.mcpRegistrationService.reconnect(serverName);
+            } catch (RuntimeException e) {
+                ui.access(() -> {
+                    this.reconnectButton.setEnabled(true);
+                    VaadinUtils.showErrorNotification("Reconnect failed: " + e.getMessage());
+                });
+                return;
+            }
+            ui.access(() -> {
+                this.reconnectButton.setEnabled(true);
+                notifyReconnectOutcome(overview);
+                this.mcpServerInfoChangeSupport.firePropertyChange(McpServerView.MCP_CONNECTION_RECONNECT_EVENT,
+                        null, this.mcpServerInfo);
+            });
+        });
+    }
+
+    private void notifyReconnectOutcome(ServerOverview overview) {
+        switch (overview.status()) {
+            case OK -> VaadinUtils.showInfoNotification("Reconnected '" + overview.name() + "' - "
+                    + this.mcpClientService.getToolListAsOpt(this.mcpServerInfo).map(List::size).orElse(0)
+                    + " tool(s).");
+            case MISSING_CONFIG -> VaadinUtils.showErrorNotification("Not connected. Set "
+                    + String.join(", ", overview.missingEnv())
+                    + " as an environment variable, restart the app, then Reconnect again.");
+            case AWAITING_AUTHORIZATION -> VaadinUtils.showInfoNotification(
+                    "Awaiting OAuth authorization - click Authorize above to grant access.");
+            case ERROR -> VaadinUtils.showErrorNotification("Reconnect failed: " + overview.error());
+            case OFFLINE -> VaadinUtils.showErrorNotification("Reconnect failed: the server is not connected.");
+        }
+    }
+
+    private boolean neverConnected() {
+        return mcpServerInfoService.findByServerName(mcpServerInfo.serverName())
+                .map(saved -> saved.lastUsedAtEpochMs() == null)
+                .orElse(false);
+    }
+
+    private boolean isAppManagedBuiltIn() {
+        return this.mcpClientService.isSelfLoopback(this.mcpServerInfo.serverName());
     }
 
     private String normalizeCategory(String raw) {
@@ -812,7 +815,7 @@ public class McpServerConfigView extends VerticalLayout {
     }
 
     private void populateFields() {
-
+        populating = true;
         originalName = mcpServerInfo.serverName();
         originalDesc = mcpServerInfo.description();
         originalTransport = mcpServerInfo.mcpTransportType();
@@ -835,40 +838,17 @@ public class McpServerConfigView extends VerticalLayout {
             rawJson = (editor != null) ? editor.getJsonSync() : "{}";
         }
 
-        String editorJson = rawJson;
-        if (isHttpTransport(type)) {
-            try {
-                JsonNode root = FORM_OBJECT_MAPPER.readTree(rawJson);
-                if (root.isObject()) {
-                    ObjectNode obj = (ObjectNode) root;
-                    Map<String, String> headers = readHeaders(obj.get(HEADERS_KEY));
-                    this.builtInAuthorization = this.mcpClientService.isSelfLoopback(originalName)
-                            ? headers.remove(HttpHeaders.AUTHORIZATION) : null;
-                    populateExtras(headers);
-                    populateOAuth(obj.get(OAUTH_KEY));
-                    populateHttpUrl(obj, type);
-                    obj.remove(HEADERS_KEY);
-                    obj.remove(REQUIRED_ENV_KEY);
-                    obj.remove(OAUTH_KEY);
-                    obj.remove("url");
-                    obj.remove(type == McpTransportType.SSE ? "sse-endpoint" : "endpoint");
-                    editorJson = FORM_OBJECT_MAPPER.writeValueAsString(obj);
-                }
-            } catch (JacksonException ignore) {
-                resetExtras();
-                resetHttpUrl();
-            }
+        McpConnectionSpec spec = McpConnectionSpec.from(type, rawJson);
+        if (spec.isHttp()) {
+            this.builtInAuthorization = this.mcpClientService.isSelfLoopback(originalName)
+                    ? spec.headerValue(HttpHeaders.AUTHORIZATION) : null;
+            if (this.builtInAuthorization != null) spec = spec.withoutHeader(HttpHeaders.AUTHORIZATION);
+            populateExtras(spec.headers());
+            populateOAuth(spec.oauth());
+            populateHttpUrl(spec);
             resetStdio();
         } else if (type == McpTransportType.STDIO) {
-            try {
-                JsonNode root = FORM_OBJECT_MAPPER.readTree(rawJson);
-                if (root.isObject()) {
-                    populateStdio((ObjectNode) root);
-                    editorJson = "{}";
-                }
-            } catch (JacksonException ignore) {
-                resetStdio();
-            }
+            populateStdio(spec);
             resetExtras();
             resetHttpUrl();
         } else {
@@ -876,8 +856,8 @@ public class McpServerConfigView extends VerticalLayout {
             resetHttpUrl();
             resetStdio();
         }
-        originalJson = editorJson;
-        editors.get(type).setJson(editorJson);
+        originalJson = "{}";
+        editors.get(type).setJson(originalJson);
 
         transportRadioButtonGroup.setValue(type);
         switchEditor(type);
@@ -889,6 +869,7 @@ public class McpServerConfigView extends VerticalLayout {
         extrasChanged = false;
         categoryChanged = false;
         tagsChanged = false;
+        populating = false;
         updateSaveButtonState();
     }
 
@@ -902,18 +883,13 @@ public class McpServerConfigView extends VerticalLayout {
         extrasChanged = false;
     }
 
-    private void populateHttpUrl(ObjectNode obj, McpTransportType type) {
-        String url = obj.has("url") && !obj.get("url").isNull() ? obj.get("url").asText("") : "";
-        urlField.setValue(url);
-        if (type == McpTransportType.SSE) {
-            String endpoint = obj.has("sse-endpoint") && !obj.get("sse-endpoint").isNull()
-                    ? obj.get("sse-endpoint").asText("") : "";
-            sseEndpointField.setValue(endpoint);
+    private void populateHttpUrl(McpConnectionSpec spec) {
+        urlField.setValue(spec.url());
+        if (spec.transport() == McpTransportType.SSE) {
+            sseEndpointField.setValue(spec.endpoint());
             endpointField.setValue("");
         } else {
-            String endpoint = obj.has("endpoint") && !obj.get("endpoint").isNull()
-                    ? obj.get("endpoint").asText("") : "";
-            endpointField.setValue(endpoint);
+            endpointField.setValue(spec.endpoint());
             sseEndpointField.setValue("");
         }
     }
@@ -924,32 +900,17 @@ public class McpServerConfigView extends VerticalLayout {
         sseEndpointField.setValue("");
     }
 
-    private void populateStdio(ObjectNode obj) {
-        String command = obj.has("command") && !obj.get("command").isNull()
-                ? obj.get("command").asText("") : "";
-        commandField.setValue(command);
+    private void populateStdio(McpConnectionSpec spec) {
+        commandField.setValue(spec.command());
 
         argRows.clear();
         argsContainer.removeAll();
-        JsonNode argsNode = obj.get("args");
-        if (argsNode != null && argsNode.isArray()) {
-            for (JsonNode a : argsNode) {
-                addArgRow(a.isTextual() ? a.asText() : a.toString());
-            }
-        }
+        spec.args().forEach(this::addArgRow);
         if (argRows.isEmpty()) addArgRow(null);
 
         envRows.clear();
         envContainer.removeAll();
-        JsonNode envNode = obj.get("env");
-        if (envNode != null && envNode.isObject()) {
-            Iterator<Map.Entry<String, JsonNode>> it = envNode.properties().iterator();
-            while (it.hasNext()) {
-                Map.Entry<String, JsonNode> e = it.next();
-                String v = e.getValue().isNull() ? "" : e.getValue().asText("");
-                addEnvRow(e.getKey(), v);
-            }
-        }
+        spec.env().forEach(this::addEnvRow);
         extrasChanged = false;
     }
 
@@ -963,39 +924,6 @@ public class McpServerConfigView extends VerticalLayout {
         addEnvRow(null, null);
     }
 
-    private String buildStdioJson() {
-        try {
-            ObjectNode obj = FORM_OBJECT_MAPPER.createObjectNode();
-
-            String cmd = commandField.getValue();
-            if (cmd != null && !cmd.isBlank()) obj.put("command", cmd.trim());
-
-            if (!argRows.isEmpty()) {
-                ArrayNode argsArr = FORM_OBJECT_MAPPER.createArrayNode();
-                for (ArgFormRow row : argRows) {
-                    String value = row.getValue();
-                    if (value != null && !value.isBlank()) argsArr.add(value.trim());
-                }
-                if (!argsArr.isEmpty()) obj.set("args", argsArr);
-            }
-
-            if (!envRows.isEmpty()) {
-                ObjectNode envObj = FORM_OBJECT_MAPPER.createObjectNode();
-                for (StaticVariableForm row : envRows) {
-                    String key = row.getKey();
-                    String value = row.getValue();
-                    if (key != null && !key.isBlank()) {
-                        envObj.put(key, value == null ? "" : value);
-                    }
-                }
-                if (!envObj.isEmpty()) obj.set("env", envObj);
-            }
-
-            return FORM_OBJECT_MAPPER.writeValueAsString(obj);
-        } catch (JacksonException e) {
-            return "{}";
-        }
-    }
 
     private void populateExtras(Map<String, String> headers) {
         headerRows.clear();
@@ -1017,40 +945,21 @@ public class McpServerConfigView extends VerticalLayout {
         extrasChanged = false;
     }
 
-    private void populateOAuth(JsonNode oauthNode) {
-        if (oauthNode == null || oauthNode.isNull() || !oauthNode.isObject()) {
+    private void populateOAuth(HttpConnectionParametersWithExtras.OAuth oauth) {
+        if (oauth == null) {
             oauthSubForm.clearFields();
             oauthEnabledCheckbox.setValue(false);
             oauthSubForm.setVisible(false);
             return;
         }
-        try {
-            HttpConnectionParametersWithExtras.OAuth oauth = FORM_OBJECT_MAPPER.treeToValue(oauthNode,
-                    HttpConnectionParametersWithExtras.OAuth.class);
-            oauthSubForm.populate(oauth);
-            oauthEnabledCheckbox.setValue(true);
-            oauthSubForm.setVisible(true);
-        } catch (JacksonException ignore) {
-            oauthSubForm.clearFields();
-            oauthEnabledCheckbox.setValue(false);
-            oauthSubForm.setVisible(false);
-        }
+        oauthSubForm.populate(oauth);
+        oauthEnabledCheckbox.setValue(true);
+        oauthSubForm.setVisible(true);
     }
 
-    private static Map<String, String> readHeaders(JsonNode node) {
-        if (node == null || !node.isObject()) return new LinkedHashMap<>();
-        Map<String, String> out = new LinkedHashMap<>();
-        Iterator<Map.Entry<String, JsonNode>> it = node.properties().iterator();
-        while (it.hasNext()) {
-            Map.Entry<String, JsonNode> e = it.next();
-            out.put(e.getKey(), e.getValue().isNull() ? null : e.getValue().asText(null));
-        }
-        return out;
-    }
 
-    private Map<String, String> snapshotHeaders() {
+    private Map<String, String> rowHeaders() {
         Map<String, String> headers = new LinkedHashMap<>();
-        if (this.builtInAuthorization != null) headers.put(HttpHeaders.AUTHORIZATION, this.builtInAuthorization);
         for (StaticVariableForm row : headerRows) {
             String key = row.getKey();
             String value = row.getValue();
@@ -1061,9 +970,31 @@ public class McpServerConfigView extends VerticalLayout {
         return headers;
     }
 
+    private String buildConnectionJson() {
+        McpTransportType transport = transportRadioButtonGroup.getValue();
+        McpConnectionSpec spec;
+        if (transport == McpTransportType.STDIO) {
+            Map<String, String> env = new LinkedHashMap<>();
+            for (StaticVariableForm row : envRows) {
+                String key = row.getKey();
+                if (key != null && !key.isBlank()) env.put(key, row.getValue() == null ? "" : row.getValue());
+            }
+            spec = McpConnectionSpec.stdio(commandField.getValue(),
+                    argRows.stream().map(ArgFormRow::getValue).toList(), env);
+        } else {
+            String endpoint = transport == McpTransportType.SSE ? sseEndpointField.getValue() : endpointField.getValue();
+            HttpConnectionParametersWithExtras.OAuth oauth = Boolean.TRUE.equals(oauthEnabledCheckbox.getValue())
+                    ? oauthSubForm.toRecord() : null;
+            spec = McpConnectionSpec.http(transport, urlField.getValue(), endpoint, rowHeaders(), oauth);
+        }
+        if (this.builtInAuthorization != null) {
+            spec = spec.withLeadingHeader(HttpHeaders.AUTHORIZATION, this.builtInAuthorization);
+        }
+        return spec.toJson();
+    }
+
     private void saveAndConnect() {
-        if (lastPreviewedLevel != null
-                && lastPreviewedLevel.ordinal() >= RiskLevel.L4.ordinal()) {
+        if (lastPreview != null && lastPreview.requiresConfirmation()) {
             showHighRiskConfirmation(this::doSaveAndConnect);
             return;
         }
@@ -1071,10 +1002,11 @@ public class McpServerConfigView extends VerticalLayout {
     }
 
     private void showHighRiskConfirmation(Runnable onConfirm) {
+        String level = lastPreview.level().name();
         Dialog dialog = new Dialog();
-        dialog.setHeaderTitle("High risk server (" + lastPreviewedLevel.name() + ")");
+        dialog.setHeaderTitle("High risk server (" + level + ")");
         Span body = new Span("This server registration carries a "
-                + lastPreviewedLevel.name() + " risk level based on transport/auth/trust signals. "
+                + level + " risk level based on transport/auth/trust signals. "
                 + "Proceed only if you accept the rationale above.");
         dialog.add(body);
         Button cancel = new Button("Cancel", e -> dialog.close());
@@ -1106,111 +1038,36 @@ public class McpServerConfigView extends VerticalLayout {
             return;
         }
 
-        buildMcpServerInfoFromForm(
-                uiMcpServerInfo -> {
-                    boolean sameKey = mcpServerInfo != null
-                            && mcpServerInfo.mcpTransportType() == uiMcpServerInfo.mcpTransportType()
-                            && Objects.equals(mcpServerInfo.serverName(), uiMcpServerInfo.serverName());
-                    if (!sameKey && this.mcpServerInfoService.getMcpServerInfos()
-                            .get(uiMcpServerInfo.mcpTransportType()).stream().map(McpServerInfo::serverName)
-                            .anyMatch(uiMcpServerInfo.serverName()::equals)) {
-                        VaadinUtils.showErrorNotification("Failed to save : MCP connection already exists with name " +
-                                uiMcpServerInfo.serverName());
-                        return;
-                    }
-
-                    try {
-                        this.mcpClientService.startMcpClient(uiMcpServerInfo);
-                        this.mcpServerInfoChangeSupport.firePropertyChange(MCP_CONNECTION_CHANGE_EVENT,
-                                mcpServerInfo, uiMcpServerInfo);
-                    } catch (Exception e) {
-                        String raw = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
-                        String safe = SecretMasking.mask(raw,
-                                SecretMasking.collectFromTemplate(uiMcpServerInfo.connectionAsJson()));
-                        VaadinUtils.showErrorNotification("Failed to connect : " + safe);
-                    }
-                });
-    }
-
-    private void buildMcpServerInfoFromForm(Consumer<McpServerInfo> callback) {
-        McpTransportType mcpTransportType = transportRadioButtonGroup.getValue();
-        String serverName = this.serverNameField.getValue();
-        String description = this.descField.getValue();
-        String category = normalizeCategory(this.categoryField.getValue());
-        Set<String> tags = snapshotTags();
-        String connectionJson = mergeExtras(mcpTransportType, "{}");
-        callback.accept(mcpServerInfo.mutate(mcpTransportType, serverName, description,
-                System.currentTimeMillis(), connectionJson, category, tags));
-    }
-
-    private String mergeExtras(McpTransportType transport, String editorJson) {
-        if (transport == McpTransportType.STDIO) return buildStdioJson();
-        if (!isHttpTransport(transport)) return editorJson;
+        McpServerInfoService.McpServerRegistration registration = new McpServerInfoService.McpServerRegistration(
+                mcpServerInfo.mcpTransportType(), mcpServerInfo.serverName(), selectedTransport,
+                this.serverNameField.getValue(), this.descField.getValue(),
+                normalizeCategory(this.categoryField.getValue()), snapshotTags(), buildConnectionJson());
         try {
-            JsonNode root = FORM_OBJECT_MAPPER.readTree(editorJson == null ? "{}" : editorJson);
-            ObjectNode obj = root.isObject() ? (ObjectNode) root : FORM_OBJECT_MAPPER.createObjectNode();
-            Map<String, String> headers = snapshotHeaders();
-
-            String urlValue = urlField.getValue();
-            if (urlValue != null && !urlValue.isBlank()) {
-                obj.put("url", urlValue.trim());
-            } else {
-                obj.remove("url");
-            }
-            String endpointKey;
-            String endpointValue;
-            if (transport == McpTransportType.SSE) {
-                endpointKey = "sse-endpoint";
-                endpointValue = sseEndpointField.getValue();
-                obj.remove("endpoint");
-            } else {
-                endpointKey = "endpoint";
-                endpointValue = endpointField.getValue();
-                obj.remove("sse-endpoint");
-            }
-            if (endpointValue != null && !endpointValue.isBlank()) {
-                obj.put(endpointKey, endpointValue.trim());
-            } else {
-                obj.remove(endpointKey);
-            }
-
-            obj.remove(REQUIRED_ENV_KEY);
-            if (headers.isEmpty()) {
-                obj.remove(HEADERS_KEY);
-            } else {
-                ObjectNode headersNode = FORM_OBJECT_MAPPER.createObjectNode();
-                headers.forEach(headersNode::put);
-                obj.set(HEADERS_KEY, headersNode);
-            }
-
-            HttpConnectionParametersWithExtras.OAuth oauth = Boolean.TRUE.equals(oauthEnabledCheckbox.getValue())
-                    ? oauthSubForm.toRecord() : null;
-            if (oauth == null || !StringUtils.hasText(oauth.issuerUri())) {
-                obj.remove(OAUTH_KEY);
-            } else {
-                obj.set(OAUTH_KEY, FORM_OBJECT_MAPPER.valueToTree(oauth));
-            }
-
-            return FORM_OBJECT_MAPPER.writeValueAsString(obj);
-        } catch (JacksonException e) {
-            return editorJson;
+            McpServerInfo saved = this.mcpServerInfoService.saveAndConnect(registration);
+            this.mcpServerInfoChangeSupport.firePropertyChange(MCP_CONNECTION_CHANGE_EVENT, mcpServerInfo, saved);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            VaadinUtils.showErrorNotification(e.getMessage());
         }
     }
+
+    private McpServerInfo buildTransientMcpServerInfo() {
+        return mcpServerInfo.mutate(transportRadioButtonGroup.getValue(), this.serverNameField.getValue(),
+                this.descField.getValue(), System.currentTimeMillis(), buildConnectionJson(),
+                normalizeCategory(this.categoryField.getValue()), snapshotTags());
+    }
+
 
     private void testConnection() {
         if (!isFormValid()) {
             VaadinUtils.showErrorNotification("Please correct the errors before testing.");
             return;
         }
-        buildMcpServerInfoFromForm(transientInfo -> {
-            TestConnectionResult result = mcpClientService.testConnection(transientInfo);
-            if (result.ok()) {
-                VaadinUtils.showInfoNotification(
-                        "Connection OK - discovered " + result.toolCount() + " tool(s).");
-            } else {
-                VaadinUtils.showErrorNotification("Test failed: " + result.error());
-            }
-        });
+        TestConnectionResult result = mcpClientService.testConnection(buildTransientMcpServerInfo());
+        if (result.ok()) {
+            VaadinUtils.showInfoNotification("Connection OK - discovered " + result.toolCount() + " tool(s).");
+        } else {
+            VaadinUtils.showErrorNotification("Test failed: " + result.error());
+        }
     }
 
 }

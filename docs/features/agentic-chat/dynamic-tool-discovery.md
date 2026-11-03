@@ -1,3 +1,7 @@
+---
+videos: ep4
+---
+
 # Self-equipping agents: dynamic tool discovery
 
 A **self-equipping agent** doesn't ship with a fixed toolset - it discovers and equips whatever a task needs, on demand, from a library that can grow without bound. That is what turns a chat model into an open-ended agent: once it can *find* tools, the size of your toolbox stops being the limit on what it can do. In the Playground this runs on Spring AI's **dynamic tool discovery** (the [Tool Search Tool](https://docs.spring.io/spring-ai/reference/guides/dynamic-tool-search.html) pattern), and - the part that matters most here - it works even on a small **local** model.

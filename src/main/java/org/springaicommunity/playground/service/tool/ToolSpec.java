@@ -19,6 +19,7 @@ import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.springframework.ai.tool.ToolCallback;
 
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -63,6 +64,35 @@ public class ToolSpec {
                                    Boolean fileRead, Boolean fileWrite, String fsBasePath, Boolean destructive) {
         public static SandboxOverrides empty() {
             return new SandboxOverrides(Set.of(), Set.of(), Set.of(), Set.of(), null, Set.of(), null, null, null, null);
+        }
+
+        public static SandboxOverrides fromEffective(Set<String> baselineAllow, Set<String> baselineDeny,
+                Set<String> effectiveAllow, Set<String> effectiveDeny, String networkMode, Set<String> hostsAllow,
+                Boolean fileRead, Boolean fileWrite, String fsBasePath, Boolean destructive) {
+            return new SandboxOverrides(minus(effectiveAllow, baselineAllow), minus(baselineAllow, effectiveAllow),
+                    minus(effectiveDeny, baselineDeny), minus(baselineDeny, effectiveDeny), networkMode, hostsAllow,
+                    fileRead, fileWrite, fsBasePath, destructive);
+        }
+
+        public Set<String> resolveAllowClasses(Set<String> baselineAllow) {
+            return resolve(baselineAllow, this.removeAllowClasses, this.addAllowClasses);
+        }
+
+        public Set<String> resolveDenyClasses(Set<String> baselineDeny) {
+            return resolve(baselineDeny, this.removeDenyClasses, this.addDenyClasses);
+        }
+
+        private static Set<String> resolve(Set<String> baseline, Set<String> removed, Set<String> added) {
+            Set<String> resolved = new LinkedHashSet<>(baseline == null ? Set.of() : baseline);
+            if (removed != null) resolved.removeAll(removed);
+            if (added != null) resolved.addAll(added);
+            return resolved;
+        }
+
+        private static Set<String> minus(Set<String> left, Set<String> right) {
+            Set<String> out = new LinkedHashSet<>(left == null ? Set.of() : left);
+            if (right != null) out.removeAll(right);
+            return out;
         }
     }
 

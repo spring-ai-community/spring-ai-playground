@@ -23,6 +23,7 @@ import org.springaicommunity.playground.service.tool.FileUploadHandler;
 import org.springaicommunity.playground.service.tool.HumanQuestion;
 import org.springaicommunity.playground.service.tool.HumanQuestionHandler;
 import org.springaicommunity.playground.service.tool.ToolManifest;
+import org.springaicommunity.playground.service.mcp.DeniedToolCallRecorder;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.AssistantMessage.ToolCall;
@@ -46,9 +47,11 @@ import java.util.stream.Collectors;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 class AgentLoopManagerHitlTest {
@@ -65,7 +68,8 @@ class AgentLoopManagerHitlTest {
     private AgentLoopManager manager(int toolResultMaxChars) {
         ObjectProvider<ToolSpecService> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(toolSpecService);
-        return new AgentLoopManager(delegate, provider, meterRegistry, toolResultMaxChars);
+        return new AgentLoopManager(delegate, provider, meterRegistry, toolResultMaxChars,
+                mock(DeniedToolCallRecorder.class), 180);
     }
 
     private Prompt promptWith(HumanQuestionHandler handler) {
@@ -154,6 +158,25 @@ class AgentLoopManagerHitlTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void declinedAndTimedOutToolsAreRecordedAsDeniedCallsAndApprovedOnesAreNot() {
+        DeniedToolCallRecorder recorder = mock(DeniedToolCallRecorder.class);
+        ObjectProvider<ToolSpecService> provider = mock(ObjectProvider.class);
+        when(provider.getIfAvailable()).thenReturn(toolSpecService);
+        AgentLoopManager manager = new AgentLoopManager(delegate, provider, meterRegistry, 12_000, recorder, 180);
+        when(toolSpecService.requiresApproval(anyString())).thenReturn(true);
+        when(delegate.executeToolCalls(any(), any())).thenReturn(delegateResultFor(toolCall("3", "readFile")));
+
+        manager.executeToolCalls(promptWith(questions -> Map.of("1", "Decline", "2",
+                HumanQuestionHandler.TIMEOUT_ANSWER, "3", "Approve")),
+                responseWith(toolCall("1", "writeFile"), toolCall("2", "deleteFile"), toolCall("3", "readFile")));
+
+        verify(recorder).recordChatDenial("writeFile", "1", "{}", "declined");
+        verify(recorder).recordChatDenial("deleteFile", "2", "{}", "timeout");
+        verifyNoMoreInteractions(recorder);
+    }
+
+    @Test
     void timedOutApprovalIsNotExecutedAndReportsTimeout() {
         ChatResponse response = responseWith(toolCall("1", "writeFile"));
         Prompt prompt = promptWith(questions -> answerAll(questions, HumanQuestionHandler.TIMEOUT_ANSWER));
@@ -163,7 +186,7 @@ class AgentLoopManagerHitlTest {
 
         verify(delegate, never()).executeToolCalls(any(), any());
         ToolResponseMessage trm = (ToolResponseMessage) result.conversationHistory().getLast();
-        assertTrue(trm.getResponses().get(0).responseData().contains("timed out"));
+        assertTrue(trm.getResponses().get(0).responseData().contains("no approval within 180 s"));
     }
 
     @Test
@@ -335,7 +358,7 @@ class AgentLoopManagerHitlTest {
 
     @Test
     void cancelledUploadIsAutoDeclinedOnRepeatCallInSameTurn() {
-        AgentTurn turn = new AgentTurn(new SpringAiPlaygroundOptions.AgentLoop(16, 18, 3, 1, null, null));
+        AgentTurn turn = new AgentTurn(new SpringAiPlaygroundOptions.AgentLoop(16, 18, 3, 1));
         AtomicInteger uploads = new AtomicInteger();
         FileUploadHandler handler = request -> {
             uploads.incrementAndGet();
@@ -356,7 +379,7 @@ class AgentLoopManagerHitlTest {
 
     @Test
     void secondInteractiveCallInOneRoundIsDeferredByBudget() {
-        AgentTurn turn = new AgentTurn(new SpringAiPlaygroundOptions.AgentLoop(16, 18, 3, 1, null, null));
+        AgentTurn turn = new AgentTurn(new SpringAiPlaygroundOptions.AgentLoop(16, 18, 3, 1));
         AtomicInteger uploads = new AtomicInteger();
         FileUploadHandler uploadHandler = request -> {
             uploads.incrementAndGet();

@@ -33,9 +33,9 @@ public final class AgentTurnMessages {
                 + "in a new message.";
     }
 
-    public static String approvalTimedOut(String toolName) {
-        return "The approval request for tool '" + toolName + "' timed out before the user decided. It was NOT "
-                + "executed. Do not call '" + toolName + "' again for this request; tell the user the action is "
+    public static String approvalTimedOut(String toolName, int approvalWaitSeconds) {
+        return "Tool '" + toolName + "' was not run: no approval within " + approvalWaitSeconds + " s. "
+                + "Do not call '" + toolName + "' again for this request; tell the user the action is "
                 + "waiting on their approval and they can send the request again when ready.";
     }
 

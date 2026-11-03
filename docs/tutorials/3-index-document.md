@@ -1,3 +1,4 @@
+videos: ep8
 description: Tutorial 3 - upload a document, run the ETL pipeline (extract with the right reader, chunk, enrich, embed, store), and verify retrieval with a similarity search.
 
 # Tutorial 3 - Index a Document for RAG

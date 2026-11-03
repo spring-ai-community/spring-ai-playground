@@ -23,9 +23,12 @@ import com.vaadin.flow.component.confirmdialog.ConfirmDialog;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.radiobutton.RadioButtonGroup;
+import com.vaadin.flow.server.VaadinSession;
 import org.junit.jupiter.api.Test;
 import org.springaicommunity.playground.service.tool.HumanQuestion;
+import org.springaicommunity.playground.service.tool.HumanQuestionHandler;
 import org.springaicommunity.playground.service.tool.ToolManifest.Sandbox.RiskLevel;
+import org.springaicommunity.playground.webui.CountdownLabel;
 import org.springaicommunity.playground.webui.mcp.McpRiskChip;
 import org.springframework.boot.test.context.SpringBootTest;
 
@@ -257,6 +260,55 @@ class ChatHumanQuestionDialogTest extends SpringBrowserlessTest {
         handler.cancelPending();
 
         assertThat(answer.get(10, TimeUnit.SECONDS)).containsEntry("run-tool", "Decline");
+    }
+
+    @Test
+    void confirmDialogCountsDownBesideDeclineAndExpiresToTheTimeoutAnswer() throws Exception {
+        ChatHumanQuestionHandler handler = new ChatHumanQuestionHandler(UI.getCurrent(), 2);
+        HumanQuestion question = HumanQuestion.approval("run-tool", "Approve tool", "Run deleteFile?");
+
+        CompletableFuture<Map<String, String>> answer =
+                CompletableFuture.supplyAsync(() -> handler.ask(List.of(question)));
+        ConfirmDialog dialog = awaitAttached(() -> $(ConfirmDialog.class).all().stream()
+                .findFirst().orElse(null));
+        CountdownLabel countdown = $(CountdownLabel.class, dialog).first();
+        Button decline = $(Button.class, dialog)
+                .withCondition(button -> "Decline".equals(button.getText())).first();
+        assertThat(countdown.getText()).isEqualTo("0:02 left");
+        assertThat(countdown.getParent()).isPresent().get().isSameAs(decline);
+
+        assertThat(answer.get(10, TimeUnit.SECONDS)).containsEntry("run-tool", HumanQuestionHandler.TIMEOUT_ANSWER);
+        awaitClosed(() -> $(ConfirmDialog.class).all().isEmpty());
+    }
+
+    @Test
+    void batchDialogShowsTheCountdownInItsFooter() throws Exception {
+        ChatHumanQuestionHandler handler = new ChatHumanQuestionHandler(UI.getCurrent(), 125);
+        List<HumanQuestion> questions = List.of(
+                HumanQuestion.approval("first-tool", "Approve tool", "Run first?"),
+                HumanQuestion.approval("second-tool", "Approve tool", "Run second?"));
+
+        CompletableFuture<Map<String, String>> answer =
+                CompletableFuture.supplyAsync(() -> handler.ask(questions));
+        Dialog dialog = awaitAttached(() -> $(Dialog.class)
+                .withCondition(candidate -> "Tool approvals required".equals(candidate.getHeaderTitle()))
+                .all().stream().findFirst().orElse(null));
+
+        assertThat($(CountdownLabel.class, dialog).first().getText()).isEqualTo("2:05 left");
+        test($(Button.class, dialog).withCondition(button -> "Confirm".equals(button.getText())).single()).click();
+        assertThat(answer.get(10, TimeUnit.SECONDS)).containsEntry("first-tool", "Decline");
+    }
+
+    private void awaitClosed(Supplier<Boolean> closed) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 10_000L;
+        while (System.currentTimeMillis() < deadline) {
+            VaadinSession session = VaadinSession.getCurrent();
+            session.getService().runPendingAccessTasks(session);
+            roundTrip();
+            if (closed.get()) return;
+            Thread.sleep(50L);
+        }
+        throw new IllegalStateException("dialog did not close");
     }
 
     private <T> T awaitAttached(Supplier<T> query) throws InterruptedException {

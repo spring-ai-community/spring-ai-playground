@@ -16,18 +16,19 @@
 package org.springaicommunity.playground.service.mcp.risk;
 
 import tools.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springaicommunity.playground.service.PersistenceExecutor;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
-import org.springaicommunity.playground.service.mcp.catalog.McpCatalogService;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.service.mcp.client.McpTransportType;
 import org.springaicommunity.playground.service.tool.ToolManifest.Sandbox.RiskLevel;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.tool.definition.ToolDefinition;
+import org.springframework.beans.factory.ObjectProvider;
 
 import java.nio.file.Path;
 import java.time.Duration;
@@ -35,6 +36,8 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -122,6 +125,42 @@ class McpCompositionToolCallbackProviderTest {
         executor.awaitCompletion(Duration.ofSeconds(5));
     }
 
+    @Test
+    void exposedToolsCarryTheRiskTheRiskEvaluatorComputes() {
+        McpServerInfo info = new McpServerInfo(McpTransportType.STDIO, "GitHub", "", 0L, 0L, "{}");
+        McpCompositionService composition = mock(McpCompositionService.class);
+        McpComposition enabled = new McpComposition("c1", "dev", "", List.of(
+                new McpComposition.Member("GitHub", "list_repos", "github__list_repos", "")),
+                true, RiskLevel.L3, 1L, 1L, 1L);
+        when(composition.getEnabled()).thenReturn(List.of(enabled));
+        McpServerInfoService infoService = mock(McpServerInfoService.class);
+        when(infoService.read()).thenReturn(List.of(info));
+        McpClientService clientService = mock(McpClientService.class);
+        when(clientService.isConnecting(info)).thenReturn(true);
+        ToolCallbackProvider upstream = upstreamProviderFor("list_repos");
+        when(clientService.buildToolCallbackProviders(info)).thenReturn(List.of(upstream));
+        McpToolRiskEvaluator evaluator = mock(McpToolRiskEvaluator.class);
+        when(evaluator.composedRisk(eq(info), eq("list_repos"),
+                eq("desc"), any()))
+                .thenReturn(new McpToolRiskComposer.Composed(RiskLevel.L2, RiskLevel.L1, RiskLevel.L2, null));
+        McpToolHashLedger ledger = mock(McpToolHashLedger.class);
+        when(ledger.get("GitHub", "list_repos")).thenReturn(Optional.empty());
+
+        McpCompositionToolCallbackProvider provider = new McpCompositionToolCallbackProvider(composition, infoService,
+                clientService, providerOf(evaluator), ledger, new ObjectMapper(), new SimpleMeterRegistry());
+
+        assertThat(provider.getToolCallbacks()).singleElement()
+                .satisfies(callback -> assertThat(((WrappedExternalToolCallback) callback).riskLevel())
+                        .isEqualTo(RiskLevel.L2));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static ObjectProvider<McpToolRiskEvaluator> providerOf(McpToolRiskEvaluator evaluator) {
+        ObjectProvider<McpToolRiskEvaluator> provider = mock(ObjectProvider.class);
+        when(provider.getObject()).thenReturn(evaluator);
+        return provider;
+    }
+
     private static ToolCallbackProvider upstreamProviderFor(String toolName) {
         ToolDefinition def = mock(ToolDefinition.class);
         when(def.name()).thenReturn(toolName);
@@ -141,10 +180,8 @@ class McpCompositionToolCallbackProviderTest {
 
     private static McpCompositionToolCallbackProvider newProvider(McpCompositionService composition,
             McpServerInfoService infoService, McpClientService clientService, McpToolHashLedger ledger) {
-        McpCatalogService catalog = mock(McpCatalogService.class);
-        when(catalog.findByServerName(org.mockito.ArgumentMatchers.anyString())).thenReturn(Optional.empty());
-        return new McpCompositionToolCallbackProvider(composition, infoService, clientService, catalog,
-                mock(McpRiskInputsResolver.class), mock(McpServerRiskCalculator.class),
-                mock(McpToolPublishRiskCalculator.class), mock(McpToolRiskComposer.class), ledger, new ObjectMapper());
+        return new McpCompositionToolCallbackProvider(composition, infoService, clientService,
+                providerOf(mock(McpToolRiskEvaluator.class)), ledger, new ObjectMapper(),
+                new SimpleMeterRegistry());
     }
 }

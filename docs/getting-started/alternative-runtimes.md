@@ -3,7 +3,7 @@ description: Run Spring AI Playground via Docker container or direct source / fa
 
 # Alternative Runtimes
 
-The desktop installer is the recommended path (see [Desktop App](desktop.md)). When you can't or don't want to install the desktop bundle - containerised deployment, development workflow, MCP stdio integration for Claude Desktop or Claude Code - Docker or a direct source / fat-JAR run is the alternative. Both expose the same Vaadin UI on `http://localhost:8282` and the same built-in MCP server; both honour the same `mcp-stdio` profile.
+The desktop installer is the recommended path (see [Desktop App](desktop.md)). When you can't or don't want to install the desktop bundle - containerized deployment, development workflow, MCP stdio integration for Claude Desktop or Claude Code - Docker or a direct source / fat-JAR run is the alternative. Both expose the same Vaadin UI on `http://localhost:8282` and the same built-in MCP server; both honor the same `mcp-stdio` profile.
 
 For universal post-install steps (Your First Five Tasks, model configuration, telemetry), see [Getting Started](index.md). For the **complete list of configuration knobs** - every property, environment variable, and default, and how to set it in each mode - see the [Configuration reference](configuration.md).
 
@@ -89,7 +89,7 @@ The `-v spring-ai-playground:/root` named volume keeps authored tools, saved too
 
 Add `-p 8282:8282` if you also want browser access to the Vaadin Inspector alongside the stdio channel - the web UI runs in the same process either way; the port mapping just exposes it. Pick a different host port (e.g. `-p 9000:8282`) if 8282 is in use.
 
-The container ships with the gateway and authoring UI on. The **Starter 5** preset has no required credentials and works out of the box; other presets and individual catalog tools stay dormant until you supply the matching environment variables. Pass them with `-e NAME=value` flags on the same `docker run` line - the typical entries (`OPENAI_API_KEY`, `GOOGLE_API_KEY`, `GOOGLE_PSE_ID`, `SLACK_WEBHOOK_URL`, ...) are listed in [Desktop App → Use Environment Variables for Keys and Secrets](desktop.md#9-use-environment-variables-for-keys-and-secrets). The File Toolkit preset additionally honors `SPRING_AI_PLAYGROUND_TOOL_STUDIO_FS_BASE_PATH` to set the base path for `safety.fs`; if unset it defaults to `$HOME/spring-ai-playground/workspace` inside the container (typically `/root/spring-ai-playground/workspace`).
+The container ships with the built-in MCP server and the authoring UI on. The **Starter 5**, Dev Essentials, Korea Toolkit (free) and File Toolkit presets need no credentials and work out of the box; catalog tools that declare an API key stay dormant until you supply the matching environment variables. Pass them with `-e NAME=value` flags on the same `docker run` line - the typical entries (`OPENAI_API_KEY`, `GOOGLE_API_KEY`, `GOOGLE_PSE_ID`, `SLACK_WEBHOOK_URL`, ...) are listed in [Desktop App → Use Environment Variables for Keys and Secrets](desktop.md#9-use-environment-variables-for-keys-and-secrets). The File Toolkit preset additionally honors `SPRING_AI_PLAYGROUND_TOOL_STUDIO_FS_BASE_PATH` to set the base path for `safety.fs`; if unset it defaults to `$HOME/spring-ai-playground/workspace` inside the container (typically `/root/spring-ai-playground/workspace`).
 
 The `mcp-stdio` profile silences the CONSOLE log appender so stdout stays a clean JSON-RPC channel; rolling-file logs at `~/spring-ai-playground/logs/` are unaffected.
 
@@ -166,7 +166,7 @@ For Claude Desktop, point `claude_desktop_config.json` at the absolute JAR path:
 
 Notes:
 
-- the JVM must be Java 21 or newer (preferably GraalVM, so the JavaScript tool sandbox runs at full speed; on a non-GraalVM JVM the `-Dpolyglot.engine.WarnInterpreterOnly=false` flag falls back to interpreter mode automatically).
+- the JVM must be Java 21 or newer (preferably GraalVM, so the JavaScript tool sandbox runs at full speed; on a non-GraalVM JVM the sandbox falls back to interpreter mode automatically; add `-Dpolyglot.engine.WarnInterpreterOnly=false` to silence the warning about it).
 - the same caveats as the container apply: stdout is the MCP JSON-RPC channel, so the `mcp-stdio` profile silences the CONSOLE log appender. Rolling logs still land at `~/spring-ai-playground/logs/`.
 - the Vaadin Inspector also boots on `http://localhost:8282` by default, so the same JAR doubles as the authoring UI. Set `SERVER_PORT=0` if you want a random port (or just don't open the browser).
 

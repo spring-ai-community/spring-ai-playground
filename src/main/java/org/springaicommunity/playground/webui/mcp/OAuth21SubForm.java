@@ -32,6 +32,7 @@ import org.springaicommunity.playground.service.mcp.client.HttpConnectionParamet
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -245,26 +246,21 @@ public class OAuth21SubForm extends VerticalLayout {
 
     public boolean validateForSave() {
         clearAllInvalid();
-
-        boolean valid = true;
-        if (!hasText(clientIdField.getValue())) {
-            clientIdField.setInvalid(true);
-            clientIdField.setErrorMessage("Client ID is required for OAuth.");
-            valid = false;
+        HttpConnectionParametersWithExtras.OAuth record = toRecord();
+        if (record == null) {
+            record = new HttpConnectionParametersWithExtras.OAuth(null, null, null, null, null, null, null);
         }
-        boolean hasIssuer = hasText(issuerUriField.getValue());
-        boolean hasAuth = hasText(authorizationUriField.getValue()) && hasText(tokenUriField.getValue());
-        if (!hasIssuer && !hasAuth) {
-            authorizationUriField.setInvalid(true);
-            authorizationUriField.setErrorMessage("Provide either Issuer URI, or both Authorization and Token URIs.");
-            valid = false;
-        }
-        if (hasIssuer && !issuerUriField.getValue().trim().toLowerCase().startsWith("https://")) {
-            issuerUriField.setInvalid(true);
-            issuerUriField.setErrorMessage("Issuer URI must use HTTPS.");
-            valid = false;
-        }
-        return valid;
+        Map<String, String> errors = record.validationErrors();
+        errors.forEach((field, message) -> {
+            TextField target = switch (field) {
+                case HttpConnectionParametersWithExtras.OAuth.CLIENT_ID_FIELD -> clientIdField;
+                case HttpConnectionParametersWithExtras.OAuth.ISSUER_URI_FIELD -> issuerUriField;
+                default -> authorizationUriField;
+            };
+            target.setInvalid(true);
+            target.setErrorMessage(message);
+        });
+        return errors.isEmpty();
     }
 
     private static String trimToNull(String s) {

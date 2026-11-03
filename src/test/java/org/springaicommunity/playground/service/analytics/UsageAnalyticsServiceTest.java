@@ -77,7 +77,7 @@ class UsageAnalyticsServiceTest {
                 this.presetCatalog, this.mcpCatalogService, providerOf(this.mcpServerInfoService),
                 providerOf(this.mcpClientService), emptyProvider(), emptyProvider(), emptyProvider(),
                 emptyProvider(), emptyProvider(), providerOf(this.ringBuffer), emptyProvider(), emptyProvider(),
-                new SpringAiPlaygroundOptions(null, false, null, null, null, null));
+                new SpringAiPlaygroundOptions(null, false, null, null, null, null, null, null, null, null));
     }
 
     @SuppressWarnings("unchecked")
@@ -200,7 +200,7 @@ class UsageAnalyticsServiceTest {
                 this.integrityVerifier, this.presetCatalog, this.mcpCatalogService, emptyProvider(),
                 emptyProvider(), providerOf(ollama), emptyProvider(), emptyProvider(), emptyProvider(),
                 emptyProvider(), emptyProvider(), providerOf(new SystemMetricsSnapshot(new SimpleMeterRegistry())),
-                emptyProvider(), new SpringAiPlaygroundOptions(null, false, null, null, null, null));
+                emptyProvider(), new SpringAiPlaygroundOptions(null, false, null, null, null, null, null, null, null, null));
 
         Map<String, Object> params = snapshotService.dailyUsage().orElseThrow().snapshot();
 

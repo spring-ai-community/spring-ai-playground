@@ -54,7 +54,7 @@ All dashboards share the [Observability global settings](../index.md#global-sett
 
 ## Tables
 
-**Conversations grid** - `First · Conv id (short) · Messages · Duration · ...` - click a row to open the [Conversation Thread dialog](../runtime/traces.md#drilldown-conversation-thread-dialog) (documented alongside Trace Detail on the Traces page).
+**Conversations grid** - `Started · Conv ID · Msgs · Duration · Tools · RAG · Tokens · Cost · Models · Status` - click a row to open the [Conversation Thread dialog](../runtime/traces.md#drilldown-conversation-thread-dialog) (documented alongside Trace Detail on the Traces page).
 
 ## Cross-references
 

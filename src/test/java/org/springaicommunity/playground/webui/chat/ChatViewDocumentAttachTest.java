@@ -16,14 +16,23 @@
 package org.springaicommunity.playground.webui.chat;
 
 import com.vaadin.browserless.SpringBrowserlessTest;
+import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.UI;
+import com.vaadin.flow.component.listbox.ListBox;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.Icon;
+import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.data.renderer.ComponentRenderer;
+import com.vaadin.flow.router.QueryParameters;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springaicommunity.playground.service.chat.ChatDocumentIntakeService;
+import org.springaicommunity.playground.service.chat.ChatHistory;
+import org.springaicommunity.playground.service.chat.ChatHistoryService;
 import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentInfo;
 import org.springaicommunity.playground.service.vectorstore.OfflineEtlPipelineService;
+import org.springaicommunity.playground.webui.home.HomeView;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
@@ -66,6 +75,9 @@ class ChatViewDocumentAttachTest extends SpringBrowserlessTest {
     @Autowired
     private OfflineEtlPipelineService offlineEtlPipelineService;
 
+    @Autowired
+    private ChatHistoryService chatHistoryService;
+
     @BeforeEach
     void stubModels() {
         lenient().when(chatModel.getOptions()).thenReturn(ChatOptions.builder().build());
@@ -84,6 +96,18 @@ class ChatViewDocumentAttachTest extends SpringBrowserlessTest {
 
     private static String mediumText() {
         return IntStream.range(0, 5000).mapToObj(i -> "word" + i).collect(Collectors.joining(" "));
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> renderedHistoryTitles(ChatView view) {
+        ListBox<ChatHistory> historyList = $(ListBox.class, view)
+                .withCondition(box -> ((ListBox<Object>) box).getListDataView().getItems()
+                        .anyMatch(ChatHistory.class::isInstance))
+                .single();
+        ComponentRenderer<Component, ChatHistory> renderer =
+                (ComponentRenderer<Component, ChatHistory>) historyList.getItemRenderer();
+        return historyList.getListDataView().getItems()
+                .map(history -> renderer.createComponent(history).getElement().getText()).toList();
     }
 
     private ChatAttach chatAttach(ChatView view) {
@@ -125,6 +149,74 @@ class ChatViewDocumentAttachTest extends SpringBrowserlessTest {
         test(removeControls(view, "notes.md").getFirst()).click();
         assertThat(removeControls(view, "notes.md")).isEmpty();
         assertThat(this.documentIntakeService.list(conversationId)).isEmpty();
+    }
+
+    @Test
+    void attachingBeforeTheFirstMessageRegistersTheConversationSoItCanBeReopened() throws InterruptedException {
+        ChatView view = navigate(ChatView.class);
+        String conversationId = $(ChatContentView.class, view).single().getConversationId();
+        assertThat(this.chatHistoryService.getChatHistory(conversationId)).isNull();
+        try {
+            chatAttach(view).receiveDocument("handbook.md", base64Of("Badge readers reset at midnight."),
+                    "text/markdown");
+
+            assertThat(awaitBadge(view, "handbook.md", "Full text")).isTrue();
+            assertThat(this.chatHistoryService.getChatHistory(conversationId)).isNotNull()
+                    .extracting(ChatHistory::title).isNull();
+            assertThat(renderedHistoryTitles(view)).contains(ChatHistoryView.UNTITLED_CHAT_LABEL);
+            assertThat(this.chatHistoryService.getChatHistoryList()).extracting(ChatHistory::conversationId)
+                    .contains(conversationId);
+
+            UI.getCurrent().navigate(HomeView.class);
+            roundTrip();
+            UI.getCurrent().navigate(ChatView.class, QueryParameters.of("conv", conversationId));
+            roundTrip();
+            ChatView reopened = (ChatView) getCurrentView();
+            assertThat($(ChatContentView.class, reopened).single().getConversationId()).isEqualTo(conversationId);
+            assertThat(removeControls(reopened, "handbook.md")).isNotEmpty();
+            assertThat($(Notification.class).all())
+                    .extracting(notification -> notification.getElement().getProperty("text"))
+                    .noneMatch(text -> text != null && text.contains("is not in active chat history"));
+        } finally {
+            ChatHistory registered = this.chatHistoryService.getChatHistory(conversationId);
+            if (registered != null) this.chatHistoryService.deleteChatHistory(registered, true);
+        }
+    }
+
+    @Test
+    void attachingTheSameDocumentAgainShowsAlreadyAttachedAndAddsNoSecondChip() throws InterruptedException {
+        ChatView view = navigate(ChatView.class);
+        String conversationId = $(ChatContentView.class, view).single().getConversationId();
+        chatAttach(view).receiveDocument("nimbus-handbook.md", base64Of("vacation policy"), "text/markdown");
+        roundTrip();
+
+        chatAttach(view).receiveDocument("nimbus-handbook.md", base64Of("vacation policy"), "text/markdown");
+        roundTrip();
+
+        assertThat($(Notification.class).all())
+                .extracting(notification -> notification.getElement().getProperty("text"))
+                .contains("nimbus-handbook.md is already attached.");
+        assertThat(removeControls(view, "nimbus-handbook.md")).hasSize(1);
+        assertThat(this.documentIntakeService.list(conversationId)).hasSize(1);
+    }
+
+    @Test
+    void sixthAttachmentShowsTheServiceLimitAndAddsNoChip() {
+        ChatView view = navigate(ChatView.class);
+        String conversationId = $(ChatContentView.class, view).single().getConversationId();
+        for (int i = 0; i < ChatDocumentIntakeService.MAX_ATTACHMENTS; i++)
+            this.documentIntakeService.attach(conversationId, "seed" + i + ".md",
+                    "seed note".getBytes(StandardCharsets.UTF_8), "text/markdown");
+
+        chatAttach(view).receiveDocument("extra.md", base64Of("one too many"), "text/markdown");
+        roundTrip();
+
+        assertThat($(Notification.class).all())
+                .extracting(notification -> notification.getElement().getProperty("text"))
+                .contains("You can attach up to 5 documents.");
+        assertThat(removeControls(view, "extra.md")).isEmpty();
+        assertThat(this.documentIntakeService.list(conversationId))
+                .hasSize(ChatDocumentIntakeService.MAX_ATTACHMENTS);
     }
 
     @Test

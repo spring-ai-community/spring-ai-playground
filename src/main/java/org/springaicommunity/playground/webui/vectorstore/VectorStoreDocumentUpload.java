@@ -30,6 +30,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -79,25 +80,8 @@ public class VectorStoreDocumentUpload extends VerticalLayout {
             }
         };
 
-        UploadHandler inMemoryHandler = UploadHandler.inMemory((metadata, data) -> {
-            String fileName = metadata.fileName();
-            try {
-                File tempFile = File.createTempFile("upload-", ".tmp");
-                Files.write(tempFile.toPath(), data);
-                this.offlineEtlPipelineService.stageUpload(fileName, tempFile);
-                this.uploadedFileNames.add(fileName);
-                tempFile.delete();
-                if (this.onFileUploaded != null) this.onFileUploaded.accept(fileName);
-            } catch (FileAlreadyExistsException e) {
-                clearFileList();
-                VaadinUtils.showErrorNotification(fileName
-                        + " is already indexed. Delete the existing document first or rename the file.");
-            } catch (Exception e) {
-                this.offlineEtlPipelineService.removeUploadedDocumentFile(fileName);
-                clearFileList();
-                VaadinUtils.showErrorNotification("Upload failed: " + fileName + " - " + e.getMessage());
-            }
-        }, progressListener);
+        UploadHandler inMemoryHandler = UploadHandler.inMemory(
+                (metadata, data) -> acceptUpload(metadata.fileName(), data), progressListener);
 
         Upload upload = new Upload(inMemoryHandler);
         upload.setWidthFull();
@@ -118,18 +102,10 @@ public class VectorStoreDocumentUpload extends VerticalLayout {
 
 
         upload.getElement().addEventListener("file-remove",
-                event -> {
-                    Optional.ofNullable(event.getEventData().get("event.detail.file.name")).map(Object::toString)
-                            .ifPresent(fileName -> {
-                                try {
-                                    this.offlineEtlPipelineService.removeUploadedDocumentFile(fileName);
-                                    this.uploadedFileNames.remove(fileName);
-                                    if (this.onFileRemoved != null) this.onFileRemoved.accept(fileName);
-                                } catch (IOException e) {
-                                    VaadinUtils.showErrorNotification("Failed to delete file: " + e.getMessage());
-                                }
-                            });
-                }).addEventData("event.detail.file.name");
+                event -> Optional.ofNullable(event.getEventData().get("event.detail.file.name"))
+                        .map(Object::toString)
+                        .ifPresent(this::discardUploadedFile))
+                .addEventData("event.detail.file.name");
 
         upload.setI18n(createI18n());
 
@@ -189,6 +165,48 @@ public class VectorStoreDocumentUpload extends VerticalLayout {
         uploadingError.setForbidden("Upload forbidden. Please check file permissions.");
         uploading.setError(uploadingError);
         return uploading;
+    }
+
+    public void acceptUpload(String rawFileName, byte[] data) {
+        String fileName = canonicalFileName(rawFileName);
+        try {
+            File tempFile = File.createTempFile("upload-", ".tmp");
+            Files.write(tempFile.toPath(), data);
+            this.offlineEtlPipelineService.stageUpload(fileName, tempFile);
+            if (!this.uploadedFileNames.contains(fileName)) this.uploadedFileNames.add(fileName);
+            tempFile.delete();
+            if (this.onFileUploaded != null) this.onFileUploaded.accept(fileName);
+        } catch (FileAlreadyExistsException e) {
+            clearFileList();
+            VaadinUtils.showErrorNotification(fileName
+                    + " is already indexed. Delete the existing document first or rename the file.");
+        } catch (Exception e) {
+            discardStagedFile(fileName);
+            clearFileList();
+            VaadinUtils.showErrorNotification("Upload failed: " + fileName + " - " + e.getMessage());
+        }
+    }
+
+    public void discardUploadedFile(String rawFileName) {
+        String fileName = canonicalFileName(rawFileName);
+        try {
+            discardStagedFile(fileName);
+        } finally {
+            this.uploadedFileNames.remove(fileName);
+            if (this.onFileRemoved != null) this.onFileRemoved.accept(fileName);
+        }
+    }
+
+    private void discardStagedFile(String fileName) {
+        try {
+            this.offlineEtlPipelineService.removeUploadedDocumentFile(fileName);
+        } catch (IOException e) {
+            VaadinUtils.showErrorNotification("Failed to delete file: " + e.getMessage());
+        }
+    }
+
+    private static String canonicalFileName(String fileName) {
+        return fileName == null ? null : Normalizer.normalize(fileName, Normalizer.Form.NFC);
     }
 
     public void clearFileList() {

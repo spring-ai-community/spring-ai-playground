@@ -73,6 +73,23 @@ class OfflineEtlPipelineServiceTest {
     }
 
     @Test
+    void extractAndTransformReadsARepeatedFileNameOnce() throws Exception {
+        File tempFile = File.createTempFile("repeat", ".txt");
+        Files.write(tempFile.toPath(), "Repeated upload content".getBytes());
+        String fileName = "repeat-upload.txt";
+        service.stageUpload(fileName, tempFile);
+        try {
+            Map<String, List<Document>> extracted = service.extractAndTransform(List.of(fileName, fileName),
+                    service.getDefaultTokenTextSplitter());
+
+            assertEquals(1, extracted.size());
+            assertEquals(1, extracted.get(fileName).size());
+        } finally {
+            service.removeUploadedDocumentFile(fileName);
+        }
+    }
+
+    @Test
     void stageUploadReplacesAStagedFileThatWasNeverIndexed() throws Exception {
         File original = File.createTempFile("original", ".txt");
         Files.write(original.toPath(), "original content".getBytes());
@@ -220,6 +237,19 @@ class OfflineEtlPipelineServiceTest {
                 OfflineEtlPipelineService.ReaderType.recommendFor("slides.pptx"));
         assertEquals(OfflineEtlPipelineService.ReaderType.TIKA,
                 OfflineEtlPipelineService.ReaderType.recommendFor("no-extension"));
+    }
+
+    @Test
+    void markdownSectionsKeepTheirHeadingInTheText() throws IOException {
+        Path md = Files.createTempDirectory("etl-markdown").resolve("prices.md");
+        Files.writeString(md, "# Price list\n\n## E-bike\n- Full day 42.00\n\n## Tandem\n- Full day 34.00\n");
+        List<Document> sections = service.newDocumentReader(new FileSystemResource(md.toFile()),
+                OfflineEtlPipelineService.ExtractOptions.defaults(
+                        OfflineEtlPipelineService.ReaderType.MARKDOWN)).read();
+        assertTrue(sections.stream().anyMatch(section -> section.getText().startsWith("E-bike\n")
+                && section.getText().contains("42.00")));
+        assertTrue(sections.stream().anyMatch(section -> section.getText().startsWith("Tandem\n")
+                && section.getText().contains("34.00")));
     }
 
     @Test

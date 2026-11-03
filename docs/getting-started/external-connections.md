@@ -1,7 +1,7 @@
-title: External connections
+title: External Connections
 description: Connect Spring AI Playground to your AI client (Claude, Cursor, Codex, VS Code), set up model providers (Ollama, OpenAI), and add external MCP servers.
 
-# External connections
+# External Connections
 
 Spring AI Playground sits between three kinds of connection - see [How it all connects](../index.md#how-it-all-connects) for the picture. This is the practical guide to wiring each one:
 

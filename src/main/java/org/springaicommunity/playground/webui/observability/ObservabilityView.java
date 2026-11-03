@@ -33,14 +33,19 @@ import com.vaadin.flow.spring.annotation.UIScope;
 import org.springaicommunity.playground.observability.ObservabilityProperties;
 import org.springaicommunity.playground.observability.McpRiskEventRingBuffer;
 import org.springaicommunity.playground.observability.ObservabilityRingBuffer;
+import org.springaicommunity.playground.observability.query.ObservabilityQueryService;
 import org.springaicommunity.playground.observability.ObservabilityTimeSeries;
 import org.springaicommunity.playground.observability.Window;
+import org.springaicommunity.playground.observability.logs.LogQueryService;
 import org.springaicommunity.playground.observability.ollama.OllamaMetricsTimeSeries;
 import org.springaicommunity.playground.observability.system.SystemMetricsSnapshot;
 import org.springaicommunity.playground.observability.system.SystemMetricsTimeSeries;
 import org.springaicommunity.playground.observability.pricing.CurrencyService;
+import org.springaicommunity.playground.webui.observability.components.CurrencyFlags;
 import org.springaicommunity.playground.observability.pricing.ModelPricingService;
 import org.springaicommunity.playground.service.chat.OllamaMonitorService;
+import org.springaicommunity.playground.service.management.ManagementAuditLog;
+import org.springaicommunity.playground.service.management.ManagementToolRegistrar;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.webui.PersistentUiDataStorage;
 import org.springaicommunity.playground.webui.SpringAiPlaygroundAppLayout;
@@ -54,7 +59,6 @@ import org.springaicommunity.playground.webui.observability.components.Observabi
 import org.springaicommunity.playground.webui.observability.components.ObservabilitySettingsPanel.RefreshIntervalPicker;
 import org.springaicommunity.playground.webui.observability.components.ObservabilitySettingsPanel.TimeWindowPicker;
 
-import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -96,35 +100,38 @@ public class ObservabilityView extends ContentWorkspaceView {
     private ModelPricingService pricingServiceRef;
 
     public ObservabilityView(ObservabilityRingBuffer buffer,
+            ObservabilityQueryService queryService,
             McpRiskEventRingBuffer riskEventBuffer,
             ObservabilityTimeSeries timeSeries,
             SystemMetricsSnapshot systemMetrics,
             SystemMetricsTimeSeries systemMetricsTimeSeries,
             ModelPricingService pricingService,
             CurrencyService currencyService,
-            Path springAiPlaygroundHomeDir,
+            LogQueryService logQueryService,
             PersistentUiDataStorage storage,
             McpClientService mcpClientService,
             OllamaMonitorService ollamaMonitor,
             OllamaMetricsTimeSeries ollamaMetricsTimeSeries,
-            ObservabilityProperties obsProps) {
+            ObservabilityProperties obsProps,
+            ManagementAuditLog managementAuditLog,
+            ManagementToolRegistrar managementRegistrar) {
         this.storage = storage;
 
-        TokensAndCostTab tokens = new TokensAndCostTab(buffer, timeSeries, pricingService, currencyService);
+        TokensAndCostTab tokens = new TokensAndCostTab(queryService, timeSeries, currencyService);
         HostRuntimeTab hostRuntime = new HostRuntimeTab(systemMetrics, systemMetricsTimeSeries);
         WebApplicationTab webApp = new WebApplicationTab(systemMetrics);
         OllamaRuntimeTab ollama = new OllamaRuntimeTab(ollamaMonitor, ollamaMetricsTimeSeries, systemMetrics);
-        this.logsTab = new LogsTab(springAiPlaygroundHomeDir, globalSettings);
-        ToolsTab toolsView = new ToolsTab(buffer, timeSeries, systemMetrics, mcpClientService);
-        McpTab mcp = new McpTab(buffer, timeSeries, systemMetrics, mcpClientService);
+        this.logsTab = new LogsTab(logQueryService, globalSettings);
+        ToolsTab toolsView = new ToolsTab(queryService, systemMetrics);
+        McpTab mcp = new McpTab(queryService, systemMetrics);
         McpPrimitivesTab mcpPrimitives = new McpPrimitivesTab(systemMetrics);
-        SafetyTab safety = new SafetyTab(systemMetrics, riskEventBuffer);
-        VectorTab vector = new VectorTab(buffer, timeSeries);
+        SafetyTab safety = new SafetyTab(systemMetrics, riskEventBuffer, managementAuditLog, managementRegistrar);
+        VectorTab vector = new VectorTab(queryService, timeSeries);
         LlmTab llm = new LlmTab(timeSeries, systemMetrics);
-        AgenticChatTab agenticChat = new AgenticChatTab(buffer, pricingService);
+        AgenticChatTab agenticChat = new AgenticChatTab(queryService, buffer);
         TracesTab traces = new TracesTab(buffer);
         traces.setRowClickListener(trace -> new TraceDetailDialog(trace, buffer).open());
-        OverviewTab overview = new OverviewTab(buffer, timeSeries, systemMetrics, pricingService,
+        OverviewTab overview = new OverviewTab(buffer, queryService, timeSeries, systemMetrics, pricingService,
                 currencyService, obsProps, this::navigateToSlug);
 
         DashboardEntry overviewEntry = register("overview", "Overview", VaadinIcon.DASHBOARD, overview);
@@ -289,7 +296,7 @@ public class ObservabilityView extends ContentWorkspaceView {
         if (pricingButton == null || currencyService == null) return;
         CurrencyService.CurrencyRate r = currencyService.getActiveRate();
         boolean noPricing = pricingServiceRef != null && pricingServiceRef.all().isEmpty();
-        String flag = CurrencyService.flagFor(r.code());
+        String flag = CurrencyFlags.flagFor(r.code());
         String currencyPart = "USD".equals(r.code())
                 ? flag + " USD"
                 : flag + " " + r.code() + " " + r.symbol() + "×" + r.rateFromUsd().toPlainString();

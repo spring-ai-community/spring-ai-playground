@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest
 class StdioMcpClientServiceTest {
@@ -77,6 +78,14 @@ class StdioMcpClientServiceTest {
 
         assertThat(this.mcpClientService.pingMcpClient(this.mcpServerInfo)).isNotNull();
         assertThat(this.mcpClientService.getServerCapabilitiesAsOpt(this.mcpServerInfo)).isPresent();
+
+        McpSchema.Root root = new McpSchema.Root("file:///tmp/mcp-demo", "mcp-demo");
+        this.mcpClientService.addRoot(this.mcpServerInfo, root);
+        assertThat(this.mcpClientService.getRoots(this.mcpServerInfo)).containsExactly(root);
+        assertThatThrownBy(() -> this.mcpClientService.addRoot(this.mcpServerInfo, root))
+                .isInstanceOf(IllegalArgumentException.class);
+        this.mcpClientService.removeRoot(this.mcpServerInfo, root.uri());
+        assertThat(this.mcpClientService.getRoots(this.mcpServerInfo)).isEmpty();
 
         this.mcpClientService.stopMcpClient(this.mcpServerInfo);
         assertThat(this.mcpClientService.getServerCapabilitiesAsOpt(this.mcpServerInfo)).isEmpty();

@@ -100,13 +100,13 @@ class ToolIndexWarmupTest {
     }
 
     @Test
-    void skipsWhenThePoolIsEmpty() {
+    void reconcilesToAnEmptyIndexWhenTheLastToolIsGone() {
         when(this.toolSpecService.getToolSpecList()).thenReturn(List.of());
         when(this.compositionProvider.getToolCallbacks()).thenReturn(new ToolCallback[0]);
         PersistentToolIndex index = mock(PersistentToolIndex.class);
 
-        warmup(index).run(null);
+        warmup(index).reindexPublishedTools();
 
-        verify(index, never()).indexTools(any(), any());
+        verify(index).indexTools(ChatMemory.CONVERSATION_ID, List.of());
     }
 }

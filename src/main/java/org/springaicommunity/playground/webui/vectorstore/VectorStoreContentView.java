@@ -72,7 +72,6 @@ import static com.vaadin.flow.component.grid.GridVariant.LUMO_NO_BORDER;
 import static com.vaadin.flow.component.grid.GridVariant.LUMO_ROW_STRIPES;
 import static com.vaadin.flow.component.grid.GridVariant.LUMO_WRAP_CELL_CONTENT;
 import static org.springaicommunity.playground.service.vectorstore.VectorStoreService.ALL_SEARCH_REQUEST_OPTION;
-import static org.springaicommunity.playground.service.vectorstore.VectorStoreService.DOC_INFO_ID;
 import static org.springaicommunity.playground.service.vectorstore.VectorStoreService.SEARCH_ALL_REQUEST_WITH_DOC_INFO_IDS_FUNCTION;
 
 public class VectorStoreContentView extends VerticalLayout implements BeforeEnterObserver, BeforeLeaveObserver {
@@ -331,15 +330,12 @@ public class VectorStoreContentView extends VerticalLayout implements BeforeEnte
         dialog.add(body);
 
         Button save = new Button("Add", event -> {
-            String name = Optional.ofNullable(nameCombo.getValue()).map(String::trim).orElse("");
-            String text = Optional.ofNullable(textArea.getValue()).orElse("");
-            if (name.isBlank() || text.isBlank()) {
-                VaadinUtils.showErrorNotification("Document name and text are required");
-                return;
-            }
             try {
-                Document raw = buildSimpleDocument(text, metadataArea.getValue());
-                addChunkToDocument(name, raw, existingDocs);
+                VectorStoreService.AddChunkResult result = this.vectorStoreService.addChunk(
+                        new VectorStoreService.AddChunkRequest(nameCombo.getValue(), textArea.getValue(),
+                                readMetadata(metadataArea.getValue())));
+                if (result.created() && Objects.nonNull(this.onCustomDocumentCreated))
+                    this.onCustomDocumentCreated.accept(result.document());
                 showAllDocuments();
                 dialog.close();
             } catch (Exception ex) {
@@ -354,26 +350,11 @@ public class VectorStoreContentView extends VerticalLayout implements BeforeEnte
         nameCombo.focus();
     }
 
-    private Document buildSimpleDocument(String text, String metadataJson) {
+    private Map<String, Object> readMetadata(String metadataJson) {
         Map<String, Object> metadata = new HashMap<>();
         if (Objects.nonNull(metadataJson) && !metadataJson.isBlank())
             metadata.putAll(readToObject(metadataJson, MAP_TYPE_REFERENCE));
-        return new Document(text, metadata);
-    }
-
-    private void addChunkToDocument(String name, Document raw, List<VectorStoreDocumentInfo> existingDocs) {
-        VectorStoreDocumentInfo existing =
-                existingDocs.stream().filter(document -> name.equals(document.title())).findFirst().orElse(null);
-        if (Objects.nonNull(existing)) {
-            Map<String, Object> withDocInfo = new HashMap<>(raw.getMetadata());
-            withDocInfo.put(DOC_INFO_ID, existing.docInfoId());
-            this.vectorStoreService.add(List.of(new Document(raw.getText(), withDocInfo)));
-            return;
-        }
-        VectorStoreDocumentInfo created = this.offlineEtlPipelineService.loadDocument(name, List.of(raw));
-        this.vectorStoreService.add(created);
-        if (Objects.nonNull(this.onCustomDocumentCreated))
-            this.onCustomDocumentCreated.accept(created);
+        return metadata;
     }
 
     private VectorStoreContentItem convertToViewDocument(Document document) {

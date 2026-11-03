@@ -1,3 +1,4 @@
+videos: ep8
 description: The offline half of RAG - Spring AI's ETL pipeline in the Playground, with every document reader, splitter setting, and metadata enricher mapped to its framework class.
 
 # Offline: Indexing
@@ -62,9 +63,9 @@ Chunk Size and Min Chunk Size Chars are the two that move retrieval quality most
 Two optional enrichers attach LLM-generated metadata before embedding:
 
 - **Keyword metadata** uses `KeywordMetadataEnricher`, writing `excerpt_keywords`.
-- **Summary metadata** uses `SummaryMetadataEnricher`, writing `section_summary`, optionally folding in the neighbouring chunks with the **Previous** and **Next** options.
+- **Summary metadata** uses `SummaryMetadataEnricher`, writing `section_summary`, optionally folding in the neighboring chunks with the **Previous** and **Next** options.
 
-Each enricher costs one model call per chunk, so both of them on a 5-chunk document is 10 calls. This is the only part of indexing that spends model time, which is why the dialog states the cost before it starts and the progress dialog repeats it.
+Each enricher costs one model call per chunk, so both of them on a 5-chunk document is 10 calls. This is the only part of indexing that spends model time, which is why the dialog states the cost before it starts and the progress dialog repeats the calls per chunk.
 
 ![The enrichment progress dialog titled Enriching 5 chunks, 10 LLM calls, with a progress bar and a Cancel button](../../assets/images/rag/offline-enrich-progress.png)
 
@@ -89,6 +90,41 @@ Chunking is a separate step from embedding. **Chunk Document** runs extract and 
 Review is also a filter: each chunk has a checkbox, and unchecking one drops it from the load stage. Boilerplate, a table of contents, or a legal footer can be left out instead of polluting the store with chunks that will only ever be false matches.
 
 **Embed and insert** performs the load stage, writing every selected chunk through the configured `VectorStore`. The document then appears under **Sources → Documents**, and if no RAG pipeline exists yet the app also creates a default retrieval pipeline for it, so chat has something to select immediately.
+
+## Declare documents in configuration
+
+Everything the upload dialog asks for is also a configuration key, so a document can be declared once and
+loaded on every start. The same declaration is what an AI client reads when it builds a knowledge server for you:
+
+```yaml
+spring:
+  ai:
+    playground:
+      rag:
+        ingest-roots: [~/saip-inbox]
+        documents:
+          - source: {path: ~/saip-inbox/handbook.pdf}
+            title: Field Service Handbook
+            extract: {reader: PDF_PAGE}
+            split: {chunk-size: 600}
+          - source: {url: https://example.com/release-notes.md}
+            title: Release notes
+          - source: {text: "Berths are allocated by the harbour master every Monday."}
+            title: Berth rule
+```
+
+- `source` is one of `path` (a file inside `spring.ai.playground.rag.ingest-roots`, default `<home>/vectorstore/inbox`),
+  `url` (http or https) or `text`. Paths outside every root are refused.
+- `title` is the key. A declared title that is not indexed yet is ingested; one whose file bytes or options changed is
+  deleted and ingested again; an unchanged one is skipped. The comparison uses the `sourceFingerprint` stored with
+  the document.
+- `extract`, `split` and `enrich` take the dialog's fields with the dialog's defaults; enrichment needs a chat model.
+- Declared documents carry a **Config** badge in the sidebar (hover: *Managed by configuration*) and cannot be edited or deleted there.
+  A declaration that failed is listed in the sidebar with the reason.
+
+Every key is listed in the [configuration reference](../../getting-started/configuration.md#rag).
+
+An AI client sends the same record to `saip_knowledge_ingest_document` ([Management Tools](../mcp-server/management-tools.md#building-the-knowledge-behind-a-search-tool)). A `path` must be the absolute path of a file inside an ingest root, and the refusal says what is wrong: a relative path comes back with the absolute path to use, a missing file is named as missing, and a path outside every root names the property to extend. The call blocks until the chunks are embedded and reports each stage as MCP progress when the client sent a `progressToken`. [Tutorial 21](../../tutorials/21-ai-builds-a-knowledge-server.md) shows ChatGPT indexing two files this way and shipping them.
 
 ## Not exposed, and why
 

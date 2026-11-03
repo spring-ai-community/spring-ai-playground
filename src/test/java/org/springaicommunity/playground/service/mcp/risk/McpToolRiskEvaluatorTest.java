@@ -15,6 +15,7 @@
  */
 package org.springaicommunity.playground.service.mcp.risk;
 
+import io.modelcontextprotocol.spec.McpSchema;
 import tools.jackson.databind.json.JsonMapper;
 import org.junit.jupiter.api.Test;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
@@ -27,10 +28,13 @@ import org.springaicommunity.playground.service.tool.ToolSpecService;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -107,7 +111,7 @@ class McpToolRiskEvaluatorTest {
     @Test
     void selfBuiltinHitlOnCleanToolLowersEffectiveOneBand() {
         ToolSpecService toolSpecService = mock(ToolSpecService.class);
-        when(toolSpecService.getSandboxRiskLevel("deleteFile")).thenReturn(RiskLevel.L5);
+        when(toolSpecService.gatingRiskLevel("deleteFile")).thenReturn(RiskLevel.L5);
         when(toolSpecService.requiresApproval("deleteFile")).thenReturn(true);
         McpToolRiskEvaluator evaluator = evaluatorForBuiltin("builtin", toolSpecService);
 
@@ -122,7 +126,7 @@ class McpToolRiskEvaluatorTest {
     @Test
     void selfBuiltinPoisonedDescriptionGetsNoHitlCredit() {
         ToolSpecService toolSpecService = mock(ToolSpecService.class);
-        when(toolSpecService.getSandboxRiskLevel("deleteFile")).thenReturn(RiskLevel.L5);
+        when(toolSpecService.gatingRiskLevel("deleteFile")).thenReturn(RiskLevel.L5);
         when(toolSpecService.requiresApproval("deleteFile")).thenReturn(true);
         McpToolRiskEvaluator evaluator = evaluatorForBuiltin("builtin", toolSpecService);
 
@@ -136,7 +140,7 @@ class McpToolRiskEvaluatorTest {
     @Test
     void selfBuiltinWithoutApprovalKeepsInherentLevel() {
         ToolSpecService toolSpecService = mock(ToolSpecService.class);
-        when(toolSpecService.getSandboxRiskLevel("grepFile")).thenReturn(RiskLevel.L3);
+        when(toolSpecService.gatingRiskLevel("grepFile")).thenReturn(RiskLevel.L3);
         when(toolSpecService.requiresApproval("grepFile")).thenReturn(false);
         McpToolRiskEvaluator evaluator = evaluatorForBuiltin("builtin", toolSpecService);
 
@@ -146,4 +150,91 @@ class McpToolRiskEvaluatorTest {
         assertEquals(RiskLevel.L3, risk.finalLevel());
         assertEquals(RiskLevel.L3, risk.inherentLevel());
     }
+
+    @Test
+    void selfBuiltinProxiedToolKeepsItsComposedLevel() {
+        ToolSpecService toolSpecService = mock(ToolSpecService.class);
+        when(toolSpecService.gatingRiskLevel("mcp_everything_echo")).thenReturn(RiskLevel.L2);
+        when(toolSpecService.requiresApproval("mcp_everything_echo")).thenReturn(false);
+        McpToolRiskEvaluator evaluator = evaluatorForBuiltin("builtin", toolSpecService);
+
+        McpToolRiskEvaluator.ToolRiskView risk = evaluator.evaluateTool(serverInfo("builtin"),
+                "mcp_everything_echo", "Echoes back the input.", null);
+
+        assertEquals(RiskLevel.L2, risk.finalLevel());
+        assertEquals(RiskLevel.L2, risk.inherentLevel());
+    }
+
+    @Test
+    void selfBuiltinHitlNeverLiftsAVerifiedTool() {
+        ToolSpecService toolSpecService = mock(ToolSpecService.class);
+        when(toolSpecService.gatingRiskLevel("currentTime")).thenReturn(RiskLevel.L0);
+        when(toolSpecService.requiresApproval("currentTime")).thenReturn(true);
+        McpToolRiskEvaluator evaluator = evaluatorForBuiltin("builtin", toolSpecService);
+
+        McpToolRiskEvaluator.ToolRiskView risk = evaluator.evaluateTool(serverInfo("builtin"), "currentTime",
+                "Returns the current time.", null);
+
+        assertEquals(RiskLevel.L0, risk.finalLevel());
+        assertEquals(RiskLevel.L0, risk.inherentLevel());
+    }
+
+    @Test
+    void toolOverloadExtractsPropertySchemasFromTheInputSchema() {
+        Map<String, Object> inputSchema = Map.of("type", "object",
+                "properties", Map.of("path", Map.of("type", "string"), "loose", "not-a-map"),
+                "required", List.of("path"));
+
+        Map<String, Map<String, Object>> schemas = McpToolRiskEvaluator.propertySchemas(inputSchema);
+
+        assertEquals(Map.of("type", "string"), schemas.get("path"));
+        assertEquals(Map.of(), schemas.get("loose"));
+        assertTrue(McpToolRiskEvaluator.propertySchemas(null).isEmpty());
+        assertTrue(McpToolRiskEvaluator.propertySchemas(Map.of("type", "object")).isEmpty());
+    }
+
+    @Test
+    void toolOverloadMatchesTheExplodedFormForTheBuiltInServer() {
+        ToolSpecService toolSpecService = mock(ToolSpecService.class);
+        when(toolSpecService.gatingRiskLevel("weather")).thenReturn(RiskLevel.L2);
+        McpToolRiskEvaluator evaluator = evaluatorForBuiltin("builtin", toolSpecService);
+        McpSchema.Tool tool = McpSchema.Tool.builder().name("weather").description("Forecast lookup")
+                .inputSchema(Map.of("type", "object", "properties", Map.of("city", Map.of("type", "string"))))
+                .build();
+
+        McpToolRiskEvaluator.ToolRiskView fromTool = evaluator.evaluateTool(serverInfo("builtin"), tool);
+        McpToolRiskEvaluator.ToolRiskView exploded = evaluator.evaluateTool(serverInfo("builtin"), "weather",
+                "Forecast lookup", Map.of("city", Map.of("type", "string")));
+
+        assertEquals(exploded.inherentLevel(), fromTool.inherentLevel());
+        assertEquals(exploded.finalLevel(), fromTool.finalLevel());
+        assertEquals(RiskLevel.L2, fromTool.inherentLevel());
+        assertEquals(RiskLevel.L1, evaluator.evaluateTool(serverInfo("builtin"), null).inherentLevel());
+    }
+    @Test
+    void theChipAndTheExposedToolUseTheSameComposedRisk() {
+        McpCatalogService catalog = mock(McpCatalogService.class);
+        when(catalog.findByServerName("DeepWiki")).thenReturn(Optional.empty());
+        McpRiskInputsResolver resolver = mock(McpRiskInputsResolver.class);
+        McpToolRiskComposer composer = mock(McpToolRiskComposer.class);
+        McpToolRiskComposer.Composed composed = new McpToolRiskComposer.Composed(RiskLevel.L2, RiskLevel.L1,
+                RiskLevel.L2, null);
+        when(composer.composeWrappedExternal(any(), any()))
+                .thenReturn(composed);
+        SpringAiPlaygroundOptions options = mock(SpringAiPlaygroundOptions.class);
+        when(options.builtInMcpServer()).thenReturn(new BuiltInMcpServer("built-in", null, null));
+        McpToolRiskEvaluator evaluator = new McpToolRiskEvaluator(catalog, resolver,
+                mock(McpServerRiskCalculator.class), mock(McpToolPublishRiskCalculator.class), composer,
+                new McpToolPoisoningScanner(), JsonMapper.builder().build(), mock(ToolSpecService.class), options,
+                sink);
+        McpServerInfo info = new McpServerInfo(McpTransportType.STREAMABLE_HTTP, "DeepWiki", "", 0L, 0L, "{}");
+
+        McpToolRiskEvaluator.ToolRiskView chip = evaluator.evaluateTool(info, "read", "Reads a page",
+                Map.of("repoName", Map.of("type", "string", "description", "Repository")));
+        McpToolRiskComposer.Composed exposed = evaluator.composedRisk(info, "read", "Reads a page", null);
+
+        assertEquals(exposed.finalLevel(), chip.finalLevel());
+        assertEquals(exposed.publishLevel(), chip.publishLevel());
+    }
+
 }

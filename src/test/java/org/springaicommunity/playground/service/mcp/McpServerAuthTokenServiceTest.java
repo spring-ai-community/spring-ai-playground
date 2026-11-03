@@ -18,8 +18,13 @@ package org.springaicommunity.playground.service.mcp;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions;
+import org.springaicommunity.playground.service.mcp.McpServerAuthTokenService.AccessChange;
 import org.springaicommunity.playground.service.mcp.McpServerAuthTokenService.AccessMode;
+import org.springaicommunity.playground.service.mcp.McpServerAuthTokenService.AccessResult;
+import org.springaicommunity.playground.service.mcp.McpServerAuthTokenService.AccessSettings;
 import org.springaicommunity.playground.service.mcp.McpServerAuthTokenService.AuthTokenChangedEvent;
+import org.springaicommunity.playground.service.mcp.McpServerAuthTokenService.ExposurePosture;
+import org.springaicommunity.playground.service.mcp.McpServerAuthTokenService.PostureKind;
 import org.springaicommunity.playground.service.mcp.McpServerAuthTokenService.Source;
 import org.springaicommunity.playground.service.oauth.OAuthTokenEncryptor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -43,7 +48,7 @@ class McpServerAuthTokenServiceTest {
     private McpServerAuthTokenService newService(String configuredToken) throws IOException {
         ApplicationEventPublisher eventPublisher = this.publishedEvents::add;
         return new McpServerAuthTokenService(new SpringAiPlaygroundOptions(null, false, null, null, null,
-                new SpringAiPlaygroundOptions.McpServer(null, null, configuredToken)), this.homeDir,
+                new SpringAiPlaygroundOptions.McpServer(null, null, configuredToken), null, null, null, null), this.homeDir,
                 new OAuthTokenEncryptor(this.homeDir), eventPublisher);
     }
 
@@ -131,5 +136,77 @@ class McpServerAuthTokenServiceTest {
         String firstToken = service.generate();
         assertThat(firstToken).hasSizeGreaterThanOrEqualTo(43).doesNotContain("=");
         assertThat(service.generate()).isNotEqualTo(firstToken);
+    }
+
+    @Test
+    void applyRefusesRemoteCallersBeforeTouchingTheToken() throws IOException {
+        McpServerAuthTokenService service = newService(null);
+
+        assertThatThrownBy(() -> service.apply(new AccessSettings(AccessMode.BEARER_TOKEN, "remote-token"), false))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage(McpServerAuthTokenService.REMOTE_CALLER_MESSAGE);
+        assertThat(service.accessMode()).isEqualTo(AccessMode.NONE);
+        assertThat(this.publishedEvents).isEmpty();
+    }
+
+    @Test
+    void applyWithABlankBearerTokenGeneratesAndStoresOne() throws IOException {
+        McpServerAuthTokenService service = newService(null);
+
+        AccessResult result = service.apply(new AccessSettings(AccessMode.BEARER_TOKEN, "  "), true);
+
+        assertThat(result.change()).isEqualTo(AccessChange.TOKEN_REQUIRED);
+        assertThat(result.token()).hasSizeGreaterThanOrEqualTo(43);
+        assertThat(service.matches(result.token())).isTrue();
+        assertThat(this.publishedEvents).containsExactly(new AuthTokenChangedEvent(AccessMode.BEARER_TOKEN));
+    }
+
+    @Test
+    void applyReportsUnchangedForTheCurrentSettingsAndOpensOnNone() throws IOException {
+        McpServerAuthTokenService service = newService(null);
+        assertThat(service.apply(new AccessSettings(AccessMode.NONE, null), true).change())
+                .isEqualTo(AccessChange.UNCHANGED);
+
+        AccessResult required = service.apply(new AccessSettings(AccessMode.BEARER_TOKEN, " typed-token "), true);
+        assertThat(required.change()).isEqualTo(AccessChange.TOKEN_REQUIRED);
+        assertThat(required.token()).isEqualTo("typed-token");
+        assertThat(service.apply(new AccessSettings(AccessMode.BEARER_TOKEN, "typed-token"), true).change())
+                .isEqualTo(AccessChange.UNCHANGED);
+        assertThat(service.apply(new AccessSettings(AccessMode.BEARER_TOKEN, "other-token"), true).change())
+                .isEqualTo(AccessChange.TOKEN_REQUIRED);
+
+        AccessResult opened = service.apply(new AccessSettings(AccessMode.NONE, "ignored"), true);
+        assertThat(opened.change()).isEqualTo(AccessChange.OPENED);
+        assertThat(opened.token()).isNull();
+        assertThat(service.accessMode()).isEqualTo(AccessMode.NONE);
+        assertThat(this.publishedEvents).last().isEqualTo(new AuthTokenChangedEvent(AccessMode.NONE));
+    }
+
+    @Test
+    void applyIsRefusedWhileConfigurationOwnsTheToken() throws IOException {
+        McpServerAuthTokenService service = newService("configured-token");
+
+        assertThatThrownBy(() -> service.apply(new AccessSettings(AccessMode.NONE, null), true))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining(McpServerAuthTokenService.PROPERTY_NAME);
+        assertThatThrownBy(() -> new AccessSettings(null, "x")).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void exposurePostureFollowsTheBindAddressAndTheAccessMode() throws IOException {
+        McpServerAuthTokenService service = newService(null);
+
+        ExposurePosture local = service.exposurePosture(" 127.0.0.1 ");
+        assertThat(local.kind()).isEqualTo(PostureKind.LOCALHOST_ONLY);
+        assertThat(service.exposurePosture("::1").kind()).isEqualTo(PostureKind.LOCALHOST_ONLY);
+
+        ExposurePosture open = service.exposurePosture(null);
+        assertThat(open.kind()).isEqualTo(PostureKind.OPEN);
+        assertThat(open.boundAddress()).isEqualTo("0.0.0.0");
+
+        service.requireToken("stored-secret-token");
+        ExposurePosture guarded = service.exposurePosture("192.168.0.5");
+        assertThat(guarded.kind()).isEqualTo(PostureKind.TOKEN_REQUIRED);
+        assertThat(guarded.boundAddress()).isEqualTo("192.168.0.5");
     }
 }

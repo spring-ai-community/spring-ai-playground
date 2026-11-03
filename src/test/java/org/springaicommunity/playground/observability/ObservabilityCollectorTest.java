@@ -17,6 +17,7 @@ package org.springaicommunity.playground.observability;
 
 import io.micrometer.common.KeyValue;
 import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationView;
 import io.micrometer.tracing.Span;
 import io.micrometer.tracing.TraceContext;
 import io.micrometer.tracing.Tracer;
@@ -25,6 +26,9 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
+import org.slf4j.MDC;
+import org.springaicommunity.playground.service.chat.ChatService;
+import org.springaicommunity.playground.service.vectorstore.VectorStoreService;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
@@ -32,6 +36,9 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.observation.ChatModelObservationContext;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.document.Document;
+import org.springframework.ai.vectorstore.SearchRequest;
+import org.springframework.ai.vectorstore.observation.VectorStoreObservationContext;
 import org.springframework.ai.testfake.FakeChatClientObservationContext;
 import org.springframework.ai.testfake.FakeSpringAiObservationContext;
 import org.springframework.beans.factory.ObjectProvider;
@@ -51,9 +58,11 @@ class ObservabilityCollectorTest {
 
     private ObservabilityProperties props;
     private ObservabilityRingBuffer buffer;
+    private VectorOperationLog vectorOperationLog;
 
     @BeforeEach
     void setUp() {
+        vectorOperationLog = new VectorOperationLog();
         props = new ObservabilityProperties();
         props.setPersist(false);
         props.setRingBufferCapacity(100);
@@ -63,7 +72,7 @@ class ObservabilityCollectorTest {
     @Test
     void supportsContextAcceptsSpringAiAndGenaiAndVectorNamesAndRejectsOthers() {
         ObservabilityCollector collector = new ObservabilityCollector(buffer,
-                absent(), absent(), absent(), props);
+                absent(), absent(), absent(), props, vectorOperationLog);
 
         Observation.Context chatClient = ctx("spring.ai.chat.client");
         Observation.Context chatModel = ctx("gen_ai.client.operation");
@@ -85,7 +94,7 @@ class ObservabilityCollectorTest {
     void rootFinishAssemblesTraceWithProviderModelAndTokenTotals() {
         Tracer tracer = mockTracer("aabbcc", List.of("rootspan", "childspan"));
         ObservabilityCollector collector = new ObservabilityCollector(buffer,
-                absent(), present(tracer), absent(), props);
+                absent(), present(tracer), absent(), props, vectorOperationLog);
 
         Observation.Context root = ctx("spring.ai.chat.client");
         root.addLowCardinalityKeyValue(KeyValue.of("spring.ai.chat.client.conversation.id", "conv-X"));
@@ -119,7 +128,7 @@ class ObservabilityCollectorTest {
     void duplicateSpanIdIsNotDoubleCounted() {
         Tracer tracer = mockTracer("duptrace", List.of("modelspan", "modelspan", "rootspan"));
         ObservabilityCollector collector = new ObservabilityCollector(buffer,
-                absent(), present(tracer), absent(), props);
+                absent(), present(tracer), absent(), props, vectorOperationLog);
 
         Observation.Context root = ctx("spring.ai.chat.client");
         Observation.Context m1 = ctx("gen_ai.client.operation");
@@ -148,7 +157,7 @@ class ObservabilityCollectorTest {
     void errorInAnySpanMarksTraceStatusError() {
         Tracer tracer = mockTracer("dead", List.of("r", "c"));
         ObservabilityCollector collector = new ObservabilityCollector(buffer,
-                absent(), present(tracer), absent(), props);
+                absent(), present(tracer), absent(), props, vectorOperationLog);
 
         Observation.Context root = ctx("spring.ai.chat.client");
         Observation.Context child = ctx("gen_ai.client.operation");
@@ -165,10 +174,20 @@ class ObservabilityCollectorTest {
     }
 
     @Test
+    void aModelIdRepeatedByStreamedChunkMergingIsCollapsedToOneCopy() {
+        assertThat(ObservabilityCollector.collapseRepeatedModelId("qwen3.5:4b-mlxqwen3.5:4b-mlx"))
+                .isEqualTo("qwen3.5:4b-mlx");
+        assertThat(ObservabilityCollector.collapseRepeatedModelId("gpt-5gpt-5gpt-5")).isEqualTo("gpt-5");
+        assertThat(ObservabilityCollector.collapseRepeatedModelId("qwen3.5:4b-mlx")).isEqualTo("qwen3.5:4b-mlx");
+        assertThat(ObservabilityCollector.collapseRepeatedModelId("o1o1")).isEqualTo("o1o1");
+        assertThat(ObservabilityCollector.collapseRepeatedModelId(null)).isNull();
+    }
+
+    @Test
     void nonRootObservationAloneDoesNotFinalizeTrace() {
         Tracer tracer = mockTracer("xx", List.of("only"));
         ObservabilityCollector collector = new ObservabilityCollector(buffer,
-                absent(), present(tracer), absent(), props);
+                absent(), present(tracer), absent(), props, vectorOperationLog);
 
         Observation.Context child = ctx("gen_ai.client.operation");
         collector.onStart(child);
@@ -180,7 +199,7 @@ class ObservabilityCollectorTest {
     @Test
     void supportsContextMatchesClassInOrgSpringframeworkAiPackageWhenNameIsNull() {
         ObservabilityCollector collector = new ObservabilityCollector(buffer,
-                absent(), absent(), absent(), props);
+                absent(), absent(), absent(), props, vectorOperationLog);
         Observation.Context fake = new FakeSpringAiObservationContext();
         assertThat(fake.getName()).isNull();
         assertThat(collector.supportsContext(fake)).isTrue();
@@ -190,7 +209,7 @@ class ObservabilityCollectorTest {
     void chatClientClassSuffixFinalizesRootEvenWhenNameIsNull() {
         Tracer tracer = mockTracer("rootByClass", List.of("rootspan"));
         ObservabilityCollector collector = new ObservabilityCollector(buffer,
-                absent(), present(tracer), absent(), props);
+                absent(), present(tracer), absent(), props, vectorOperationLog);
 
         Observation.Context root = new FakeChatClientObservationContext();
 
@@ -206,7 +225,7 @@ class ObservabilityCollectorTest {
         props.setMaxSpansPerTrace(3);
         Tracer tracer = mockTracer("cap", List.of("r", "c1", "c2", "c3", "c4", "c5"));
         ObservabilityCollector collector = new ObservabilityCollector(buffer,
-                absent(), present(tracer), absent(), props);
+                absent(), present(tracer), absent(), props, vectorOperationLog);
 
         Observation.Context root = ctx("spring.ai.chat.client");
         collector.onStart(root);
@@ -225,7 +244,7 @@ class ObservabilityCollectorTest {
     void hasToolsAndToolCallCountDerivedFromToolSpans() {
         Tracer tracer = mockTracer("withtools", List.of("r", "t1", "t2"));
         ObservabilityCollector collector = new ObservabilityCollector(buffer,
-                absent(), present(tracer), absent(), props);
+                absent(), present(tracer), absent(), props, vectorOperationLog);
 
         Observation.Context root = ctx("spring.ai.chat.client");
         Observation.Context tool1 = ctx("spring.ai.tool");
@@ -247,7 +266,7 @@ class ObservabilityCollectorTest {
     void hasRagFlagIsSetWhenVectorStoreSpanPresent() {
         Tracer tracer = mockTracer("ragtrace", List.of("r", "v"));
         ObservabilityCollector collector = new ObservabilityCollector(buffer,
-                absent(), present(tracer), absent(), props);
+                absent(), present(tracer), absent(), props, vectorOperationLog);
 
         Observation.Context root = ctx("spring.ai.chat.client");
         Observation.Context vector = ctx("db.vector.client.operation");
@@ -262,10 +281,194 @@ class ObservabilityCollectorTest {
     }
 
     @Test
+    void aVectorOperationWithoutAnyChatTraceIsLoggedButAddsNoTrace() {
+        ObservabilityCollector collector = new ObservabilityCollector(buffer,
+                absent(), absent(), absent(), props, vectorOperationLog);
+        VectorStoreObservationContext search = VectorStoreObservationContext
+                .builder("simple", VectorStoreObservationContext.Operation.QUERY)
+                .queryRequest(SearchRequest.builder().query("wifi password").topK(4).build()).build();
+        search.setName("db.vector.client.operation");
+        search.addLowCardinalityKeyValue(KeyValue.of("db.operation.name", "query"));
+        search.addLowCardinalityKeyValue(KeyValue.of("db.system", "simple"));
+        search.addHighCardinalityKeyValue(KeyValue.of("db.vector.query.top_k", "4"));
+        search.setQueryResponse(List.of(new Document("a"), new Document("b")));
+
+        collector.onStart(search);
+        collector.onStop(search);
+        collector.onStop(search);
+
+        assertThat(buffer.snapshot()).isEmpty();
+        assertThat(vectorOperationLog.snapshot()).singleElement().satisfies(operation -> {
+            assertThat(operation.operation()).isEqualTo("query");
+            assertThat(operation.dbSystem()).isEqualTo("simple");
+            assertThat(operation.topK()).isEqualTo(4L);
+            assertThat(operation.returnedDocuments()).isEqualTo(2);
+        });
+        assertThat(vectorOperationLog.recentQueries()).extracting(VectorOperationLog.RecentQuery::text)
+                .containsExactly("wifi password");
+    }
+
+    @Test
+    void documentListingRequestsStayOutOfTheVectorOperationLog() {
+        ObservabilityCollector collector = new ObservabilityCollector(buffer,
+                absent(), absent(), absent(), props, vectorOperationLog);
+        VectorStoreObservationContext listing = VectorStoreObservationContext
+                .builder("simple", VectorStoreObservationContext.Operation.QUERY)
+                .queryRequest(VectorStoreService.SEARCH_ALL_REQUEST_WITH_DOC_INFO_IDS_FUNCTION.apply(List.of("doc-1")))
+                .build();
+        listing.setName("db.vector.client.operation");
+
+        collector.onStart(listing);
+        collector.onStop(listing);
+
+        assertThat(vectorOperationLog.snapshot()).isEmpty();
+        assertThat(vectorOperationLog.recentQueries()).isEmpty();
+    }
+
+    @Test
+    void blankSearchRefreshesStayOutOfTheVectorOperationLog() {
+        ObservabilityCollector collector = new ObservabilityCollector(buffer,
+                absent(), absent(), absent(), props, vectorOperationLog);
+        VectorStoreObservationContext blankSearch = VectorStoreObservationContext
+                .builder("simple", VectorStoreObservationContext.Operation.QUERY)
+                .queryRequest(SearchRequest.from(VectorStoreService.searchAllRequest(List.of())).topK(4)
+                        .similarityThreshold(0.6).build())
+                .build();
+        blankSearch.setName("db.vector.client.operation");
+
+        collector.onStart(blankSearch);
+        collector.onStop(blankSearch);
+
+        assertThat(vectorOperationLog.snapshot()).isEmpty();
+        assertThat(vectorOperationLog.recentQueries()).isEmpty();
+    }
+
+    @Test
+    void toolIndexSearchesStayOutOfTheVectorOperationLog() {
+        ObservabilityCollector collector = new ObservabilityCollector(buffer,
+                absent(), absent(), absent(), props, vectorOperationLog);
+        Observation.Context toolIndexSearch = ctx("db.vector.client.operation");
+        toolIndexSearch.addLowCardinalityKeyValue(KeyValue.of(ToolIndexVectorObservationConvention.STORE_ROLE_KEY,
+                ToolIndexVectorObservationConvention.TOOL_INDEX_ROLE));
+
+        collector.onStart(toolIndexSearch);
+        collector.onStop(toolIndexSearch);
+
+        assertThat(vectorOperationLog.snapshot()).isEmpty();
+    }
+
+    @Test
+    void aChatTraceIsMarkedRagWhenItsConversationSearchedDuringTheTurn() {
+        ObservabilityCollector collector = new ObservabilityCollector(buffer,
+                absent(), absent(), absent(), props, vectorOperationLog);
+        Observation.Context root = ctx("spring.ai.chat.client");
+        root.addHighCardinalityKeyValue(KeyValue.of("conversation.id", "Chat-rag"));
+        Observation.Context search = ctx("db.vector.client.operation");
+        search.addLowCardinalityKeyValue(KeyValue.of("db.operation.name", "query"));
+        search.addHighCardinalityKeyValue(KeyValue.of("conversation.id", "Chat-rag"));
+
+        collector.onStart(root);
+        collector.onStart(search);
+        collector.onStop(search);
+        collector.onStop(root);
+
+        assertThat(buffer.snapshot()).singleElement().extracting(TraceRecord::hasRag).isEqualTo(true);
+    }
+
+    private static ObservationView viewOf(Observation.Context parentContext) {
+        ObservationView view = mock(ObservationView.class);
+        when(view.getContextView()).thenReturn(parentContext);
+        return view;
+    }
+
+    @Test
+    void withoutATracerChildSpansJoinTheChatTraceOfTheirParentObservation() {
+        ObservabilityCollector collector = new ObservabilityCollector(buffer,
+                absent(), absent(), absent(), props, vectorOperationLog);
+        Observation.Context root = ctx("spring.ai.chat.client");
+        Observation.Context model = ctx("gen_ai.client.operation");
+        model.setParentObservation(viewOf(root));
+        model.addHighCardinalityKeyValue(KeyValue.of("gen_ai.usage.input_tokens", "100"));
+        Observation.Context tool = ctx("spring.ai.tool");
+        tool.setParentObservation(viewOf(root));
+        Observation.Context nestedChatClient = ctx("spring.ai.chat.client");
+        nestedChatClient.setParentObservation(viewOf(root));
+        root.addHighCardinalityKeyValue(KeyValue.of("gen_ai.usage.input_tokens", "100"));
+        Observation.Context embedding = ctx("gen_ai.client.operation");
+        embedding.setParentObservation(viewOf(root));
+        embedding.addLowCardinalityKeyValue(KeyValue.of("gen_ai.operation.name", "embedding"));
+        embedding.addLowCardinalityKeyValue(KeyValue.of("gen_ai.request.model", "embedding-model"));
+        embedding.addHighCardinalityKeyValue(KeyValue.of("gen_ai.usage.input_tokens", "7"));
+        model.addLowCardinalityKeyValue(KeyValue.of("gen_ai.request.model", "chat-model"));
+        Observation.Context toolIndexSearch = ctx("db.vector.client.operation");
+        toolIndexSearch.setParentObservation(viewOf(root));
+        toolIndexSearch.addLowCardinalityKeyValue(KeyValue.of(
+                ToolIndexVectorObservationConvention.STORE_ROLE_KEY,
+                ToolIndexVectorObservationConvention.TOOL_INDEX_ROLE));
+
+        collector.onStart(root);
+        collector.onStart(nestedChatClient);
+        collector.onStop(nestedChatClient);
+        assertThat(buffer.snapshot()).isEmpty();
+        collector.onStart(embedding);
+        collector.onStop(embedding);
+        collector.onStart(toolIndexSearch);
+        collector.onStop(toolIndexSearch);
+        collector.onStart(model);
+        collector.onStop(model);
+        collector.onStart(tool);
+        collector.onStop(tool);
+        collector.onStop(root);
+
+        assertThat(buffer.snapshot()).singleElement().satisfies(trace -> {
+            assertThat(trace.traceId()).startsWith("local-");
+            assertThat(trace.spans()).extracting(SpanRecord::name).containsExactlyInAnyOrder(
+                    "spring.ai.chat.client", "spring.ai.chat.client", "gen_ai.client.operation",
+                    "gen_ai.client.operation", "db.vector.client.operation", "spring.ai.tool");
+            assertThat(trace.hasTools()).isTrue();
+            assertThat(trace.toolCallCount()).isEqualTo(1);
+            assertThat(trace.inputTokens()).isEqualTo(100);
+            assertThat(trace.model()).isEqualTo("chat-model");
+            assertThat(trace.hasRag()).isFalse();
+        });
+    }
+
+    @Test
+    void aToolSpanWithoutAParentJoinsTheRunningChatTraceOfItsConversation() {
+        ObservabilityCollector collector = new ObservabilityCollector(buffer,
+                absent(), absent(), absent(), props, vectorOperationLog);
+        Observation.Context root = ctx("spring.ai.chat.client");
+        Observation.Context tool = ctx("spring.ai.tool");
+        tool.addHighCardinalityKeyValue(KeyValue.of("conversation.id", "Chat-tools"));
+        Observation.Context otherConversationTool = ctx("spring.ai.tool");
+        otherConversationTool.addHighCardinalityKeyValue(KeyValue.of("conversation.id", "Chat-other"));
+
+        MDC.put(ChatService.MDC_CONVERSATION_ID, "Chat-tools");
+        try {
+            collector.onStart(root);
+        } finally {
+            MDC.remove(ChatService.MDC_CONVERSATION_ID);
+        }
+        collector.onStart(tool);
+        collector.onStop(tool);
+        collector.onStart(otherConversationTool);
+        collector.onStop(otherConversationTool);
+        collector.onStop(root);
+
+        assertThat(buffer.snapshot()).hasSize(2);
+        assertThat(buffer.snapshot()).filteredOn(trace -> "Chat-tools".equals(trace.conversationId()))
+                .singleElement().satisfies(trace -> {
+                    assertThat(trace.spans()).extracting(SpanRecord::name)
+                            .containsExactlyInAnyOrder("spring.ai.chat.client", "spring.ai.tool");
+                    assertThat(trace.toolCallCount()).isEqualTo(1);
+                });
+    }
+
+    @Test
     void multiChatModelSpansSumTokenCounts() {
         Tracer tracer = mockTracer("sumtokens", List.of("r", "m1", "m2"));
         ObservabilityCollector collector = new ObservabilityCollector(buffer,
-                absent(), present(tracer), absent(), props);
+                absent(), present(tracer), absent(), props, vectorOperationLog);
 
         Observation.Context root = ctx("spring.ai.chat.client");
         Observation.Context m1 = ctx("gen_ai.client.operation");
@@ -295,7 +498,7 @@ class ObservabilityCollectorTest {
     void cleanupStaleActiveTracesEvictsAbandonedBuilders() {
         Tracer tracer = mockTracer("orphan", List.of("only"));
         ObservabilityCollector collector = new ObservabilityCollector(buffer,
-                absent(), present(tracer), absent(), props);
+                absent(), present(tracer), absent(), props, vectorOperationLog);
 
         Observation.Context child = ctx("gen_ai.client.operation");
         collector.onStart(child);
@@ -311,7 +514,7 @@ class ObservabilityCollectorTest {
     void cleanupKeepsRecentActiveBuilders() {
         Tracer tracer = mockTracer("fresh", List.of("only"));
         ObservabilityCollector collector = new ObservabilityCollector(buffer,
-                absent(), present(tracer), absent(), props);
+                absent(), present(tracer), absent(), props, vectorOperationLog);
 
         Observation.Context child = ctx("gen_ai.client.operation");
         collector.onStart(child);
@@ -325,7 +528,7 @@ class ObservabilityCollectorTest {
     @Test
     void fallbackTraceIdWhenNoTracerUsesLocalPrefix() {
         ObservabilityCollector collector = new ObservabilityCollector(buffer,
-                absent(), absent(), absent(), props);
+                absent(), absent(), absent(), props, vectorOperationLog);
 
         Observation.Context root = new FakeChatClientObservationContext();
         collector.onStart(root);
@@ -339,7 +542,7 @@ class ObservabilityCollectorTest {
     void streamingToolSpanDoubleStopEmitsSingleSpan() {
         Tracer tracer = mockTracer("tooltrace", List.of("ts1"));
         ObservabilityCollector collector = new ObservabilityCollector(buffer,
-                absent(), present(tracer), absent(), props);
+                absent(), present(tracer), absent(), props, vectorOperationLog);
 
         Observation.Context tool = ctx("spring.ai.tool");
         collector.onStart(tool);
@@ -358,7 +561,7 @@ class ObservabilityCollectorTest {
         ObservabilityPersistenceService persist = mock(ObservabilityPersistenceService.class);
         Tracer tracer = mockTracer("roottrace", List.of("r1", "late1"));
         ObservabilityCollector collector = new ObservabilityCollector(buffer,
-                present(persist), present(tracer), absent(), props);
+                present(persist), present(tracer), absent(), props, vectorOperationLog);
 
         Observation.Context root = ctx("spring.ai.chat.client");
         collector.onStart(root);
@@ -383,7 +586,7 @@ class ObservabilityCollectorTest {
         ObservabilityPersistenceService persist = mock(ObservabilityPersistenceService.class);
         Tracer tracer = mockTracer("roottrace", List.of("r1", "late1"));
         ObservabilityCollector collector = new ObservabilityCollector(smallBuffer,
-                present(persist), present(tracer), absent(), smallProps);
+                present(persist), present(tracer), absent(), smallProps, vectorOperationLog);
 
         Observation.Context root = ctx("spring.ai.chat.client");
         collector.onStart(root);
@@ -412,7 +615,7 @@ class ObservabilityCollectorTest {
     void chatModelSpanCapturesPromptAndCompletionContent() {
         Tracer tracer = mockTracer("cmcontent", List.of("rootspan", "modelspan"));
         ObservabilityCollector collector = new ObservabilityCollector(buffer,
-                absent(), present(tracer), absent(), props);
+                absent(), present(tracer), absent(), props, vectorOperationLog);
 
         ChatModelObservationContext child = ChatModelObservationContext.builder()
                 .prompt(new Prompt(List.of(new SystemMessage("be brief"), new UserMessage("hello"))))
@@ -452,7 +655,7 @@ class ObservabilityCollectorTest {
         props.setMaxCapturedMessagesPerSpan(1);
         Tracer tracer = mockTracer("cmcap", List.of("rootspan", "modelspan"));
         ObservabilityCollector collector = new ObservabilityCollector(buffer,
-                absent(), present(tracer), absent(), props);
+                absent(), present(tracer), absent(), props, vectorOperationLog);
 
         ChatModelObservationContext child = ChatModelObservationContext.builder()
                 .prompt(new Prompt(List.of(new UserMessage("first"), new UserMessage("second"))))

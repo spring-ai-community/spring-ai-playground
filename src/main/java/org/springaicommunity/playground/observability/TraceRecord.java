@@ -50,6 +50,11 @@ public record TraceRecord(
     public static final String STATUS_ERROR = "ERROR";
     public static final String STATUS_CANCELLED = "CANCELLED";
 
+    public boolean toolOnly() {
+        return this.provider == null && this.model == null && this.spans != null && !this.spans.isEmpty()
+                && this.spans.stream().allMatch(span -> ObservabilityCollector.TOOL_SPAN_NAME.equals(span.name()));
+    }
+
     static String firstNonBlank(String a, String b) {
         return a != null && !a.isBlank() ? a : b;
     }

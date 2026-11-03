@@ -92,6 +92,8 @@ public class ObservabilityTimeSeries extends BucketedTimeSeries<TraceRecord, Obs
 
         @Override
         public void accept(TraceRecord t, int bucket) {
+            toolCalls[bucket] += t.toolCallCount();
+            if (t.toolOnly()) return;
             String model = t.model() == null ? "(unknown)" : t.model();
             String provider = t.provider() == null ? "(unknown)" : t.provider();
             calls[bucket]++;
@@ -99,7 +101,6 @@ public class ObservabilityTimeSeries extends BucketedTimeSeries<TraceRecord, Obs
             if (TraceRecord.STATUS_CANCELLED.equals(t.status())) cancelled[bucket]++;
             inTokens[bucket] += safeLong(t.inputTokens());
             outTokens[bucket] += safeLong(t.outputTokens());
-            toolCalls[bucket] += t.toolCallCount();
             latencyBuckets[bucket].add(t.durationMs());
             allLatencies.add(t.durationMs());
 

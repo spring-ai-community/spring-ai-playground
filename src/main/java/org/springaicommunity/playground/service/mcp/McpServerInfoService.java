@@ -28,9 +28,11 @@ import org.springaicommunity.playground.service.mcp.catalog.McpCatalogService;
 import org.springaicommunity.playground.service.mcp.client.HttpConnectionParametersWithExtras;
 import org.springaicommunity.playground.service.mcp.client.McpClientPropertiesService;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
+import org.springaicommunity.playground.service.mcp.client.McpConnectionSpec;
 import org.springaicommunity.playground.service.mcp.client.McpTransportType;
 import org.springaicommunity.playground.service.oauth.McpClientRegistrationRepository;
 import org.springaicommunity.playground.service.oauth.OAuthClientRegistrations;
+import org.springaicommunity.playground.service.util.SecretMasking;
 import org.springframework.ai.mcp.client.common.autoconfigure.properties.McpStreamableHttpClientProperties;
 import org.springframework.ai.mcp.server.common.autoconfigure.properties.McpServerProperties;
 import org.springframework.beans.factory.ObjectProvider;
@@ -39,15 +41,21 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.boot.web.server.context.WebServerInitializedEvent;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.event.EventListener;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.stereotype.Service;
 
+import java.net.URI;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -55,6 +63,8 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
         ApplicationListener<WebServerInitializedEvent> {
 
     private static final Logger logger = LoggerFactory.getLogger(McpServerInfoService.class);
+
+    private static final Pattern PATH_SAFE_SERVER_NAME_PATTERN = Pattern.compile("[A-Za-z0-9._-]+");
 
     private final ObjectMapper objectMapper;
     private final Map<McpTransportType, Map<String, McpServerInfo>> typeMcpServerInfosMap;
@@ -123,6 +133,7 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
     }
 
     @EventListener
+    @Order(Ordered.LOWEST_PRECEDENCE - 2)
     public void onApplicationReady(ApplicationReadyEvent event) {
         this.applicationReady = true;
         updateDefaultMcpTool();
@@ -131,7 +142,7 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
 
     private void autoStartConfiguredMcpClients() {
         this.typeMcpServerInfosMap.values().forEach(byName -> byName.values().forEach(info -> {
-            if (info.equals(this.defaultMcpServerInfo)) return;
+            if (info.equals(this.defaultMcpServerInfo) || this.mcpClientService.isConnecting(info)) return;
             try {
                 this.mcpClientService.startMcpClient(info);
             } catch (RuntimeException e) {
@@ -143,6 +154,28 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
 
     public boolean builtInServerTokenRequired() {
         return this.authTokenService.accessMode() == AccessMode.BEARER_TOKEN;
+    }
+
+    public record ExternalServerSummary(int total, long awaitingAuthorization, long connected) {}
+
+    public ExternalServerSummary externalServerSummary() {
+        McpServerInfo defaultInfo = getDefaultMcpServerInfo();
+        List<McpServerInfo> external = getMcpServerInfos().values().stream()
+                .flatMap(List::stream)
+                .filter(info -> !Objects.equals(info, defaultInfo))
+                .toList();
+        long awaiting = external.stream()
+                .filter(info -> this.mcpClientService.getStatus(info).status()
+                        == McpClientService.ServerStatus.AWAITING_AUTHORIZATION)
+                .count();
+        long connected = external.stream()
+                .filter(info -> this.mcpClientService.getStatus(info).status() == McpClientService.ServerStatus.OK)
+                .count();
+        return new ExternalServerSummary(external.size(), awaiting, connected);
+    }
+
+    public McpServerAuthTokenService.ExposurePosture exposurePosture(String serverAddress) {
+        return this.authTokenService.exposurePosture(serverAddress);
     }
 
     public McpServerInfo getDefaultMcpServerInfo() {
@@ -203,6 +236,143 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
                 timestamp, null);
     }
 
+    public record McpServerRegistration(
+            McpTransportType originalTransport,
+            String originalServerName,
+            McpTransportType transport,
+            String serverName,
+            String description,
+            String category,
+            Set<String> tags,
+            String connectionJson) {
+
+        public McpServerRegistration {
+            if (transport == null) throw new IllegalArgumentException("transport must not be null");
+            Set<String> cleaned = new LinkedHashSet<>();
+            if (tags != null) tags.stream().filter(tag -> tag != null && !tag.isBlank()).map(String::trim)
+                    .forEach(cleaned::add);
+            tags = Set.copyOf(cleaned);
+        }
+
+        boolean sameKeyAsOriginal() {
+            return this.originalTransport == this.transport
+                    && Objects.equals(this.originalServerName, this.serverName);
+        }
+    }
+
+    public McpServerInfo saveAndConnect(McpServerRegistration registration) {
+        validateRegistration(registration);
+        requireFreeName(registration);
+        McpTransportType originalTransport = registration.originalTransport() == null
+                ? registration.transport() : registration.originalTransport();
+        String originalServerName = registration.originalServerName() == null
+                ? registration.serverName() : registration.originalServerName();
+        McpServerInfo existing = this.typeMcpServerInfosMap.getOrDefault(originalTransport, Map.of())
+                .get(originalServerName);
+        long now = System.currentTimeMillis();
+        McpServerInfo info = new McpServerInfo(registration.transport(), registration.serverName(),
+                registration.description(), existing == null ? now : existing.createTimestamp(), now,
+                registration.connectionJson(), registration.category(), registration.tags(),
+                existing == null ? null : existing.lastUsedAtEpochMs());
+        try {
+            this.mcpClientService.startMcpClient(info);
+        } catch (RuntimeException e) {
+            String raw = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+            throw new IllegalStateException("Failed to connect : "
+                    + SecretMasking.mask(raw, SecretMasking.collectFromTemplate(info.connectionAsJson())), e);
+        }
+        return updateMcpServerInfo(originalTransport, originalServerName, info);
+    }
+
+    public void validateRegistration(McpServerRegistration registration) {
+        serverNameError(registration.serverName()).ifPresent(error -> {
+            throw new IllegalArgumentException(error);
+        });
+        McpConnectionSpec spec = McpConnectionSpec.from(registration.transport(), registration.connectionJson());
+        if (spec.isHttp() && !spec.hasUrl()) throw new IllegalArgumentException("URL is required for HTTP/SSE transport");
+        if (spec.isHttp() && pointsAtThisApp(spec)) {
+            throw new IllegalArgumentException("This URL is this app's own MCP endpoint; registering it as an "
+                    + "upstream server would loop the app back onto itself.");
+        }
+        if (spec.oauth() != null) {
+            Map<String, String> oauthErrors = spec.oauth().validationErrors();
+            if (!oauthErrors.isEmpty()) throw new IllegalArgumentException(String.join(" ", oauthErrors.values()));
+        }
+    }
+
+    public void requireFreeName(McpServerRegistration registration) {
+        Map<String, McpServerInfo> sameTransport = this.typeMcpServerInfosMap.get(registration.transport());
+        if (!registration.sameKeyAsOriginal() && sameTransport != null
+                && sameTransport.containsKey(registration.serverName())) {
+            throw new IllegalStateException("Failed to save : MCP connection already exists with name "
+                    + registration.serverName());
+        }
+    }
+
+    private boolean pointsAtThisApp(McpConnectionSpec spec) {
+        try {
+            URI uri = URI.create(spec.url().trim());
+            String host = uri.getHost();
+            int port = uri.getPort() >= 0 ? uri.getPort() : ("https".equalsIgnoreCase(uri.getScheme()) ? 443 : 80);
+            boolean loopback = host != null && (host.equalsIgnoreCase("localhost") || host.equals("127.0.0.1")
+                    || host.equals("::1") || host.equals("[::1]") || host.equals("0.0.0.0"));
+            String path = (uri.getPath() == null ? "" : uri.getPath()) + (spec.endpoint() == null ? "" : spec.endpoint());
+            return loopback && port == this.serverPort && (path.isEmpty() || path.startsWith("/mcp")
+                    || path.startsWith("/sse"));
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    public List<McpServerInfo> uninstalledCatalogServers() {
+        Set<String> installed = read().stream().map(McpServerInfo::serverName).collect(Collectors.toSet());
+        List<McpServerInfo> ghosts = new ArrayList<>();
+        for (McpCatalogEntry entry : this.mcpCatalogService.getCatalog()) {
+            if (installed.contains(McpCatalogService.stripOsSuffix(entry.id()))) continue;
+            try {
+                ghosts.add(this.mcpCatalogService.instantiate(entry, null, Map.of()));
+            } catch (RuntimeException ignore) {
+            }
+        }
+        return ghosts;
+    }
+
+    public static Optional<String> serverNameError(String serverName) {
+        if (serverName == null || serverName.isBlank()) return Optional.of("Server name cannot be empty");
+        if (serverName.contains(" ")) return Optional.of("Server name cannot contain spaces");
+        if (!PATH_SAFE_SERVER_NAME_PATTERN.matcher(serverName).matches()) {
+            return Optional.of("Server name may only contain letters, digits, '.', '_', '-'");
+        }
+        return Optional.empty();
+    }
+
+    public Optional<McpServerInfo> findByServerName(String serverName) {
+        if (serverName == null) return Optional.empty();
+        return read().stream().filter(info -> serverName.equals(info.serverName())).findFirst();
+    }
+
+    public Optional<String> deleteBlocker(String serverName) {
+        if (this.defaultMcpServerInfo != null && this.defaultMcpServerInfo.serverName().equals(serverName)) {
+            return Optional.of("Built-in MCP server cannot be deleted.");
+        }
+        if (findByServerName(serverName).isEmpty()) {
+            return Optional.of(this.mcpCatalogService.findByServerName(serverName).isPresent()
+                    ? "Inactive (catalog) MCP servers cannot be deleted."
+                    : "MCP server not found: " + serverName);
+        }
+        return Optional.empty();
+    }
+
+    public McpServerInfo delete(String serverName) {
+        deleteBlocker(serverName).ifPresent(blocker -> {
+            throw new IllegalStateException(blocker);
+        });
+        McpServerInfo target = findByServerName(serverName).orElseThrow();
+        this.mcpClientService.deleteConnectingMcpServer(target);
+        deleteMcpServerInfo(target.mcpTransportType(), target.serverName());
+        return target;
+    }
+
     public void deleteMcpServerInfo(McpTransportType transportType, String serverName) {
         McpServerInfo mcpServerInfo = this.typeMcpServerInfosMap.get(transportType).remove(serverName);
         if (mcpServerInfo != null) {
@@ -240,6 +410,11 @@ public class McpServerInfoService implements SharedDataReader<List<McpServerInfo
 
     public McpServerInfo updateMcpServerInfo(McpTransportType transportType, String serverName,
             McpServerInfo updateMcpServerInfo) {
+        if (!Boolean.TRUE.equals(this.skipPersist.get())) {
+            serverNameError(updateMcpServerInfo.serverName()).ifPresent(error -> {
+                throw new IllegalArgumentException(error);
+            });
+        }
         boolean sameKey = transportType.equals(updateMcpServerInfo.mcpTransportType()) &&
                 serverName.equals(updateMcpServerInfo.serverName());
         if (!sameKey && this.typeMcpServerInfosMap.get(updateMcpServerInfo.mcpTransportType())

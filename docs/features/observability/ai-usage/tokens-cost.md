@@ -1,3 +1,4 @@
+videos: bonus
 title: Tokens & Cost
 description: Token and money spend per turn, model, and provider, with the Model Pricing Manager for per-model rates, display currency, and paid-vs-free interpretation.
 
@@ -82,7 +83,7 @@ All dashboards share the [Observability global settings](../index.md#global-sett
 
 1. In the dialog, click the **Active currency chip** (top-right) to expand the currency section.
 2. Pick a code from the dropdown (USD, EUR, KRW, JPY, and 40+ others).
-3. Click **Save**. Every dollar figure in the dashboards re-renders with the new symbol and the active per-USD rate.
+3. The change applies as soon as you pick it: every money figure in the dashboards re-renders with the new symbol and the active per-USD rate.
 
 ### Updating a currency's exchange rate
 
@@ -149,7 +150,6 @@ This is intentionally a **count-based** share, not a cost-based share - a single
 
 - Row click in the Top 10 most expensive grid → opens the **Trace Detail** dialog for that turn.
 - Pricing chip → opens the [Model Pricing Manager dialog](#configuring-cost-model-pricing-manager-dialog).
-- Currency selector in the pricing chip → opens the same dialog scrolled to the currency editor.
 
 ## Cross-references
 

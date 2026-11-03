@@ -1,3 +1,4 @@
+videos: ep3
 description: Tutorial 15 - investigate documents with the Document detective preset. Upload a file with requestFileUpload, then find, grep, and slice it the Unix-pipeline way.
 
 # Tutorial 15 - Investigate Documents with a Pipeline
@@ -30,7 +31,7 @@ description: Tutorial 15 - investigate documents with the Document detective pre
 
 - The upload is saved under the **conversation workspace** (`workspace/<conversationId>/uploads/`) - each chat keeps its own files, and deleting the conversation removes them.
 - The pipeline idiom maps one-to-one: `findFiles` = `find`, `grepFile numbered=true` = `grep -n`, `sliceFile` = `sed -n 'a,bp'`, `lineCount` = `wc -l`, `sortFile` / `cutFileFields` = `sort` / `cut`.
-- Everything here is **read-only** (`L3`) - unlike the write tools in [Tutorial 13](13-upload-a-file.md), no approval prompt is needed to search and quote.
+- Everything here is **read-only** (`L3`), so no approval prompt appears - unlike the gated write tools (`writeTextFile`, `appendTextFile`) that the Data wrangler preset in [Tutorial 13](13-upload-a-file.md) also exposes.
 - Excel (`.xlsx` / `.xls`) converts to CSV **in the browser** before upload; the server only ever stores text.
 
 !!! tip "Why this matters"

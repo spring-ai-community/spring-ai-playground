@@ -38,6 +38,7 @@ import org.springaicommunity.playground.service.tool.ToolManifest.HumanInTheLoop
 import org.springaicommunity.playground.service.tool.ToolManifest.Sandbox.RiskLevel;
 import org.springaicommunity.playground.service.tool.ToolSpec;
 import org.springaicommunity.playground.service.tool.policy.SandboxPostureCalculator;
+import org.springaicommunity.playground.service.tool.policy.SandboxPostureCalculator.Explanation;
 import org.springaicommunity.playground.service.tool.policy.SandboxPostureCalculator.Inputs;
 
 import java.io.IOException;
@@ -48,6 +49,7 @@ import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class SandboxCapabilitiesView extends Details {
@@ -240,34 +242,23 @@ public class SandboxCapabilitiesView extends Details {
     }
 
     public ToolSpec.SandboxOverrides currentOverrides() {
-        Set<String> userAllow = this.allowClassesField.getValue();
-        Set<String> userDeny = this.denyClassesField.getValue();
-        Set<String> addAllow = diff(userAllow, this.yamlBaselineAllow);
-        Set<String> removeAllow = diff(this.yamlBaselineAllow, userAllow);
-        Set<String> addDeny = diff(userDeny, this.yamlBaselineDeny);
-        Set<String> removeDeny = diff(this.yamlBaselineDeny, userDeny);
-        String networkMode = this.networkModeField.getValue();
-        Set<String> hosts = this.hostsField.getValue();
         String fileMode = this.fileModeField.getValue();
         Boolean fileRead = fileMode == null ? null : !"off".equals(fileMode);
         Boolean fileWrite = fileMode == null ? null : "read+write".equals(fileMode);
-        String fsBasePath = this.fsBasePathField.getValue();
-        return new ToolSpec.SandboxOverrides(addAllow, removeAllow, addDeny, removeDeny, networkMode, hosts,
-                fileRead, fileWrite, fsBasePath, this.destructive);
+        return ToolSpec.SandboxOverrides.fromEffective(this.yamlBaselineAllow, this.yamlBaselineDeny,
+                this.allowClassesField.getValue(), this.denyClassesField.getValue(),
+                this.networkModeField.getValue(), this.hostsField.getValue(), fileRead, fileWrite,
+                this.fsBasePathField.getValue(), this.destructive);
     }
 
     public void applyOverrides(ToolSpec.SandboxOverrides overrides) {
         if (overrides == null) return;
         this.destructive = overrides.destructive();
-        Set<String> resolvedAllow = new LinkedHashSet<>(this.yamlBaselineAllow);
-        if (overrides.removeAllowClasses() != null) resolvedAllow.removeAll(overrides.removeAllowClasses());
-        if (overrides.addAllowClasses() != null) resolvedAllow.addAll(overrides.addAllowClasses());
+        Set<String> resolvedAllow = overrides.resolveAllowClasses(this.yamlBaselineAllow);
         this.allowClassesField.setItems(resolvedAllow);
         this.allowClassesField.setValue(resolvedAllow);
 
-        Set<String> resolvedDeny = new LinkedHashSet<>(this.yamlBaselineDeny);
-        if (overrides.removeDenyClasses() != null) resolvedDeny.removeAll(overrides.removeDenyClasses());
-        if (overrides.addDenyClasses() != null) resolvedDeny.addAll(overrides.addDenyClasses());
+        Set<String> resolvedDeny = overrides.resolveDenyClasses(this.yamlBaselineDeny);
         this.denyClassesField.setItems(resolvedDeny);
         this.denyClassesField.setValue(resolvedDeny);
 
@@ -334,8 +325,7 @@ public class SandboxCapabilitiesView extends Details {
 
     private void applyHitlDefault(RiskLevel level) {
         if (this.hitlModeField == null || this.hitlUserTouched) return;
-        HumanInTheLoop.Mode want = level == RiskLevel.L0
-                ? HumanInTheLoop.Mode.DISABLED : HumanInTheLoop.Mode.REQUIRED;
+        HumanInTheLoop.Mode want = HumanInTheLoop.Mode.defaultFor(level);
         if (this.hitlModeField.getValue() != want) {
             this.previousHitlMode = want;
             this.hitlModeField.setValue(want);
@@ -401,9 +391,11 @@ public class SandboxCapabilitiesView extends Details {
 
     private void updatePostureBadge() {
         if (this.postureBadge == null) return;
-        RiskLevel level = computeRisk();
+        Explanation explanation = explainRisk();
+        RiskLevel level = explanation.level();
         applyHitlDefault(level);
         this.postureBadge.setText(postureLabel(level, currentSignals()) + "  " + level.name());
+        this.postureBadge.getElement().setProperty("title", reasonsText(explanation));
         String theme = switch (level) {
             case L0, L1 -> "badge success primary small";
             case L2     -> "badge contrast small";
@@ -428,7 +420,14 @@ public class SandboxCapabilitiesView extends Details {
         this.postureIcon.getStyle().set("color", iconColour);
     }
 
-    private RiskLevel computeRisk() {
+    static String reasonsText(Explanation explanation) {
+        return explanation.reasons().isEmpty() ? "Nothing raises the risk above the sandbox baseline."
+                : explanation.reasons().stream()
+                        .map(reason -> reason.raisesTo().name() + ": " + reason.setting() + " - " + reason.why())
+                        .collect(Collectors.joining("\n"));
+    }
+
+    private Explanation explainRisk() {
         String mode = this.networkModeField.getValue();
         Set<String> hosts = this.hostsField.getValue();
         String fileMode = this.fileModeField.getValue();
@@ -436,7 +435,7 @@ public class SandboxCapabilitiesView extends Details {
         boolean fileWrite = "read+write".equals(fileMode);
         Set<String> userDeny = this.denyClassesField.getValue();
         Set<String> userAllow = this.allowClassesField.getValue();
-        return this.postureCalculator.compute(
+        return this.postureCalculator.explain(
                 new Inputs(mode, hosts, fileRead, fileWrite, Boolean.TRUE.equals(this.destructive),
                         this.yamlBaselineDeny, userDeny, this.yamlBaselineAllow, userAllow));
     }
@@ -449,8 +448,8 @@ public class SandboxCapabilitiesView extends Details {
         String fileMode = this.fileModeField.getValue();
         boolean fileRead = !"off".equals(fileMode);
         boolean fileWrite = "read+write".equals(fileMode);
-        boolean customClasses = !diff(this.allowClassesField.getValue(), this.yamlBaselineAllow).isEmpty()
-                || !diff(this.denyClassesField.getValue(), this.yamlBaselineDeny).isEmpty();
+        ToolSpec.SandboxOverrides current = currentOverrides();
+        boolean customClasses = !current.addAllowClasses().isEmpty() || !current.addDenyClasses().isEmpty();
         return new PostureSignals(mode, fileRead, fileWrite, Boolean.TRUE.equals(this.destructive), customClasses);
     }
 
@@ -546,9 +545,4 @@ public class SandboxCapabilitiesView extends Details {
         }
     }
 
-    private static Set<String> diff(Set<String> a, Set<String> b) {
-        Set<String> out = new LinkedHashSet<>(a == null ? Set.of() : a);
-        if (b != null) out.removeAll(b);
-        return out;
-    }
 }

@@ -78,10 +78,7 @@ public class McpSyncClientOps implements McpClientOps {
     public void addRoot(McpSchema.Root root) {mcpSyncClient.addRoot(root);}
 
     @Override
-    public void removeRoot(String name) {mcpSyncClient.removeRoot(name);}
-
-    @Override
-    public void notifyRootsListChanged() {mcpSyncClient.rootsListChangedNotification();}
+    public void removeRoot(String rootUri) {mcpSyncClient.removeRoot(rootUri);}
 
     @Override
     public ToolCallbackProvider toolCallbackProvider() {

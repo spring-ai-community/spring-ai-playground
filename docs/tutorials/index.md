@@ -2,7 +2,7 @@ description: End-to-end Spring AI Playground tutorials - Tool Studio authoring, 
 
 # Tutorials
 
-These seventeen tutorials walk you from creating a single tool to composing chains over the bundled default catalog, with optional deep-dives off the main path - the MCP protocol surface, re-publishing tools through the MCP Server Proxy, gating tool calls behind human approval, turning a Prompt Library template into a reusable preset, uploading a file into chat for an agent to analyze, attaching an image for a vision model to see, and investigating documents with a filesystem pipeline - and a capstone that ships one API all the way to a running MCP server. They follow the natural product workflow: build → validate → ground → compose.
+These twenty-two tutorials take you from creating a single tool to composing chains over the bundled default catalog. Optional deep dives branch off the main path: the MCP protocol surface, re-publishing tools through the MCP Server Proxy, gating tool calls behind human approval, turning a Prompt Library template into a reusable preset, uploading a file for an agent to analyze, attaching an image for a vision model, investigating documents with a filesystem pipeline, and attaching a document to chat. A capstone ships one API all the way to a running MCP server. In the last stretch an external AI operates the app for you through the management MCP tools: it reads the guides the app serves, then authors a tool, extends and re-ships a knowledge server from ChatGPT, registers and proxies a server, builds and ships knowledge of its own, and uses the chat as a sub-agent. They follow the natural product workflow: build → validate → ground → compose.
 
 The shipped chat default is **`qwen3.5:4b`** - fast, vision-capable, fine for the early tutorials. Switch to **`qwen3.5:9b`** or **`gemma4:e4b`** when you reach tutorials 4-7, where tool-calling reliability matters. Embeddings use **`qwen3-embedding:0.6b`** throughout. See [Picking a model](#picking-a-model) for the tradeoffs.
 
@@ -27,6 +27,11 @@ flowchart LR
   T15["15. Investigate Documents<br/>Unix-pipeline tools"]
   T16["16. API to MCP Server<br/>publish + gate + ship"]
   T17["17. Attach a Document<br/>instant RAG in chat"]
+  T18["18. AI Authors a Tool<br/>management MCP tools"]
+  T19["19. Knowledge Server to ChatGPT<br/>ship, extend, re-ship"]
+  T20["20. AI Registers a Server<br/>catalog, proxy, HITL"]
+  T21["21. AI Builds Knowledge<br/>ingest, pipeline, ship"]
+  T22["22. AI Uses the Chat<br/>sub-agent over MCP"]
   T1 --> T2
   T2 --> T4
   T3 --> T5
@@ -44,6 +49,16 @@ flowchart LR
   T5 -. attach .-> T17
   T8 ==> T16
   T11 -. gate .-> T16
+  T1 -. by an AI .-> T18
+  T16 ==> T18
+  T16 ==> T19
+  T18 ==> T19
+  T10 -. by an AI .-> T20
+  T19 ==> T20
+  T3 -. by an AI .-> T21
+  T19 ==> T21
+  T20 ==> T22
+  T21 ==> T22
   classDef build fill:#eef2ff,stroke:#3F51B5,color:#1e1b4b
   classDef validate fill:#ecfdf5,stroke:#10b981,color:#064e3b
   classDef ground fill:#fff7ed,stroke:#f59e0b,color:#7c2d12
@@ -55,14 +70,14 @@ flowchart LR
   class T3 ground
   class T4,T5,T6,T7,T8 compose
   class T9,T10,T11,T12,T13,T14,T15,T17 bonus
-  class T16 ship
+  class T16,T18,T19,T20,T21,T22 ship
 ```
 
-Tutorials 1-3 produce reusable assets (a tool, an MCP connection, an indexed document). Tutorials 4-8 compose those assets in chat (4-6) and as code-level chains over the bundled default catalog (7-8). Tutorial 9 is an optional **deep dive** off Tutorial 2 - activate MCP Everything from the Default MCP Servers and exercise every Inspector primitive (Tools / Resources / Prompts / Ping / Notifications / Roots / Sampling / Elicitation) end-to-end. Tutorial 10 is a second deep dive off Tutorial 2 - re-publish a connected server's tool through the built-in [MCP Server Proxy](../features/mcp-server/proxy.md) so chat and external clients can call it. Tutorial 16 is the capstone: it takes a public REST API through Tool Studio, an approval gate, the built-in MCP server, and finally into a Docker container that any MCP client can connect to. Each tutorial is independently runnable in 4-25 minutes; the full main sequence takes about 65 minutes, plus ~50 minutes for the deep dives (MCP Everything, Server Proxy, Human-in-the-Loop approval, the file and image attachments, and the document pipeline) and 25 minutes for the capstone.
+Tutorials 1-3 produce reusable assets (a tool, an MCP connection, an indexed document). Tutorials 4-8 compose those assets in chat (4-6) and as code-level chains over the bundled default catalog (7-8). Tutorial 9 is an optional **deep dive** off Tutorial 2 - activate MCP Everything from the Default MCP Servers and exercise every Inspector primitive (Tools / Resources / Prompts / Ping / Notifications / Roots / Sampling / Elicitation) end-to-end. Tutorial 10 is a second deep dive off Tutorial 2 - re-publish a connected server's tool through the built-in [MCP Server Proxy](../features/mcp-server/proxy.md) so chat and external clients can call it. Tutorial 16 is the capstone: it takes a public REST API through Tool Studio, an approval gate, the built-in MCP server, and finally ships it with Shipyard as its own MCP server running in Docker that any MCP client can connect to. Tutorial 18 turns the tables: an external AI client does the authoring of Tutorial 1 over the [management MCP tools](../features/mcp-server/management-tools.md), and you only approve or decline at the gates. Tutorials 19 to 22 continue that line with ChatGPT as the AI: it uses a knowledge server you shipped, adds a tool and ships a new version of it (19), registers an external server and exposes one of its tools behind approval (20), builds RAG knowledge from two documents and ships it as its own MCP server (21), and finally uses this app's chat as a sub-agent (22), each page written so that a person and an AI client can follow the same steps. Each tutorial is independently runnable in 4-25 minutes; the full main sequence takes about 65 minutes, plus about 65 minutes for the deep dives (9-15 and 17), 25 minutes for the capstone, and about 90 minutes for the AI-operated tutorials 18-22.
 
 !!! abstract "What you'll need"
     - Spring AI Playground running on `http://localhost:8282`. Follow [Getting Started](../getting-started/index.md) first if you haven't.
-    - Ollama running, with `qwen3.5:9b` and `qwen3-embedding:0.6b` pulled.
+    - Ollama running, with these models pulled:
         ```bash
         ollama pull qwen3.5:9b
         ollama pull gemma4:e4b
@@ -130,11 +145,11 @@ Tutorials 1-3 produce reusable assets (a tool, an MCP connection, an indexed doc
     Five new custom tools, each chaining default-tool helpers inside one JS action.  
     **20 min** · ★★★ · Tool Studio + Agentic Chat
 
--   :material-flask-outline:{ .lg .middle } **[9. MCP Everything - All 8 Primitives](9-mcp-everything.md)**
+-   :material-flask-outline:{ .lg .middle } **[9. MCP Everything: All 8 Primitives in One Walkthrough](9-mcp-everything.md)**
 
     ---
 
-    Activate the Default MCP Servers's reference test server and exercise every Inspector primitive - Tools, Resources, Prompts, Ping, Notifications, Roots, Sampling, Elicitation - in one sitting. OS-specific Node install or Docker alternative.  
+    Activate the reference test server from the Default MCP Servers catalog and exercise every Inspector primitive - Tools, Resources, Prompts, Ping, Notifications, Roots, Sampling, Elicitation - in one sitting. OS-specific Node install or Docker alternative.  
     **12 min** · ★★☆ · MCP Server (catalog + Inspector) · *deep dive*
 
 -   :material-transit-connection-variant:{ .lg .middle } **[10. Proxy an MCP Server](10-proxy-external-tool.md)**
@@ -165,12 +180,12 @@ Tutorials 1-3 produce reusable assets (a tool, an MCP connection, an indexed doc
     Upload a CSV or Excel file with the interactive requestFileUpload tool, then have the agent read and analyze it.  
     **7 min** · ★★☆ · Agentic Chat · *deep dive*
 
--   :material-image-search-outline:{ .lg .middle } **[14. Attach and Analyze an Image](14-analyze-an-image.md)**
+-   :material-image-search-outline:{ .lg .middle } **[14. Attach and Analyze Images](14-analyze-an-image.md)**
 
     ---
 
-    Attach an image to the chat and have a local vision model analyze it, then re-reference it later with describeImage.  
-    **5 min** · ★☆☆ · Agentic Chat · *deep dive*
+    Attach images to the chat, have a local vision model read them, turn their EXIF into a table and a map, then re-reference one later with describeImage.  
+    **8 min** · ★☆☆ · Agentic Chat · *deep dive*
 
 -   :material-text-box-search-outline:{ .lg .middle } **[15. Investigate Documents with a Pipeline](15-investigate-documents.md)**
 
@@ -183,8 +198,8 @@ Tutorials 1-3 produce reusable assets (a tool, an MCP connection, an indexed doc
 
     ---
 
-    Wrap an API you already have credentials for, gate it behind human approval, then hand the same configuration to Docker so any MCP client can call it.  
-    **25 min** · ★★★ · Tool Studio + Agentic Chat + MCP Server + Docker · *capstone*
+    Wrap an API you already have credentials for, gate it behind human approval, then ship it with Shipyard as its own MCP server that any MCP client can call.  
+    **25 min** · ★★★ · Tool Studio + Agentic Chat + MCP Server + Shipyard · *capstone*
 
 -   :material-file-document-plus-outline:{ .lg .middle } **[17. Attach a Document and Ask](17-attach-a-document.md)**
 
@@ -192,6 +207,41 @@ Tutorials 1-3 produce reusable assets (a tool, an MCP connection, an indexed doc
 
     Drop a document on the chat prompt, get a summary and pinpoint answers with no indexing step, then register it in the Vector Database with one click.  
     **12 min** · ★☆☆ · Agentic Chat + Vector Database · *deep dive*
+
+-   :material-robot-outline:{ .lg .middle } **[18. Let an AI Author a Tool](18-ai-authors-a-tool.md)**
+
+    ---
+
+    Switch the management tools on with a bearer token, let an external AI client read the guide the app serves, then write, test and publish a tool over MCP, approve the publish, decline a call, and read what it did on the Safety dashboard.  
+    **20 min** · ★★☆ · MCP Server + Tool Studio + Observability · *AI operates the app*
+
+-   :material-ferry:{ .lg .middle } **[19. Ship a Knowledge Server and Hand It to ChatGPT](19-knowledge-server-to-chatgpt.md)**
+
+    ---
+
+    Index two documents, ship them with Shipyard as a knowledge MCP server in Docker, connect ChatGPT, let it add a tool and re-ship the server through the management tools, then compare its own monitoring report with the Safety dashboard.  
+    **25 min** · ★★★ · Vector Database + Shipyard + MCP Server + Observability · *AI operates the app*
+
+-   :material-lan-connect:{ .lg .middle } **[20. Let an AI Proxy External MCP Servers Through a Safety Net](20-ai-registers-an-mcp-server.md)**
+
+    ---
+
+    Connect your AI to the playground once and use external MCP servers through it: ChatGPT registers DeepWiki from the catalog, exposes one tool behind approval and calls it, and its own monitoring report matches the Safety dashboard. Tool composition, HITL and monitoring for every external server.  
+    **12 min** · ★★☆ · MCP Server + Observability · *AI operates the app*
+
+-   :material-database-arrow-right:{ .lg .middle } **[21. Let an AI Build and Ship a Knowledge Server](21-ai-builds-a-knowledge-server.md)**
+
+    ---
+
+    Two documents in, a dedicated MCP server out: ChatGPT ingests, builds the pipeline, checks it with a search, validates, ships and runs the container, and you approve only the docker command. Then any client asks the new server.  
+    **15 min** · ★★★ · Vector Database + Shipyard + MCP Server + Observability · *AI operates the app*
+
+-   :material-robot-outline:{ .lg .middle } **[22. Let an AI Use the Chat as a Sub-agent](22-ai-chat-as-a-subagent.md)**
+
+    ---
+
+    An external AI asks this app's Agentic Chat over MCP with tools and knowledge; the approval for a gated tool reaches you in your own client, and the turn lands in the chat history.  
+    **15 min** · ★★☆ · MCP Server + Agentic Chat + Observability · *AI operates the app*
 
 </div>
 

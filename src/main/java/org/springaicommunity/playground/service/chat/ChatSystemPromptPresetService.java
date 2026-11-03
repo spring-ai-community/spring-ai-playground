@@ -133,6 +133,24 @@ public class ChatSystemPromptPresetService {
         return preset;
     }
 
+    public record TemplateInput(String replacesId, String displayName, String prompt, List<String> tools,
+            boolean dynamicTools) {}
+
+    public boolean isUserOwned(String id) {
+        return id != null && userPresets.stream().anyMatch(preset -> preset.id().equals(id));
+    }
+
+    public Preset saveTemplate(TemplateInput input) {
+        if (input.displayName() == null || input.displayName().isBlank())
+            throw new IllegalArgumentException("Name is required");
+        if (input.prompt() == null || input.prompt().isBlank())
+            throw new IllegalArgumentException("Prompt is required");
+        List<String> tools = input.dynamicTools() || input.tools() == null ? List.of() : input.tools();
+        Preset saved = save(input.displayName(), input.prompt(), PresetKind.TEMPLATE, tools, input.dynamicTools());
+        if (isUserOwned(input.replacesId()) && !input.replacesId().equals(saved.id())) delete(input.replacesId());
+        return saved;
+    }
+
     private static String userId(String displayName) {
         String slug = displayName.trim().toLowerCase(Locale.ROOT)
                 .replaceAll("[^a-z0-9]+", "-").replaceAll("(^-+)|(-+$)", "");

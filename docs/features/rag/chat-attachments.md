@@ -1,5 +1,6 @@
 ---
 description: Drop a document on the Agentic Chat prompt and it becomes conversation knowledge - size-tiered ingest through the offline ETL, an always-injected document overview, and threshold-free scoped retrieval, with every search printed in the chat RAG panel.
+videos: ep8
 ---
 
 # Chat Attachments
@@ -12,13 +13,13 @@ The [Offline: Indexing](offline-etl.md) page covers documents you curate deliber
 
 ## Using it
 
-1. **Attach.** Click the paperclip on the prompt box, or drop a `pdf`, `txt`, `md`, `html`, `docx`, or `pptx` file onto it. A chip appears above the prompt. Nothing else has to be selected: an attached document is used automatically in that conversation, with no RAG source picked.
+1. **Attach.** Click the paperclip on the prompt box, or drop a `pdf`, `txt`, `md`, `html`, `docx`, or `pptx` file onto it. A chip appears above the prompt, and the conversation is listed in **History** as `New chat` right away, so an attachment added before the first message can be reopened or deleted from there (deleting it cleans up the attachment). Nothing else has to be selected: an attached document is used automatically in that conversation, with no RAG source picked.
 2. **Wait for the chip.** A small file reads `Full text` within a second or two. A larger one moves through `Reading` -> `Indexing` -> `Summarizing n/m` -> `Indexed`. The summarizing step is the local chat model writing the document overview, so it takes as long as your model does - a 9,600-token manual (13 chunks, 4 model calls) took about ten minutes on `qwen3.5:4b-mlx`. You can ask questions in the meantime; the model is told the document is still being processed.
 3. **Ask for a summary.** `Summarize this` works as is. The overview built in step 2 rides along on every turn, so there is nothing to retrieve.
 4. **Ask a pinpoint question.** `What is the penalty clause?` runs one search scoped to the attachment, and the **RAG DOCUMENTS** panel above the answer prints it: `Searching attached documents...`, the query, the document list, `Top K: 5`, `Similarity Threshold: 0 (attachment scope)`, and how many excerpts came back.
 5. **Keep it, or let it go.** Removing the chip (or deleting the conversation) removes the document, its chunks, and the stored file. To keep it, click the database icon on an `Indexed` chip: `Registered <file> in the Vector Database. It now outlives this conversation.` From then on it is listed under Vector Database -> Sources -> Documents and in every conversation's RAG source selector as `document · retrieval only`, where it can also be scoped into a [pipeline](pipeline-studio.md).
 
-An attachment and a selected RAG source can be used in the same turn: the pipeline retrieves from its own corpus, the attachment contributes its overview and excerpts, and both panels are printed.
+An attachment and a selected RAG source can be used in the same turn: the pipeline retrieves from its own corpus, the attachment contributes its overview and excerpts, and both searches are printed in the same **RAG DOCUMENTS** panel.
 
 The rest of this page explains why it is built this way.
 
@@ -163,7 +164,7 @@ Registration is additive, not a move: the chip stays in its conversation (the ic
 | Excerpt search | every turn, scoped to the attachment, similarity threshold 0 | every turn, global threshold and top-K |
 | Removal | chip X or conversation delete | Vector Database screen |
 
-Selecting a registered document in the same conversation that still holds its chip runs both paths and prints both panels; it is redundant but harmless, and the panels make it visible.
+Selecting a registered document in the same conversation that still holds its chip runs both paths and prints both searches in the RAG DOCUMENTS panel; it is redundant but harmless, and the panel makes it visible.
 
 ![The Vector Database content view after the register action, showing the attached contract's chunks with level 1, docInfoId, and source metadata](../../assets/images/rag/chat-attach-vectordb.png)
 
@@ -171,7 +172,7 @@ The state that makes this recoverable lives in three places under the playground
 
 ## Boundaries
 
-Five attachments per conversation, 20MB per file. Spreadsheets are deliberately excluded - chunking a table destroys its header row, which is why every serious tool hands tabular files to code, not to a vector store. Scanned PDFs fail honestly on the chip; there is no vision-model fallback, by design. The level-2 section summaries are an intermediate step of the overview and are not stored, so retrieval works on the original chunks plus the overview. Small-tier files have no register action - they were never chunked, so promoting one means uploading it properly on the Vector Database screen.
+Five attachments per conversation, 20MB per file. Attaching the same file again (same name and size) while its chip is still there is refused with `<file> is already attached.`; a different file that happens to share the name is accepted. Spreadsheets are deliberately excluded - chunking a table destroys its header row, which is why every serious tool hands tabular files to code, not to a vector store. Scanned PDFs fail honestly on the chip; there is no vision-model fallback, by design. The level-2 section summaries are an intermediate step of the overview and are not stored, so retrieval works on the original chunks plus the overview. Small-tier files have no register action - they were never chunked, so promoting one means uploading it properly on the Vector Database screen.
 
 ## Next
 

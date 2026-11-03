@@ -22,6 +22,9 @@ import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H3;
 import org.springaicommunity.playground.observability.ObservabilityProperties;
 import org.springaicommunity.playground.observability.ObservabilityRingBuffer;
+import org.springaicommunity.playground.observability.query.ObservabilityQueryService;
+import org.springaicommunity.playground.observability.query.ObservabilityQueryService.ToolMcpBreakdown;
+import org.springaicommunity.playground.observability.query.ObservabilityQueryService.VectorOps;
 import org.springaicommunity.playground.observability.ObservabilityTimeSeries;
 import org.springaicommunity.playground.observability.Window;
 import org.springaicommunity.playground.observability.SpanRecord;
@@ -48,7 +51,6 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Deque;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -63,6 +65,7 @@ public class OverviewTab extends BaseDashboardTab {
             DateTimeFormatter.ofPattern("MM-dd HH:mm").withZone(ZoneId.systemDefault());
 
     private final ObservabilityRingBuffer buffer;
+    private final ObservabilityQueryService queryService;
     private final ObservabilityTimeSeries timeSeries;
     private final SystemMetricsSnapshot systemMetrics;
     private final ModelPricingService pricingService;
@@ -107,12 +110,14 @@ public class OverviewTab extends BaseDashboardTab {
     private final Deque<double[]> heapHistory = new ArrayDeque<>(120);
     private final Deque<double[]> cpuHistory = new ArrayDeque<>(120);
 
-    public OverviewTab(ObservabilityRingBuffer buffer, ObservabilityTimeSeries timeSeries,
+    public OverviewTab(ObservabilityRingBuffer buffer, ObservabilityQueryService queryService,
+            ObservabilityTimeSeries timeSeries,
             SystemMetricsSnapshot systemMetrics, ModelPricingService pricingService,
             CurrencyService currencyService, ObservabilityProperties obsProps,
             Consumer<String> navigateToSlug) {
         super();
         this.buffer = buffer;
+        this.queryService = queryService;
         this.timeSeries = timeSeries;
         this.systemMetrics = systemMetrics;
         this.pricingService = pricingService;
@@ -241,7 +246,7 @@ public class OverviewTab extends BaseDashboardTab {
         recentTracesGrid.addColumn(t -> shorten(t.conversationId(), 10)).setHeader("Conv").setAutoWidth(true).setFlexGrow(0);
         recentTracesGrid.addColumn(t -> safe(t.provider())).setHeader("Provider").setAutoWidth(true).setFlexGrow(0);
         recentTracesGrid.addColumn(t -> safe(t.model())).setHeader("Model").setAutoWidth(true).setFlexGrow(0);
-        recentTracesGrid.addColumn(t -> formatTokens(t.inputTokens(), t.outputTokens())).setHeader("In/Out").setAutoWidth(true).setFlexGrow(0);
+        recentTracesGrid.addColumn(trace -> FormatUtils.formatTokens(trace.inputTokens(), trace.outputTokens())).setHeader("In/Out").setAutoWidth(true).setFlexGrow(0);
         recentTracesGrid.addColumn(t -> FormatUtils.formatLatencyMs((double) t.durationMs())).setHeader("Duration").setAutoWidth(true).setFlexGrow(0);
         recentTracesGrid.addColumn(TraceRecord::status).setHeader("Status").setAutoWidth(true).setFlexGrow(0);
         recentTracesGrid.addItemClickListener(e -> {
@@ -281,7 +286,7 @@ public class OverviewTab extends BaseDashboardTab {
         callsCard.setSparkline(DashboardData.toNumberList(s.calls()));
         tokensCard.setSparkline(addArrays(DashboardData.toNumberList(s.inTokens()), DashboardData.toNumberList(s.outTokens())));
 
-        BigDecimal totalCost = computeWindowCost(window);
+        BigDecimal totalCost = queryService.windowCost(window);
         String activeCurrency = currencyService == null ? "USD" : currencyService.getActiveCurrency();
         costCard.setLabel("Cost (" + activeCurrency + ")");
         costCard.setValue(formatUsd(totalCost),
@@ -324,15 +329,15 @@ public class OverviewTab extends BaseDashboardTab {
                 "Input", DashboardData.toDouble(s.inTokens()), DashboardPalette.INFO,
                 "Output", DashboardData.toDouble(s.outTokens()), DashboardPalette.SUCCESS);
 
-        ToolMcpBreakdown tm = collectToolMcp(window);
+        ToolMcpBreakdown tm = queryService.toolMcpBreakdown(window);
         toolCallsChart.lineChart(labels, "Tool calls", DashboardData.toDouble(s.toolCalls()), DashboardPalette.SUCCESS, "");
-        transportDonut.donutChart(tm.transportCounts, ChartCanvas.DEFAULT_PALETTE);
-        topToolsBar.horizontalBarChart(tm.toolCounts, DashboardPalette.SUCCESS, 6);
-        topMcpServersBar.horizontalBarChart(tm.serverCounts, DashboardPalette.PRIMARY, 6);
+        transportDonut.donutChart(tm.transportCounts(), ChartCanvas.DEFAULT_PALETTE);
+        topToolsBar.horizontalBarChart(tm.toolCounts(), DashboardPalette.SUCCESS, 6);
+        topMcpServersBar.horizontalBarChart(tm.serverCounts(), DashboardPalette.PRIMARY, 6);
 
-        VectorBreakdown v = collectVector(window);
-        vectorOpsChart.lineChart(labels, "Vector ops", v.opsPerBucketDouble(window.buckets()), DashboardPalette.ACCENT, "");
-        topKBar.horizontalBarChart(v.topKHistogram, DashboardPalette.PRIMARY, 8);
+        VectorOps vectorOps = queryService.vectorOps(window);
+        vectorOpsChart.lineChart(labels, "Vector ops", vectorOps.opsPerBucketDouble(), DashboardPalette.ACCENT, "");
+        topKBar.horizontalBarChart(vectorOps.topKHistogram(), DashboardPalette.PRIMARY, 8);
 
         heapChart.lineChart(historyLabels(heapHistory),
                 "Heap MB", historyValues(heapHistory, 0), DashboardPalette.INFO, " MB");
@@ -478,82 +483,6 @@ public class OverviewTab extends BaseDashboardTab {
         return out;
     }
 
-    private BigDecimal computeWindowCost(Window window) {
-        long now = Instant.now().toEpochMilli();
-        long windowStart = now - window.totalMs();
-        BigDecimal total = BigDecimal.ZERO;
-        for (TraceRecord t : buffer.snapshot()) {
-            if (t.startEpochMs() < windowStart) continue;
-            total = total.add(pricingService.cost(t.model() == null ? "(unknown)" : t.model(),
-                    orZero(t.inputTokens()), orZero(t.outputTokens())));
-        }
-        return total;
-    }
-
-    private ToolMcpBreakdown collectToolMcp(Window window) {
-        long now = Instant.now().toEpochMilli();
-        long windowStart = now - window.totalMs();
-        ToolMcpBreakdown b = new ToolMcpBreakdown();
-        for (TraceRecord t : buffer.snapshot()) {
-            if (t.startEpochMs() < windowStart) continue;
-            if (t.spans() == null) continue;
-            for (SpanRecord span : t.spans()) {
-                if (!"spring.ai.tool".equals(span.name())) continue;
-                Map<String, String> attrs = span.attributes();
-                if (attrs == null) attrs = Map.of();
-                String name = attrs.getOrDefault("spring.ai.tool.definition.name", "(unnamed)");
-                b.toolCounts.merge(name, 1L, Long::sum);
-                String tr = attrs.getOrDefault("network.transport", "in-process");
-                b.transportCounts.merge(tr, 1L, Long::sum);
-                if (!"in-process".equalsIgnoreCase(tr)) {
-                    String server = attrs.getOrDefault("saip.mcp.server", "(unknown)");
-                    b.serverCounts.merge(server, 1L, Long::sum);
-                }
-            }
-        }
-        return b;
-    }
-
-    private VectorBreakdown collectVector(Window window) {
-        long now = Instant.now().toEpochMilli();
-        long windowStart = now - window.totalMs();
-        int buckets = window.buckets();
-        VectorBreakdown v = new VectorBreakdown();
-        v.opsPerBucket = new long[buckets];
-        for (TraceRecord t : buffer.snapshot()) {
-            if (t.startEpochMs() < windowStart) continue;
-            if (t.spans() == null) continue;
-            for (SpanRecord span : t.spans()) {
-                if (!"db.vector.client.operation".equals(span.name())) continue;
-                Map<String, String> attrs = span.attributes();
-                if (attrs == null) attrs = Map.of();
-                int bk = (int) Math.min(buckets - 1,
-                        Math.max(0, (span.startEpochMs() - windowStart) / window.bucketMs()));
-                v.opsPerBucket[bk]++;
-                String topK = attrs.getOrDefault("db.vector.query.top_k",
-                        attrs.getOrDefault("db.vector.query.top.k", null));
-                if (topK != null) v.topKHistogram.merge("k=" + topK, 1L, Long::sum);
-            }
-        }
-        return v;
-    }
-
-    private static final class ToolMcpBreakdown {
-        Map<String, Long> toolCounts = new LinkedHashMap<>();
-        Map<String, Long> serverCounts = new LinkedHashMap<>();
-        Map<String, Long> transportCounts = new LinkedHashMap<>();
-    }
-
-    private static final class VectorBreakdown {
-        long[] opsPerBucket;
-        Map<String, Long> topKHistogram = new LinkedHashMap<>();
-        double[] opsPerBucketDouble(int buckets) {
-            double[] out = new double[buckets];
-            for (int i = 0; i < buckets; i++) out[i] = opsPerBucket[i];
-            return out;
-        }
-    }
-
     private void openTracesTab() {
         UI.getCurrent().navigate("observability?tab=traces");
     }
@@ -572,12 +501,6 @@ public class OverviewTab extends BaseDashboardTab {
         List<Number> out = new ArrayList<>(n);
         for (int i = 0; i < n; i++) out.add(a.get(i).doubleValue() + b.get(i).doubleValue());
         return out;
-    }
-
-    private static String formatTokens(Long in, Long out) {
-        long i = in == null ? 0 : in;
-        long o = out == null ? 0 : out;
-        return i + "/" + o;
     }
 
     private String formatUsd(BigDecimal v) {
@@ -606,5 +529,4 @@ public class OverviewTab extends BaseDashboardTab {
         return HHMM.format(Instant.ofEpochMilli(epochMs));
     }
 
-    private static long orZero(Long v) { return v == null ? 0 : v; }
 }

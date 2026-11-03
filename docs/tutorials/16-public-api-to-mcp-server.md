@@ -1,11 +1,12 @@
-description: Tutorial 16 - wrap a public REST API you already have access to as a tool, gate it behind human approval, and hand the same configuration to Docker so any MCP client can call it.
+videos: ep5 ep9
+description: Tutorial 16 - wrap a public REST API you already have access to as a tool, gate it behind human approval, and ship it with Shipyard as its own MCP server that any MCP client can call.
 
 # Tutorial 16 - From a Public API to Your Own MCP Server
 
-**Time** 25 min · **Difficulty** ★★★ · **Surfaces** Tool Studio + Agentic Chat + MCP Server + Docker
+**Time** 25 min · **Difficulty** ★★★ · **Surfaces** Tool Studio + Agentic Chat + MCP Server + Shipyard
 
 !!! abstract "Goal"
-    Take a REST API your organisation already has credentials for, wrap it in Tool Studio, put a **human approval gate** in front of it, and watch it go live on the built-in MCP server the moment it earns its Local Pass. Then lift that same configuration into a **Docker container** so Claude Desktop, Claude Code, or any other MCP client can call it - with the approval gate still in force and the API key still outside the file.
+    Take a REST API your organisation already has credentials for, wrap it in Tool Studio, put a **human approval gate** in front of it, and watch it go live on the built-in MCP server the moment it earns its Local Pass. Then ship that one tool as **its own MCP server** with Shipyard and run it in Docker, so Claude Desktop, Claude Code, or any other MCP client can call it - with the approval gate still in force and the API key still outside every file.
 
 This is the end-to-end path the earlier tutorials cover in pieces. [Tutorial 8](8-default-tool-recipes.md) composes default tools inside one JS action; [Tutorial 11](11-human-approval.md) approves a call from chat. Here the two meet, and the result is shipped: a running MCP server that is yours, that publishes exactly the tools you vetted, and that asks before it acts.
 
@@ -14,11 +15,11 @@ The walkthrough uses a Korean government open-data service, because "we already 
 ## What you need { #prerequisites }
 
 - Spring AI Playground running (see [Getting Started](../getting-started/index.md)).
-- Docker installed and running, for the last two sections.
+- Docker installed and running, for the last section.
 - A **data.go.kr service key**. The walkthrough calls [KoROAD traffic-accident hotspots by municipality](https://www.data.go.kr/data/15057467/openapi.do). Sign in, click **활용신청**, and the development account is approved automatically.
 
 !!! tip "No key? Run the same capstone against USGS"
-    Every step below except the exact numbers is API-agnostic. To do the whole walkthrough with no credentials, copy [`getRecentEarthquakes`](../features/default-tools/global.md) instead of the traffic tool - it calls the USGS public catalog with no auth and already returns `latitude`, `longitude` and `magnitude`, so the same two action cards (a `plotPointsOnMap` weighted by magnitude and a ranked bar chart) fall out of it. Name the copy `earthquakeBriefing`, set **Network mode (fetch)** to `strict`, and skip straight to section 3. The approval dialog, the `L3 → L2 - Low` chip, the elicitation card and the Docker hand-off all behave identically.
+    Every step below except the exact numbers is API-agnostic. To do the whole walkthrough with no credentials, copy [`getRecentEarthquakes`](../features/default-tools/global.md) instead of the traffic tool - it calls the USGS public catalog with no auth and already returns `latitude`, `longitude` and `magnitude`, so the same two action cards (a `plotPointsOnMap` weighted by magnitude and a ranked bar chart) fall out of it. Name the copy `earthquakeBriefing`, set **Network mode (fetch)** to `strict`, and skip straight to section 3. The approval dialog, the `L3 → L2 - Low` chip, the elicitation card and the Shipyard hand-off all behave identically.
 
 !!! warning "Use the Decoding key, not the Encoding key"
     data.go.kr issues both forms. The Encoding key ends in `%3D%3D`, which is already URL-escaped. Every data.go.kr tool in this catalog runs the key through `encodeURIComponent`, so an Encoding key gets escaped twice and the service rejects it. Copy the **일반 인증키 (Decoding)** value.
@@ -41,7 +42,7 @@ The catalog already ships a thin wrapper for this service, so you do not start f
 4. Rename it to `accidentHotspotBriefing`.
 
 !!! note "Why the copy needs a different name"
-    Shipped default tools are pinned in an integrity manifest. If you keep a reserved default name but change the code, the content hash stops matching the baseline and the built-in server refuses to publish the tool. Renaming the copy is what keeps you out of that check. See [Default integrity](../mcp-server-safety.md).
+    A tool name must be unique, and the shipped default tools reserve theirs. **Copy And New Tool** saves the copy as `<name>_COPY`; renaming it back to the default's name is refused on save with `A tool with this name already exists.` (or, if that default was removed, `'<name>' is the name of a built-in default tool. Choose a different name.`). The reservation is what lets the integrity check tell a genuine default from a lookalike - see [Default integrity](../mcp-server-safety.md).
 
 !!! tip "The undocumented part of this API"
     The service wants `siDo` and `guGun` codes and publishes no code table. They are the 5-digit legal-dong sigungu code split in two: first 2 digits are `siDo`, last 3 are `guGun`. Seongdong `11200` becomes `11` / `200`, Gangnam `11680` becomes `11` / `680`. The bundled tool takes the single `lawdCode` and splits it internally, which is also what [`getApartmentTradePrice`](../features/default-tools/korea.md#getApartmentTradePrice) takes, so one code works across both tools.
@@ -176,7 +177,7 @@ Query accident hotspots for {args}. Proceed?
 Chat stops and the **Tool approval required** dialog appears with an `L3` chip, your prompt, and the arguments the model chose. Check that the `lawdCodes` it picked are the municipalities you asked about, then click **Approve**.
 
 ![The Tool approval required dialog over the chat - a yellow L3 - Moderate chip above the question Run accidentHotspotBriefing with arguments lawdCodes 11680,11650,11710, with Decline and Approve buttons, and the MCP TOOLS trace visible behind it](../assets/images/tutorials/tutorial-16-approval.png)
-*The gate fired before the call left the machine. The arguments are the point: the model turned "강남, 서초, 송파" into `11680,11650,11710`, and this dialog is where you catch it if it did not.*
+*The gate fired before the call left the machine. The arguments are the point: check that each code is a municipality you named (this capture comes from an earlier ask for 강남, 서초, 송파, which became `11680,11650,11710`), and this dialog is where you catch it if it is not.*
 
 The tool runs, and the answer comes back with the map and the bar chart rendered inline as action cards.
 
@@ -187,7 +188,7 @@ The tool runs, and the answer comes back with the map and the bar chart rendered
 *The same twelve spots as a ranked bar chart. `sort: 'asc'` is what makes the ranking read left to right.*
 
 !!! note "You may be asked more than once"
-    Nothing forces the model to batch all three districts into one call. If it decides to call the tool once per district, each call opens its own dialog, and an unanswered dialog is declined after two minutes. Approve each one, or write the tool description so the batched form is the obvious call.
+    Nothing forces the model to batch all four municipalities into one call. If it decides to call the tool once per municipality, each call opens its own dialog, and an unanswered dialog expires after the approval wait (three minutes by default) without running the tool. Approve each one, or write the tool description so the batched form is the obvious call.
 
 !!! tip "If the model does not call the tool"
     Small models are best-effort at tool selection. The shipped default is `qwen3.5:4b`; switch to `qwen3.5:9b` in **Settings → Model** if a turn comes back without a tool call. See [Picking a model](index.md#picking-a-model).
@@ -200,86 +201,67 @@ Open **MCP Server**, scroll to the **Inspector**, and on the **Tools** tab fill 
 
 The tool's chip reads **`L3 → L2 - Low`** rather than plain `L3`. That is the [HITL mitigation credit](../features/human-in-the-loop.md#expose): the inherent level is still L3, but because a human gates every call the *effective* band drops one.
 
-The call itself does not return yet. The approval leaves the server as an MCP **elicitation** request, and it lands on the Inspector's **Elicitation** tab, not in a dialog.
+The call itself does not return yet. The approval leaves the server as an MCP **elicitation** request. It shows up on the running card itself - `Approval needed: [risk L3 Moderate] ...` with **Accept**, **Decline**, a `m:ss left to answer` countdown and a **Review** link - and the same request is listed on the Inspector's **Elicitation** tab.
 
 ![The MCP Inspector Elicitation tab - under PENDING ELICITATION REQUESTS a single card reading risk L3 Moderate, Approve running tool accidentHotspotBriefing with arguments lawdCodes 11680,27260,26350,50110, with Accept, Decline, and Cancel actions](../assets/images/tutorials/tutorial-16-inspector.png)
 *The same gate, one protocol layer down. The message is prefixed with `[risk L3 Moderate]` because the elicitation protocol has no severity field of its own.*
 
-!!! warning "Switch to the Elicitation tab or the call just expires"
-    Nothing pops up on the Tools tab. If you press play and wait there, the request sits unanswered on the Elicitation tab and the server records `hitl.server.declined ... action=CANCEL` - the call is refused, fail-safe. Answer it on that tab.
+!!! warning "Answer before the countdown runs out"
+    The request stays open for the [approval wait](../features/human-in-the-loop.md#wait) (three minutes by default). Left unanswered, the server records `hitl.server.timeout` and the call ends with `Tool 'accidentHotspotBriefing' was not run: no approval within 180 s` - refused, fail-safe. **Decline** ends it with `... was not run: human-in-the-loop approval was not granted.`
 
 !!! warning "A client that cannot ask cannot approve"
     If an MCP client does not support elicitation, a `Required` tool is **denied** rather than silently executed. That is the fail-safe direction, but it does mean a gated tool is unusable from clients without elicitation support. Check your client before you gate a tool it needs.
 
-## 7. Hand the configuration to Docker { #docker }
+## 7. Ship it as its own MCP server { #ship }
 
-Everything you just built is in one file:
+The built-in server publishes everything you expose from this playground. To hand this one vetted tool to someone else, ship it as a separate server that carries only that tool. [Shipyard](../features/mcp-server/index.md#shipyard) does that without leaving the app.
 
-```
-~/spring-ai-playground/tool/save/toolSpecsMcpSetting.json
-```
+1. With `accidentHotspotBriefing` open in **Tool Studio**, click **Ship MCP Server** (the anchor icon) in the header. The Shipyard ship flow opens with the tool already in its **What goes in** table, marked **Tool** with its description and `L3`.
+2. Name the server `accident-hotspots`. Leave the version at `0.1.0` and **Advanced** at its defaults: Streamable HTTP plus stdio on host port `18282`, model-free.
+3. Click **Ship**.
 
-It carries the tool's JavaScript, its sandbox posture, its human-in-the-loop mode and prompt, and the list of tool ids the MCP server exposes. What it does **not** carry is the API key - the static variable holds the literal text `${DATA_GO_KR_TRAFFIC_KEY}`, and the value is injected from the environment at call time. That is what makes the file safe to copy to a server or commit to a private config repo.
+![The Shipyard ship flow opened from Tool Studio - accidentHotspotBriefing ticked under Custom (1) with an L3 chip, the server name accident-hotspots above its mcp/bundles/accident-hotspots/ path, and the Server preview card reading 1 tools, model-free and HTTP+stdio :18282 above a green Ready to ship](../assets/images/tutorials/tutorial-16-ship.png)
+*One tool ticked, one name typed. **Advanced** stays collapsed because its summary line already says what you get. An amber line appears only on a development build, which pins the image tag `latest`; a release or milestone build pins its own `v<version>` image.*
+
+Shipyard writes the bundle to `~/spring-ai-playground/mcp/bundles/accident-hotspots/`. Two files in its `home/` carry the server:
+
+- `saip-bundle.json` - the manifest: the tool id, its risk level and approval requirement, content hashes, and the **names** of the environment variables the server needs.
+- `tool/save/toolSpecsMcpSetting.json` - the tool's JavaScript, its sandbox posture, its human-in-the-loop mode and prompt, and an exposed list holding only this tool.
+
+Next to them sit a `Dockerfile`, its `.dockerignore`, `compose.yaml`, a `README.md` and a starter `server.json` for the MCP Registry. None of them carries the API key. The static variable still reads `${DATA_GO_KR_TRAFFIC_KEY}`, and `compose.yaml` passes that variable through from whatever environment starts the container.
 
 !!! note "Export Tool Specification is a different thing"
-    The **Export Tool Specification** button in the Tool Studio header dumps the model-facing schema only - name, description, and the parameter JSON Schema. It has no code and no approval settings, so it is not a migration artifact. Copy the file above.
+    The **Export Tool Specification** button in the Tool Studio header dumps the model-facing schema only - name, description, and the parameter JSON Schema. It has no code and no approval settings, so it is not a migration artifact. The bundle is.
 
-Stage the file and start the container:
+## 8. Run it and connect a client { #run }
 
-```bash
-mkdir -p /tmp/saip-home/tool/save
-cp ~/spring-ai-playground/tool/save/toolSpecsMcpSetting.json /tmp/saip-home/tool/save/
-```
+Docker is needed from here on. On the success panel, click **Run**. Leave **Target** on `local` (this machine). The run dialog shows the image it builds from the bundle (`saip-mcp/accident-hotspots:0.1.0`), the port, and the `docker compose up -d --build` command it is about to run. Every start serves a fresh copy of the bundle, so the run never writes into it. It also lists `DATA_GO_KR_TRAFFIC_KEY` as a password field: leave it empty to pass through the value this playground already runs with, or type a different key. Either way the value is injected at run time and never written to disk. If the port will be reachable from anything other than your own machine, fill **SAIP_MCP_AUTH_TOKEN** so the server requires `Authorization: Bearer <token>`; see [Require a bearer token](../getting-started/external-connections.md#bearer-token). Click **Run**.
 
-```bash
-docker run -d --name saip-mcp -p 8282:8282 -e SPRING_AI_OLLAMA_BASE_URL=http://host.docker.internal:11434 -e DATA_GO_KR_TRAFFIC_KEY="$DATA_GO_KR_TRAFFIC_KEY" -v /tmp/saip-home:/root/spring-ai-playground ghcr.io/spring-ai-community/spring-ai-playground:latest
-```
+The status chip reads **Starting on :18282** while the container boots, then turns into **Running on :18282** once the container's `/actuator/health` reports `UP` - no reload needed.
 
-The bind mount lands on `/root/spring-ai-playground`, which is where the container's app home lives. Open `http://localhost:8282`, and your tool is there with its Local Pass, its risk chip, and its approval gate intact.
+![The accident-hotspots server page - a Running on :18282 chip beside 1 tools, model-free and v0.1.0, a blue Connect button, and the Connect section with Test connection reporting OK - 1 tool(s), the Install in Cursor and Install in VS Code links, and the Claude Code tab showing the claude mcp add command](../assets/images/tutorials/tutorial-16-running.png)
+*The shipped server, running in its own container and serving exactly one tool. Every tab under **Connect** is the same connection written for a different client.*
 
-![The MCP Inspector Tools tab inside the container - 6 tools, with accidentHotspotBriefing first carrying an L3 to L2 Low chip and its lawdCodes and year parameters, above extractPageContent and getWeather from the Starter 5 preset](../assets/images/tutorials/tutorial-16-docker.png)
-*The container's own MCP server, serving the tool you authored on your laptop. Nothing was rebuilt and no image was published - one JSON file moved.*
+Click **Test connection**. It reports **OK - 1 tool(s)**: the container serves the tool you shipped and nothing else from your playground.
 
-!!! warning "The container needs a model provider to finish booting"
-    Without `SPRING_AI_OLLAMA_BASE_URL` the app fails during startup on the embedding model and the container exits with code 1. Inside a container `localhost` is the container itself, not your machine. On Linux, `host.docker.internal` may not resolve - use host networking or a bridge address such as `172.17.0.1`. Add `-e SPRING_AI_OLLAMA_INIT_PULL_MODEL_STRATEGY=never` if you do not want it pulling models on first boot.
+The **Connect** section under it has everything a client needs, with the bearer token filled in when you set one:
 
-## 8. Point an MCP client at it { #client }
+- **Claude Code** - a `claude mcp add --transport http accident-hotspots http://localhost:18282/mcp` command.
+- **Install in Cursor** / **Install in VS Code** - one-click install links.
+- **Claude Desktop (stdio)** - a `claude_desktop_config.json` entry that runs the same `saip-mcp/accident-hotspots:0.1.0` image in stdio mode, and forwards `-e DATA_GO_KR_TRAFFIC_KEY` from the client's own environment so the key stays out of that file too.
+- **Generic JSON** and a **curl handshake** for anything else.
 
-For an HTTP client, the endpoint is `http://localhost:8282/mcp`.
+Ask the client for the hotspots, and the approval request reaches it as an elicitation before the call runs: the same question as on the Inspector's **Elicitation** tab in section 6, ending with `Answer within 180 s, or the call is refused.`, plus a pre-ticked **Run this call** checkbox. Only **Accept** with the box still ticked runs the tool; unticking it, declining, cancelling or letting the wait run out refuses the call.
 
-!!! tip "Locking the container down"
-    If the container is reachable from anything other than your own machine, add `-e SPRING_AI_PLAYGROUND_MCP_SERVER_AUTH_TOKEN=<token>` to the `docker run` line and send `Authorization: Bearer <token>` from the client - see [Require a bearer token](../getting-started/external-connections.md#bearer-token). From 0.2.0-M13 a tools-only container can also skip the model provider with `-e SPRING_AI_MODEL_CHAT=none -e SPRING_AI_MODEL_EMBEDDING=none`.
-
-For Claude Desktop, run the same image in stdio mode instead. Add this to `claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "accident-hotspots": {
-      "command": "docker",
-      "args": [
-        "run", "-i", "--rm",
-        "-e", "SPRING_PROFILES_INCLUDE=mcp-stdio",
-        "-e", "SPRING_AI_OLLAMA_BASE_URL=http://host.docker.internal:11434",
-        "-e", "DATA_GO_KR_TRAFFIC_KEY",
-        "-v", "/tmp/saip-home:/root/spring-ai-playground",
-        "ghcr.io/spring-ai-community/spring-ai-playground:latest"
-      ]
-    }
-  }
-}
-```
-
-`SPRING_PROFILES_INCLUDE` layers the stdio transport **on top of** the default profile, so model configuration keeps applying. `SPRING_PROFILES_ACTIVE` would replace the list and drop it. Passing `-e DATA_GO_KR_TRAFFIC_KEY` with no value forwards it from the client's environment, so the key stays out of the config file too.
-
-Ask Claude Desktop for the hotspots, and the approval card renders in its UI before the call runs.
+!!! tip "Taking it beyond your machine"
+    The **Publish** tab lists the commands that push the image you just ran under your own registry name, and the `server.json` to submit to the MCP Registry. If you change the tool in Tool Studio later, the server page marks the bundle **Out of date**; stop the container and **Rebuild** it. Shipyard refuses to rebuild or delete a running one.
 
 ## What you learned { #recap }
 
 - A REST API you already have credentials for becomes an agent-callable tool by wrapping it in one JS action.
 - **Local Pass publishes**. The moment the local test passes, the tool is live on the built-in MCP server - no restart, no redeploy.
 - **The approval gate travels with the tool**, not with the UI. Chat shows a dialog; external MCP clients get an elicitation card; clients that cannot elicit are denied.
-- **The configuration is one file** and the credential is not in it. Copy the file, inject the key as an environment variable, and the same vetted tool runs anywhere the container runs.
+- **A vetted tool ships as its own server.** Shipyard bundles the tool, its sandbox posture and its approval gate, but not the credential. The container reads the key from the environment, so the same bundle runs anywhere Docker does.
 
 ## Next steps
 

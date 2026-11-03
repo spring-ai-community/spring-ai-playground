@@ -22,6 +22,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springaicommunity.playground.service.PersistenceExecutor;
 import org.springaicommunity.playground.service.chat.ChatSystemPromptPresetCatalog.Preset;
+import org.springaicommunity.playground.service.chat.ChatSystemPromptPresetCatalog.PresetKind;
+import org.springaicommunity.playground.service.chat.ChatSystemPromptPresetService.TemplateInput;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -157,5 +159,29 @@ class ChatSystemPromptPresetServiceTest {
         assertThat(service.delete("user-gone")).isTrue();
         assertThat(service.userPresets()).extracting(Preset::id).containsExactly("user-keep");
         assertThat(service.delete("user-gone")).isFalse();
+    }
+
+    @Test
+    void saveTemplateValidatesAndDropsTheRenamedUserTemplate() throws Exception {
+        ChatSystemPromptPresetService service =
+                new ChatSystemPromptPresetService(home, executor, mapper, catalog);
+        assertThatThrownBy(() -> service.saveTemplate(new TemplateInput(null, " ", "p", List.of(), false)))
+                .isInstanceOf(IllegalArgumentException.class).hasMessage("Name is required");
+        assertThatThrownBy(() -> service.saveTemplate(new TemplateInput(null, "T", " ", List.of(), false)))
+                .isInstanceOf(IllegalArgumentException.class).hasMessage("Prompt is required");
+
+        Preset first = service.saveTemplate(new TemplateInput(null, "Draft", "Hello {{name}}",
+                List.of("getWeather"), false));
+        assertThat(first.id()).isEqualTo("user-draft");
+        assertThat(first.kind()).isEqualTo(PresetKind.TEMPLATE);
+        assertThat(first.tools()).containsExactly("getWeather");
+        assertThat(service.isUserOwned("user-draft")).isTrue();
+        assertThat(service.isUserOwned(catalog.presets().getFirst().id())).isFalse();
+
+        Preset renamed = service.saveTemplate(new TemplateInput("user-draft", "Final", "Hello {{name}}",
+                List.of("getWeather"), true));
+        assertThat(renamed.id()).isEqualTo("user-final");
+        assertThat(renamed.tools()).as("dynamic templates carry no tool list").isEmpty();
+        assertThat(service.userPresets()).extracting(Preset::id).containsExactly("user-final");
     }
 }

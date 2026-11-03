@@ -23,7 +23,6 @@ import com.vaadin.flow.component.combobox.MultiSelectComboBox;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
-import org.springaicommunity.playground.service.tool.ToolActivationCalculator;
 import org.springaicommunity.playground.service.tool.ToolSpec;
 import org.springaicommunity.playground.service.tool.ToolSpecPersistenceService;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
@@ -40,7 +39,7 @@ public class ToolMcpServerSettingView extends VerticalLayout {
     private static final int CHIPS_VISIBLE = 10;
 
     private final ToolSpecPersistenceService persistenceService;
-    private final ToolActivationCalculator activationCalculator;
+    private final ToolSpecService toolSpecService;
 
     private List<ToolSpec> currentToolSpecs = List.of();
     private ToolMcpServerSetting confirmedSetting = new ToolMcpServerSetting(true, Set.of(), Set.of());
@@ -56,10 +55,9 @@ public class ToolMcpServerSettingView extends VerticalLayout {
     private boolean dirty;
 
     public ToolMcpServerSettingView(List<ToolSpec> toolSpecs, ToolMcpServerSetting toolMcpServerSetting,
-            ToolSpecPersistenceService persistenceService, ToolActivationCalculator activationCalculator,
-            ToolSpecService toolSpecService) {
+            ToolSpecPersistenceService persistenceService, ToolSpecService toolSpecService) {
         this.persistenceService = persistenceService;
-        this.activationCalculator = activationCalculator;
+        this.toolSpecService = toolSpecService;
         this.customSelector = ExposedToolsSelector.newCustomSelector(
                 toolSpecService::riskLevelOf, toolSpecService::categoryOf);
         this.builtinSelector = ExposedToolsSelector.newBuiltinSelector(
@@ -191,12 +189,6 @@ public class ToolMcpServerSettingView extends VerticalLayout {
         return divider;
     }
 
-    private Set<String> exposableBuiltinIds() {
-        Set<String> defaultIds = persistenceService.getDefaultToolIds();
-        return ExposedToolsSelector.exposableBuiltinsFrom(currentToolSpecs, defaultIds, activationCalculator)
-                .stream().map(ToolSpec::toolId).collect(Collectors.toCollection(LinkedHashSet::new));
-    }
-
     private void markDirty() {
         if (!dirty) {
             dirty = true;
@@ -302,13 +294,12 @@ public class ToolMcpServerSettingView extends VerticalLayout {
                 .set("min-height", "auto");
     }
 
-    public ToolMcpServerSetting getUiToolMcpServerSetting() {
+    public ToolSpecService.ExposureSelection selection() {
         Set<String> customSel = customSelector.getSelectedItems().stream()
                 .map(ToolSpec::toolId).collect(Collectors.toSet());
         Set<String> builtinSel = builtinSelector.getSelectedItems().stream()
                 .map(ToolSpec::toolId).collect(Collectors.toSet());
-        return ExposedToolsSelector.computeSetting(autoAddCheckbox.getValue(), customSel, builtinSel,
-                exposableBuiltinIds());
+        return new ToolSpecService.ExposureSelection(autoAddCheckbox.getValue(), customSel, builtinSel);
     }
 
     public boolean isDirty() {
@@ -328,10 +319,8 @@ public class ToolMcpServerSettingView extends VerticalLayout {
             this.confirmedSetting = toolMcpServerSetting;
             autoAddCheckbox.setValue(toolMcpServerSetting.autoAdd());
 
-            Set<String> defaultIds = persistenceService.getDefaultToolIds();
-            List<ToolSpec> customs = ExposedToolsSelector.customsFrom(toolSpecs, defaultIds);
-            List<ToolSpec> exposableBuiltins = ExposedToolsSelector.exposableBuiltinsFrom(
-                    toolSpecs, defaultIds, activationCalculator);
+            List<ToolSpec> customs = this.toolSpecService.customTools();
+            List<ToolSpec> exposableBuiltins = this.toolSpecService.exposableBuiltins();
 
             customSelector.setItems(customs);
             builtinSelector.setItems(exposableBuiltins);

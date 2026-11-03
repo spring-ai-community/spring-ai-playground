@@ -71,7 +71,7 @@ public class ContentWorkspaceView extends Div {
                 .set("position", "relative")
                 .set("flex", "1 1 auto")
                 .set("min-height", "0")
-                .set("overflow", "hidden")
+                .set("overflow", "clip")
                 .set("display", "flex")
                 .set("flex-direction", "column");
 

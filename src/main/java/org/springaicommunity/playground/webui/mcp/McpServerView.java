@@ -27,9 +27,12 @@ import com.vaadin.flow.server.auth.AnonymousAllowed;
 import com.vaadin.flow.spring.annotation.SpringComponent;
 import com.vaadin.flow.spring.annotation.UIScope;
 import org.springaicommunity.playground.service.analytics.UsageAnalyticsService;
+import org.springaicommunity.playground.service.management.ManagementToolRegistrar;
+import org.springaicommunity.playground.service.mcp.McpRegistrationService;
 import org.springaicommunity.playground.service.mcp.McpServerAuthTokenService;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
+import org.springaicommunity.playground.service.mcp.bundle.ShipyardService;
 import org.springaicommunity.playground.service.mcp.catalog.McpCatalogService;
 import org.springaicommunity.playground.service.mcp.catalog.McpCategoryService;
 import org.springaicommunity.playground.service.mcp.catalog.McpTagSuggestionService;
@@ -45,6 +48,7 @@ import org.springaicommunity.playground.webui.UsageEventTracker;
 import org.springaicommunity.playground.webui.VaadinUtils;
 import org.springaicommunity.playground.webui.common.ContentWorkspaceView;
 import org.springaicommunity.playground.webui.common.WorkspaceSettingsDrawer;
+import org.springaicommunity.playground.webui.shipyard.ShipyardView;
 
 import java.beans.PropertyChangeSupport;
 import java.net.URLDecoder;
@@ -64,6 +68,7 @@ public class McpServerView extends ContentWorkspaceView {
     public static final String MCP_CONNECTION_SELECT_EVENT = "MCP_CONNECTION_SELECT_EVENT";
     public static final String MCP_CONNECTION_CHANGE_EVENT = "MCP_CONNECTION_CHANGE_EVENT";
     public static final String MCP_CONNECTION_DELETE_EVENT = "MCP_CONNECTION_DELETE_EVENT";
+    public static final String MCP_CONNECTION_RECONNECT_EVENT = "MCP_CONNECTION_RECONNECT_EVENT";
 
     private final McpServerInfoService mcpServerInfoService;
     private final McpClientService mcpClientService;
@@ -71,14 +76,18 @@ public class McpServerView extends ContentWorkspaceView {
     private final McpTagSuggestionService mcpTagSuggestionService;
     private final McpToolRiskEvaluator mcpToolRiskEvaluator;
     private final McpRegistrationRiskPreview mcpRegistrationRiskPreview;
+    private final McpRegistrationService mcpRegistrationService;
     private final McpExposedToolService mcpExposedToolService;
     private final McpCompositionService mcpCompositionService;
     private final ToolSpecService toolSpecService;
+    private final ShipyardService shipyardService;
+    private final ManagementToolRegistrar managementRegistrar;
     private final UsageAnalyticsService usageAnalyticsService;
     private final UsageEventTracker usageEventTracker;
     private final McpServerConnectionView mcpServerConnectionView;
     private final PropertyChangeSupport mcpServerInfoChangeSupport;
     private McpContentView mcpContentView;
+    private McpServerInfo selectedServerInfo;
 
     public McpServerView(PersistentUiDataStorage persistentUiDataStorage, McpServerInfoService mcpServerInfoService,
             McpClientService mcpClientService, McpCategoryService mcpCategoryService,
@@ -86,7 +95,12 @@ public class McpServerView extends ContentWorkspaceView {
             McpToolRiskEvaluator mcpToolRiskEvaluator, McpRegistrationRiskPreview mcpRegistrationRiskPreview,
             McpExposedToolService mcpExposedToolService, McpCompositionService mcpCompositionService,
             ToolSpecService toolSpecService, UsageAnalyticsService usageAnalyticsService,
-            UsageEventTracker usageEventTracker, McpServerAuthTokenService mcpServerAuthTokenService) {
+            UsageEventTracker usageEventTracker, McpServerAuthTokenService mcpServerAuthTokenService,
+            ShipyardService shipyardService, ManagementToolRegistrar managementRegistrar,
+            McpRegistrationService mcpRegistrationService) {
+        this.shipyardService = shipyardService;
+        this.mcpRegistrationService = mcpRegistrationService;
+        this.managementRegistrar = managementRegistrar;
         this.mcpServerInfoService = mcpServerInfoService;
         this.mcpClientService = mcpClientService;
         this.mcpCategoryService = mcpCategoryService;
@@ -112,19 +126,19 @@ public class McpServerView extends ContentWorkspaceView {
             switch (event.getPropertyName()) {
                 case MCP_CONNECTION_SELECT_EVENT -> this.selectMcpServerInfo(newMcpServerInfo);
                 case MCP_CONNECTION_CHANGE_EVENT -> {
-                    McpServerInfo oldValue = (McpServerInfo) event.getOldValue();
-                    McpServerInfo updateMcpServerInfo =
-                            mcpServerInfoService.updateMcpServerInfo(oldValue.mcpTransportType(), oldValue.serverName(),
-                                    newMcpServerInfo);
                     this.mcpServerConnectionView.updateMcpConnections();
-                    this.mcpServerConnectionView.selectMcpConnectionContent(updateMcpServerInfo);
-                    VaadinUtils.showInfoNotification("MCP Connection Saved!");
+                    this.mcpServerConnectionView.selectMcpConnectionContent(newMcpServerInfo);
+                    notifySaved(newMcpServerInfo);
                     this.usageEventTracker.track(UI.getCurrent(), "mcp_server_added",
-                            this.usageAnalyticsService.mcpServerAddedParams(updateMcpServerInfo));
+                            this.usageAnalyticsService.mcpServerAddedParams(newMcpServerInfo));
                 }
                 case MCP_CONNECTION_DELETE_EVENT -> {
                     this.mcpServerConnectionView.updateMcpConnections();
                     addNewMcpServerDetails();
+                }
+                case MCP_CONNECTION_RECONNECT_EVENT -> {
+                    this.mcpServerConnectionView.updateMcpConnections();
+                    this.mcpServerConnectionView.selectMcpConnectionContent(newMcpServerInfo);
                 }
             }
         });
@@ -136,23 +150,30 @@ public class McpServerView extends ContentWorkspaceView {
                 event -> addNewMcpServerDetails());
         addHeaderAction(newMcpConnectionButton);
 
+        Button shipServerButton = styledButton("Ship MCP Server", VaadinIcon.ANCHOR.create(),
+                event -> ShipyardView.requestShipFlowWith(this.shipyardService.requestFromCurrentExposure()));
+        getHeaderEndMenuBar().addItem(shipServerButton);
+
         WorkspaceSettingsDrawer builtInServerDrawer = installSettingsDrawer(VaadinIcon.COG_O,
                 "Built-in MCP Server",
                 "Built-in MCP server settings - who can call it, and which tools it exposes");
         McpServerAccessPanel accessPanel = new McpServerAccessPanel(mcpServerAuthTokenService);
         McpExposedToolsPanel exposeToolsPanel = new McpExposedToolsPanel(this.mcpExposedToolService,
-                this.mcpCompositionService, this.mcpServerInfoService, this.mcpClientService,
-                this.mcpToolRiskEvaluator, this.toolSpecService, this.usageEventTracker);
+                this.mcpCompositionService, this.mcpClientService, this.mcpToolRiskEvaluator, this.toolSpecService,
+                this.usageEventTracker);
         builtInServerDrawer.setBodyFactory(() -> {
             VerticalLayout drawerBody = new VerticalLayout(accessPanel.build(), new Hr(),
+                    McpExposedToolsPanel.sectionLabel("AI management"),
+                    new McpManagementStatusPanel(this.managementRegistrar).build(), new Hr(),
                     McpExposedToolsPanel.sectionLabel("Composed Tools"), exposeToolsPanel.build());
             drawerBody.setPadding(false);
             return drawerBody;
         });
         builtInServerDrawer.setApplyButton("Apply", () -> {
             if (!accessPanel.apply()) return;
-            exposeToolsPanel.apply();
+            if (!exposeToolsPanel.apply()) return;
             builtInServerDrawer.close();
+            reloadInspectorIfBuiltInSelected();
         }, false);
 
         setHeaderLabel("MCP Server Info");
@@ -166,18 +187,38 @@ public class McpServerView extends ContentWorkspaceView {
         }
     }
 
+    private void notifySaved(McpServerInfo saved) {
+        McpClientService.StatusEntry status = this.mcpClientService.getStatus(saved);
+        if (status.status() == McpClientService.ServerStatus.MISSING_CONFIG) {
+            VaadinUtils.showErrorNotification("Saved, but not connected. Set "
+                    + String.join(", ", status.missingKeys())
+                    + " as an environment variable, restart the app, then Save & Connect again.");
+            return;
+        }
+        VaadinUtils.showInfoNotification("MCP Connection Saved!");
+    }
+
     private void addNewMcpServerDetails() {
         this.mcpServerConnectionView.clearSelectConnection();
         selectMcpServerInfo(this.mcpServerInfoService.createBlankMcpServerInfo());
     }
 
+    private void reloadInspectorIfBuiltInSelected() {
+        McpServerInfo builtIn = this.mcpServerInfoService.getDefaultMcpServerInfo();
+        if (Objects.isNull(builtIn) || Objects.isNull(this.selectedServerInfo))
+            return;
+        if (builtIn.serverName().equals(this.selectedServerInfo.serverName()))
+            selectMcpServerInfo(this.selectedServerInfo);
+    }
+
     private void selectMcpServerInfo(McpServerInfo mcpServerInfo) {
         if (Objects.isNull(mcpServerInfo))
             return;
+        this.selectedServerInfo = mcpServerInfo;
         this.mcpContentView =
                 new McpContentView(mcpServerInfo, this.mcpServerInfoService, this.mcpClientService,
                         this.mcpCategoryService, this.mcpTagSuggestionService,
-                        this.mcpToolRiskEvaluator, this.mcpRegistrationRiskPreview,
+                        this.mcpToolRiskEvaluator, this.mcpRegistrationRiskPreview, this.mcpRegistrationService,
                         this.mcpServerInfoChangeSupport);
 
         VaadinUtils.getUi(this).access(() -> setContent(this.mcpContentView));
@@ -211,4 +252,5 @@ public class McpServerView extends ContentWorkspaceView {
         }
         return null;
     }
+
 }

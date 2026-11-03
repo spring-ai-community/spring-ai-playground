@@ -37,6 +37,7 @@ import com.vaadin.flow.component.textfield.NumberField;
 import com.vaadin.flow.component.textfield.TextArea;
 import com.vaadin.flow.component.textfield.TextField;
 import io.modelcontextprotocol.spec.McpSchema;
+import org.springaicommunity.playground.service.mcp.ApprovalConfirmation;
 import org.springaicommunity.playground.webui.VaadinUtils;
 
 import java.time.LocalDateTime;
@@ -48,6 +49,21 @@ import java.util.Map;
 import java.util.Optional;
 
 public final class InspectorHelpers {
+
+    public static boolean isConfirmation(McpSchema.ElicitRequest request) {
+        if (!(request instanceof McpSchema.ElicitFormRequest form)) return false;
+        Map<String, Object> schema = form.requestedSchema();
+        if (schema == null || schema.isEmpty() || ApprovalConfirmation.matches(schema)) return true;
+        return !(schema.get("properties") instanceof Map<?, ?> properties) || properties.isEmpty();
+    }
+
+    public static McpSchema.ElicitResult acceptance(McpSchema.ElicitRequest request) {
+        if (request instanceof McpSchema.ElicitFormRequest form
+                && ApprovalConfirmation.matches(form.requestedSchema())) {
+            return ApprovalConfirmation.accepted();
+        }
+        return new McpSchema.ElicitResult(McpSchema.ElicitResult.Action.ACCEPT, Map.of());
+    }
 
     public static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm:ss");
     public static final String ARG_REQUIRED = "Required field";

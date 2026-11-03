@@ -53,6 +53,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -98,11 +99,15 @@ class ChatDocumentIntakeServiceTest {
                 .thenReturn(new ChatResponse(List.of(new Generation(new AssistantMessage("stub summary")))));
         ObjectProvider<ChatModel> chatModelProvider = mock(ObjectProvider.class);
         when(chatModelProvider.getIfAvailable()).thenReturn(chatModel);
+        ObjectProvider<VectorStoreService> vectorStoreServiceProvider = mock(ObjectProvider.class);
+        ObjectProvider<OfflineEtlPipelineService> documentServiceProvider = mock(ObjectProvider.class);
         this.documentService = new OfflineEtlPipelineService(homeDir, DataSize.ofMegabytes(20),
-                new DefaultResourceLoader(), persistenceProvider, chatModelProvider);
+                new DefaultResourceLoader(), persistenceProvider, chatModelProvider, vectorStoreServiceProvider);
         this.vectorStoreService = new VectorStoreService(EMBEDDING_MODEL,
                 SimpleVectorStore.builder(EMBEDDING_MODEL).build(), mock(ApplicationContext.class),
-                persistenceProvider, mock(RagPipelineService.class), 0.35, 4);
+                persistenceProvider, mock(RagPipelineService.class), documentServiceProvider, 0.35, 4);
+        when(vectorStoreServiceProvider.getObject()).thenReturn(this.vectorStoreService);
+        when(documentServiceProvider.getObject()).thenReturn(this.documentService);
         this.intakeService = new ChatDocumentIntakeService(homeDir, documentService, vectorStoreService, chatModel);
     }
 
@@ -134,6 +139,28 @@ class ChatDocumentIntakeServiceTest {
     private static byte[] wordsOf(int count) {
         return IntStream.range(0, count).mapToObj(i -> "word" + i)
                 .collect(Collectors.joining(" ")).getBytes(StandardCharsets.UTF_8);
+    }
+
+    @Test
+    void attachRefusesASixthActiveDocument() {
+        for (int i = 0; i < ChatDocumentIntakeService.MAX_ATTACHMENTS; i++) {
+            this.intakeService.attach(CONVERSATION_ID, "doc" + i + ".txt", wordsOf(20), "text/plain");
+        }
+
+        assertThatThrownBy(() -> this.intakeService.attach(CONVERSATION_ID, "extra.txt", wordsOf(20), "text/plain"))
+                .isInstanceOf(IllegalStateException.class).hasMessage("You can attach up to 5 documents.");
+        assertThat(this.intakeService.list(CONVERSATION_ID)).hasSize(ChatDocumentIntakeService.MAX_ATTACHMENTS);
+    }
+
+    @Test
+    void attachRefusesTheSameFileTwiceButAcceptsADifferentFileWithTheSameName() {
+        byte[] handbook = wordsOf(20);
+        this.intakeService.attach(CONVERSATION_ID, "handbook.txt", handbook, "text/plain");
+
+        assertThatThrownBy(() -> this.intakeService.attach(CONVERSATION_ID, "handbook.txt", handbook, "text/plain"))
+                .isInstanceOf(IllegalStateException.class).hasMessage("handbook.txt is already attached.");
+        this.intakeService.attach(CONVERSATION_ID, "handbook.txt", wordsOf(30), "text/plain");
+        assertThat(this.intakeService.list(CONVERSATION_ID)).hasSize(2);
     }
 
     @Test

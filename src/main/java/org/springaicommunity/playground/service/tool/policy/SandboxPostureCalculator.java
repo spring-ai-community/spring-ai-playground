@@ -18,8 +18,11 @@ package org.springaicommunity.playground.service.tool.policy;
 import org.springaicommunity.playground.service.tool.ToolManifest.Sandbox.RiskLevel;
 import org.springframework.stereotype.Component;
 
-import java.util.HashSet;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 
 @Component
 public class SandboxPostureCalculator {
@@ -29,57 +32,94 @@ public class SandboxPostureCalculator {
                          Set<String> baselineDeny, Set<String> userDeny,
                          Set<String> baselineAllow, Set<String> userAllow) {}
 
+    public record Reason(String setting, RiskLevel raisesTo, String why, String suggestion) {}
+
+    public record Explanation(RiskLevel level, List<Reason> reasons, boolean elevated) {
+
+        public Explanation {
+            reasons = reasons == null ? List.of() : List.copyOf(reasons);
+        }
+
+        public List<String> suggestions() {
+            return this.reasons.stream().map(Reason::suggestion).filter(Objects::nonNull).distinct().toList();
+        }
+    }
+
     public RiskLevel compute(Inputs inputs) {
-        RiskLevel level = RiskLevel.L0;
+        return explain(inputs).level();
+    }
+
+    public Explanation explain(Inputs inputs) {
+        List<Reason> reasons = new ArrayList<>();
+        boolean classesChanged = false;
 
         if ("allowlist".equals(inputs.networkMode())) {
             Set<String> hosts = inputs.allowedHosts();
             if (hosts != null && hosts.contains("*")) {
-                level = max(level, RiskLevel.L4);
+                reasons.add(new Reason("networkMode=allowlist hostsAllow=*", RiskLevel.L4,
+                        "The wildcard host allows any destination.",
+                        "List the exact hosts in hostsAllow instead of '*' to stay at L3."));
             } else if (hosts != null && !hosts.isEmpty()) {
-                level = max(level, RiskLevel.L3);
+                reasons.add(new Reason("networkMode=allowlist", RiskLevel.L3,
+                        "The tool can reach the listed hosts: " + new TreeSet<>(hosts) + ".", null));
             }
         }
-        if ("strict".equals(inputs.networkMode())) level = max(level, RiskLevel.L3);
-        if ("open".equals(inputs.networkMode())) level = max(level, RiskLevel.L4);
+        if ("strict".equals(inputs.networkMode())) {
+            reasons.add(new Reason("networkMode=strict", RiskLevel.L3,
+                    "The tool can reach any public host under the strict egress policy.",
+                    "Use networkMode=allowlist with the hosts in hostsAllow when they are known in advance (also L3)."));
+        }
+        if ("open".equals(inputs.networkMode())) {
+            reasons.add(new Reason("networkMode=open", RiskLevel.L4, "Any host can be reached.",
+                    "Use networkMode=allowlist with hostsAllow to stay at L3."));
+        }
 
         if (inputs.fileWrite()) {
-            level = max(level, RiskLevel.L4);
+            reasons.add(new Reason("fileWrite=true", RiskLevel.L4, "The tool can write files inside its workspace.",
+                    "Drop fileWrite and keep only fileRead if the tool does not need to write (L3)."));
         } else if (inputs.fileRead()) {
-            level = max(level, RiskLevel.L3);
+            reasons.add(new Reason("fileRead=true", RiskLevel.L3, "The tool can read files.", null));
         }
         if (inputs.destructive()) {
-            level = max(level, RiskLevel.L5);
+            reasons.add(new Reason("destructive=true", RiskLevel.L5,
+                    "The tool is declared to change or delete things outside itself.",
+                    "Leave destructive off unless the tool must delete or overwrite data."));
         }
 
-        Set<String> removedDeny = new HashSet<>(inputs.baselineDeny() == null ? Set.of() : inputs.baselineDeny());
+        Set<String> removedDeny = new TreeSet<>(inputs.baselineDeny() == null ? Set.of() : inputs.baselineDeny());
         if (inputs.userDeny() != null) removedDeny.removeAll(inputs.userDeny());
         if (!removedDeny.isEmpty()) {
-            if (removedDeny.stream().anyMatch(SandboxPostureCalculator::isCriticalClass)) {
-                level = max(level, RiskLevel.L5);
-            } else if (removedDeny.size() >= 3) {
-                level = max(level, RiskLevel.L4);
-            } else {
-                level = max(level, RiskLevel.L3);
-            }
+            classesChanged = true;
+            RiskLevel raisesTo = removedDeny.stream().anyMatch(SandboxPostureCalculator::isCriticalClass)
+                    ? RiskLevel.L5 : removedDeny.size() >= 3 ? RiskLevel.L4 : RiskLevel.L3;
+            reasons.add(new Reason("removeDenyClasses=" + removedDeny, raisesTo,
+                    "Classes the sandbox denies by default are allowed for this tool.",
+                    "Do not remove deny entries. Use the helpers of the tool runtime (fetch, safety.fs) instead."));
         }
 
-        Set<String> addedAllow = new HashSet<>(inputs.userAllow() == null ? Set.of() : inputs.userAllow());
+        Set<String> addedAllow = new TreeSet<>(inputs.userAllow() == null ? Set.of() : inputs.userAllow());
         addedAllow.removeAll(inputs.baselineAllow() == null ? Set.of() : inputs.baselineAllow());
         if (!addedAllow.isEmpty()) {
-            if (addedAllow.stream().anyMatch(SandboxPostureCalculator::isCriticalClass)) {
-                level = max(level, RiskLevel.L5);
-            } else if (addedAllow.stream().anyMatch(SandboxPostureCalculator::isFileWriteClass)) {
-                level = max(level, RiskLevel.L5);
+            classesChanged = true;
+            RiskLevel raisesTo;
+            if (addedAllow.stream().anyMatch(SandboxPostureCalculator::isCriticalClass)
+                    || addedAllow.stream().anyMatch(SandboxPostureCalculator::isFileWriteClass)) {
+                raisesTo = RiskLevel.L5;
             } else if (addedAllow.stream().anyMatch(SandboxPostureCalculator::isReflectionClass)
                     || addedAllow.stream().anyMatch(SandboxPostureCalculator::isNetworkClass)
                     || addedAllow.stream().anyMatch(SandboxPostureCalculator::isFileReadClass)) {
-                level = max(level, RiskLevel.L4);
+                raisesTo = RiskLevel.L4;
             } else {
-                level = max(level, RiskLevel.L3);
+                raisesTo = RiskLevel.L3;
             }
+            reasons.add(new Reason("addAllowClasses=" + addedAllow, raisesTo,
+                    "Java classes beyond the sandbox baseline are made available to the code.",
+                    "Avoid extra classes; the JavaScript runtime and its helpers cover most needs at a lower level."));
         }
-        return level;
+
+        RiskLevel level = reasons.stream().map(Reason::raisesTo).reduce(RiskLevel.L0, SandboxPostureCalculator::max);
+        boolean elevated = classesChanged || level.ordinal() >= RiskLevel.L4.ordinal();
+        return new Explanation(level, reasons, elevated);
     }
 
     static boolean isCriticalClass(String name) {

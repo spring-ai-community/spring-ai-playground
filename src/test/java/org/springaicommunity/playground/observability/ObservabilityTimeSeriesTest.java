@@ -32,14 +32,14 @@ class ObservabilityTimeSeriesTest {
         ObservabilityRingBuffer buffer = makeBuffer();
         ObservabilityTimeSeries ts = new ObservabilityTimeSeries(buffer);
 
-        Series s = ts.compute(Window.LAST_30M);
+        Series series = ts.compute(Window.LAST_30M);
 
-        assertThat(s.bucketStartMs()).hasSize(30);
-        assertThat(s.calls()).hasSize(30).containsOnly(0L);
-        assertThat(s.totalCalls()).isZero();
-        assertThat(s.totalTokens()).isZero();
-        assertThat(s.overallP95LatencyMs()).isZero();
-        assertThat(s.totalCallsByModel()).isEmpty();
+        assertThat(series.bucketStartMs()).hasSize(30);
+        assertThat(series.calls()).hasSize(30).containsOnly(0L);
+        assertThat(series.totalCalls()).isZero();
+        assertThat(series.totalTokens()).isZero();
+        assertThat(series.overallP95LatencyMs()).isZero();
+        assertThat(series.totalCallsByModel()).isEmpty();
     }
 
     @Test
@@ -51,10 +51,30 @@ class ObservabilityTimeSeriesTest {
         buffer.add(trace(now - 5 * 60 * 1000, 200, "ollama", "qwen3.5:9b",
                 5, 15, "OK", "stop", false, false));
 
-        Series s = new ObservabilityTimeSeries(buffer).compute(Window.LAST_30M);
+        Series series = new ObservabilityTimeSeries(buffer).compute(Window.LAST_30M);
 
-        assertThat(s.totalCalls()).isEqualTo(1);
-        assertThat(s.totalTokens()).isEqualTo(20L);
+        assertThat(series.totalCalls()).isEqualTo(1);
+        assertThat(series.totalTokens()).isEqualTo(20L);
+    }
+
+    @Test
+    void toolOnlyTraceAddsToolCallsButIsNotAnLlmCall() {
+        ObservabilityRingBuffer buffer = makeBuffer();
+        long now = System.currentTimeMillis();
+        buffer.add(trace(now - 2 * 60 * 1000, 200, "ollama", "qwen3.5:9b", 5, 15, "OK", "stop", true, false));
+        SpanRecord toolSpan = new SpanRecord("span-1", null, ObservabilityCollector.TOOL_SPAN_NAME,
+                now - 60 * 1000, 12, "OK", Map.of());
+        buffer.add(new TraceRecord("local-9", null, null, null, null, now - 60 * 1000, 12, "OK", null, null, null,
+                null, true, 1, false, null, null, null, null, List.of(toolSpan), Map.of()));
+
+        Series series = new ObservabilityTimeSeries(buffer).compute(Window.LAST_30M);
+
+        assertThat(series.totalCalls()).isEqualTo(1);
+        assertThat(series.totalCallsByModel()).containsOnlyKeys("qwen3.5:9b");
+        assertThat(series.totalCallsByProvider()).containsOnlyKeys("ollama");
+        long toolCalls = 0;
+        for (long value : series.toolCalls()) toolCalls += value;
+        assertThat(toolCalls).isEqualTo(2);
     }
 
     @Test
@@ -69,13 +89,13 @@ class ObservabilityTimeSeriesTest {
                     1, 1, "OK", "stop", false, false));
         }
 
-        Series s = new ObservabilityTimeSeries(buffer).compute(Window.LAST_5M);
+        Series series = new ObservabilityTimeSeries(buffer).compute(Window.LAST_5M);
 
-        assertThat(s.calls()).hasSize(5);
+        assertThat(series.calls()).hasSize(5);
         long sum = 0;
-        for (long v : s.calls()) sum += v;
+        for (long value : series.calls()) sum += value;
         assertThat(sum).isEqualTo(5);
-        assertThat(s.totalCalls()).isEqualTo(5);
+        assertThat(series.totalCalls()).isEqualTo(5);
     }
 
     @Test
@@ -92,14 +112,14 @@ class ObservabilityTimeSeriesTest {
                     8, 16, "OK", "stop", false, false));
         }
 
-        Series s = new ObservabilityTimeSeries(buffer).compute(Window.LAST_30M);
+        Series series = new ObservabilityTimeSeries(buffer).compute(Window.LAST_30M);
 
-        assertThat(s.totalCallsByModel()).containsEntry("qwen3.5:9b", 3L);
-        assertThat(s.totalCallsByModel()).containsEntry("gpt-5.4-mini", 2L);
-        assertThat(s.totalCallsByProvider()).containsEntry("ollama", 3L);
-        assertThat(s.totalCallsByProvider()).containsEntry("openai", 2L);
-        assertThat(s.totalTokensByModel()).containsEntry("qwen3.5:9b", 90L);
-        assertThat(s.totalTokensByModel()).containsEntry("gpt-5.4-mini", 48L);
+        assertThat(series.totalCallsByModel()).containsEntry("qwen3.5:9b", 3L);
+        assertThat(series.totalCallsByModel()).containsEntry("gpt-5.4-mini", 2L);
+        assertThat(series.totalCallsByProvider()).containsEntry("ollama", 3L);
+        assertThat(series.totalCallsByProvider()).containsEntry("openai", 2L);
+        assertThat(series.totalTokensByModel()).containsEntry("qwen3.5:9b", 90L);
+        assertThat(series.totalTokensByModel()).containsEntry("gpt-5.4-mini", 48L);
     }
 
     @Test
@@ -114,18 +134,18 @@ class ObservabilityTimeSeriesTest {
         buffer.add(trace(now - 60_000, 100, "ollama", "qwen3.5:9b",
                 1, 1, TraceRecord.STATUS_CANCELLED, null, false, false));
 
-        Series s = new ObservabilityTimeSeries(buffer).compute(Window.LAST_30M);
+        Series series = new ObservabilityTimeSeries(buffer).compute(Window.LAST_30M);
 
         long errors = 0;
-        for (long v : s.errors()) errors += v;
+        for (long value : series.errors()) errors += value;
         long cancelled = 0;
-        for (long v : s.cancelled()) cancelled += v;
+        for (long value : series.cancelled()) cancelled += value;
         assertThat(errors).isEqualTo(1);
         assertThat(cancelled).isEqualTo(1);
-        assertThat(s.totalCalls()).isEqualTo(3);
-        assertThat(s.statusCounts()).containsEntry(TraceRecord.STATUS_OK, 1L);
-        assertThat(s.statusCounts()).containsEntry(TraceRecord.STATUS_ERROR, 1L);
-        assertThat(s.statusCounts()).containsEntry(TraceRecord.STATUS_CANCELLED, 1L);
+        assertThat(series.totalCalls()).isEqualTo(3);
+        assertThat(series.statusCounts()).containsEntry(TraceRecord.STATUS_OK, 1L);
+        assertThat(series.statusCounts()).containsEntry(TraceRecord.STATUS_ERROR, 1L);
+        assertThat(series.statusCounts()).containsEntry(TraceRecord.STATUS_CANCELLED, 1L);
     }
 
     @Test
@@ -138,11 +158,11 @@ class ObservabilityTimeSeriesTest {
         buffer.add(trace(now - 60_000, 100, "ollama", "qwen3.5:9b", 1, 1, "OK", "tool_calls", false, false));
         buffer.add(trace(now - 60_000, 100, "ollama", "qwen3.5:9b", 1, 1, "OK", "length", false, false));
 
-        Series s = new ObservabilityTimeSeries(buffer).compute(Window.LAST_30M);
+        Series series = new ObservabilityTimeSeries(buffer).compute(Window.LAST_30M);
 
-        assertThat(s.finishReasonCounts()).containsEntry("stop", 2L);
-        assertThat(s.finishReasonCounts()).containsEntry("tool_calls", 1L);
-        assertThat(s.finishReasonCounts()).containsEntry("length", 1L);
+        assertThat(series.finishReasonCounts()).containsEntry("stop", 2L);
+        assertThat(series.finishReasonCounts()).containsEntry("tool_calls", 1L);
+        assertThat(series.finishReasonCounts()).containsEntry("length", 1L);
     }
 
     @Test
@@ -155,10 +175,10 @@ class ObservabilityTimeSeriesTest {
         buffer.add(trace(now - 60_000, 100, "ollama", "m", 1, 1, "OK", "stop", true, true));
         buffer.add(trace(now - 60_000, 100, "ollama", "m", 1, 1, "OK", "stop", false, false));
 
-        Series s = new ObservabilityTimeSeries(buffer).compute(Window.LAST_30M);
+        Series series = new ObservabilityTimeSeries(buffer).compute(Window.LAST_30M);
 
-        assertThat(s.tracesWithTools()).isEqualTo(2L);
-        assertThat(s.tracesWithRag()).isEqualTo(2L);
+        assertThat(series.tracesWithTools()).isEqualTo(2L);
+        assertThat(series.tracesWithRag()).isEqualTo(2L);
     }
 
     @Test
@@ -172,12 +192,12 @@ class ObservabilityTimeSeriesTest {
                     1, 1, "OK", "stop", false, false));
         }
 
-        Series s = new ObservabilityTimeSeries(buffer).compute(Window.LAST_30M);
+        Series series = new ObservabilityTimeSeries(buffer).compute(Window.LAST_30M);
 
-        assertThat(s.overallP50LatencyMs()).isCloseTo(55.0, within(0.01));
-        assertThat(s.overallP95LatencyMs()).isCloseTo(95.5, within(0.01));
-        assertThat(s.overallP99LatencyMs()).isCloseTo(99.1, within(0.01));
-        assertThat(s.overallAvgLatencyMs()).isCloseTo(55.0, within(0.01));
+        assertThat(series.overallP50LatencyMs()).isCloseTo(55.0, within(0.01));
+        assertThat(series.overallP95LatencyMs()).isCloseTo(95.5, within(0.01));
+        assertThat(series.overallP99LatencyMs()).isCloseTo(99.1, within(0.01));
+        assertThat(series.overallAvgLatencyMs()).isCloseTo(55.0, within(0.01));
     }
 
     @Test
@@ -191,10 +211,10 @@ class ObservabilityTimeSeriesTest {
         buffer.add(trace(bucketStart + 3, 100, "ollama", "m", 1, 1, "OK", "stop", false, false));
         buffer.add(trace(bucketStart + 4, 100, "ollama", "m", 1, 1, TraceRecord.STATUS_ERROR, "error", false, false));
 
-        Series s = new ObservabilityTimeSeries(buffer).compute(Window.LAST_5M);
+        Series series = new ObservabilityTimeSeries(buffer).compute(Window.LAST_5M);
 
         boolean foundBucket = false;
-        for (double rate : s.errorRatePct()) {
+        for (double rate : series.errorRatePct()) {
             if (rate > 0) {
                 assertThat(rate).isCloseTo(25.0, within(0.01));
                 foundBucket = true;
@@ -223,15 +243,15 @@ class ObservabilityTimeSeriesTest {
         buffer.add(trace(bucket + 1, 100, "ollama", "m", 100, 200, "OK", "stop", false, false));
         buffer.add(trace(bucket + 2, 100, "ollama", "m", 50, 150, "OK", "stop", false, false));
 
-        Series s = new ObservabilityTimeSeries(buffer).compute(Window.LAST_30M);
+        Series series = new ObservabilityTimeSeries(buffer).compute(Window.LAST_30M);
 
         long inSum = 0;
-        for (long v : s.inTokens()) inSum += v;
+        for (long value : series.inTokens()) inSum += value;
         long outSum = 0;
-        for (long v : s.outTokens()) outSum += v;
+        for (long value : series.outTokens()) outSum += value;
         assertThat(inSum).isEqualTo(150L);
         assertThat(outSum).isEqualTo(350L);
-        assertThat(s.totalTokens()).isEqualTo(500L);
+        assertThat(series.totalTokens()).isEqualTo(500L);
     }
 
     private static ObservabilityRingBuffer makeBuffer() {

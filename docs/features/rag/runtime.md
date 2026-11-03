@@ -1,3 +1,4 @@
+videos: ep8
 description: The runtime half of RAG - picking a pipeline or a document as the RAG source in Agentic Chat, reading the per-turn retrieval trace, and how the advisor drives the shared executor.
 
 # Runtime: RAG in Chat
@@ -21,7 +22,7 @@ Leaving the selector empty skips retrieval entirely. The selection is remembered
 
 ## Reading the trace
 
-When a turn retrieves, a **RAG** panel appears above the answer with the stages that ran.
+When a turn retrieves, a **RAG DOCUMENTS** panel appears above the answer with the stages that ran.
 
 ![The RAG panel expanded in a chat turn - the pipeline name, the query, the search scope, the stage chain, then a timestamped line per stage (retrieve with its topK and threshold, joiner, postProcess, augment) and the retrieved chunks with their similarity scores](../../assets/images/rag/chat-rag-trace-panel.png)
 

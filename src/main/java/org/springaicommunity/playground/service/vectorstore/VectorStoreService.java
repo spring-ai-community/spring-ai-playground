@@ -31,7 +31,9 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
@@ -49,6 +51,10 @@ public class VectorStoreService {
                             ALL_SEARCH_REQUEST_OPTION.similarityThreshold()).topK(ALL_SEARCH_REQUEST_OPTION.topK())
                     .filterExpression(new FilterExpressionBuilder().in(DOC_INFO_ID, docInfoIds.toArray()).build())
                     .build();
+
+    public static boolean isPlaceholderQuery(SearchRequest searchRequest) {
+        return searchRequest != null && ALL_QUERY.equals(searchRequest.getQuery());
+    }
 
     public static SearchRequest searchAllRequest(List<String> excludedDocInfoIds) {
         SearchRequest.Builder searchRequestBuilder = new SearchRequest.Builder().query(ALL_QUERY)
@@ -76,6 +82,7 @@ public class VectorStoreService {
     private final EmbeddingModel embeddingModel;
     private final VectorStore vectorStore;
     private final RagPipelineService ragPipelineService;
+    private final ObjectProvider<OfflineEtlPipelineService> offlineEtlPipelineServiceProvider;
     private SearchRequestOption searchRequestOption;
     private EmbeddingOptions embeddingOptions;
 
@@ -83,6 +90,7 @@ public class VectorStoreService {
             ApplicationContext applicationContext,
             ObjectProvider<VectorStoreDocumentPersistenceService> vectorStoreDocumentPersistenceServiceProvider,
             RagPipelineService ragPipelineService,
+            ObjectProvider<OfflineEtlPipelineService> offlineEtlPipelineServiceProvider,
             @Value("${spring.ai.playground.vectorstore.similarity-threshold:0.35}") double similarityThreshold,
             @Value("${spring.ai.playground.vectorstore.top-k:4}") int topK) {
         this.embeddingModel = embeddingModel;
@@ -91,6 +99,37 @@ public class VectorStoreService {
         this.applicationContext = applicationContext;
         this.vectorStoreDocumentPersistenceServiceProvider = vectorStoreDocumentPersistenceServiceProvider;
         this.ragPipelineService = ragPipelineService;
+        this.offlineEtlPipelineServiceProvider = offlineEtlPipelineServiceProvider;
+    }
+
+    public record AddChunkRequest(String documentTitle, String text, Map<String, Object> metadata) {
+
+        public AddChunkRequest {
+            metadata = metadata == null ? Map.of() : Map.copyOf(metadata);
+        }
+    }
+
+    public record AddChunkResult(VectorStoreDocumentInfo document, boolean created) {}
+
+    public AddChunkResult addChunk(AddChunkRequest request) {
+        String title = request.documentTitle() == null ? "" : request.documentTitle().trim();
+        String text = request.text() == null ? "" : request.text();
+        if (title.isBlank() || text.isBlank()) {
+            throw new IllegalArgumentException("Document name and text are required");
+        }
+        OfflineEtlPipelineService etlPipelineService = this.offlineEtlPipelineServiceProvider.getObject();
+        Document raw = new Document(text, new HashMap<>(request.metadata()));
+        VectorStoreDocumentInfo existing = etlPipelineService.getVisibleDocumentList().stream()
+                .filter(document -> title.equals(document.title())).findFirst().orElse(null);
+        if (existing != null) {
+            Map<String, Object> withDocInfo = new HashMap<>(raw.getMetadata());
+            withDocInfo.put(DOC_INFO_ID, existing.docInfoId());
+            add(List.of(new Document(raw.getText(), withDocInfo)));
+            return new AddChunkResult(existing, false);
+        }
+        VectorStoreDocumentInfo created = etlPipelineService.loadDocument(title, List.of(raw));
+        add(created);
+        return new AddChunkResult(created, true);
     }
 
     public SearchRequestOption getSearchRequestOption() {

@@ -25,22 +25,17 @@ import com.vaadin.flow.component.icon.VaadinIcon;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springaicommunity.playground.service.chat.ChatHistoryService;
-import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
+import org.springaicommunity.playground.service.mcp.McpServerInfoService.ExternalServerSummary;
 import org.springaicommunity.playground.service.mcp.catalog.McpCatalogService;
-import org.springaicommunity.playground.service.mcp.client.McpClientService;
-import org.springaicommunity.playground.service.tool.ToolSpec;
-import org.springaicommunity.playground.service.tool.ToolSpecPersistenceService;
 import org.springaicommunity.playground.service.tool.ToolSpecService;
+import org.springaicommunity.playground.service.tool.ToolSpecService.CustomToolSummary;
 import org.springaicommunity.playground.service.vectorstore.OfflineEtlPipelineService;
 import org.springaicommunity.playground.webui.chat.ChatView;
 import org.springaicommunity.playground.webui.mcp.McpServerView;
 import org.springaicommunity.playground.webui.tool.ToolStudioView;
 import org.springaicommunity.playground.webui.vectorstore.VectorStoreView;
 
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
 
 class HomeSurfaceCards extends Div {
 
@@ -49,9 +44,7 @@ class HomeSurfaceCards extends Div {
     private enum StatusTone { NORMAL, MUTED, WARNING }
 
     private final ToolSpecService toolSpecService;
-    private final ToolSpecPersistenceService toolSpecPersistenceService;
     private final McpServerInfoService mcpServerInfoService;
-    private final McpClientService mcpClientService;
     private final OfflineEtlPipelineService offlineEtlPipelineService;
     private final McpCatalogService mcpCatalogService;
     private final ChatHistoryService chatHistoryService;
@@ -62,16 +55,12 @@ class HomeSurfaceCards extends Div {
     private final Span chatStatus;
 
     HomeSurfaceCards(ToolSpecService toolSpecService,
-            ToolSpecPersistenceService toolSpecPersistenceService,
             McpServerInfoService mcpServerInfoService,
-            McpClientService mcpClientService,
             OfflineEtlPipelineService offlineEtlPipelineService,
             McpCatalogService mcpCatalogService,
             ChatHistoryService chatHistoryService) {
         this.toolSpecService = toolSpecService;
-        this.toolSpecPersistenceService = toolSpecPersistenceService;
         this.mcpServerInfoService = mcpServerInfoService;
-        this.mcpClientService = mcpClientService;
         this.offlineEtlPipelineService = offlineEtlPipelineService;
         this.mcpCatalogService = mcpCatalogService;
         this.chatHistoryService = chatHistoryService;
@@ -133,19 +122,15 @@ class HomeSurfaceCards extends Div {
     }
 
     private void applyToolStatus() {
-        Set<String> defaultIds = toolSpecPersistenceService.getDefaultToolIds();
-        List<ToolSpec> allTools = toolSpecService.getToolSpecList();
-        List<ToolSpec> userTools = allTools.stream()
-                .filter(spec -> !defaultIds.contains(spec.toolId()))
-                .toList();
-        int userCount = userTools.size();
-        long needsConfig = userTools.stream().filter(HomeSurfaceCards::hasUnsetStaticVariable).count();
+        CustomToolSummary summary = toolSpecService.customToolSummary();
+        int userCount = summary.customTools();
+        long needsConfig = summary.needConfiguration();
 
-        if (allTools.isEmpty()) {
+        if (summary.totalTools() == 0) {
             setStatus(toolStatus, "No tools yet - create your first", StatusTone.MUTED);
         } else if (userCount == 0) {
             setStatus(toolStatus,
-                    allTools.size() + " built-in · add your own",
+                    summary.totalTools() + " built-in · add your own",
                     StatusTone.MUTED);
         } else if (needsConfig > 0) {
             setStatus(toolStatus,
@@ -159,17 +144,10 @@ class HomeSurfaceCards extends Div {
     }
 
     private void applyMcpStatus() {
-        McpServerInfo defaultInfo = mcpServerInfoService.getDefaultMcpServerInfo();
-        List<McpServerInfo> external = mcpServerInfoService.getMcpServerInfos().values().stream()
-                .flatMap(List::stream)
-                .filter(info -> !Objects.equals(info, defaultInfo))
-                .toList();
+        ExternalServerSummary servers = mcpServerInfoService.externalServerSummary();
         int readyToAdd = mcpCatalogService.getCatalog().size();
-        long awaitingAuth = external.stream()
-                .filter(info -> mcpClientService.getStatus(info).status()
-                        == McpClientService.ServerStatus.AWAITING_AUTHORIZATION)
-                .count();
-        long connected = external.size() - awaitingAuth;
+        long awaitingAuth = servers.awaitingAuthorization();
+        long connected = servers.connected();
 
         if (awaitingAuth > 0) {
             setStatus(mcpStatus,
@@ -208,11 +186,6 @@ class HomeSurfaceCards extends Div {
         }
     }
 
-    private static boolean hasUnsetStaticVariable(ToolSpec spec) {
-        if (spec.staticVariables() == null) return false;
-        return spec.staticVariables().stream()
-                .anyMatch(entry -> entry.getValue() == null || entry.getValue().isBlank());
-    }
 
     private static Component createSurfaceCard(String title, String description,
             VaadinIcon icon, Class<? extends Component> target, Span status) {

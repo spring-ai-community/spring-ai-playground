@@ -1,3 +1,4 @@
+videos: ep8
 description: Tutorial 17 - drop a document onto the Agentic Chat prompt, get a summary and pinpoint answers from it with no indexing step, then register it in the Vector Database so every conversation can use it.
 
 # Tutorial 17 - Attach a Document and Ask

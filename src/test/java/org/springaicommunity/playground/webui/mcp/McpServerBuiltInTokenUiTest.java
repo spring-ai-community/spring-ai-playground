@@ -16,10 +16,13 @@
 package org.springaicommunity.playground.webui.mcp;
 
 import com.vaadin.browserless.SpringBrowserlessTest;
+import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.textfield.TextArea;
 import com.vaadin.flow.component.textfield.TextField;
 import org.junit.jupiter.api.Test;
 import org.springaicommunity.playground.service.mcp.McpServerInfoService;
+import org.springaicommunity.playground.webui.common.WorkspaceSettingsDrawer;
 import org.springaicommunity.playground.webui.home.HomeView;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -46,6 +49,36 @@ class McpServerBuiltInTokenUiTest extends SpringBrowserlessTest {
         assertThat($(Span.class, configView).all()).extracting(Span::getText).contains(MANAGED_HINT);
         assertThat(this.mcpServerInfoService.getDefaultMcpServerInfo().connectionAsJson())
                 .contains("Bearer browserless-ui-token");
+    }
+
+    @Test
+    void builtInServerFormCannotBeSavedBecauseTheAppManagesItsConnection() {
+        McpServerView view = navigate(McpServerView.class);
+        McpServerConfigView configView = $(McpServerConfigView.class, view).first();
+        Button save = $(Button.class, configView)
+                .withCondition(button -> "Save & Connect".equals(button.getText())).first();
+
+        $(TextArea.class, configView).first().setValue("edited description");
+
+        assertThat(save.isEnabled()).isFalse();
+        assertThat(configView.getElement().getTextRecursively())
+                .contains("The built-in server connection is managed by the app");
+    }
+
+    @Test
+    void applyingTheBuiltInServerDrawerRebuildsTheInspectorSoItListsTheCurrentTools() {
+        McpServerView view = navigate(McpServerView.class);
+        roundTrip();
+        McpContentView before = $(McpContentView.class, view).single();
+        WorkspaceSettingsDrawer drawer = $(WorkspaceSettingsDrawer.class, view).first();
+        drawer.open();
+        roundTrip();
+
+        Button apply = $(Button.class, drawer).withCondition(button -> "Apply".equals(button.getText())).first();
+        test(apply).click();
+        roundTrip();
+
+        assertThat($(McpContentView.class, view).single()).isNotSameAs(before);
     }
 
     @Test

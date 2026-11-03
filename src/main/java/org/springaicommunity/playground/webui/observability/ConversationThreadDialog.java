@@ -287,11 +287,9 @@ public class ConversationThreadDialog extends Dialog {
                 .set("color", "var(--lumo-secondary-text-color)")
                 .set("padding-right", "var(--lumo-space-s)");
 
-        long inTok = trace.inputTokens() == null ? 0 : trace.inputTokens();
-        long outTok = trace.outputTokens() == null ? 0 : trace.outputTokens();
         Span meta = new Span(TIME_FMT.format(Instant.ofEpochMilli(trace.startEpochMs()))
                 + " · " + (trace.model() == null ? "—" : trace.model())
-                + " · " + inTok + "/" + outTok + " tok"
+                + " · " + FormatUtils.formatTokens(trace.inputTokens(), trace.outputTokens()) + " tok"
                 + " · " + FormatUtils.formatDurationMs(trace.durationMs()));
         footer.add(meta);
         return footer;

@@ -36,6 +36,8 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.BigDecimalField;
 import com.vaadin.flow.component.textfield.TextField;
 import org.springaicommunity.playground.observability.pricing.CurrencyService;
+import org.springaicommunity.playground.webui.observability.components.CurrencyFlags;
+import org.springaicommunity.playground.observability.pricing.CurrencyService.CurrencyInput;
 import org.springaicommunity.playground.observability.pricing.CurrencyService.CurrencyRate;
 import org.springaicommunity.playground.observability.pricing.ModelPricing;
 import org.springaicommunity.playground.observability.pricing.ModelPricingService;
@@ -126,8 +128,6 @@ public class ModelPricingManagerDialog extends Dialog {
         addBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         addBtn.setTooltipText("Save or add model pricing entry");
 
-        // Add row: FormLayout-driven so the input + button baselines align
-        // regardless of helper text height.
         FormLayout addForm = new FormLayout(newModel, newIn, newOut);
         addForm.setResponsiveSteps(
                 new ResponsiveStep("0", 1),
@@ -138,19 +138,15 @@ public class ModelPricingManagerDialog extends Dialog {
         addAction.setJustifyContentMode(FlexComponent.JustifyContentMode.END);
         addAction.setPadding(false);
 
-        // Currency Details (collapsed) — FormLayout for label/baseline
-        // alignment; action button on its own right-aligned row beneath.
         currencyCombo.setItems(currencyService.all().stream().map(CurrencyRate::code).toList());
         currencyCombo.setValue(currencyService.getActiveCurrency());
         currencyCombo.setAllowCustomValue(false);
         currencyCombo.setWidthFull();
-        // Flag + code + symbol — same generator drives both the selected
-        // chip and dropdown rows so the picker reads as a country list.
         currencyCombo.setItemLabelGenerator(code -> {
             CurrencyRate r = currencyService.all().stream()
                     .filter(x -> x.code().equals(code)).findFirst().orElse(null);
             String symbol = r == null ? "" : r.symbol();
-            return CurrencyService.flagFor(code) + "  " + code + "  " + symbol;
+            return CurrencyFlags.flagFor(code) + "  " + code + "  " + symbol;
         });
         currencyCombo.addValueChangeListener(e -> {
             String code = e.getValue();
@@ -197,9 +193,6 @@ public class ModelPricingManagerDialog extends Dialog {
         currencyAction.setPadding(false);
         currencyAction.getStyle().set("margin-top", "var(--lumo-space-s)");
 
-        // Add custom currency sub-form — unique ID (1-8 chars), symbol, rate.
-        // Code isn't strict ISO 4217; same symbol can map to multiple
-        // currencies (USD/ARS/CLP all use "$") so we still need a key.
         customCode.setLabel("ID");
         customCode.setPlaceholder("e.g. AUD or MYCUR");
         customCode.setMaxLength(8);
@@ -213,30 +206,20 @@ public class ModelPricingManagerDialog extends Dialog {
         customRate.setHelperText("Multiplier on USD");
         customRate.setWidthFull();
         Button addCustomBtn = new Button("Add custom", VaadinIcon.PLUS.create(), e -> {
-            String codeRaw = customCode.getValue();
-            String symbol = customSymbol.getValue();
-            BigDecimal newRate2 = customRate.getValue();
-            if (codeRaw == null || codeRaw.isBlank() || codeRaw.trim().length() > 8) {
-                VaadinUtils.showErrorNotification("ID is required (1-8 characters)");
+            CurrencyRate added;
+            try {
+                added = currencyService.addAndActivate(new CurrencyInput(customCode.getValue(),
+                        customSymbol.getValue(), customRate.getValue()));
+            } catch (IllegalArgumentException ex) {
+                VaadinUtils.showErrorNotification(ex.getMessage());
                 return;
             }
-            if (symbol == null || symbol.isBlank()) {
-                VaadinUtils.showErrorNotification("Symbol is required (e.g. A$)");
-                return;
-            }
-            if (newRate2 == null || newRate2.signum() <= 0) {
-                VaadinUtils.showErrorNotification("Rate must be > 0");
-                return;
-            }
-            String code = codeRaw.trim().toUpperCase();
-            currencyService.upsertRate(new CurrencyRate(code, symbol.trim(), newRate2));
             customCode.clear();
             customSymbol.clear();
             customRate.clear();
             currencyCombo.setItems(currencyService.all().stream().map(CurrencyRate::code).toList());
-            currencyCombo.setValue(code);
-            currencyService.setActiveCurrency(code);
-            rateField.setValue(newRate2);
+            currencyCombo.setValue(added.code());
+            rateField.setValue(added.rateFromUsd());
             refreshCurrencySummary();
             onChangedListener.run();
         });
@@ -297,9 +280,6 @@ public class ModelPricingManagerDialog extends Dialog {
         currencyContent.setPadding(false);
         currencyContent.setSpacing(false);
 
-        // Details summary — looks like a clickable card row with chevron.
-        // White-on-tinted-bg + border + hover state makes the affordance clear
-        // (the prior flat background read as a static label).
         refreshCurrencySummary();
         Div summaryRow = new Div();
         summaryRow.getStyle().set("display", "flex")
@@ -382,7 +362,7 @@ public class ModelPricingManagerDialog extends Dialog {
 
     private void refreshCurrencySummary() {
         CurrencyRate r = currencyService.getActiveRate();
-        String flag = CurrencyService.flagFor(r.code());
+        String flag = CurrencyFlags.flagFor(r.code());
         String text = "USD".equals(r.code())
                 ? "Currency · " + flag + " USD (" + r.symbol() + ", base ×1.0)"
                 : "Currency · " + flag + " " + r.code() + " (" + r.symbol() + " × "

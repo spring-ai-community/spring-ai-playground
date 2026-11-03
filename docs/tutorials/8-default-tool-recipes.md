@@ -1,3 +1,4 @@
+videos: ep2
 description: Tutorial 8 - five default-tool recipes composed inside a single JS action, published as new MCP-exposed custom tools.
 
 # Tutorial 8 - Default Tool Recipes
@@ -294,7 +295,7 @@ return { ok: true, source: latest, matches: hits.length, written: out };
 For each recipe:
 
 - The `Drafts` badge disappears as soon as Local Pass succeeds - the tool moves to `LOCAL PASS` in the sidebar and the MCP server's Tools tab updates without restart.
-- The Agentic Chat inventory shows the new tool name when MCP is reconnected.
+- The Agentic Chat tool picker lists the new tool on the next turn - no reconnect needed.
 - The action invocation appears as a single MCP tool call in the chat trace, not several - that's the whole point of in-action composition.
 - Risk badge matches your sandbox edits. Every recipe that calls `fetch` needs a network mode, so Recipes 1-4 land at **L3** (`strict` = any host behind the SSRF guard; `allowlist` is also L3, `open` is L4). Recipe 5 writes files, so `read+write` puts it at **L4**.
 - Above `L0` the **Human-in-the-loop** mode flips itself to `Required - ask every run`, so the chat prompt for these recipes will pop an approval dialog before the tool runs. Switch it to `Disabled - no prompt` if you want the chain to run unattended.

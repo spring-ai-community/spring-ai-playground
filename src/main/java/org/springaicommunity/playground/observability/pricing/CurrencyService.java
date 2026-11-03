@@ -76,29 +76,19 @@ public class CurrencyService {
         } catch (IOException | JacksonException e) {
             logger.warn("Failed to load currency state from {} — falling back to defaults", file, e);
         }
-        // Always ensure defaults are present (so the user can opt-in to extra
-        // currencies without touching JSON by hand). Existing rates keep
-        // whatever the user set.
         seedDefaults();
     }
 
-    // KRW pinned to the top (local-first ordering for the maintainer);
-    // everything else (USD included) sorts alphabetically. Default active
-    // currency stays USD as the canonical base.
     private static final List<String> PREFERRED_ORDER = List.of("KRW");
 
     private void seedDefaults() {
         Map<String, CurrencyRate> defaults = new LinkedHashMap<>();
-        // Preferred top-of-list (user-requested order)
         defaults.put("KRW", new CurrencyRate("KRW", "₩", new BigDecimal("1380")));
         defaults.put("USD", new CurrencyRate("USD", "$", new BigDecimal("1.0")));
         defaults.put("EUR", new CurrencyRate("EUR", "€", new BigDecimal("0.92")));
         defaults.put("CNY", new CurrencyRate("CNY", "元", new BigDecimal("7.2")));
         defaults.put("JPY", new CurrencyRate("JPY", "¥", new BigDecimal("150")));
         defaults.put("INR", new CurrencyRate("INR", "₹", new BigDecimal("84")));
-        // Remaining major fiat currencies — rough mid-2026 USD pegs; user can
-        // override via the dialog. Grouped by region for the seed pass, then
-        // sorted alphabetically by all() for display.
         defaults.put("GBP", new CurrencyRate("GBP", "£", new BigDecimal("0.79")));
         defaults.put("CHF", new CurrencyRate("CHF", "Fr", new BigDecimal("0.88")));
         defaults.put("CAD", new CurrencyRate("CAD", "C$", new BigDecimal("1.36")));
@@ -173,6 +163,23 @@ public class CurrencyService {
         saveAsync();
     }
 
+    public record CurrencyInput(String code, String symbol, BigDecimal rateFromUsd) {}
+
+    public CurrencyRate addAndActivate(CurrencyInput input) {
+        String codeRaw = input == null ? null : input.code();
+        if (codeRaw == null || codeRaw.isBlank() || codeRaw.trim().length() > 8)
+            throw new IllegalArgumentException("ID is required (1-8 characters)");
+        if (input.symbol() == null || input.symbol().isBlank())
+            throw new IllegalArgumentException("Symbol is required (e.g. A$)");
+        if (input.rateFromUsd() == null || input.rateFromUsd().signum() <= 0)
+            throw new IllegalArgumentException("Rate must be > 0");
+        CurrencyRate rate = new CurrencyRate(codeRaw.trim().toUpperCase(), input.symbol().trim(),
+                input.rateFromUsd());
+        upsertRate(rate);
+        setActiveCurrency(rate.code());
+        return rate;
+    }
+
     public void upsertRate(CurrencyRate rate) {
         if (rate == null || rate.code() == null || rate.code().isBlank()) return;
         rates.put(rate.code(), rate);
@@ -209,66 +216,4 @@ public class CurrencyService {
     }
 
     public record CurrencyRate(String code, String symbol, BigDecimal rateFromUsd) {}
-
-    public static String flagFor(String currencyCode) {
-        if (currencyCode == null || currencyCode.length() < 3) return "🏳";
-        return switch (currencyCode) {
-            case "KRW" -> "🇰🇷";
-            case "USD" -> "🇺🇸";
-            case "EUR" -> "🇪🇺";
-            case "CNY" -> "🇨🇳";
-            case "JPY" -> "🇯🇵";
-            case "INR" -> "🇮🇳";
-            case "GBP" -> "🇬🇧";
-            case "CHF" -> "🇨🇭";
-            case "CAD" -> "🇨🇦";
-            case "AUD" -> "🇦🇺";
-            case "NZD" -> "🇳🇿";
-            case "HKD" -> "🇭🇰";
-            case "SGD" -> "🇸🇬";
-            case "TWD" -> "🇹🇼";
-            case "THB" -> "🇹🇭";
-            case "IDR" -> "🇮🇩";
-            case "VND" -> "🇻🇳";
-            case "PHP" -> "🇵🇭";
-            case "MYR" -> "🇲🇾";
-            case "MXN" -> "🇲🇽";
-            case "BRL" -> "🇧🇷";
-            case "ARS" -> "🇦🇷";
-            case "CLP" -> "🇨🇱";
-            case "COP" -> "🇨🇴";
-            case "PEN" -> "🇵🇪";
-            case "ZAR" -> "🇿🇦";
-            case "EGP" -> "🇪🇬";
-            case "NGN" -> "🇳🇬";
-            case "KES" -> "🇰🇪";
-            case "TRY" -> "🇹🇷";
-            case "RUB" -> "🇷🇺";
-            case "UAH" -> "🇺🇦";
-            case "PLN" -> "🇵🇱";
-            case "CZK" -> "🇨🇿";
-            case "HUF" -> "🇭🇺";
-            case "SEK" -> "🇸🇪";
-            case "NOK" -> "🇳🇴";
-            case "DKK" -> "🇩🇰";
-            case "ISK" -> "🇮🇸";
-            case "ILS" -> "🇮🇱";
-            case "AED" -> "🇦🇪";
-            case "SAR" -> "🇸🇦";
-            case "QAR" -> "🇶🇦";
-            case "KWD" -> "🇰🇼";
-            case "BHD" -> "🇧🇭";
-            default -> regionalIndicator(currencyCode.substring(0, 2));
-        };
-    }
-
-    private static String regionalIndicator(String iso2) {
-        if (iso2 == null || iso2.length() != 2) return "🏳";
-        StringBuilder out = new StringBuilder();
-        for (char c : iso2.toUpperCase().toCharArray()) {
-            if (c < 'A' || c > 'Z') return "🏳";
-            out.appendCodePoint(0x1F1E6 + (c - 'A'));
-        }
-        return out.toString();
-    }
 }

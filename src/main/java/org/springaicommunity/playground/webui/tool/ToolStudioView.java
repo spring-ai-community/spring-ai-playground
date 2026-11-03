@@ -21,6 +21,7 @@ import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.html.H4;
+import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
@@ -44,10 +45,12 @@ import org.springaicommunity.playground.webui.UsageEventTracker;
 import org.springaicommunity.playground.webui.VaadinUtils;
 import org.springaicommunity.playground.webui.common.ContentWorkspaceView;
 import org.springaicommunity.playground.webui.common.WorkspaceSettingsDrawer;
+import org.springaicommunity.playground.webui.shipyard.ShipyardView;
 
 import java.beans.PropertyChangeSupport;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -118,20 +121,26 @@ public class ToolStudioView extends ContentWorkspaceView {
                         openToolSpecDialog(exportTitle, json)));
         getHeaderEndMenuBar().addItem(exportToolSpecButton);
 
+        Button shipServerButton = styledButton("Ship MCP Server", VaadinIcon.ANCHOR.create(),
+                event -> ShipyardView.requestShipFlowWith(this.toolBuilderView.getCurrentToolSpecAsOpt()
+                        .filter(spec -> !spec.draft() && spec.toolId() != null)
+                        .map(spec -> List.of(spec.toolId()))
+                        .orElseGet(List::of)));
+        getHeaderEndMenuBar().addItem(shipServerButton);
+
         String mcpTitle = "Built-in MCP Server Native Tools";
         this.toolMcpServerSettingView = new ToolMcpServerSettingView(
                 this.toolSpecService.getToolSpecList(),
                 this.toolSpecService.getToolMcpServerSetting(),
-                toolSpecPersistenceService, toolActivationCalculator, toolSpecService);
+                toolSpecPersistenceService, toolSpecService);
         this.mcpServerSettingsDrawer = installSettingsDrawer(VaadinIcon.COG_O, mcpTitle, mcpTitle);
         this.mcpServerSettingsDrawer.setBody(this.toolMcpServerSettingView);
         this.mcpServerSettingsDrawer.setOnOpen(() -> this.toolMcpServerSettingView.update(
                 this.toolSpecService.getToolSpecList(),
                 this.toolSpecService.getToolMcpServerSetting()));
         this.mcpServerSettingsDrawer.setApplyButton("Confirm", () -> {
-            this.toolSpecService.updateToolMcpServerSetting(
-                    this.toolMcpServerSettingView.getUiToolMcpServerSetting());
-            this.toolMcpServerSettingView.markConfirmed(this.toolSpecService.getToolMcpServerSetting());
+            this.toolMcpServerSettingView.markConfirmed(
+                    this.toolSpecService.updateExposure(this.toolMcpServerSettingView.selection()));
         });
 
         toolChangeSupport.addPropertyChangeListener(TOOL_CHANGE_EVENT, event -> {
@@ -176,6 +185,11 @@ public class ToolStudioView extends ContentWorkspaceView {
 
         H4 title = new H4("Tool Specification (JSON)");
 
+        Span shipServerHint = new Span("To ship tools as a standalone MCP server, use Ship MCP Server "
+                + "instead of copying this specification by hand.");
+        shipServerHint.getStyle().set("font-size", "var(--lumo-font-size-s)")
+                .set("color", "var(--lumo-secondary-text-color)");
+
         TextArea jsonArea = new TextArea();
         jsonArea.setValue(toolSpecJson);
         jsonArea.setReadOnly(true);
@@ -200,7 +214,7 @@ public class ToolStudioView extends ContentWorkspaceView {
         footer.setWidthFull();
         footer.getStyle().set("flex-shrink", "0");
 
-        VerticalLayout content = new VerticalLayout(title, jsonArea, footer);
+        VerticalLayout content = new VerticalLayout(title, shipServerHint, jsonArea, footer);
         content.setPadding(false);
         content.setSpacing(true);
         content.setSizeFull();

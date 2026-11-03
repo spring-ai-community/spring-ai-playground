@@ -79,10 +79,7 @@ public class McpAsyncClientOps implements McpClientOps {
     public void addRoot(McpSchema.Root root) {mcpAsyncClient.addRoot(root).block();}
 
     @Override
-    public void removeRoot(String name) {mcpAsyncClient.removeRoot(name).block();}
-
-    @Override
-    public void notifyRootsListChanged() {mcpAsyncClient.rootsListChangedNotification().block();}
+    public void removeRoot(String rootUri) {mcpAsyncClient.removeRoot(rootUri).block();}
 
     @Override
     public ToolCallbackProvider toolCallbackProvider() {

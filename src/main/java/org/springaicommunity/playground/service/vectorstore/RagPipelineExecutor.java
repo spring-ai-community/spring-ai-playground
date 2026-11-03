@@ -17,7 +17,9 @@ package org.springaicommunity.playground.service.vectorstore;
 
 import org.springaicommunity.playground.service.SharedDataReader;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.rag.Query;
@@ -66,6 +68,30 @@ public class RagPipelineExecutor {
         this.vectorStoreService = vectorStoreService;
         this.chatClientBuilderProvider = chatClientBuilderProvider;
         this.documentInfosReader = documentInfosReader;
+    }
+
+    public final class Session {
+
+        private final List<Message> history = new ArrayList<>();
+
+        public synchronized RunResult run(RagPipeline pipeline, String userQuery, Consumer<TraceEvent> traceConsumer) {
+            RunResult result = execute(pipeline, userQuery, List.copyOf(this.history), traceConsumer);
+            this.history.add(new UserMessage(userQuery));
+            if (result.llmAnswer() != null) this.history.add(new AssistantMessage(result.llmAnswer()));
+            return result;
+        }
+
+        public synchronized void clear() {
+            this.history.clear();
+        }
+
+        public synchronized List<Message> history() {
+            return List.copyOf(this.history);
+        }
+    }
+
+    public Session newSession() {
+        return new Session();
     }
 
     public RunResult execute(RagPipeline pipeline, String userQuery, Consumer<TraceEvent> traceConsumer) {
@@ -218,7 +244,7 @@ public class RagPipelineExecutor {
         }
         List<Document> joined = this.documentJoiner.join(retrieved);
         long ms = (System.nanoTime() - startNanos) / 1_000_000L;
-        trace.accept(TraceEvent.info("joiner", "done " + ms + "ms · " + joined.size() + " unique docs"));
+        trace.accept(TraceEvent.info("joiner", "done " + ms + "ms · " + joined.size() + " unique docs", joined));
         return joined;
     }
 
@@ -254,12 +280,19 @@ public class RagPipelineExecutor {
         RagPipeline.PostRetrievalConfig post = pipeline.postRetrieval();
         ScoreOrderingDocumentPostProcessor postProcessor =
                 new ScoreOrderingDocumentPostProcessor(post.reRankByScore(), post.topNTruncate());
-        if (postProcessor.isNoOp()) return joinedDocs;
+        if (postProcessor.isNoOp()) {
+            trace.accept(TraceEvent.info("postProcess", "done 0ms · " + joinedDocs.size() + " docs (pass-through)",
+                    joinedDocs));
+            return joinedDocs;
+        }
+        long startNanos = System.nanoTime();
         int before = joinedDocs.size();
         List<Document> result = postProcessor.process(new Query(userQuery), joinedDocs);
         if (post.reRankByScore()) trace.accept(TraceEvent.info("postProcess", "re-ranked by score"));
         if (result.size() < before)
             trace.accept(TraceEvent.info("postProcess", "truncated " + before + " → " + result.size()));
+        long ms = (System.nanoTime() - startNanos) / 1_000_000L;
+        trace.accept(TraceEvent.info("postProcess", "done " + ms + "ms · " + result.size() + " docs", result));
         return result;
     }
 
@@ -279,7 +312,7 @@ public class RagPipelineExecutor {
         long ms = (System.nanoTime() - startNanos) / 1_000_000L;
         String prompt = augmented.text();
         trace.accept(TraceEvent.info("augment", "done " + ms + "ms · prompt " + prompt.length() + " chars"
-                + (withSource ? " · format=text+source" : "")));
+                + (withSource ? " · format=text+source" : ""), prompt));
         return prompt;
     }
 

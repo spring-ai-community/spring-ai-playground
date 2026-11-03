@@ -16,6 +16,7 @@
 package org.springaicommunity.playground.webui.vectorstore;
 
 import org.junit.jupiter.api.Test;
+import org.springaicommunity.playground.service.vectorstore.RagPipeline;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.rag.generation.augmentation.ContextualQueryAugmenter;
 import org.springframework.ai.rag.preretrieval.query.expansion.MultiQueryExpander;
@@ -31,37 +32,37 @@ class DefaultPromptTemplateDriftTest {
 
     @Test
     void rewriteTemplateMatchesSpringAiDefault() {
-        assertThat(NewRagPipelineDialog.DEFAULT_REWRITE_TEMPLATE)
+        assertThat(RagPipeline.PreRetrievalConfig.DEFAULT_REWRITE_TEMPLATE)
                 .isEqualTo(springAiTemplate(RewriteQueryTransformer.class, "DEFAULT_PROMPT_TEMPLATE"));
     }
 
     @Test
     void compressionTemplateMatchesSpringAiDefault() {
-        assertThat(NewRagPipelineDialog.DEFAULT_COMPRESSION_TEMPLATE)
+        assertThat(RagPipeline.PreRetrievalConfig.DEFAULT_COMPRESSION_TEMPLATE)
                 .isEqualTo(springAiTemplate(CompressionQueryTransformer.class, "DEFAULT_PROMPT_TEMPLATE"));
     }
 
     @Test
     void translationTemplateMatchesSpringAiDefault() {
-        assertThat(NewRagPipelineDialog.DEFAULT_TRANSLATION_TEMPLATE)
+        assertThat(RagPipeline.PreRetrievalConfig.DEFAULT_TRANSLATION_TEMPLATE)
                 .isEqualTo(springAiTemplate(TranslationQueryTransformer.class, "DEFAULT_PROMPT_TEMPLATE"));
     }
 
     @Test
     void multiQueryTemplateMatchesSpringAiDefault() {
-        assertThat(NewRagPipelineDialog.DEFAULT_MULTI_QUERY_TEMPLATE)
+        assertThat(RagPipeline.PreRetrievalConfig.DEFAULT_MULTI_QUERY_TEMPLATE)
                 .isEqualTo(springAiTemplate(MultiQueryExpander.class, "DEFAULT_PROMPT_TEMPLATE"));
     }
 
     @Test
     void augmenterTemplateMatchesSpringAiDefault() {
-        assertThat(NewRagPipelineDialog.DEFAULT_AUGMENTER_TEMPLATE)
+        assertThat(RagPipeline.GenerationConfig.DEFAULT_AUGMENTER_TEMPLATE)
                 .isEqualTo(springAiTemplate(ContextualQueryAugmenter.class, "DEFAULT_PROMPT_TEMPLATE"));
     }
 
     @Test
     void emptyContextTemplateMatchesSpringAiDefault() {
-        assertThat(NewRagPipelineDialog.DEFAULT_EMPTY_CONTEXT_TEMPLATE)
+        assertThat(RagPipeline.GenerationConfig.DEFAULT_EMPTY_CONTEXT_TEMPLATE)
                 .isEqualTo(springAiTemplate(ContextualQueryAugmenter.class, "DEFAULT_EMPTY_CONTEXT_PROMPT_TEMPLATE"));
     }
 

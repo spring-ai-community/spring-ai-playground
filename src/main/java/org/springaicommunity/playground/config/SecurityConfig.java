@@ -17,6 +17,7 @@ package org.springaicommunity.playground.config;
 
 import com.vaadin.flow.spring.security.VaadinSecurityConfigurer;
 import org.springaicommunity.playground.service.mcp.McpServerAuthTokenService;
+import org.springaicommunity.playground.service.mcp.bundle.BundleReadiness;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -36,7 +37,8 @@ public class SecurityConfig {
 
     @Bean
     SecurityFilterChain mcpClientSecurityFilterChain(HttpSecurity http,
-            McpServerAuthTokenService authTokenService) throws Exception {
+            McpServerAuthTokenService authTokenService, BundleReadiness bundleReadiness, UiProperties uiProperties)
+            throws Exception {
         // Single-user desktop app with no authentication.
         http.authorizeHttpRequests(auth -> auth
                 .requestMatchers("/mcp", "/mcp/**", "/sse", "/sse/**", "/actuator/**",
@@ -47,6 +49,8 @@ public class SecurityConfig {
 
         http.csrf(csrf -> csrf.disable());
 
+        http.addFilterBefore(new UiAccessFilter(uiProperties), AuthorizationFilter.class);
+        http.addFilterBefore(new BundleReadinessFilter(bundleReadiness), AuthorizationFilter.class);
         http.addFilterBefore(new McpServerAuthTokenFilter(authTokenService), AuthorizationFilter.class);
 
         http.oauth2Client(Customizer.withDefaults());

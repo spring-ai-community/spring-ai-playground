@@ -45,6 +45,9 @@ import com.vaadin.flow.spring.annotation.UIScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springaicommunity.playground.service.analytics.UsageAnalyticsService;
+import org.springaicommunity.playground.service.vectorstore.ConfiguredKnowledgeLoader;
+import org.springaicommunity.playground.service.vectorstore.DocumentSpec;
+import org.springaicommunity.playground.service.vectorstore.KnowledgeIngestService;
 import org.springaicommunity.playground.service.vectorstore.OfflineEtlPipelineService;
 import org.springaicommunity.playground.service.vectorstore.RagPipeline;
 import org.springaicommunity.playground.service.vectorstore.RagPipelineExecutor;
@@ -64,14 +67,12 @@ import java.beans.PropertyChangeSupport;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.IdentityHashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.springaicommunity.playground.webui.VaadinUtils.styledButton;
@@ -100,6 +101,7 @@ public class VectorStoreView extends ContentWorkspaceView {
     private final UsageAnalyticsService usageAnalyticsService;
     private final UsageEventTracker usageEventTracker;
     private final RagPipelineService ragPipelineService;
+    private final KnowledgeIngestService knowledgeIngestService;
     private final VectorStoreDocumentView vectorStoreDocumentView;
     private final VectorStorePipelineListView vectorStorePipelineListView;
     private final VectorStoreContentView vectorStoreContentView;
@@ -111,17 +113,19 @@ public class VectorStoreView extends ContentWorkspaceView {
     public VectorStoreView(PersistentUiDataStorage persistentUiDataStorage, VectorStoreService vectorStoreService,
             OfflineEtlPipelineService offlineEtlPipelineService, UsageAnalyticsService usageAnalyticsService,
             UsageEventTracker usageEventTracker, RagPipelineService ragPipelineService,
-            RagPipelineExecutor ragPipelineExecutor) {
+            RagPipelineExecutor ragPipelineExecutor, KnowledgeIngestService knowledgeIngestService,
+            ConfiguredKnowledgeLoader knowledgeLoader) {
         this.vectorStoreService = vectorStoreService;
+        this.knowledgeIngestService = knowledgeIngestService;
         this.offlineEtlPipelineService = offlineEtlPipelineService;
         this.usageAnalyticsService = usageAnalyticsService;
         this.usageEventTracker = usageEventTracker;
         this.ragPipelineService = ragPipelineService;
 
         this.vectorStoreDocumentView =
-                new VectorStoreDocumentView(offlineEtlPipelineService, ragPipelineService,
+                new VectorStoreDocumentView(offlineEtlPipelineService, ragPipelineService, knowledgeLoader,
                         buildDocumentChangeSupport());
-        this.vectorStorePipelineListView = new VectorStorePipelineListView(ragPipelineService,
+        this.vectorStorePipelineListView = new VectorStorePipelineListView(ragPipelineService, knowledgeLoader,
                 buildPipelineChangeSupport(), this::onEditPipelineRequested);
         this.vectorStoreDocumentView.enableCollapse();
         this.vectorStorePipelineListView.enableCollapse();
@@ -351,10 +355,12 @@ public class VectorStoreView extends ContentWorkspaceView {
         newDocumentDialog.addOpenedChangeListener(event -> {
             if (event.isOpened()) {
                 filesHandedOff.set(false);
+                vectorStoreDocumentUpload.clearFileList();
                 return;
             }
-            if (!filesHandedOff.get())
-                removeStagedFiles(vectorStoreDocumentUpload.getUploadedFileNames());
+            if (filesHandedOff.get()) return;
+            removeStagedFiles(vectorStoreDocumentUpload.getUploadedFileNames());
+            vectorStoreDocumentUpload.clearFileList();
         });
 
         chunkDocumentButton.addClickListener(buttonClickEvent -> {
@@ -388,40 +394,49 @@ public class VectorStoreView extends ContentWorkspaceView {
                 return;
             }
 
-            Map<String, List<Document>> uploadedDocumentItems;
+            DocumentSpec.Extract extract = DocumentSpec.Extract.of(extractOptions);
+            DocumentSpec.Split split = DocumentSpec.Split.of(vectorStoreDocumentTokenChunkInfo.collectInput());
+            DocumentSpec.Enrich enrich = DocumentSpec.Enrich.of(enrichOptions);
+            List<DocumentSpec> specs = uploadedFileNames.stream().map(fileName -> new DocumentSpec(
+                    DocumentSpec.Source.path(this.offlineEtlPipelineService.buildUploadFilePath(fileName).toString()),
+                    resolvedTitle, resolvedDescription, extract, split, enrich)).toList();
+
+            if (enrichOptions.llmCallsPerChunk() > 0) {
+                runEnrichmentThenConfirm(uploadedFileNames, specs, enrichOptions);
+                return;
+            }
+            List<KnowledgeIngestService.Prepared> prepared;
             try {
-                uploadedDocumentItems = this.offlineEtlPipelineService.extractAndTransform(uploadedFileNames,
-                        extractOptions, offlineEtlPipelineService.newTokenTextSplitter(
-                                vectorStoreDocumentTokenChunkInfo.collectInput()));
+                prepared = prepareAll(specs, KnowledgeIngestService.IngestProgress.NONE);
             } catch (Exception e) {
                 logger.warn("Chunk extraction failed", e);
                 VaadinUtils.showErrorNotification("Chunk extraction failed: " + e.getMessage());
                 removeStagedFiles(uploadedFileNames);
                 return;
             }
-            List<Document> chunks = uploadedDocumentItems.values().stream().flatMap(List::stream).toList();
-            if (chunks.isEmpty()) {
-                VaadinUtils.showInfoNotification("No chunks found");
-                removeStagedFiles(uploadedFileNames);
-                return;
-            }
-
-            if (enrichOptions.llmCallsPerChunk() > 0) {
-                runEnrichmentThenConfirm(uploadedFileNames, uploadedDocumentItems, chunks, enrichOptions,
-                        resolvedTitle, resolvedDescription);
-            } else {
-                openChunkConfirmationDialog(uploadedFileNames, uploadedDocumentItems, chunks, resolvedTitle,
-                        resolvedDescription);
-            }
+            confirmOrReport(uploadedFileNames, prepared);
         });
     }
 
-    private void runEnrichmentThenConfirm(List<String> uploadedFileNames,
-            Map<String, List<Document>> uploadedDocumentItems, List<Document> chunks,
-            OfflineEtlPipelineService.EnrichOptions enrichOptions, String resolvedTitle, String resolvedDescription) {
-        int totalCalls = chunks.size() * enrichOptions.llmCallsPerChunk();
-        Dialog progressDialog = VaadinUtils.headerDialog(
-                String.format("Enriching %d chunks · %d LLM calls", chunks.size(), totalCalls));
+    private List<KnowledgeIngestService.Prepared> prepareAll(List<DocumentSpec> specs,
+            KnowledgeIngestService.IngestProgress progress) {
+        return specs.stream().map(spec -> this.knowledgeIngestService.prepare(spec, progress)).toList();
+    }
+
+    private void confirmOrReport(List<String> uploadedFileNames, List<KnowledgeIngestService.Prepared> prepared) {
+        List<Document> chunks = prepared.stream().flatMap(item -> item.chunks().stream()).toList();
+        if (chunks.isEmpty()) {
+            VaadinUtils.showInfoNotification("No chunks found");
+            removeStagedFiles(uploadedFileNames);
+            return;
+        }
+        openChunkConfirmationDialog(uploadedFileNames, prepared, chunks);
+    }
+
+    private void runEnrichmentThenConfirm(List<String> uploadedFileNames, List<DocumentSpec> specs,
+            OfflineEtlPipelineService.EnrichOptions enrichOptions) {
+        Dialog progressDialog = VaadinUtils.headerDialog(String.format("Enriching %d file(s) · %d LLM call(s) per chunk",
+                specs.size(), enrichOptions.llmCallsPerChunk()));
         progressDialog.setModality(ModalityMode.STRICT);
         progressDialog.setWidth("440px");
         progressDialog.setCloseOnEsc(false);
@@ -446,46 +461,53 @@ public class VectorStoreView extends ContentWorkspaceView {
         progressDialog.open();
 
         UI ui = UI.getCurrent();
+        KnowledgeIngestService.IngestProgress progress = new KnowledgeIngestService.IngestProgress(
+                (done, total) -> ui.access(() -> {
+                    progressBar.setIndeterminate(false);
+                    progressBar.setMin(0);
+                    progressBar.setMax(total);
+                    progressBar.setValue(done);
+                    progressLabel.setText(String.format("Keyword enrichment %d / %d chunks", done, total));
+                }), cancelled::get);
         new Thread(() -> {
-            List<Document> enriched;
+            List<KnowledgeIngestService.Prepared> prepared;
             try {
-                enriched = this.offlineEtlPipelineService.enrich(chunks, enrichOptions,
-                        (done, total) -> ui.access(() -> {
-                            progressBar.setIndeterminate(false);
-                            progressBar.setMin(0);
-                            progressBar.setMax(total);
-                            progressBar.setValue(done);
-                            progressLabel.setText(String.format("Keyword enrichment %d / %d chunks", done, total));
-                        }), cancelled::get);
-            } catch (Exception ex) {
-                logger.warn("Enrichment failed", ex);
+                prepared = prepareAll(specs, progress);
+            } catch (Exception enrichFailure) {
+                logger.warn("Enrichment failed", enrichFailure);
+                try {
+                    prepared = prepareAll(specs.stream().map(DocumentSpec::withoutEnrichment).toList(),
+                            KnowledgeIngestService.IngestProgress.NONE);
+                } catch (Exception extractFailure) {
+                    logger.warn("Chunk extraction failed", extractFailure);
+                    ui.access(() -> {
+                        progressDialog.close();
+                        VaadinUtils.showErrorNotification("Chunk extraction failed: " + extractFailure.getMessage());
+                        removeStagedFiles(uploadedFileNames);
+                    });
+                    return;
+                }
+                List<KnowledgeIngestService.Prepared> plain = prepared;
                 ui.access(() -> {
                     progressDialog.close();
-                    VaadinUtils.showErrorNotification("Enrichment failed: " + ex.getMessage()
+                    VaadinUtils.showErrorNotification("Enrichment failed: " + enrichFailure.getMessage()
                             + ", continuing with plain chunks");
-                    openChunkConfirmationDialog(uploadedFileNames, uploadedDocumentItems, chunks, resolvedTitle,
-                            resolvedDescription);
+                    confirmOrReport(uploadedFileNames, plain);
                 });
                 return;
             }
-            Map<String, List<Document>> enrichedByFile = new LinkedHashMap<>();
-            int offset = 0;
-            for (Map.Entry<String, List<Document>> entry : uploadedDocumentItems.entrySet()) {
-                int size = entry.getValue().size();
-                enrichedByFile.put(entry.getKey(), enriched.subList(offset, offset + size));
-                offset += size;
-            }
+            List<KnowledgeIngestService.Prepared> enriched = prepared;
             ui.access(() -> {
                 progressDialog.close();
-                openChunkConfirmationDialog(uploadedFileNames, enrichedByFile, enriched, resolvedTitle,
-                        resolvedDescription);
+                confirmOrReport(uploadedFileNames, enriched);
             });
         }, "etl-enrich").start();
     }
 
     private void openChunkConfirmationDialog(List<String> uploadedFileNames,
-            Map<String, List<Document>> uploadedDocumentItems, List<Document> chunks, String resolvedTitle,
-            String resolvedDescription) {
+            List<KnowledgeIngestService.Prepared> prepared, List<Document> chunks) {
+        String resolvedTitle = prepared.getFirst().spec().title();
+        String resolvedDescription = prepared.getFirst().spec().description();
         int totalChars = chunks.stream().mapToInt(chunk -> chunk.getText() == null ? 0 : chunk.getText().length()).sum();
         int avgChars = chunks.isEmpty() ? 0 : totalChars / chunks.size();
 
@@ -558,12 +580,31 @@ public class VectorStoreView extends ContentWorkspaceView {
             confirmed.set(true);
             confirmationDialog.setEnabled(false);
             confirmationDialog.close();
-            Map<String, List<Document>> filenameDocuments =
-                    uploadedDocumentItems.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey,
-                            entry -> entry.getValue().stream().filter(selectedItems::contains).toList()));
-            this.vectorStoreDocumentView.addDocumentContent(uploadedFileNames, filenameDocuments, resolvedTitle,
-                    resolvedDescription);
+            List<VectorStoreDocumentInfo> added = new ArrayList<>();
+            try {
+                for (KnowledgeIngestService.Prepared item : prepared) {
+                    Map<String, List<Document>> selectedByFile = item.chunksByFile().entrySet().stream()
+                            .collect(Collectors.toMap(Map.Entry::getKey,
+                                    entry -> entry.getValue().stream().filter(selectedItems::contains).toList()));
+                    if (selectedByFile.values().stream().allMatch(List::isEmpty)) continue;
+                    added.add(this.knowledgeIngestService.commit(item, selectedByFile));
+                }
+            } catch (Exception e) {
+                logger.warn("Embedding failed", e);
+                VaadinUtils.showErrorNotification("Embedding failed: " + e.getMessage());
+            }
+            this.vectorStoreDocumentView.documentsAdded(added);
         });
+    }
+
+    static Span managedBadge(String property) {
+        Span badge = new Span("Config");
+        badge.getElement().getThemeList().add("badge");
+        badge.getStyle().set("font-size", "var(--lumo-font-size-xxs)").set("margin-left", "auto")
+                .set("flex", "none");
+        badge.setTitle("Managed by configuration: defined under " + property
+                + "; edit the configuration and restart to change it");
+        return badge;
     }
 
     private static Component renderChunkCard(Document document, int oneBasedIndex) {
@@ -732,7 +773,6 @@ public class VectorStoreView extends ContentWorkspaceView {
     }
 
     private void handleDocumentAdding(Collection<VectorStoreDocumentInfo> newEventDocumentInfos) {
-        newEventDocumentInfos.forEach(this.vectorStoreService::add);
         this.vectorStorePipelineListView.refreshPipelines();
         newEventDocumentInfos.forEach(docInfo -> this.usageEventTracker.track(UI.getCurrent(),
                 "rag_document_indexed", this.usageAnalyticsService.documentIndexedParams(
@@ -747,9 +787,6 @@ public class VectorStoreView extends ContentWorkspaceView {
     }
 
     private void handleDocumentDeleting(Collection<VectorStoreDocumentInfo> newEventDocumentInfos) {
-        this.vectorStoreService.delete(
-                newEventDocumentInfos.stream().map(VectorStoreDocumentInfo::documentListSupplier).map(Supplier::get)
-                        .flatMap(List::stream).map(Document::getId).toList());
         vectorStoreContentView.showAllDocuments();
     }
 

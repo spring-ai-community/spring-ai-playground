@@ -1,3 +1,4 @@
+videos: ep7
 description: Default MCP Servers - Data & Cloud reference: 18 preset MCP connections with transport, auth defaults, required env, and full description per card.
 
 # Default MCP Servers - Data & Cloud
@@ -36,7 +37,7 @@ List, read, and upload files in Google Drive, manage permissions, shared drives,
 
 **Stability** - PREVIEW · **Tier** - Tier 1
 
-**Required env** - -
+**Required env** - `GOOGLE_DRIVE_OAUTH_CLIENT_ID`
 
 **Tags** - global · preview
 
@@ -88,7 +89,7 @@ Browse and edit OneDrive personal files and SharePoint sites, lists, document li
 
 **Stability** - GA · **Tier** - Tier 1
 
-**Required env** - `MS_TENANT_ID`
+**Required env** - `MS_TENANT_ID` · `ONEDRIVE_SHAREPOINT_OAUTH_CLIENT_ID`
 
 **Tags** - global
 
@@ -130,7 +131,7 @@ Cloudflare umbrella covering Workers, R2, KV, D1, Workers AI, Browser Rendering,
 
 **Stability** - GA · **Tier** - Tier 2
 
-**Required env** - -
+**Required env** - `CLOUDFLARE_OAUTH_CLIENT_ID`
 
 **Tags** - global
 
@@ -172,7 +173,7 @@ Inspect and manage Vercel projects, deployments, domains, environment variables,
 
 **Stability** - GA · **Tier** - Tier 2
 
-**Required env** - -
+**Required env** - `VERCEL_OAUTH_CLIENT_ID`
 
 **Tags** - global
 
@@ -214,7 +215,7 @@ Manage Netlify sites, deploys, build hooks, edge functions, and form submissions
 
 **Stability** - GA · **Tier** - Tier 2
 
-**Required env** - -
+**Required env** - `NETLIFY_OAUTH_CLIENT_ID`
 
 **Tags** - global
 
@@ -256,7 +257,7 @@ Inspect Heroku apps, dynos, releases, config vars, addons, and logs via OAuth.
 
 **Stability** - GA · **Tier** - Tier 2
 
-**Required env** - -
+**Required env** - `HEROKU_OAUTH_CLIENT_ID`
 
 **Tags** - global
 
@@ -310,7 +311,7 @@ Manage Render web services, background workers, cron jobs, and deploys via OAuth
 
 **Stability** - GA · **Tier** - Tier 2
 
-**Required env** - -
+**Required env** - `RENDER_OAUTH_CLIENT_ID`
 
 **Tags** - global
 
@@ -364,7 +365,7 @@ Deploy and manage Cloud Run services, revisions, traffic splits, and jobs. Uses 
 
 **Stability** - GA · **Tier** - Tier 2
 
-**Required env** - -
+**Required env** - `GOOGLE_CLOUD_RUN_OAUTH_CLIENT_ID`
 
 **Tags** - global
 
@@ -413,7 +414,7 @@ Manage GCS buckets and objects - list, upload, download, IAM, lifecycle rules. U
 
 **Stability** - GA · **Tier** - Tier 2
 
-**Required env** - -
+**Required env** - `GOOGLE_CLOUD_STORAGE_OAUTH_CLIENT_ID`
 
 **Tags** - global
 
@@ -464,7 +465,7 @@ Query datasets, manage tables and views, and run jobs in Google BigQuery. Google
 
 **Stability** - GA · **Tier** - Tier 2
 
-**Required env** - -
+**Required env** - `BIGQUERY_OAUTH_CLIENT_ID`
 
 **Tags** - global · pipeline
 
@@ -514,7 +515,7 @@ Provision and query Neon serverless Postgres - branches, roles, schema migration
 
 **Stability** - GA · **Tier** - Tier 2
 
-**Required env** - -
+**Required env** - `NEON_OAUTH_CLIENT_ID`
 
 **Tags** - global
 
@@ -568,7 +569,7 @@ Manage Supabase projects end-to-end - Postgres queries, Auth users, Storage buck
 
 **Stability** - GA · **Tier** - Tier 2
 
-**Required env** - -
+**Required env** - `SUPABASE_OAUTH_CLIENT_ID`
 
 **Tags** - global
 
@@ -622,7 +623,7 @@ Query PlanetScale MySQL databases, manage branches, deploy schema changes via OA
 
 **Stability** - GA · **Tier** - Tier 2
 
-**Required env** - -
+**Required env** - `PLANETSCALE_OAUTH_CLIENT_ID`
 
 **Tags** - global
 
@@ -674,7 +675,7 @@ Administer Google Cloud SQL instances (MySQL, Postgres, SQL Server) - databases,
 
 **Stability** - GA · **Tier** - Tier 2
 
-**Required env** - -
+**Required env** - `CLOUD_SQL_OAUTH_CLIENT_ID`
 
 **Tags** - global
 
@@ -728,7 +729,7 @@ Query Google Cloud Spanner instances and databases - globally distributed, stron
 
 **Stability** - GA · **Tier** - Tier 2
 
-**Required env** - -
+**Required env** - `SPANNER_OAUTH_CLIENT_ID`
 
 **Tags** - global
 
@@ -781,7 +782,7 @@ Query and manage Firestore documents, collections, composite indexes, and securi
 
 **Stability** - GA · **Tier** - Tier 2
 
-**Required env** - -
+**Required env** - `FIRESTORE_OAUTH_CLIENT_ID`
 
 **Tags** - global
 
@@ -829,7 +830,7 @@ Query and manage Firestore documents, collections, composite indexes, and securi
 
 **Args** - `mcp-server-sqlite --db-path /absolute/path/to/your.db`
 
-**OS variants** - mac · linux · win (catalog picks the entry matching the host OS automatically; macOS / Linux use `npx` or `uvx`; Windows uses `npx.cmd`).
+**OS variants** - mac · linux · win (catalog picks the entry matching the host OS automatically; every OS runs it with `uvx`).
 
 **Auth** - STDIO
 
@@ -955,9 +956,9 @@ Every remote entry uses OAuth 2.1 except the public KOSIS pilot, which needs no 
 | Supabase | Supabase OAuth | - |
 | PlanetScale | PlanetScale OAuth | - |
 | KOSIS (public pilot) | None | Read-only; endpoint may change while in PREVIEW |
-| SQLite (stdio) | None | Node.js 18+; pass the database file path as the first arg |
+| SQLite (stdio) | None | `uv` installed; set the database file after `--db-path` |
 
-Google Cloud entries each request a specific scope - `bigquery.read` for BigQuery, `cloud-platform` for Cloud Run, `cloud-spanner.data` for Spanner. Spring AI Playground stores the granted refresh token under `~/spring-ai-playground/mcp/oauth-tokens/` so you don't reauthorise on every restart.
+Google Cloud entries each request a specific scope - `bigquery` for BigQuery, `cloud-platform` for Cloud Run, `spanner.data` for Spanner. Spring AI Playground stores the granted refresh token under `~/spring-ai-playground/mcp/oauth-tokens/` so you don't reauthorise on every restart.
 
 ## Picking guide { #picking-guide }
 

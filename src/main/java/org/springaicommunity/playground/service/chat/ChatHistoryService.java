@@ -71,11 +71,9 @@ public class ChatHistoryService {
         return chatHistory.mutate(chatHistory.title(), System.currentTimeMillis());
     }
 
-    // Stopping a stream can commit the conversation before the user turn reaches chat memory; falling back
-    // keeps the conversation registered and saved instead of throwing it away inside the cancel path.
     private String extractTitle(List<Message> messageList) {
         return messageList.stream().filter(message -> MessageType.USER.equals(message.getMessageType())).findFirst()
-                .map(Message::getText).map(userPrompt -> buildTitle(userPrompt.trim(), 20)).orElse("New chat");
+                .map(Message::getText).map(userPrompt -> buildTitle(userPrompt.trim(), 20)).orElse(null);
     }
 
     private String buildTitle(String userPrompt, int length) {

@@ -33,10 +33,12 @@ import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.client.advisor.toolsearch.ToolSearchToolCallingAdvisor;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions.ToolSearch.IndexType;
 import org.springaicommunity.playground.SpringAiPlaygroundOptions.ToolSearch.VectorStoreMode;
+import org.springaicommunity.playground.observability.ToolIndexVectorObservationConvention;
 import org.springaicommunity.playground.service.chat.ChatHistoryService;
 import org.springaicommunity.playground.service.chat.HybridToolIndex;
 import org.springaicommunity.playground.service.chat.LlmWindowChatMemory;
 import org.springaicommunity.playground.service.chat.PersistentToolIndex;
+import org.springaicommunity.playground.service.mcp.bundle.BundleHome;
 import org.springaicommunity.playground.service.agent.AgentLoopManager;
 import org.springaicommunity.playground.webui.GoogleAnalyticsNavigationListener;
 import org.springframework.ai.chat.memory.ChatMemory;
@@ -142,7 +144,10 @@ public class SpringAiPlaygroundApplication implements AppShellConfigurator {
 
     @Bean
     public Path springAiPlaygroundHomeDir(@Value("${spring.ai.playground.user-home}") String userHomeDir,
-            @Value("${spring.application.name}") String applicationName) {
+            @Value("${spring.application.name}") String applicationName,
+            @Value("${" + BundleHome.SOURCE_PROPERTY + ":}") String bundleSource) {
+        if (!bundleSource.isBlank())
+            return BundleHome.prepareWorkingHome(Path.of(bundleSource));
         Path homeDir = Path.of(Optional.ofNullable(userHomeDir).filter(Predicate.not(String::isBlank))
                 .orElse(System.getProperty("user.home")), applicationName);
         if (!homeDir.toFile().exists())
@@ -224,7 +229,8 @@ public class SpringAiPlaygroundApplication implements AppShellConfigurator {
             return exactName ? new HybridToolIndex(vectorToolIndex) : vectorToolIndex;
         }
         SimpleVectorStore dedicatedStore = SimpleVectorStore.builder(embeddingModel)
-                .observationRegistry(observationRegistry).build();
+                .observationRegistry(observationRegistry)
+                .customObservationConvention(new ToolIndexVectorObservationConvention()).build();
         Optional<EmbeddingOptions> options = resolveEmbeddingOptions(applicationContext);
         String signature = PersistentToolIndex.signatureOf(embeddingModel.getClass().getSimpleName(),
                 options.map(EmbeddingOptions::getModel).orElse(null),

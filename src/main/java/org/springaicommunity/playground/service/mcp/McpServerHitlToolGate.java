@@ -26,12 +26,15 @@ import io.modelcontextprotocol.spec.McpSchema.ClientCapabilities;
 import io.modelcontextprotocol.spec.McpSchema.ElicitRequest;
 import io.modelcontextprotocol.spec.McpSchema.ElicitResult;
 import io.modelcontextprotocol.spec.McpSchema.Implementation;
+import io.modelcontextprotocol.spec.McpSchema.ProgressNotification;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springaicommunity.playground.SpringAiPlaygroundOptions;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.service.tool.ToolManifest.HumanInTheLoop;
 import org.springaicommunity.playground.service.tool.ToolManifest.Sandbox.RiskLevel;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
@@ -44,17 +47,32 @@ public class McpServerHitlToolGate {
 
     private static final Logger logger = LoggerFactory.getLogger(McpServerHitlToolGate.class);
 
-    private static final Map<String, Object> CONFIRMATION_SCHEMA = Map.of("type", "object", "properties", Map.of());
-
     public static final String INTERACTIVE_HITL_META_KEY = "playgroundInteractiveHitl";
+    public static final String APPROVAL_EXPIRED_META_KEY = "playgroundApprovalExpired";
 
     private final ObjectProvider<McpClientService> mcpClientServiceProvider;
     private final MeterRegistry meterRegistry;
+    private final DeniedToolCallRecorder deniedToolCallRecorder;
+    private final ApprovalWaitCountdown countdown;
 
+    @Autowired
     public McpServerHitlToolGate(ObjectProvider<McpClientService> mcpClientServiceProvider,
-            MeterRegistry meterRegistry) {
+            MeterRegistry meterRegistry, DeniedToolCallRecorder deniedToolCallRecorder,
+            SpringAiPlaygroundOptions playgroundOptions) {
+        this(mcpClientServiceProvider, meterRegistry, deniedToolCallRecorder,
+                ApprovalWaitCountdown.of(playgroundOptions.hitl()));
+    }
+
+    McpServerHitlToolGate(ObjectProvider<McpClientService> mcpClientServiceProvider, MeterRegistry meterRegistry,
+            DeniedToolCallRecorder deniedToolCallRecorder, ApprovalWaitCountdown countdown) {
         this.mcpClientServiceProvider = mcpClientServiceProvider;
         this.meterRegistry = meterRegistry;
+        this.deniedToolCallRecorder = deniedToolCallRecorder;
+        this.countdown = countdown;
+    }
+
+    public static ElicitResult approvalExpired() {
+        return new ElicitResult(ElicitResult.Action.CANCEL, Map.of(), Map.of(APPROVAL_EXPIRED_META_KEY, true));
     }
 
     public SyncToolSpecification decorate(SyncToolSpecification specification, HumanInTheLoop humanInTheLoop,
@@ -90,20 +108,18 @@ public class McpServerHitlToolGate {
         }
         if (!supportsElicitation(exchange.getClientCapabilities())) {
             logger.info("hitl.server.denied tool={} reason=no-elicitation-capability", request.name());
-            countDecision("denied");
-            return denied(request.name());
+            return denied(request, exchange.getClientInfo(), "denied");
         }
         ElicitResult result;
         try {
-            result = exchange.createElicitation(elicitRequest(promptTemplate, riskLevel, request));
+            result = this.countdown.await(
+                    () -> exchange.createElicitation(elicitRequest(promptTemplate, riskLevel, request)),
+                    progressTicker(exchange, request));
         } catch (RuntimeException e) {
-            countElicitError(request.name(), e);
-            return denied(request.name());
+            return denied(request, exchange.getClientInfo(), elicitErrorOutcome(request.name(), e));
         }
         if (!isApproved(result)) {
-            logger.info("hitl.server.declined tool={} action={}", request.name(), action(result));
-            countDecision("declined");
-            return denied(request.name());
+            return denied(request, exchange.getClientInfo(), decisionOutcome(request.name(), result));
         }
         logger.info("hitl.server.approved tool={}", request.name());
         countDecision("approved");
@@ -118,24 +134,21 @@ public class McpServerHitlToolGate {
         }
         if (!supportsElicitation(exchange.getClientCapabilities())) {
             logger.info("hitl.server.denied tool={} reason=no-elicitation-capability", request.name());
-            countDecision("denied");
-            return Mono.just(denied(request.name()));
+            return Mono.just(denied(request, exchange.getClientInfo(), "denied"));
         }
-        return exchange.createElicitation(elicitRequest(promptTemplate, riskLevel, request))
+        return this.countdown.await(exchange.createElicitation(elicitRequest(promptTemplate, riskLevel, request)),
+                        progressTicker(exchange, request))
                 .flatMap(result -> {
                     if (!isApproved(result)) {
-                        logger.info("hitl.server.declined tool={} action={}", request.name(), action(result));
-                        countDecision("declined");
-                        return Mono.just(denied(request.name()));
+                        return Mono.just(denied(request, exchange.getClientInfo(),
+                                decisionOutcome(request.name(), result)));
                     }
                     logger.info("hitl.server.approved tool={}", request.name());
                     countDecision("approved");
                     return delegate.apply(exchange, request);
                 })
-                .onErrorResume(e -> {
-                    countElicitError(request.name(), e);
-                    return Mono.just(denied(request.name()));
-                });
+                .onErrorResume(error -> Mono.just(denied(request, exchange.getClientInfo(),
+                        elicitErrorOutcome(request.name(), error))));
     }
 
     private static boolean requiresApproval(HumanInTheLoop humanInTheLoop) {
@@ -144,12 +157,8 @@ public class McpServerHitlToolGate {
 
     // Chat loopback is gated chat-side already, so skip server elicitation to avoid a double prompt.
     private boolean isChatLoopback(Implementation clientInfo) {
-        if (clientInfo == null || clientInfo.name() == null) return false;
-        String name = clientInfo.name();
-        if (name.contains(McpClientService.TEST_CLIENT_INFIX)) return false;
         McpClientService mcpClientService = this.mcpClientServiceProvider.getIfAvailable();
-        String self = mcpClientService == null ? null : mcpClientService.selfLoopbackServerName();
-        return self != null && name.endsWith(self);
+        return mcpClientService != null && mcpClientService.isSelfLoopbackClient(clientInfo);
     }
 
     private static boolean isInteractiveCall(CallToolRequest request) {
@@ -162,17 +171,58 @@ public class McpServerHitlToolGate {
     }
 
     private static boolean isApproved(ElicitResult result) {
-        return result != null && result.action() == ElicitResult.Action.ACCEPT;
+        return ApprovalConfirmation.isApproved(result);
+    }
+
+    public static boolean isApprovalExpired(ElicitResult result) {
+        return result != null && result.meta() != null
+                && Boolean.TRUE.equals(result.meta().get(APPROVAL_EXPIRED_META_KEY));
+    }
+
+    private static String decisionOutcome(String toolName, ElicitResult result) {
+        if (isApprovalExpired(result)) {
+            logger.info("hitl.server.timeout tool={}", toolName);
+            return "timeout";
+        }
+        logger.info("hitl.server.declined tool={} action={}", toolName, action(result));
+        return "declined";
     }
 
     private static String action(ElicitResult result) {
         return result == null ? "none" : String.valueOf(result.action());
     }
 
-    private static ElicitRequest elicitRequest(String promptTemplate, RiskLevel riskLevel, CallToolRequest request) {
+    private ElicitRequest elicitRequest(String promptTemplate, RiskLevel riskLevel, CallToolRequest request) {
         return ElicitRequest.builder(
-                riskPrefix(riskLevel) + renderPrompt(promptTemplate, request.name(), request.arguments()),
-                CONFIRMATION_SCHEMA).build();
+                riskPrefix(riskLevel) + renderPrompt(promptTemplate, request.name(), request.arguments())
+                        + " " + this.countdown.notice(),
+                ApprovalConfirmation.SCHEMA).build();
+    }
+
+    private static ApprovalWaitCountdown.Ticker progressTicker(McpSyncServerExchange exchange,
+            CallToolRequest request) {
+        Object token = request.progressToken();
+        if (token == null) return ApprovalWaitCountdown.Ticker.NONE;
+        return (elapsed, total, message) -> {
+            try {
+                exchange.progressNotification(new ProgressNotification(token, elapsed, (double) total, message));
+            } catch (RuntimeException e) {
+                logger.debug("hitl.server.progress-not-delivered tool={}", request.name(), e);
+            }
+        };
+    }
+
+    private static ApprovalWaitCountdown.Ticker progressTicker(McpAsyncServerExchange exchange,
+            CallToolRequest request) {
+        Object token = request.progressToken();
+        if (token == null) return ApprovalWaitCountdown.Ticker.NONE;
+        return (elapsed, total, message) -> exchange
+                .progressNotification(new ProgressNotification(token, elapsed, (double) total, message))
+                .onErrorResume(error -> {
+                    logger.debug("hitl.server.progress-not-delivered tool={}", request.name(), error);
+                    return Mono.empty();
+                })
+                .subscribe();
     }
 
     static String riskPrefix(RiskLevel riskLevel) {
@@ -186,23 +236,33 @@ public class McpServerHitlToolGate {
                 .replace("{args}", arguments == null ? "{}" : arguments.toString());
     }
 
-    private static CallToolResult denied(String toolName) {
+    private CallToolResult denied(CallToolRequest request, Implementation clientInfo, String outcome) {
+        countDecision(outcome);
+        if (!isChatLoopback(clientInfo)) {
+            this.deniedToolCallRecorder.recordExternalClientDenial(request, clientInfo, outcome);
+        }
+        String toolName = request.name();
         return CallToolResult.builder()
-                .addTextContent("Tool '" + toolName + "' was not run: human-in-the-loop approval was not granted. "
+                .addTextContent("Tool '" + toolName + "' was not run: " + notRunReason(outcome) + ". "
                         + "Do not call '" + toolName + "' again for this request; ask the user to run it "
                         + "manually if it is still needed.")
                 .isError(true)
                 .build();
     }
 
-    private void countElicitError(String toolName, Throwable error) {
+    private String notRunReason(String outcome) {
+        return "timeout".equals(outcome)
+                ? "no approval within " + this.countdown.waitSeconds() + " s"
+                : "human-in-the-loop approval was not granted";
+    }
+
+    private static String elicitErrorOutcome(String toolName, Throwable error) {
         if (isTimeout(error)) {
             logger.info("hitl.server.timeout tool={}", toolName);
-            countDecision("timeout");
-        } else {
-            logger.warn("hitl.server.elicit-failed tool={} error={}", toolName, error.getMessage());
-            countDecision("elicit-failed");
+            return "timeout";
         }
+        logger.warn("hitl.server.elicit-failed tool={} error={}", toolName, error.getMessage());
+        return "elicit-failed";
     }
 
     private static boolean isTimeout(Throwable error) {

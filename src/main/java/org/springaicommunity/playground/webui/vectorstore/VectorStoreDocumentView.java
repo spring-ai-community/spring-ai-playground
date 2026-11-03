@@ -20,6 +20,7 @@ import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.dialog.DialogVariant;
+import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.listbox.MultiSelectListBox;
@@ -33,6 +34,7 @@ import com.vaadin.flow.router.BeforeEnterObserver;
 import org.springaicommunity.playground.service.vectorstore.RagPipeline;
 import org.springaicommunity.playground.service.vectorstore.RagPipelineService;
 import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentInfo;
+import org.springaicommunity.playground.service.vectorstore.ConfiguredKnowledgeLoader;
 import org.springaicommunity.playground.service.vectorstore.OfflineEtlPipelineService;
 import org.springaicommunity.playground.webui.VaadinUtils;
 import org.springaicommunity.playground.webui.common.WorkspaceSidebar;
@@ -59,16 +61,20 @@ public class VectorStoreDocumentView extends WorkspaceSidebar implements BeforeE
 
     private final OfflineEtlPipelineService offlineEtlPipelineService;
     private final RagPipelineService ragPipelineService;
+    private final ConfiguredKnowledgeLoader knowledgeLoader;
+    private final Div declaredProblems = new Div();
     private final MultiSelectListBox<VectorStoreDocumentInfo> documentListBox;
     private final PropertyChangeSupport documentInfoChangeSupport;
     private Runnable onSelectionStart;
 
     public VectorStoreDocumentView(OfflineEtlPipelineService offlineEtlPipelineService,
-            RagPipelineService ragPipelineService, PropertyChangeSupport documentInfoChangeSupport) {
+            RagPipelineService ragPipelineService, ConfiguredKnowledgeLoader knowledgeLoader,
+            PropertyChangeSupport documentInfoChangeSupport) {
         super("Documents");
         this.documentInfoChangeSupport = documentInfoChangeSupport;
         this.offlineEtlPipelineService = offlineEtlPipelineService;
         this.ragPipelineService = ragPipelineService;
+        this.knowledgeLoader = knowledgeLoader;
 
         addHeaderIcon(VaadinIcon.CLOSE, "Delete", e -> deleteDocument());
         addHeaderIcon(VaadinIcon.PENCIL, "Edit", e -> editDocument());
@@ -86,7 +92,10 @@ public class VectorStoreDocumentView extends WorkspaceSidebar implements BeforeE
                     LocalDateTime.ofInstant(Instant.ofEpochMilli(documentInfo.createTimestamp()),
                             ZoneId.systemDefault()).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
             row.add(title);
-            return title;
+            if (!this.knowledgeLoader.managesDocument(documentInfo.title())) return title;
+            row.add(VectorStoreView.managedBadge(ConfiguredKnowledgeLoader.DOCUMENTS_PROPERTY));
+            row.setWidthFull();
+            return row;
         }));
         this.documentListBox.addValueChangeListener(event -> {
             Set<VectorStoreDocumentInfo> newValue = event.getValue();
@@ -96,7 +105,28 @@ public class VectorStoreDocumentView extends WorkspaceSidebar implements BeforeE
                     event.getOldValue(), newValue);
         });
 
-        setSidebarContent(this.documentListBox);
+        this.declaredProblems.setWidthFull();
+        Div content = new Div(this.declaredProblems, this.documentListBox);
+        content.setWidthFull();
+        setSidebarContent(content);
+    }
+
+    private void renderDeclaredProblems() {
+        this.declaredProblems.removeAll();
+        this.knowledgeLoader.problems().forEach((name, problem) -> {
+            Span line = new Span("Declared in configuration, " + problem + ": " + name);
+            line.getStyle().set("display", "block").set("font-size", "var(--lumo-font-size-xs)")
+                    .set("color", "var(--lumo-error-text-color)")
+                    .set("padding", "var(--lumo-space-xs) var(--lumo-space-m)");
+            this.declaredProblems.add(line);
+        });
+    }
+
+    private boolean managedByConfiguration(Set<VectorStoreDocumentInfo> selectedItems) {
+        if (selectedItems.stream().noneMatch(info -> this.knowledgeLoader.managesDocument(info.title()))) return false;
+        VaadinUtils.showInfoNotification("Managed by configuration: edit "
+                + ConfiguredKnowledgeLoader.DOCUMENTS_PROPERTY + " and restart to change it");
+        return true;
     }
 
     public Set<VectorStoreDocumentInfo> getSelectedDocumentInfos() {
@@ -113,7 +143,7 @@ public class VectorStoreDocumentView extends WorkspaceSidebar implements BeforeE
 
     private void editDocument() {
         Set<VectorStoreDocumentInfo> selectedItems = this.documentListBox.getSelectedItems();
-        if (selectedItems.isEmpty())
+        if (selectedItems.isEmpty() || managedByConfiguration(selectedItems))
             return;
         VectorStoreDocumentInfo documentInfo =
                 selectedItems.stream().sorted(Comparator.comparingLong(VectorStoreDocumentInfo::updateTimestamp))
@@ -157,7 +187,7 @@ public class VectorStoreDocumentView extends WorkspaceSidebar implements BeforeE
 
     private void deleteDocument() {
         Set<VectorStoreDocumentInfo> selectedItems = this.documentListBox.getSelectedItems();
-        if (selectedItems.isEmpty())
+        if (selectedItems.isEmpty() || managedByConfiguration(selectedItems))
             return;
 
         String headerTitle = String.format("Delete: %s%s (%d chunks)",
@@ -182,7 +212,7 @@ public class VectorStoreDocumentView extends WorkspaceSidebar implements BeforeE
 
         Button deleteButton = new Button("Delete", e -> {
             for (VectorStoreDocumentInfo documentInfo : selectedItems)
-                this.offlineEtlPipelineService.deleteDocumentInfo(documentInfo);
+                this.offlineEtlPipelineService.deleteDocument(documentInfo.docInfoId());
             this.updateDocumentContent();
             this.documentInfoChangeSupport.firePropertyChange(DOCUMENTS_DELETE_EVENT, null, selectedItems);
             dialog.close();
@@ -201,18 +231,18 @@ public class VectorStoreDocumentView extends WorkspaceSidebar implements BeforeE
 
     public void addDocumentContent(List<String> fileNames, Map<String, List<Document>> uploadedDocumentItems,
             String title, String description) {
-        List<VectorStoreDocumentInfo> newDocumentInfos = fileNames.stream()
-                .map(fileName -> {
-                    List<Document> documents = uploadedDocumentItems.get(fileName);
-                    return documents.isEmpty() ? null
-                            : this.offlineEtlPipelineService.loadDocument(fileName, title, description, documents);
-                }).filter(Objects::nonNull).toList();
+        documentsAdded(this.offlineEtlPipelineService.ingest(
+                new OfflineEtlPipelineService.IngestRequest(fileNames, uploadedDocumentItems, title, description)));
+    }
+
+    public void documentsAdded(List<VectorStoreDocumentInfo> newDocumentInfos) {
         updateDocumentContent();
         this.documentInfoChangeSupport.firePropertyChange(DOCUMENT_ADDING_EVENT, null, newDocumentInfos);
     }
 
     private void updateDocumentContent() {
         VaadinUtils.getUi(this).access(() -> {
+            renderDeclaredProblems();
             this.documentListBox.removeAll();
             this.documentListBox.setItems(this.offlineEtlPipelineService.getVisibleDocumentList());
         });

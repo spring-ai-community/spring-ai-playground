@@ -1,3 +1,4 @@
+videos: ep1 ep2
 description: Default Tools - 116 ready-to-call JavaScript tools across 6 source bundles, exposed through the built-in MCP server, OS-agnostic by design.
 
 # Default Tools
@@ -1884,11 +1885,11 @@ Full mechanics - including how every cross-bridged helper rides on JVM stdlib so
 
 ## Composition recipes
 
-The reference pages list what's available; composition recipes show how to chain them into a useful new tool. Three walk-throughs are in [Tutorial 8: Default Tool Recipes](../../tutorials/8-default-tool-recipes.md):
+The reference pages list what's available; composition recipes show how to chain them into a useful new tool. Five walk-throughs are in [Tutorial 8: Default Tool Recipes](../../tutorials/8-default-tool-recipes.md), among them:
 
 - **Filesystem pipeline** - `listDir` → `grepFile` → `sliceFile` → `writeTextFile`, ending in a custom tool that summarises a chunked log directory.
-- **GitHub release → AI summary** - `getGithubLatestRelease` → `openaiResponseGenerator`, ending in a tool that posts release-notes digests.
-- **City name → hourly forecast** - `geocodeAddress` → `getOpenMeteoForecast`, ending in a tool that answers "is it raining tomorrow in *city*?" without hard-coded coordinates.
+- **GitHub release → AI summary** - `getGithubLatestRelease` → `openaiResponseGenerator` → `sendSlackMessage`, ending in a tool that posts release-notes digests to Slack.
+- **City name → hourly forecast** - `geocodeAddress` → `getOpenMeteoForecast` → `addToCalendar`, ending in an **Add to calendar** card when tomorrow afternoon looks sunny, without hard-coded coordinates.
 
 ## Environment variables - short list
 

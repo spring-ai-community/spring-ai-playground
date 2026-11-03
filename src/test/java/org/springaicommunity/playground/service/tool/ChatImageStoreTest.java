@@ -31,6 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ChatImageStoreTest {
@@ -184,6 +185,42 @@ class ChatImageStoreTest {
                         new SpringAiPlaygroundOptions.DefaultTools(null,
                                 new SpringAiPlaygroundOptions.SelectionRule(Set.of(), Set.of(), Set.of()),
                                 new SpringAiPlaygroundOptions.SelectionRule(Set.of(), Set.of(), Set.of()))),
-                true, null, null, null, null);
+                true, null, null, null, null, null, null, null, null);
+    }
+
+    @Test
+    void stagedImagesWaitPerConversationUntilTakenAndAreCapped() throws IOException {
+        ChatImageStore store = storeWith(tempDir);
+        for (int i = 0; i < ChatImageStore.MAX_IMAGES; i++) {
+            store.stage(CONV, new byte[]{(byte) i, 9}, "img" + i + ".png", "image/png", null);
+        }
+        assertEquals(ChatImageStore.MAX_IMAGES, store.pendingCount(CONV));
+        assertEquals(0, store.pendingCount("other"));
+
+        IllegalStateException capped = assertThrows(IllegalStateException.class,
+                () -> store.stage(CONV, new byte[]{7, 7}, "extra.png", "image/png", null));
+        assertEquals("You can attach up to 5 images.", capped.getMessage());
+
+        ChatImageStore.Staged first = store.pending(CONV).getFirst();
+        assertTrue(store.removePending(CONV, first));
+        assertFalse(store.removePending(CONV, first));
+        assertEquals(ChatImageStore.MAX_IMAGES - 1, store.pendingCount(CONV));
+
+        List<ChatImageStore.Staged> taken = store.takePending(CONV);
+        assertEquals(ChatImageStore.MAX_IMAGES - 1, taken.size());
+        assertArrayEquals(new byte[]{1, 9}, taken.getFirst().bytes());
+        assertEquals(0, store.pendingCount(CONV));
+        assertTrue(store.load(CONV, first.hash()).isPresent());
+
+        store.stage(CONV, new byte[]{4, 4}, "same-a.png", "image/png", null);
+        store.stage(CONV, new byte[]{4, 4}, "same-b.png", "image/png", null);
+        assertTrue(store.removePending(CONV, store.pending(CONV).getFirst()));
+        assertEquals(1, store.pendingCount(CONV));
+        assertEquals("same-b.png", store.pending(CONV).getFirst().fileName());
+        store.discardPending(CONV);
+
+        store.stage(CONV, new byte[]{5, 5}, "again.png", "image/png", null);
+        store.discardPending(CONV);
+        assertTrue(store.takePending(CONV).isEmpty());
     }
 }

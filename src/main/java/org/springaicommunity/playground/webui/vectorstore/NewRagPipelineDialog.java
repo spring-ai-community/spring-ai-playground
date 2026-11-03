@@ -46,6 +46,7 @@ import com.vaadin.flow.component.textfield.IntegerField;
 import com.vaadin.flow.component.textfield.NumberField;
 import com.vaadin.flow.component.textfield.TextArea;
 import com.vaadin.flow.component.textfield.TextField;
+import org.springaicommunity.playground.service.vectorstore.PipelineSpec;
 import org.springaicommunity.playground.service.vectorstore.RagPipeline;
 import org.springaicommunity.playground.service.vectorstore.RagPipelineService;
 import org.springaicommunity.playground.service.vectorstore.VectorStoreDocumentInfo;
@@ -63,46 +64,6 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class NewRagPipelineDialog extends Dialog {
-
-    static final String DEFAULT_REWRITE_TEMPLATE =
-            "Given a user query, rewrite it to provide better results when querying a {target}.\n"
-                    + "Remove any irrelevant information, and ensure the query is concise and specific.\n\n"
-                    + "Original query:\n{query}\n\nRewritten query:\n";
-
-    static final String DEFAULT_COMPRESSION_TEMPLATE =
-            "Given the following conversation history and a follow-up query, your task is to synthesize\n"
-                    + "a concise, standalone query that incorporates the context from the history.\n"
-                    + "Ensure the standalone query is clear, specific, and maintains the user's intent.\n\n"
-                    + "Conversation history:\n{history}\n\nFollow-up query:\n{query}\n\nStandalone query:\n";
-
-    static final String DEFAULT_TRANSLATION_TEMPLATE =
-            "Given a user query, translate it to {targetLanguage}.\n"
-                    + "If the query is already in {targetLanguage}, return it unchanged.\n"
-                    + "If you don't know the language of the query, return it unchanged.\n"
-                    + "Do not add explanations nor any other text.\n\n"
-                    + "Original query: {query}\n\nTranslated query:\n";
-
-    static final String DEFAULT_MULTI_QUERY_TEMPLATE =
-            "You are an expert at information retrieval and search optimization.\n"
-                    + "Your task is to generate {number} different versions of the given query.\n\n"
-                    + "Each variant must cover different perspectives or aspects of the topic,\n"
-                    + "while maintaining the core intent of the original query. The goal is to\n"
-                    + "expand the search space and improve the chances of finding relevant information.\n\n"
-                    + "Do not explain your choices or add any other text.\n"
-                    + "Provide the query variants separated by newlines.\n\n"
-                    + "Original query: {query}\n\nQuery variants:\n";
-
-    static final String DEFAULT_AUGMENTER_TEMPLATE =
-            "Context information is below.\n\n---------------------\n{context}\n---------------------\n\n"
-                    + "Given the context information and no prior knowledge, answer the query.\n\n"
-                    + "Follow these rules:\n\n"
-                    + "1. If the answer is not in the context, just say that you don't know.\n"
-                    + "2. Avoid statements like \"Based on the context...\" or \"The provided information...\".\n\n"
-                    + "Query: {query}\n\nAnswer:\n";
-
-    static final String DEFAULT_EMPTY_CONTEXT_TEMPLATE =
-            "The user query is outside your knowledge base.\n"
-                    + "Politely inform the user that you can't answer it.\n";
 
     private static final String FILTER_DSL_HINT =
             "Operators: == != < <= > >= && || ! · in [v1, v2] · nin [v1, v2]\n"
@@ -157,8 +118,6 @@ public class NewRagPipelineDialog extends Dialog {
     private final TextField nameField = new TextField("Name");
     private final TextField descField = new TextField("Description");
     private final CheckboxGroup<VectorStoreDocumentInfo> documentsCheckGroup = new CheckboxGroup<>();
-
-    private static final String DEFAULT_REWRITE_TARGET = "vector store";
 
     private final Checkbox rewriteCheck = new Checkbox("Rewrite");
     private final TextField rewriteTargetField = new TextField("Target search system");
@@ -285,7 +244,7 @@ public class NewRagPipelineDialog extends Dialog {
                 .set("border-radius", "var(--lumo-border-radius-s)")
                 .set("padding", "var(--lumo-space-xs) var(--lumo-space-s)");
 
-        this.rewriteTargetField.setPlaceholder(DEFAULT_REWRITE_TARGET);
+        this.rewriteTargetField.setPlaceholder(RagPipeline.PreRetrievalConfig.DEFAULT_REWRITE_TARGET);
         this.rewriteTargetField.setWidth("260px");
         this.rewriteTargetField.setHelperText(
                 "Fills the {target} placeholder, e.g. \"web search\". Blank = \"vector store\".");
@@ -803,23 +762,23 @@ public class NewRagPipelineDialog extends Dialog {
             this.documentsCheckGroup.clear();
             this.rewriteCheck.setValue(false);
             this.rewriteTargetField.clear();
-            this.rewriteTemplateField.setValue(DEFAULT_REWRITE_TEMPLATE);
+            this.rewriteTemplateField.setValue(RagPipeline.PreRetrievalConfig.DEFAULT_REWRITE_TEMPLATE);
             this.compressionCheck.setValue(false);
-            this.compressionTemplateField.setValue(DEFAULT_COMPRESSION_TEMPLATE);
+            this.compressionTemplateField.setValue(RagPipeline.PreRetrievalConfig.DEFAULT_COMPRESSION_TEMPLATE);
             this.translationCheck.setValue(false);
             this.translationLangCombo.setValue("english");
-            this.translationTemplateField.setValue(DEFAULT_TRANSLATION_TEMPLATE);
+            this.translationTemplateField.setValue(RagPipeline.PreRetrievalConfig.DEFAULT_TRANSLATION_TEMPLATE);
             this.multiQueryCheck.setValue(false);
             this.multiQueryCountField.setValue(3);
             this.multiQueryIncludeOriginalCheck.setValue(true);
-            this.multiQueryTemplateField.setValue(DEFAULT_MULTI_QUERY_TEMPLATE);
+            this.multiQueryTemplateField.setValue(RagPipeline.PreRetrievalConfig.DEFAULT_MULTI_QUERY_TEMPLATE);
             this.extraFilterField.clear();
             this.reRankCheck.setValue(true);
             this.topNTruncateField.clear();
             this.allowEmptyContextCheck.setValue(false);
-            this.promptTemplateField.setValue(DEFAULT_AUGMENTER_TEMPLATE);
+            this.promptTemplateField.setValue(RagPipeline.GenerationConfig.DEFAULT_AUGMENTER_TEMPLATE);
             this.documentFormatCombo.setValue(RagPipeline.DocumentFormat.TEXT);
-            this.emptyContextTemplateField.setValue(DEFAULT_EMPTY_CONTEXT_TEMPLATE);
+            this.emptyContextTemplateField.setValue(RagPipeline.GenerationConfig.DEFAULT_EMPTY_CONTEXT_TEMPLATE);
             this.emptyContextTemplateField.setEnabled(false);
             this.runAugmentLLMCheck.setValue(false);
             collapseAllCards();
@@ -835,19 +794,19 @@ public class NewRagPipelineDialog extends Dialog {
         this.rewriteCheck.setValue(pre.rewrite());
         this.rewriteTargetField.setValue(Optional.ofNullable(pre.rewriteTargetSearchSystem()).orElse(""));
         this.rewriteTemplateField.setValue(
-                Optional.ofNullable(pre.rewritePromptTemplate()).orElse(DEFAULT_REWRITE_TEMPLATE));
+                Optional.ofNullable(pre.rewritePromptTemplate()).orElse(RagPipeline.PreRetrievalConfig.DEFAULT_REWRITE_TEMPLATE));
         this.compressionCheck.setValue(pre.compression());
         this.compressionTemplateField.setValue(
-                Optional.ofNullable(pre.compressionPromptTemplate()).orElse(DEFAULT_COMPRESSION_TEMPLATE));
+                Optional.ofNullable(pre.compressionPromptTemplate()).orElse(RagPipeline.PreRetrievalConfig.DEFAULT_COMPRESSION_TEMPLATE));
         this.translationCheck.setValue(pre.translation());
         this.translationLangCombo.setValue(Optional.ofNullable(pre.translationTargetLanguage()).orElse("english"));
         this.translationTemplateField.setValue(
-                Optional.ofNullable(pre.translationPromptTemplate()).orElse(DEFAULT_TRANSLATION_TEMPLATE));
+                Optional.ofNullable(pre.translationPromptTemplate()).orElse(RagPipeline.PreRetrievalConfig.DEFAULT_TRANSLATION_TEMPLATE));
         this.multiQueryCheck.setValue(pre.multiQuery());
         this.multiQueryCountField.setValue(pre.multiQueryCount());
         this.multiQueryIncludeOriginalCheck.setValue(pre.multiQueryIncludeOriginal());
         this.multiQueryTemplateField.setValue(
-                Optional.ofNullable(pre.multiQueryPromptTemplate()).orElse(DEFAULT_MULTI_QUERY_TEMPLATE));
+                Optional.ofNullable(pre.multiQueryPromptTemplate()).orElse(RagPipeline.PreRetrievalConfig.DEFAULT_MULTI_QUERY_TEMPLATE));
         RagPipeline.RetrievalConfig ret = pipeline.retrieval();
         this.extraFilterField.setValue(Optional.ofNullable(ret.extraFilterExpression()).orElse(""));
         RagPipeline.PostRetrievalConfig post = pipeline.postRetrieval();
@@ -858,9 +817,9 @@ public class NewRagPipelineDialog extends Dialog {
         this.allowEmptyContextCheck.setValue(gen.allowEmptyContext());
         this.documentFormatCombo.setValue(gen.documentFormat());
         this.promptTemplateField.setValue(
-                Optional.ofNullable(gen.promptTemplate()).orElse(DEFAULT_AUGMENTER_TEMPLATE));
+                Optional.ofNullable(gen.promptTemplate()).orElse(RagPipeline.GenerationConfig.DEFAULT_AUGMENTER_TEMPLATE));
         this.emptyContextTemplateField.setValue(
-                Optional.ofNullable(gen.emptyContextPromptTemplate()).orElse(DEFAULT_EMPTY_CONTEXT_TEMPLATE));
+                Optional.ofNullable(gen.emptyContextPromptTemplate()).orElse(RagPipeline.GenerationConfig.DEFAULT_EMPTY_CONTEXT_TEMPLATE));
         this.emptyContextTemplateField.setEnabled(gen.allowEmptyContext());
         this.runAugmentLLMCheck.setValue(gen.runAugmentLLM());
 
@@ -893,16 +852,16 @@ public class NewRagPipelineDialog extends Dialog {
                     .map(VectorStoreDocumentInfo::docInfoId).toList();
             RagPipeline.PreRetrievalConfig pre = new RagPipeline.PreRetrievalConfig(
                     this.rewriteCheck.getValue(),
-                    overrideOrNull(this.rewriteTemplateField.getValue(), DEFAULT_REWRITE_TEMPLATE),
+                    RagPipeline.templateOrNull(this.rewriteTemplateField.getValue(), RagPipeline.PreRetrievalConfig.DEFAULT_REWRITE_TEMPLATE),
                     this.compressionCheck.getValue(),
-                    overrideOrNull(this.compressionTemplateField.getValue(), DEFAULT_COMPRESSION_TEMPLATE),
+                    RagPipeline.templateOrNull(this.compressionTemplateField.getValue(), RagPipeline.PreRetrievalConfig.DEFAULT_COMPRESSION_TEMPLATE),
                     this.translationCheck.getValue(), this.translationLangCombo.getValue(),
-                    overrideOrNull(this.translationTemplateField.getValue(), DEFAULT_TRANSLATION_TEMPLATE),
+                    RagPipeline.templateOrNull(this.translationTemplateField.getValue(), RagPipeline.PreRetrievalConfig.DEFAULT_TRANSLATION_TEMPLATE),
                     this.multiQueryCheck.getValue(),
                     Optional.ofNullable(this.multiQueryCountField.getValue()).orElse(3),
                     this.multiQueryIncludeOriginalCheck.getValue(),
-                    overrideOrNull(this.multiQueryTemplateField.getValue(), DEFAULT_MULTI_QUERY_TEMPLATE),
-                    overrideOrNull(this.rewriteTargetField.getValue(), DEFAULT_REWRITE_TARGET));
+                    RagPipeline.templateOrNull(this.multiQueryTemplateField.getValue(), RagPipeline.PreRetrievalConfig.DEFAULT_MULTI_QUERY_TEMPLATE),
+                    RagPipeline.templateOrNull(this.rewriteTargetField.getValue(), RagPipeline.PreRetrievalConfig.DEFAULT_REWRITE_TARGET));
             RagPipeline.RetrievalConfig ret = new RagPipeline.RetrievalConfig(
                     blankToNull(this.extraFilterField.getValue()),
                     this.topKField.getValue(), this.similarityThresholdField.getValue());
@@ -910,19 +869,23 @@ public class NewRagPipelineDialog extends Dialog {
                     this.topNTruncateField.getValue());
             RagPipeline.GenerationConfig gen = new RagPipeline.GenerationConfig(
                     this.allowEmptyContextCheck.getValue(),
-                    overrideOrNull(this.promptTemplateField.getValue(), DEFAULT_AUGMENTER_TEMPLATE),
-                    overrideOrNull(this.emptyContextTemplateField.getValue(), DEFAULT_EMPTY_CONTEXT_TEMPLATE),
+                    RagPipeline.templateOrNull(this.promptTemplateField.getValue(), RagPipeline.GenerationConfig.DEFAULT_AUGMENTER_TEMPLATE),
+                    RagPipeline.templateOrNull(this.emptyContextTemplateField.getValue(), RagPipeline.GenerationConfig.DEFAULT_EMPTY_CONTEXT_TEMPLATE),
                     this.runAugmentLLMCheck.getValue(), this.documentFormatCombo.getValue());
             String description = blankToNull(this.descField.getValue());
 
-            RagPipeline saved;
-            if (this.editingPipeline == null) {
-                saved = this.ragPipelineService.create(name, description, docInfoIds, pre, ret, post, gen);
-            } else {
-                RagPipeline updated = new RagPipeline(this.editingPipeline.id(), name, description, docInfoIds, pre,
-                        ret, post, gen, this.editingPipeline.createdAt(), System.currentTimeMillis());
-                saved = this.ragPipelineService.update(updated);
+            String existingId = this.editingPipeline == null ? null : this.editingPipeline.id();
+            boolean nameTaken = this.ragPipelineService.findByName(name)
+                    .filter(other -> !other.id().equals(existingId)).isPresent();
+            if (nameTaken) {
+                VaadinUtils.showErrorNotification("A pipeline named '" + name + "' already exists");
+                this.nameField.focus();
+                return;
             }
+            PipelineSpec spec = new PipelineSpec(name, description, docInfoIds, PipelineSpec.PreRetrieval.of(pre),
+                    PipelineSpec.Retrieval.of(ret), PipelineSpec.PostRetrieval.of(post),
+                    PipelineSpec.Generation.of(gen));
+            RagPipeline saved = this.ragPipelineService.apply(spec, existingId);
             close();
             if (this.onSaved != null) this.onSaved.accept(saved);
         } catch (Exception e) {
@@ -943,9 +906,4 @@ public class NewRagPipelineDialog extends Dialog {
         return age.toDays() + "d ago";
     }
 
-    private static String overrideOrNull(String value, String defaultTemplate) {
-        if (value == null || value.isBlank()) return null;
-        if (Objects.equals(value, defaultTemplate)) return null;
-        return value;
-    }
 }

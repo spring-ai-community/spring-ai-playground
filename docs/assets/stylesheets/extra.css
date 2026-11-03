@@ -2,6 +2,21 @@
    hierarchical nav (Features and Tutorials sections + sub-pages) is reachable
    without diving into the hamburger on desktop. */
 
+@media screen and (max-width: 76.234375em) {
+  .md-header__button[for="__drawer"] {
+    order: -1;
+  }
+
+  .md-header__button.md-logo {
+    display: inline-block;
+    margin: 0.2rem 0;
+  }
+
+  .md-header__title {
+    margin-left: 0.4rem;
+  }
+}
+
 /* Top-tab hover dropdown - rendered by docs-overrides/partials/tabs-item.html.
    Each top tab whose section has multiple sub-pages gets a panel that lists
    those sub-pages. The tab link itself still navigates to the section index;
@@ -1492,4 +1507,76 @@ details.tcg-sysprompt > .highlight code {
 }
 [data-md-color-scheme="slate"] .provider-icon {
   filter: invert(1) brightness(1.7);
+}
+
+/* Related videos - a labelled strip of small thumbnail cards under a page title, rendered by
+   docs-overrides/hooks/related_videos.py from the page's `videos:` front matter. */
+.related-videos {
+  margin: 0.4rem 0 1.4rem;
+  padding: 0.55rem 0.7rem 0.7rem;
+  border-left: 0.2rem solid var(--md-accent-fg-color);
+  border-radius: 0.3rem;
+  background: var(--md-code-bg-color);
+}
+
+.md-typeset .related-videos__label {
+  margin: 0 0 0.45rem;
+  color: var(--md-default-fg-color--light);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.related-videos__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.md-typeset .related-video {
+  display: flex;
+  flex: 1 1 15rem;
+  align-items: center;
+  gap: 0.6rem;
+  max-width: 19rem;
+  padding: 0.3rem 0.6rem 0.3rem 0.3rem;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.4rem;
+  background: var(--md-default-bg-color);
+  color: var(--md-default-fg-color);
+  text-decoration: none;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.md-typeset .related-video:hover,
+.md-typeset .related-video:focus-visible {
+  border-color: var(--md-accent-fg-color);
+  box-shadow: 0 0 0 1px var(--md-accent-fg-color);
+}
+
+.related-video img {
+  flex: none;
+  width: 5.6rem;
+  height: auto;
+  border-radius: 0.25rem;
+}
+
+.related-video__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  font-size: 0.64rem;
+  line-height: 1.3;
+}
+
+.related-video__kicker {
+  color: var(--md-accent-fg-color);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.related-video__title {
+  font-weight: 600;
 }

@@ -28,6 +28,8 @@ import com.vaadin.flow.component.textfield.PasswordField;
 import com.vaadin.flow.server.VaadinRequest;
 import org.springaicommunity.playground.service.mcp.McpServerAuthTokenService;
 import org.springaicommunity.playground.service.mcp.McpServerAuthTokenService.AccessMode;
+import org.springaicommunity.playground.service.mcp.McpServerAuthTokenService.AccessResult;
+import org.springaicommunity.playground.service.mcp.McpServerAuthTokenService.AccessSettings;
 import org.springaicommunity.playground.service.mcp.McpServerAuthTokenService.Source;
 import org.springaicommunity.playground.webui.VaadinUtils;
 
@@ -108,16 +110,18 @@ public class McpServerAccessPanel {
             this.tokenField.setErrorMessage("Enter a token or click Generate.");
             return false;
         }
-        boolean unchanged = selectedMode == this.authTokenService.accessMode()
-                && (selectedMode == AccessMode.NONE
-                        || this.authTokenService.currentToken().filter(enteredToken.strip()::equals).isPresent());
-        if (unchanged) return true;
-        if (selectedMode == AccessMode.BEARER_TOKEN) {
-            this.authTokenService.requireToken(enteredToken);
-            VaadinUtils.showInfoNotification("Built-in MCP server now requires the bearer token on /mcp.");
-        } else {
-            this.authTokenService.open();
-            VaadinUtils.showInfoNotification("Built-in MCP server is open: no token required on /mcp.");
+        AccessResult result;
+        try {
+            result = this.authTokenService.apply(new AccessSettings(selectedMode, enteredToken), isLocalBrowser());
+        } catch (IllegalStateException e) {
+            VaadinUtils.showErrorNotification(e.getMessage());
+            return false;
+        }
+        switch (result.change()) {
+            case TOKEN_REQUIRED ->
+                VaadinUtils.showInfoNotification("Built-in MCP server now requires the bearer token on /mcp.");
+            case OPENED -> VaadinUtils.showInfoNotification("Built-in MCP server is open: no token required on /mcp.");
+            case UNCHANGED -> { }
         }
         return true;
     }
@@ -138,8 +142,7 @@ public class McpServerAccessPanel {
     }
 
     private String notice(boolean localBrowser) {
-        if (!localBrowser)
-            return "Authentication can only be viewed and changed from the machine that runs the app.";
+        if (!localBrowser) return McpServerAuthTokenService.REMOTE_CALLER_MESSAGE;
         if (this.authTokenService.source() == Source.CONFIGURATION)
             return "Set by configuration (" + McpServerAuthTokenService.ENV_NAME + " or "
                     + McpServerAuthTokenService.PROPERTY_NAME + "). Change it there and restart.";

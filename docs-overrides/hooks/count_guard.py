@@ -11,6 +11,7 @@ DOCS = ROOT / "docs"
 NUMBER_WORDS = {
     10: "ten", 11: "eleven", 12: "twelve", 13: "thirteen", 14: "fourteen",
     15: "fifteen", 16: "sixteen", 17: "seventeen", 18: "eighteen", 19: "nineteen", 20: "twenty",
+    21: "twenty-one", 22: "twenty-two", 23: "twenty-three", 24: "twenty-four", 25: "twenty-five",
 }
 
 DEFAULT_TOOL_GROUP_PAGES = {
@@ -235,7 +236,12 @@ def on_config(config):
     tutorials = _tutorial_total()
     tutorials_index = _read(DOCS / "tutorials/index.md")
     _expect_word(errors, "tutorials/index.md", tutorials_index,
-                 r"These (\w+) tutorials", tutorials)
+                 r"These ([\w-]+) tutorials", tutorials)
+
+    ai_guides = _read(DOCS / "features/mcp-server/ai-guides.md")
+    for guide in sorted((RESOURCES / "management/guide").glob("*.md")):
+        if f'--8<-- "src/main/resources/management/guide/{guide.name}"' not in ai_guides:
+            errors.append(f"features/mcp-server/ai-guides.md: guide {guide.name} is not included")
 
     if errors:
         raise PluginError("count_guard: documentation counts drifted from the catalogs:\n  - " + "\n  - ".join(errors))

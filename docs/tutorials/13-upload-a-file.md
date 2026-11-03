@@ -1,3 +1,4 @@
+videos: ep3
 description: Tutorial 13 - upload a CSV or Excel file into Agentic Chat with the interactive requestFileUpload tool, then have the agent read and analyze it.
 
 # Tutorial 13 - Upload and Analyze a File

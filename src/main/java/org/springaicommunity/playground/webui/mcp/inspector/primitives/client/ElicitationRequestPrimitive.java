@@ -24,6 +24,7 @@ import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import io.modelcontextprotocol.spec.McpSchema;
+import org.springaicommunity.playground.service.mcp.ApprovalConfirmation;
 import org.springaicommunity.playground.service.mcp.McpServerInfo;
 import org.springaicommunity.playground.service.mcp.client.McpClientService;
 import org.springaicommunity.playground.service.mcp.client.McpNotificationStore;
@@ -48,12 +49,20 @@ public class ElicitationRequestPrimitive extends Div {
         McpSchema.ElicitRequest req = pending.request();
         String title = req.message() == null ? "Elicitation request" : req.message();
         add(PrimitiveCardLayout.titleRow(VaadinIcon.QUESTION_CIRCLE_O.create(), title));
+        add(PrimitiveCardLayout.expiryLine(pending.deadline()));
 
         Map<String, Object> schema = req instanceof McpSchema.ElicitFormRequest form ? form.requestedSchema() : null;
+        boolean approvalOnly = ApprovalConfirmation.matches(schema);
         List<String> required = schema != null && schema.get("required") instanceof List<?> rl
                 ? rl.stream().map(String::valueOf).toList() : List.of();
         Object propertiesObj = schema == null ? null : schema.get("properties");
-        if (propertiesObj instanceof Map<?, ?> propsMap) {
+        if (approvalOnly || schema == null || schema.isEmpty()) {
+            add(InspectorHelpers.simpleSectionLabel("Confirmation"));
+            Span note = new Span("No additional input required - approve to allow this action.");
+            note.getStyle().set("font-size", "var(--lumo-font-size-s)")
+                    .set("color", "var(--lumo-secondary-text-color)");
+            add(note);
+        } else if (propertiesObj instanceof Map<?, ?> propsMap) {
             add(InspectorHelpers.simpleSectionLabel("Form"));
             VerticalLayout form = new VerticalLayout();
             form.setPadding(false);
@@ -68,12 +77,6 @@ public class ElicitationRequestPrimitive extends Div {
                 form.add(field);
             }
             add(form);
-        } else if (schema == null || schema.isEmpty()) {
-            add(InspectorHelpers.simpleSectionLabel("Confirmation"));
-            Span note = new Span("No additional input required - approve to allow this action.");
-            note.getStyle().set("font-size", "var(--lumo-font-size-s)")
-                    .set("color", "var(--lumo-secondary-text-color)");
-            add(note);
         } else {
             add(InspectorHelpers.simpleSectionLabel("Schema"));
             add(InspectorHelpers.codeBlock(InspectorHelpers.prettyPrint(schema), false));
@@ -82,6 +85,10 @@ public class ElicitationRequestPrimitive extends Div {
         Button accept = new Button("Accept", VaadinIcon.CHECK.create());
         accept.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_SMALL);
         accept.addClickListener(e -> {
+            if (approvalOnly) {
+                clientService.completeElicitation(serverInfo, pending.id(), ApprovalConfirmation.accepted());
+                return;
+            }
             Map<String, Object> content = new LinkedHashMap<>();
             for (var entry : formFields.entrySet()) {
                 try {

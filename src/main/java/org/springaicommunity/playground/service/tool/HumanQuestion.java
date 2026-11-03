@@ -34,4 +34,34 @@ public record HumanQuestion(String id, String header, String question, List<Opti
                         new Option("Decline", "Cancel; do not run the tool")),
                 false, riskLevel);
     }
+
+    public String defaultAnswer() {
+        return this.options == null || this.options.isEmpty() ? "" : this.options.getLast().label();
+    }
+
+    public String approveLabel() {
+        return this.options == null || this.options.isEmpty() ? "" : this.options.getFirst().label();
+    }
+
+    public boolean isApproval(String answer) {
+        return this.options != null && !this.options.isEmpty() && approveLabel().equals(answer);
+    }
+
+    public boolean isElevatedRisk() {
+        return this.riskLevel == RiskLevel.L4 || this.riskLevel == RiskLevel.L5;
+    }
+
+    public boolean requiresAcknowledgement() {
+        return this.riskLevel == RiskLevel.L5;
+    }
+
+    public String caution() {
+        if (this.riskLevel == RiskLevel.L5) {
+            return "Critical risk: may be irreversible or destroy data. Review the arguments.";
+        }
+        if (this.riskLevel == RiskLevel.L4) {
+            return "High risk: can modify files, spend money, or change external state.";
+        }
+        return null;
+    }
 }

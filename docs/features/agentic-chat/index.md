@@ -1,3 +1,4 @@
+videos: ep1 ep4
 description: Agentic Chat - one local runtime combining documents, tools, models, and memory, with system-prompt presets, per-turn reasoning, and rich Markdown rendering.
 
 # Agentic Chat
@@ -35,7 +36,7 @@ This area is closely aligned with Spring AI's workflow and agentic guidance. If 
 The screen has three regions:
 
 - **Header actions** (top right): **New Chat**, **Export conversation** (download icon), **Prompt Library** (clipboard icon), and the **Settings** cog - the cog stays the right-most action, an app-wide convention.
-- **Conversation area**: the running exchange. User turns render as plain text; assistant turns render as Markdown and carry collapsible process panels (THINK, MCP TOOLS, RAG) when those stages run.
+- **Conversation area**: the running exchange. User turns render as plain text; assistant turns render as Markdown and carry collapsible process panels (THINK, MCP TOOLS, RAG DOCUMENTS) when those stages run.
 - **Selector row + prompt input** (bottom): the reasoning control and the tool and RAG source selectors sit directly above the text box, so what the model can reach is always one glance from where you type.
 
 ## Composing a request
@@ -134,32 +135,34 @@ Assistant turns render as full Markdown. Code blocks are syntax-highlighted (hig
 
 Some built-in tools render an interactive **action card** instead of plain text - a real-world action to confirm, a chart, a map, a diagram, or a structured view of data - rather than a wall of prose. Each card is emitted by a specific tool, and they fall into a few groups:
 
-**Real-world actions (review-then-act).** `sendEmail` produces an **Email draft** card; `addToCalendar` produces a **Calendar event** card. Each shows the fields the model filled in plus a button to act on the draft - the email card a single **Send email** button, the calendar card an **Add to calendar** dropdown:
+??? note "Every action card"
 
-![An Email draft action card - To, Cc, Subject and Body fields with a blue Send email button](../../assets/images/chat/action-card-email.png){ width="546" }
+    **Real-world actions (review-then-act).** `sendEmail` produces an **Email draft** card; `addToCalendar` produces a **Calendar event** card. Each shows the fields the model filled in plus a button to act on the draft - the email card a single **Send email** button, the calendar card an **Add to calendar** dropdown:
 
-![A Calendar event action card - Title, When, Location and Notes fields with a blue Add to calendar dropdown offering Google Calendar, Outlook, Yahoo, and .ics](../../assets/images/chat/action-card-calendar.png){ width="546" }
+    ![An Email draft action card - To, Cc, Subject and Body fields with a blue Send email button](../../assets/images/chat/action-card-email.png){ width="546" }
 
-These two follow a **review-then-send** rule: the model only *drafts*, it never sends. **Send email** opens a prefilled `mailto:` link in your own mail app; **Add to calendar** opens a menu to add the event to Google Calendar, Outlook, or Yahoo Calendar, or to get a standard `.ics` file - in the desktop app the `.ics` opens directly in your OS calendar app, in a browser it downloads for you to import. You stay in the loop for the outward action - a sibling of the [human-in-the-loop approval](../human-in-the-loop.md) gate.
+    ![A Calendar event action card - Title, When, Location and Notes fields with a blue Add to calendar dropdown offering Google Calendar, Outlook, Yahoo, and .ics](../../assets/images/chat/action-card-calendar.png){ width="546" }
 
-**Charts and maps.** `renderChart` draws a chart whose `chartType` is one of `bar`, `line`, `area`, `pie`, `radar`, `scatter`, or `gauge`. For richer financial and structural views there are dedicated ECharts cards: `renderCandlestick` (OHLC candlesticks), `renderHeatmap` (a 2D matrix heatmap), `renderSankey` (a flow / Sankey diagram), `renderFunnel` (a funnel), `renderTreemap` (a treemap), `renderGraph` (a force-directed relationship graph), and `renderWindRose` (a polar wind rose). For geographic data, `plotPointsOnMap` drops several places onto one multi-point **Leaflet map** (the `pointmap` card) with a **Light / Dark** toggle, `renderChoropleth` shades the regions of a supplied GeoJSON by value, and `renderGeoHeat` paints a density heatmap of lat/lng points over a basemap. The chart and map cards carry **Copy** and **PNG** export buttons in the card header, so any figure can be lifted out as data or an image.
+    These two follow a **review-then-send** rule: the model only *drafts*, it never sends. **Send email** opens a prefilled `mailto:` link in your own mail app; **Add to calendar** opens a menu to add the event to Google Calendar, Outlook, or Yahoo Calendar, or to get a standard `.ics` file - in the desktop app the `.ics` opens directly in your OS calendar app, in a browser it downloads for you to import. You stay in the loop for the outward action - a sibling of the [human-in-the-loop approval](../human-in-the-loop.md) gate.
 
-![A renderChart bar card with Copy and PNG export buttons in the header](../../assets/images/chat/visualization-chart-bar.png){ width="620" }
-![A plotPointsOnMap multi-point Leaflet map with a Light/Dark toggle](../../assets/images/chat/visualization-pointmap.png){ width="620" }
+    **Charts and maps.** `renderChart` draws a chart whose `chartType` is one of `bar`, `line`, `area`, `pie`, `radar`, `scatter`, or `gauge`. For richer financial and structural views there are dedicated ECharts cards: `renderCandlestick` (OHLC candlesticks), `renderHeatmap` (a 2D matrix heatmap), `renderSankey` (a flow / Sankey diagram), `renderFunnel` (a funnel), `renderTreemap` (a treemap), `renderGraph` (a force-directed relationship graph), and `renderWindRose` (a polar wind rose). For geographic data, `plotPointsOnMap` drops several places onto one multi-point **Leaflet map** (the `pointmap` card) with a **Light / Dark** toggle, `renderChoropleth` shades the regions of a supplied GeoJSON by value, and `renderGeoHeat` paints a density heatmap of lat/lng points over a basemap. The chart and map cards carry **Copy** and **PNG** export buttons in the card header, so any figure can be lifted out as data or an image.
 
-**Diagrams and images.** `renderDiagram` renders a **Mermaid** diagram (flowchart, sequence, gantt) for a process or relationship, and `showImage` embeds an image from a direct URL.
+    ![A renderChart bar card with Copy and PNG export buttons in the header](../../assets/images/chat/visualization-chart-bar.png){ width="620" }
+    ![A plotPointsOnMap multi-point Leaflet map with a Light/Dark toggle](../../assets/images/chat/visualization-pointmap.png){ width="620" }
 
-**Diffs.** `renderDiff` shows a side-by-side text or file diff - deletions in red, additions in green - and surfaces a **"completely different"** banner when the two sides share almost nothing.
+    **Diagrams and images.** `renderDiagram` renders a **Mermaid** diagram (flowchart, sequence, gantt) for a process or relationship, and `showImage` embeds an image from a direct URL.
 
-![A renderDiff side-by-side card with red deletions and green additions](../../assets/images/chat/visualization-diff.png){ width="620" }
+    **Diffs.** `renderDiff` shows a side-by-side text or file diff - deletions in red, additions in green - and surfaces a **"completely different"** banner when the two sides share almost nothing.
 
-**Structured data views.** `renderTable` builds a sortable, searchable table; `renderStatCards` lays out a row of KPI tiles for headline numbers; `renderComparison` puts two or more entities side by side; and `renderTimeline` lays out a vertical list of dated events.
+    ![A renderDiff side-by-side card with red deletions and green additions](../../assets/images/chat/visualization-diff.png){ width="620" }
 
-Mechanically, any tool - including one you author in [Tool Studio](../tool-studio/index.md) - whose output carries a fenced `saip-action` block is rendered as a card; if it emits the `saip-action-return-direct` variant it is also treated as the final step of the request, so the turn ends without a follow-up model reply.
+    **Structured data views.** `renderTable` builds a sortable, searchable table; `renderStatCards` lays out a row of KPI tiles for headline numbers; `renderComparison` puts two or more entities side by side; and `renderTimeline` lays out a vertical list of dated events.
 
-The `showLocation` card is display-only - it embeds a keyless map of a single place plus an **Open in Google Maps** link and sends nothing:
+    Mechanically, any tool - including one you author in [Tool Studio](../tool-studio/index.md) - whose output carries a fenced `saip-action` block is rendered as a card; if it emits the `saip-action-return-direct` variant it is also treated as the final step of the request, so the turn ends without a follow-up model reply.
 
-![A Location action card embedding an interactive map of a place, with an Open in Google Maps link](../../assets/images/chat/action-card-map.png){ width="546" }
+    The `showLocation` card is display-only - it embeds a keyless map of a single place plus an **Open in Google Maps** link and sends nothing:
+
+    ![A Location action card embedding an interactive map of a place, with an Open in Google Maps link](../../assets/images/chat/action-card-map.png){ width="546" }
 
 ### Clickable file paths
 
@@ -184,7 +187,7 @@ Hovering a turn reveals its action bar - six controls left to right:
 
 ### Timing and token metrics
 
-Every assistant turn carries its own metrics in the header line - the time, how long the turn took, and the token counts, for example `4.2s · 331 tokens (in 90 · out 241)`. When a turn reasons or calls tools, the tokens spent in those stages are attributed to their respective panels.
+Until the first token arrives, the assistant bubble shows three animated dots so a slow model is visibly working. Every assistant turn carries its own metrics in the header line - the time, how long the turn took, and the token counts, for example `4.2s · 331 tokens (in 90 · out 241)`. When a turn reasons or calls tools, the tokens spent in those stages are attributed to their respective panels.
 
 ### Reasoning and tool panels
 
@@ -194,7 +197,7 @@ When a turn thinks, calls tools, or retrieves documents, those stages appear as 
 
 - **THINK** - the model's reasoning trace (when reasoning effort is on).
 - **MCP TOOLS** - each tool call with its arguments and result, the call count, and the tool names.
-- **RAG** - the retrieval pipeline, stage by stage: each query transformation and the query it produced, then the documents retrieval returned.
+- **RAG DOCUMENTS** - the retrieval pipeline, stage by stage: each query transformation and the query it produced, then the documents retrieval returned.
 
 The panels collapse once a stage completes so the answer stays front and center; click any panel to reopen it. This is the same visibility the [Observability](../observability/index.md) dashboards capture after the fact.
 
@@ -226,7 +229,7 @@ When MCP connections are enabled, Agentic Chat can behave like an agent:
 - observing the result
 - continuing or answering directly
 
-When a tool requires approval, Agentic Chat **pauses and asks you to approve or decline** the call before it runs - the on-device half of [Human-in-the-Loop Approval](../human-in-the-loop.md). Declining tells the model the call was not run, so it won't silently retry.
+When a tool requires approval, Agentic Chat **pauses and asks you to approve or decline** the call before it runs - the on-device half of [Human-in-the-Loop Approval](../human-in-the-loop.md). Declining tells the model the call was not run, so it won't silently retry. The dialog counts down the [approval wait](../human-in-the-loop.md#wait) (`m:ss left` beside **Decline**, 180 s by default); if it runs out, the call is not run and the model is told `Tool 'x' was not run: no approval within 180 s`.
 
 The loop itself is governed by the [agent loop](../../agent-loop-architecture.md): one message may run only a bounded number of tool rounds before the model is told to wrap up, repeated identical calls are short-circuited, and a cancelled upload or image request is not re-asked within the same turn - so a small local model cannot spin on the same dialog. The bounds are [configurable](../../getting-started/configuration.md#agent-loop).
 
@@ -251,28 +254,30 @@ For Ollama-based flows:
 - use reasoning-capable models from [Ollama's Thinking Category](https://ollama.com/search?c=thinking)
 - validate tools in MCP Inspector before relying on them in Agentic Chat
 
-The default `playground.chat.models` list features `qwen3.5:4b` (default, the smallest vision-capable build) plus `qwen3.5:2b` / `qwen3.5:9b`, `qwen3.6:27b` / `qwen3.6:35b` / `qwen3.8:27b` for stronger tool-oriented reasoning, the `gemma4` family (`e2b` / `e4b` / `12b` / `31b`), and `gpt-oss:20b` / `deepseek-r1:8b` as alternatives. See [Picking a Model](../../tutorials/index.md#picking-a-model) in the Tutorials for the tradeoffs.
+The default `spring.ai.playground.chat.models` list features `qwen3.5:4b` (default, the smallest vision-capable build) plus `qwen3.5:2b` / `qwen3.5:9b`, `qwen3.6:27b` / `qwen3.6:35b` / `qwen3.8:27b` for stronger tool-oriented reasoning, the `gemma4` family (`e2b` / `e4b` / `12b` / `31b`), and `gpt-oss:20b` / `deepseek-r1:8b` as alternatives. See [Picking a Model](../../tutorials/index.md#picking-a-model) in the Tutorials for the tradeoffs.
 
 ## Agentic Chat Architecture Overview
 
 The diagram below is included as a conceptual reference to the related agentic systems material in the Spring AI docs.
 
-It is included here to explain how the Playground's Agentic Chat maps onto the broader Spring AI mental model. In this project, the diagram is not describing a separate product feature hidden behind the UI. It is a conceptual reference for understanding how the Playground combines model reasoning, retrieval, tool execution, and memory in one chat runtime. For the concrete build-up of that context in this project - system prompt, presets and templates, RAG, tools, memory, and per-request options - see [Context Engineering](../../context-engineering-architecture.md).
+??? note "Architecture details"
 
-![Spring AI Agentic System Structure](https://raw.githubusercontent.com/spring-io/spring-io-static/refs/heads/main/blog/tzolov/spring-ai-agentic-systems.jpg)
+    It is included here to explain how the Playground's Agentic Chat maps onto the broader Spring AI mental model. In this project, the diagram is not describing a separate product feature hidden behind the UI. It is a conceptual reference for understanding how the Playground combines model reasoning, retrieval, tool execution, and memory in one chat runtime. For the concrete build-up of that context in this project - system prompt, presets and templates, RAG, tools, memory, and per-request options - see [Context Engineering](../../context-engineering-architecture.md).
 
-If you want the fuller conceptual background, start with [Building Effective Agents](https://docs.spring.io/spring-ai/reference/api/effective-agents.html). That reference explains the workflow-versus-agent distinction that this Playground makes concrete through Tool Studio, MCP Server, Vector Database, and Agentic Chat.
+    ![Spring AI Agentic System Structure](https://raw.githubusercontent.com/spring-io/spring-io-static/refs/heads/main/blog/tzolov/spring-ai-agentic-systems.jpg)
 
-This Chat experience facilitates exploration of Spring AI's workflow and agentic paradigms, empowering developers to build AI systems that combine chain-based RAG workflows with agentic, tool-augmented reasoning. In practice, it follows Spring AI's Agentic Systems architecture, where grounded retrieval and dynamic tool execution coexist in one context-aware chat runtime.
+    If you want the fuller conceptual background, start with [Building Effective Agents](https://docs.spring.io/spring-ai/reference/api/effective-agents.html). That reference explains the workflow-versus-agent distinction that this Playground makes concrete through Tool Studio, MCP Server, Vector Database, and Agentic Chat.
 
-| Component | Type | Description | Configuration Location | Key Benefits | Model Requirements |
-| --- | --- | --- | --- | --- | --- |
-| **LLM** | Core Model | Executes chain-based workflows and performs agentic reasoning for tool usage within a unified chat runtime. | Agentic Chat | Central reasoning and response generation; supports both deterministic workflows and agentic patterns. | Chat models; tool-aware and reasoning-capable models recommended. |
-| **Retrieval (RAG)** | Chain Workflow | Deterministic Modular RAG flow: query transformation, vector search, post-processing, and prompt augmentation, composed per pipeline. | Vector Database (Pipeline Studio) | Predictable, controllable knowledge grounding; per-pipeline Top-K, thresholds, and query-transformation stages. | Standard chat plus embedding models; query-transformation stages add a model call each. |
-| **Tools (MCP)** | Agentic Execution | Dynamic tool selection and invocation via MCP, driven by LLM reasoning and tool schemas. | Tool Studio, MCP Server | Enables external actions, multi-step reasoning, and adaptive behavior. | Tool-enabled models with function calling and reasoning support. |
-| **Memory** | Shared Agentic State | The full conversation is kept locally; each turn the model sees a configurable trailing window, supplied through `MessageChatMemoryAdvisor` over an [`LlmWindowChatMemory`](../../context-engineering-architecture.md#conversation-memory) decorator. | Agentic Chat drawer (per-chat **Recent messages**) + `spring.ai.playground.chat.memory-max-messages` (default 10); `history-max-messages` (2000) caps the local store | Coherent multi-turn dialogue without inflating every request; the recent-context window is tunable per conversation. | Models benefit from a longer window when the task needs more history. |
+    This Chat experience facilitates exploration of Spring AI's workflow and agentic paradigms, empowering developers to build AI systems that combine chain-based RAG workflows with agentic, tool-augmented reasoning. In practice, it follows Spring AI's Agentic Systems architecture, where grounded retrieval and dynamic tool execution coexist in one context-aware chat runtime.
 
-By leveraging these elements, Agentic Chat goes beyond basic Q&A and becomes a practical environment for building effective, modular AI applications that combine workflow predictability with agentic autonomy.
+    | Component | Type | Description | Configuration Location | Key Benefits | Model Requirements |
+    | --- | --- | --- | --- | --- | --- |
+    | **LLM** | Core Model | Executes chain-based workflows and performs agentic reasoning for tool usage within a unified chat runtime. | Agentic Chat | Central reasoning and response generation; supports both deterministic workflows and agentic patterns. | Chat models; tool-aware and reasoning-capable models recommended. |
+    | **Retrieval (RAG)** | Chain Workflow | Deterministic Modular RAG flow: query transformation, vector search, post-processing, and prompt augmentation, composed per pipeline. | Vector Database (Pipeline Studio) | Predictable, controllable knowledge grounding; per-pipeline Top-K, thresholds, and query-transformation stages. | Standard chat plus embedding models; query-transformation stages add a model call each. |
+    | **Tools (MCP)** | Agentic Execution | Dynamic tool selection and invocation via MCP, driven by LLM reasoning and tool schemas. | Tool Studio, MCP Server | Enables external actions, multi-step reasoning, and adaptive behavior. | Tool-enabled models with function calling and reasoning support. |
+    | **Memory** | Shared Agentic State | The full conversation is kept locally; each turn the model sees a configurable trailing window, supplied through `MessageChatMemoryAdvisor` over an [`LlmWindowChatMemory`](../../context-engineering-architecture.md#conversation-memory) decorator. | Agentic Chat drawer (per-chat **Recent messages**) + `spring.ai.playground.chat.memory-max-messages` (default 10); `history-max-messages` (2000) caps the local store | Coherent multi-turn dialogue without inflating every request; the recent-context window is tunable per conversation. | Models benefit from a longer window when the task needs more history. |
+
+    By leveraging these elements, Agentic Chat goes beyond basic Q&A and becomes a practical environment for building effective, modular AI applications that combine workflow predictability with agentic autonomy.
 
 ## What the Chat can reach
 

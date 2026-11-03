@@ -1,16 +1,17 @@
-description: Default MCP Servers - 58 preset external MCP server connections (50 remote + 8 stdio per OS), browseable + filterable across 6 category pages.
+videos: ep7
+description: Default MCP Servers - 58 preset external MCP server connections (50 remote + 8 stdio per OS), browsable + filterable across 6 category pages.
 
 # Default MCP Servers
 
 **Where:** top navigation → **MCP Server** → the sidebar's **Inactive MCP** section.
 
-Spring AI Playground ships with **58 default MCP server connections** spread across **50 vendor-official remote entries** (Streamable HTTP - Gmail, Outlook, Notion, GitHub, Linear, Atlassian, Stripe, BigQuery, ...) and **8 community stdio entries per OS** (`modelcontextprotocol/servers` - Git, Memory, Puppeteer, MCP Everything, ...). They are ready to activate the moment the desktop launcher is running - you do not need to type a URL or hunt down a stdio command yourself to start chatting against an external service.
+Spring AI Playground ships with **58 default MCP server connections** spread across **50 remote entries**, 49 of them vendor-official (Streamable HTTP or SSE - Gmail, Outlook, Notion, GitHub, Linear, Atlassian, Stripe, BigQuery, ...), and **8 stdio entries per OS** (Git, Memory, Puppeteer, MCP Everything, ...). They are ready to activate the moment the desktop launcher is running - you do not need to type a URL or hunt down a stdio command yourself to start chatting against an external service.
 
 The MCP Server sidebar does not connect them all by default - every entry starts in the sidebar's **Inactive MCP** section as a *ghost row*. Clicking one promotes it into the right-hand configuration form pre-filled with the catalog template, so you only fill in your local secret / tenant before **Save & Connect**. The catalog itself lives in `src/main/resources/mcp/default-mcp-specs*.json` and the activation/filter state lives entirely in the sidebar.
 
 ## Browse all 58 catalog entries { #browse-all-entries }
 
-Click a card to jump to its full reference (with transport / auth defaults / required env / docs expanded) on the right sub-page - same UX as the **Default Tools** directory and the **MCP Server Setting** drawer in Tool Studio. Six reference pages organise the catalog by category cohort: [Productivity & Communication](productivity.md) · [Dev & Project Management](dev.md) · [Data & Cloud](data-cloud.md) · [Business](business.md) · [Search](search.md) · [Examples](examples.md).
+Click a card to jump to its full reference (with transport / auth defaults / required env / docs expanded) on the right sub-page - same UX as the **Default Tools** directory. Six reference pages organize the catalog by category cohort: [Productivity & Communication](productivity.md) · [Dev & Project Management](dev.md) · [Data & Cloud](data-cloud.md) · [Business](business.md) · [Search](search.md) · [Examples](examples.md).
 
 **Filter modes**: combine a **search** keyword with one or more **Category** / **Tag** / **Transport** chips - search is AND across the chip filters; chip selections within a group are OR (a card is shown when its category OR tag OR transport matches *any* selected chip in that group, and the search keyword matches its name or vendor or description).
 
@@ -21,7 +22,7 @@ Click a card to jump to its full reference (with transport / auth defaults / req
 <span class="tool-directory__chip-label">Category</span> <button class="tool-directory__chip" data-group="category" data-value="cloud" aria-pressed="false">Cloud</button> <button class="tool-directory__chip" data-group="category" data-value="communication" aria-pressed="false">Communication</button> <button class="tool-directory__chip" data-group="category" data-value="crm" aria-pressed="false">Crm</button> <button class="tool-directory__chip" data-group="category" data-value="database" aria-pressed="false">Database</button> <button class="tool-directory__chip" data-group="category" data-value="design" aria-pressed="false">Design</button> <button class="tool-directory__chip" data-group="category" data-value="dev" aria-pressed="false">Dev</button> <button class="tool-directory__chip" data-group="category" data-value="example" aria-pressed="false">Example</button> <button class="tool-directory__chip" data-group="category" data-value="finance" aria-pressed="false">Finance</button> <button class="tool-directory__chip" data-group="category" data-value="productivity" aria-pressed="false">Productivity</button> <button class="tool-directory__chip" data-group="category" data-value="project_mgmt" aria-pressed="false">Project Mgmt</button> <button class="tool-directory__chip" data-group="category" data-value="public_data" aria-pressed="false">Public Data</button> <button class="tool-directory__chip" data-group="category" data-value="search" aria-pressed="false">Search</button> <button class="tool-directory__chip" data-group="category" data-value="storage" aria-pressed="false">Storage</button> <button class="tool-directory__chip" data-group="category" data-value="util" aria-pressed="false">Util</button>
 </div>
 <div class="tool-directory__chips">
-<span class="tool-directory__chip-label">Tag</span> <button class="tool-directory__chip" data-group="tag" data-value="aggregator" aria-pressed="false">aggregator</button> <button class="tool-directory__chip" data-group="tag" data-value="beta" aria-pressed="false">beta</button> <button class="tool-directory__chip" data-group="tag" data-value="community" aria-pressed="false">community</button> <button class="tool-directory__chip" data-group="tag" data-value="free-tier" aria-pressed="false">free-tier</button> <button class="tool-directory__chip" data-group="tag" data-value="geo" aria-pressed="false">geo</button> <button class="tool-directory__chip" data-group="tag" data-value="global" aria-pressed="false">global</button> <button class="tool-directory__chip" data-group="tag" data-value="korea" aria-pressed="false">korea</button> <button class="tool-directory__chip" data-group="tag" data-value="legal" aria-pressed="false">legal</button> <button class="tool-directory__chip" data-group="tag" data-value="pipeline" aria-pressed="false">pipeline</button> <button class="tool-directory__chip" data-group="tag" data-value="preview" aria-pressed="false">preview</button> <button class="tool-directory__chip" data-group="tag" data-value="us" aria-pressed="false">us</button>
+<span class="tool-directory__chip-label">Tag</span> <button class="tool-directory__chip" data-group="tag" data-value="aggregator" aria-pressed="false">aggregator</button> <button class="tool-directory__chip" data-group="tag" data-value="beta" aria-pressed="false">beta</button> <button class="tool-directory__chip" data-group="tag" data-value="community" aria-pressed="false">community</button> <button class="tool-directory__chip" data-group="tag" data-value="free-tier" aria-pressed="false">free-tier</button> <button class="tool-directory__chip" data-group="tag" data-value="geo" aria-pressed="false">geo</button> <button class="tool-directory__chip" data-group="tag" data-value="global" aria-pressed="false">global</button> <button class="tool-directory__chip" data-group="tag" data-value="korea" aria-pressed="false">korea</button> <button class="tool-directory__chip" data-group="tag" data-value="legal" aria-pressed="false">legal</button> <button class="tool-directory__chip" data-group="tag" data-value="pipeline" aria-pressed="false">pipeline</button> <button class="tool-directory__chip" data-group="tag" data-value="preview" aria-pressed="false">preview</button> <button class="tool-directory__chip" data-group="tag" data-value="statistics" aria-pressed="false">statistics</button> <button class="tool-directory__chip" data-group="tag" data-value="us" aria-pressed="false">us</button>
 </div>
 <div class="tool-directory__chips">
 <span class="tool-directory__chip-label">Transport</span> <button class="tool-directory__chip" data-group="transport" data-value="streamable-http" aria-pressed="false">Streamable HTTP</button> <button class="tool-directory__chip" data-group="transport" data-value="stdio" aria-pressed="false">STDIO</button> <button class="tool-directory__chip" data-group="transport" data-value="sse" aria-pressed="false">SSE</button>
@@ -587,11 +588,11 @@ Query and manage Firestore documents, collections, composite indexes, and securi
 <div class="tcg-page">→ Data & Cloud</div>
 </div>
 
-<div class="tcg-card tcg-card--directory" data-name="kosis national statistics" data-desc="query korea's official national statistics in natural language from kosis. official pilot mcp by the national data office - 1,360+ statistics, 260,000+ tables. no api key, read-only." data-category="public_data" data-tags="korea,statistics,preview" data-transport="streamable-http" markdown>
+<div class="tcg-card tcg-card--directory" data-name="kosis national statistics" data-desc="query korea's official national statistics in natural language from kosis. official pilot mcp by the national data office - 1,360+ statistics, 260,000+ tables. no api key, read-only." data-category="public_data" data-tags="korea,statistics" data-transport="streamable-http" markdown>
 <a class="tcg-stretched-link" href="data-cloud/#KOSIS" aria-label="Open KOSIS National Statistics">KOSIS National Statistics</a>
 <div class="tcg-name"><span class="tcg-name__text">KOSIS National Statistics</span> <span class="cost">🆓</span></div>
 <div class="tcg-art" markdown>:material-chart-box-outline:</div>
-<div class="tcg-type">PUBLIC_DATA · korea · preview <span class="risk risk-l3">preview</span> <span class="rl rl-l2">L2</span></div>
+<div class="tcg-type">PUBLIC_DATA · korea · statistics <span class="risk risk-l3">preview</span> <span class="rl rl-l2">L2</span></div>
 <div class="tcg-body" markdown>
 Query Korea's official national statistics in natural language from KOSIS. Official pilot MCP by the National Data Office - 1,360+ statistics, 260,000+ tables. No API key, read-only.
 </div>
@@ -919,7 +920,7 @@ Built from the shared `webui/common/sidebar/SidebarFilterBar` widget (Tool Studi
 
 - **Search** - matches against server name, vendor, description, and - for active connections only - live tool names returned by `listTools`. 200 ms debounce before re-rendering.
 - **Categories** multi-select - the 14 built-in catalog categories plus `Custom` for user-added entries: `Example · Productivity · Storage · Communication · Project Management · Dev · Search · Cloud · Database · Public Data · Finance · CRM · Design · Utility · Custom`.
-- **Tags** multi-select - drawn from the union of every catalog entry's tags and every active server's tags. Cohort vocabulary: `aggregator · beta · community · free-tier · geo · global · korea · legal · pipeline · preview · us`.
+- **Tags** multi-select - drawn from the union of every catalog entry's tags and every active server's tags. Cohort vocabulary: `aggregator · beta · community · free-tier · geo · global · korea · legal · pipeline · preview · statistics · us`.
 
 For example, picking `Productivity` + `preview` narrows to Gmail and Google Calendar (the two preview-stability Workspace entries); a search term layered on top further trims the visible count. The sidebar header counter swaps between `(N)` and `(N filtered of M)` when a filter is active; an empty match offers a **Clear filters** button.
 
@@ -927,7 +928,7 @@ For example, picking `Productivity` + `preview` narrows to Gmail and Google Cale
 
 Clicking any **Inactive MCP** entry copies the catalog template into the right pane:
 
-- **Transport** - `STREAMABLE_HTTP` for remote entries, `STDIO` for the per-OS entries
+- **Transport** - `STREAMABLE_HTTP` (or `SSE` for Asana, PayPal, Square and Webflow) for remote entries, `STDIO` for the per-OS entries
 - **URL** or **Command + Args** - with `${ENV_VAR}` placeholders for anything secret; STDIO arguments render as one row per argv element
 - **OAuth issuer URI + scopes** - pre-filled for OAuth-protected entries
 - **Category + Tag chips** - matching the catalog row
@@ -942,7 +943,7 @@ The row stays in the Inactive layer until you click **Save & Connect**; on save 
 
 The simplest mode - open MCP Server, scroll the sidebar's **Inactive MCP** layer, click the entry you want. The right pane fills in:
 
-- transport (`STREAMABLE_HTTP` for remote entries, `STDIO` for the per-OS entries)
+- transport (`STREAMABLE_HTTP`, or `SSE` for Asana, PayPal, Square and Webflow, for remote entries; `STDIO` for the per-OS entries)
 - URL or command + args, with `${ENV_VAR}` placeholders for anything secret
 - default OAuth issuer URI + scopes for OAuth-protected vendors
 - category + tags chips matching the catalog row
@@ -981,7 +982,7 @@ The deeper mode - combine multiple catalog connections with your own custom serv
             │
             ├── Agentic Chat - call the connection's tools from a model turn
             │
-            └── Expose on built-in server (M8) - re-publish the tools you select
+            └── Expose on built-in server (Composed Tools) - re-publish the tools you select
                 (individually or Select all, across one or several connections) on
                 the built-in MCP server, so Agentic Chat and external /mcp clients
                 call them on one endpoint
@@ -996,7 +997,7 @@ The catalog only changes step 1 (entry selection + form pre-fill). Everything af
 
 Most MCP client implementations require the user to **type each external server's URL by hand**, look up OAuth issuer URIs from a vendor doc, and discover which env vars `requiredEnv` declares. That's three lookup hops before any tool runs.
 
-Spring AI Playground's catalog **pre-resolves those hops**. The 50 remote entries carry the vendor-recommended Streamable HTTP URL + OAuth defaults + tenant-ID hints; the 8 stdio entries carry the `npx` / `uvx` command + args verified against `modelcontextprotocol/servers`. The desktop launcher even picks the OS-matching stdio variant automatically (`npx` for macOS / Linux, `npx.cmd` for Windows) so the pre-filled command can be saved without editing on any host.
+Spring AI Playground's catalog **pre-resolves those hops**. The 50 remote entries carry the vendor-recommended Streamable HTTP or SSE URL + OAuth defaults + tenant-ID hints; the 8 stdio entries carry the `npx` / `uvx` command + args verified against `modelcontextprotocol/servers`. The desktop launcher even picks the OS-matching stdio variant automatically (`npx` for macOS / Linux, `npx.cmd` for Windows) so the pre-filled command can be saved without editing on any host.
 
 Every entry is either **vendor-official** (Tier 1 - listed under the vendor's own documentation) or **community-published** (Tier 2 - `modelcontextprotocol/servers` and adjacent maintained projects). The catalog file shipped with the app is the source of truth; updates land as part of regular releases rather than requiring users to chase vendor doc URLs.
 
@@ -1030,7 +1031,7 @@ Some catalog entries depend on environment-backed values and stay inert until th
 | `MS_TENANT_ID` | `Outlook Mail`, `Outlook Calendar`, `Microsoft Teams` | Microsoft 365 Agent365 tenant routing - entries fail fast at connect time if missing |
 | `MEMORY_FILE_PATH` | `Memory (Knowledge Graph)` (stdio) | Override the default JSON store path for cross-session memory |
 | `BRAVE_API_KEY` | `Brave Search` (stdio) | Brave Search API key - passed through stdio `env` |
-| `TAVILY_API_KEY` / `EXA_API_KEY` / `SERPAPI_API_KEY` / `JINA_API_KEY` / `FIRECRAWL_API_KEY` | Search-category entries | Vendor API keys for Tavily, Exa, SerpAPI, Jina AI, Firecrawl - surfaced via `${VAR}` placeholders in the headers |
+| `TAVILY_API_KEY` / `EXA_API_KEY` / `SERPAPI_API_KEY` / `JINA_API_KEY` / `FIRECRAWL_API_KEY` | Search-category entries | Vendor API keys for Tavily, Exa, SerpAPI, Jina AI, Firecrawl - surfaced via `${VAR}` placeholders in the headers (SerpAPI: in the URL) |
 | OAuth client secrets | Any OAuth entry with a non-public client | Storable as `${SOME_OAUTH_CLIENT_SECRET}` in the OAuth sub-form's **Client secret** field |
 
 `${VAR}` placeholders in any value field resolve from the OS environment (or a JVM system-property fallback) at connect time; the persisted JSON keeps the literal placeholder string, never the resolved secret. A backend `SecretMasking` filter additionally sweeps connection-error notifications and per-call logs to replace resolved values with `***` so credentials cannot leak into the playground UI - see [Safety Architecture → Secret masking](../../safety-architecture.md#secret-masking).

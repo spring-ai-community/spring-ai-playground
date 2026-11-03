@@ -235,12 +235,7 @@ public abstract class McpLoopbackClientTestSupport {
                 () -> this.mcpClientService.snapshotPendingSamplings(this.mcpServerInfo),
                 pending -> !pending.isEmpty());
         assertThat(pendingSamplings).hasSize(1);
-        this.mcpClientService.completeSampling(this.mcpServerInfo, pendingSamplings.getFirst().id(),
-                McpSchema.CreateMessageResult.builder()
-                        .role(McpSchema.Role.ASSISTANT)
-                        .content(new McpSchema.TextContent("pong"))
-                        .model("loopback-test-model")
-                        .build());
+        this.mcpClientService.respondToSampling(this.mcpServerInfo, pendingSamplings.getFirst().id(), "pong");
         McpSchema.ReadResourceResult samplingResult =
                 pendingSamplingRead.get(15, TimeUnit.SECONDS).orElseThrow();
         assertThat(((McpSchema.TextResourceContents) samplingResult.contents().getFirst()).text())

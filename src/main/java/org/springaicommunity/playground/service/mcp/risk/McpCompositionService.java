@@ -43,6 +43,7 @@ public class McpCompositionService {
     private final McpCompositionShadowingRules shadowingRules;
     private final McpRiskSignalSink sink;
     private final Map<String, McpComposition> compositionsById = new ConcurrentHashMap<>();
+    private final boolean exposedManagedByConfiguration;
 
     public McpCompositionService(McpCompositionPersistenceService persistence,
             McpCompositionShadowingRules shadowingRules, McpRiskSignalSink sink,
@@ -53,10 +54,20 @@ public class McpCompositionService {
         for (McpComposition composition : persistence.loadAll()) {
             this.compositionsById.put(composition.id(), composition);
         }
-        this.compositionsById.put(EXPOSED_ID, seedExposedFromConfig(playgroundOptions.mcpServer().composedTools(),
-                playgroundOptions.mcpServer().composedToolsMaxRisk()));
-        logger.info("Loaded {} compositions; exposed set seeded with {} member(s) from application.yaml",
-                this.compositionsById.size(), this.compositionsById.get(EXPOSED_ID).members().size());
+        this.exposedManagedByConfiguration = !playgroundOptions.mcpServer().composedTools().isEmpty();
+        McpComposition configured = seedExposedFromConfig(playgroundOptions.mcpServer().composedTools(),
+                playgroundOptions.mcpServer().composedToolsMaxRisk());
+        String exposedOrigin;
+        if (this.exposedManagedByConfiguration) {
+            this.compositionsById.put(EXPOSED_ID, configured);
+            exposedOrigin = "configuration";
+        } else {
+            exposedOrigin = this.compositionsById.containsKey(EXPOSED_ID) ? "disk" : "configuration";
+            this.compositionsById.putIfAbsent(EXPOSED_ID, configured);
+        }
+        logger.info("Loaded {} compositions; exposed set has {} member(s) from {}",
+                this.compositionsById.size(), this.compositionsById.get(EXPOSED_ID).members().size(),
+                exposedOrigin);
     }
 
     private static McpComposition seedExposedFromConfig(List<ComposedTool> composedTools, RiskLevel maxRisk) {
@@ -70,6 +81,10 @@ public class McpCompositionService {
         return new McpComposition(EXPOSED_ID, "Exposed Tools",
                 "External tools exposed on the built-in MCP server (from application.yaml)",
                 members, !members.isEmpty(), maxRisk == null ? RiskLevel.L5 : maxRisk, now, now, now);
+    }
+
+    public boolean exposedManagedByConfiguration() {
+        return this.exposedManagedByConfiguration;
     }
 
     public Collection<McpComposition> getAll() {
@@ -97,6 +112,7 @@ public class McpCompositionService {
                         "External tools exposed on the built-in MCP server", members, true, cap, now, now, now)
                 : existing.withMembers(members, now).withEnabled(true, now).withMetadata(null, null, cap, now);
         this.compositionsById.put(EXPOSED_ID, exposed);
+        persistSnapshot();
         emit(exposed, McpRiskEvents.CompositionLifecycle.Action.UPDATED, null);
         return exposed;
     }
@@ -208,9 +224,7 @@ public class McpCompositionService {
     }
 
     private void persistSnapshot() {
-        List<McpComposition> toPersist = this.compositionsById.values().stream()
-                .filter(composition -> !EXPOSED_ID.equals(composition.id())).toList();
-        this.persistence.saveAllAsync(new ArrayList<>(toPersist));
+        this.persistence.saveAllAsync(new ArrayList<>(this.compositionsById.values()));
     }
 
     private void emit(McpComposition composition, McpRiskEvents.CompositionLifecycle.Action action, String reason) {
