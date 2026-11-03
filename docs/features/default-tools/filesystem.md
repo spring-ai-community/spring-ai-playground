@@ -1,3 +1,4 @@
+videos: ep6
 description: Default Tools - Filesystem reference. 18 safety.fs-wrapped tools (list-roots · read · list · stat · grep · search · count · slice · sort · cut · find · write · append · edit · copy · move · delete · deleteDir) over readable roots and a writable working directory.
 
 # Default Tools - Filesystem

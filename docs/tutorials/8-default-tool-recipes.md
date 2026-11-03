@@ -1,3 +1,4 @@
+videos: ep2
 description: Tutorial 8 - five default-tool recipes composed inside a single JS action, published as new MCP-exposed custom tools.
 
 # Tutorial 8 - Default Tool Recipes

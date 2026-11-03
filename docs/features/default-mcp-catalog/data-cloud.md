@@ -1,3 +1,4 @@
+videos: ep7
 description: Default MCP Servers - Data & Cloud reference: 18 preset MCP connections with transport, auth defaults, required env, and full description per card.
 
 # Default MCP Servers - Data & Cloud

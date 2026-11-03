@@ -1,5 +1,6 @@
 ---
 description: Management MCP tools - let an external AI client author and publish Tool Studio tools, expose tools of registered MCP servers with human approval per tool, index knowledge, ship MCP servers and monitor the result, over MCP with a bearer token.
+videos: ep9 ep10 ep11
 ---
 
 # Management MCP Tools

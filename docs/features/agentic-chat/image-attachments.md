@@ -1,4 +1,5 @@
 ---
+videos: ep6
 description: Multimodal vision input for Agentic Chat - hand images to a vision model as native multimodal input, with client-side resizing, EXIF capture, vision-capability checks, and the describeImage tool for re-referencing earlier images.
 ---
 

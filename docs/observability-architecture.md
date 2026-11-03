@@ -1,3 +1,4 @@
+videos: bonus
 title: AI Agent Observability
 description: Trace pipeline for AI agent execution - signal sources, ring buffer + time series + disk tiers, MDC log correlation, cost attribution, and configuration reference.
 

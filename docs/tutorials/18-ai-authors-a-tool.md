@@ -1,5 +1,6 @@
 ---
 description: Tutorial 18 - let an external AI client write, test and publish a Tool Studio tool through the management MCP tools, approve the publish yourself, decline a call, and read the audit trail.
+videos: ep9
 ---
 
 # Tutorial 18 - Let an AI Author a Tool

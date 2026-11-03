@@ -1,3 +1,4 @@
+videos: ep6 ep9
 description: Human-in-the-Loop approval in Spring AI Playground - require explicit approval before a tool runs, set it per tool, and approve or decline calls inside Agentic Chat.
 
 # Human-in-the-Loop Approval

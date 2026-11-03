@@ -1,3 +1,4 @@
+videos: proxy ep10
 description: Tutorial 10 - proxy an MCP server through the built-in server: expose a whole server or a subset, each tool wrapped with a risk level, HITL, and logging.
 
 # Tutorial 10 - Proxy an MCP Server

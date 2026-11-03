@@ -1,3 +1,4 @@
+videos: ep1 ep4
 description: Tutorial 4 - trigger a built-in MCP tool from a chat turn. Watch the model decide, observe the tool call, then read the final answer.
 
 # Tutorial 4 - Chat With Tools

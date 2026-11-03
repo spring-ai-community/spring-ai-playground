@@ -1,3 +1,4 @@
+videos: ep7
 description: Tutorial 2 - connect an external MCP server (Streamable HTTP / STDIO / SSE / OAuth 2.1) and validate the schema in the Inspector before relying on it from chat.
 
 # Tutorial 2 - Connect an External MCP Server

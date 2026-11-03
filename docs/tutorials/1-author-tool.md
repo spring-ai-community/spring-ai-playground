@@ -1,3 +1,4 @@
+videos: ep5
 description: Tutorial 1 - author a tool in Tool Studio, earn its Local Pass, and verify it shows up on the built-in MCP server.
 
 # Tutorial 1 - Author and Validate a Tool

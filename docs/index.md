@@ -1,5 +1,5 @@
 title: Safe Local Execution Layer for AI Agent Tools
-description: Desktop app to build, test, and publish MCP tools - Tool Studio, a defense-in-depth sandbox, Risk Levels (L0-L5), Agentic Chat, RAG, and observability dashboards.
+description: Desktop app to build, test, publish and ship MCP tools, and one safety net for everything your AI uses through it - HITL approval, monitoring and audit for your tools, proxied MCP servers and AI-made changes. Tool Studio, a defense-in-depth sandbox, Risk Levels (L0-L5), Agentic Chat, RAG, Shipyard, management tools for an AI operator, and observability dashboards.
 
 # Spring AI Playground
 
@@ -7,65 +7,27 @@ description: Desktop app to build, test, and publish MCP tools - Tool Studio, a 
 
 Spring AI Playground is a cross-platform desktop app for building, testing, validating, and executing MCP tools in a controlled local environment.
 
-## How it all connects
-
-Spring AI Playground is **one local app that plays three roles at once** - an MCP **server** that publishes tools to your agents, an MCP **client** that reaches out to external services, and a **workbench** where you build and vet those tools. You drive it through the Vaadin Flow UI (desktop app or browser); your AI clients - Claude Desktop and Code, Cursor, Codex, opencode, or any other MCP host - connect to the same built-in server over `/mcp`.
-
-![Spring AI Playground integration architecture - used by you and your AI clients, the built-in MCP server publishing built-in plus authored plus proxied and composed MCP tools under safety and observability, on local-first models and RAG](assets/images/integration-architecture.svg){ loading=lazy }
-
-That server presents tools from three sources as one clean surface: a **built-in library** and tools you write in [Tool Studio](features/tool-studio/index.md) - both pass the same **Local Pass** gate before going live - plus external MCP servers you [proxy and compose](features/mcp-server/proxy.md) onto it, any vendor, any language. However a tool arrives, it is vetted before an agent can call it (see [AI Agent Tool Safety](safety-architecture.md)): locally-run tools (built-in and authored) execute in a defense-in-depth sandbox with a visible **Risk Level (L0-L5)**, human-in-the-loop approval, and an integrity check, while proxied and composed tools are risk-scored, HITL-gated, integrity-checked, and scanned for description poisoning.
-
-Everything that runs - every chat, tool call, vector query, and MCP invocation - is captured in the built-in [Observability](features/observability/index.md) dashboards. And it all runs **local-first**: Ollama by default, with OpenAI and OpenAI-compatible runtimes (llama.cpp, LM Studio, vLLM) optional, and chat grounded on your own documents through the local vector store.
-
 > **No pass, no run.**
 
 Every tool you build earns a **Local Pass** - a local test-run with sample arguments. Only tools that pass are added live to the built-in MCP server and become callable from Agentic Chat. Nothing you author reaches an agent until you have seen it work on your own machine.
 
-Safe execution does not end at publication. Every chat, tool call, vector lookup, and MCP invocation that runs in the app lands in the built-in **Observability dashboards** - fourteen panels (Overview, Tokens & Cost, AI Models, Tool Studio, MCP Servers, MCP Inspector, Vector Database, Agentic Chat, Safety, Host, Ollama, Web Application, Logs, Traces) backed by a ring buffer with dated disk persistence. Drill from any row into the trace timeline and raw spans, jump to the conversation thread, and deep-link back into Agentic Chat - the tools you let an agent call are also the tools you can audit in detail afterwards.
-
-The desktop app is the recommended default experience, but Docker and local source execution are still supported when you want a server-style deployment or a development workflow.
-
-Unlike many playgrounds that stop at prompt testing, this project connects AI conversations to real actions while making the tools it manages inside the app safer and easier to inspect before reuse:
-
-- build JavaScript tools directly in the app
-- earn a **Local Pass** by test-running each tool against sample arguments you define
-- **add tools live to the built-in MCP server** the moment each passes - no restart, no redeploy
-- start immediately with **116 pre-loaded default tools** spanning web fetch / datetime / math / security / encoding / crypto / filesystem / GitHub / Wikipedia / weather / finance / geo / Korean services - [see the spotlight section below](#what-used-to-take-an-afternoon-already-wired-in) for the categorised browse
-- connect external surfaces in one click with **58 preset MCP server connections** (Gmail · Outlook · Notion · Slack · GitHub · Linear · Atlassian · Stripe · Figma · BigQuery · Cloudflare · Tavily · MCP Everything · ...) - same spotlight section below covers the full per-category browse
-- validate retrieval pipelines against your own documents
-- run agentic chat that combines tool use and grounded context (e.g. *"Get today's weather and send it to Slack"*)
-- run every tool through a **defense-in-depth GraalVM sandbox** with a deny-first class allowlist, SSRF-guarded `fetch`, rooted `safety.fs`, statement + wall-clock limits, and a visible per-tool **Risk Level** (L0-L5) - with a parallel **risk score** scoring every external MCP server you connect (and a description poisoning scan on tools you re-expose) - see [AI Agent Tool Safety Architecture](safety-architecture.md)
-- **see every chat, tool call, vector query, and MCP invocation** in the fourteen built-in [Observability dashboards](features/observability/index.md) - drill into span timelines, jump back to the source conversation, watch token cost and latency live, deep-link from a trace into Agentic Chat
+Safe execution does not end at publication: every chat, tool call, vector lookup and MCP invocation lands in fourteen built-in **Observability dashboards**, from token cost down to the trace timeline of a single call, so the tools you let an agent call are also the tools you can audit afterwards.
 
 > **Security scope.** The in-process sandbox is defense-in-depth for the local build-and-vet loop. It is not adversarial-grade isolation and not a gateway. To run tool code you do not trust, nest it in container or microVM isolation. See [Isolation tiers](safety-architecture.md#isolation-tiers).
 
 <div style="text-align: center;">
-  <b>Local Model, Real Agent - Spring AI Playground in 30 Seconds</b><br/>
-  The trailer, followed by the full video series
+  <b>An AI Ships and Runs an MCP Server - Every Risky Step Asks a Person</b><br/>
+  ChatGPT works through the management tools and you approve each step; the rest of the series plays next
 </div>
 
 <div style="text-align: center;">
-  <iframe width="820" height="461" style="max-width: 100%; border: 0;"
-          src="https://www.youtube-nocookie.com/embed/dR6XRs2-nEY?list=PLfizCrbCZK9k"
-          title="Local Model, Real Agent - Spring AI Playground in 30 Seconds"
+  <iframe width="820" height="461" style="width: 100%; max-width: 820px; height: auto; aspect-ratio: 16 / 9; border: 0;"
+          src="https://www.youtube-nocookie.com/embed/uz2kNthufyQ?list=PLfizCrbCZK9k"
+          title="An AI Ships and Runs an MCP Server - Every Risky Step Asks a Person"
           allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
           referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
-  <p><a href="https://www.youtube.com/playlist?list=PLfizCrbCZK9k" target="_blank" rel="noopener">Watch the full demo series on YouTube</a></p>
+  <p><a href="https://youtu.be/dR6XRs2-nEY" target="_blank" rel="noopener">30-second trailer</a> · <a href="https://www.youtube.com/playlist?list=PLfizCrbCZK9k" target="_blank" rel="noopener">Watch the full demo series on YouTube</a></p>
 </div>
-
-## :material-format-quote-close: Mentions and Coverage
-
-**[Introducing the Spring AI Community GitHub Organization](https://spring.io/blog/2025/10/07/spring-ai-community-announcement/)** - spring.io, October 7, 2025. Listed under Incubating Projects:
-
-> Spring AI Playground - Self-hosted web UI for AI experimentation and testing, enabling developers to explore Spring AI capabilities interactively. Led by Jemin Huh.
-
-**[This Week in Spring - June 2nd, 2026](https://spring.io/blog/2026/06/02/this-week-in-spring-june-2-2026/)** - spring.io, June 2, 2026. Josh Long in the weekly Spring ecosystem roundup:
-
-> the Spring AI Playground seems like a *very* interesting project indeed
-
-**[Client-Side Tool Risk Gating for MCP Hosts](https://owasp.org/www-project-mcp-top-10/2025/recommended-controls/Client-Side-Tool-Risk-Gating)** - OWASP MCP Top 10, merged July 29, 2026. Contributed from this project and accepted as a recommended control, written vendor-neutrally as a host-side pattern, with Spring AI Playground cited as its open-source reference implementation.
-
-Also carried on the [Spring AI Community project page](https://springaicommunity.mintlify.app/projects/incubating/spring-ai-playground) with the Incubating badge, and listed under UI Clients in [awesome-spring-ai](https://github.com/spring-ai-community/awesome-spring-ai). The full record of coverage and ecosystem listings lives on the [Mentions](mentions.md) page.
 
 ## :material-rocket-launch: Quick Start
 
@@ -361,92 +323,148 @@ Or browse all available assets on the [Releases page](https://github.com/spring-
 
 ### 2. Install and Launch
 
-Install the package the same way you would for a normal desktop application, then launch **Spring AI Playground** from your applications menu.
+Install the package the same way you would for a normal desktop application, then launch **Spring AI Playground** from your applications menu. The desktop app bundles the backend runtime with a launcher for provider templates, YAML overrides, secrets and one-click launch, so there is no Docker or server to set up.
 
-The desktop app bundles the backend runtime together with a launcher that provides provider starter templates, YAML override editing, environment-variable based secret handling, and one-click launch.
+??? warning "macOS, Windows or Linux blocks the installer?"
 
-If you install the app, you can run Spring AI Playground immediately without setting up Docker or running the server manually.
+    **macOS**
 
-> **macOS**
->
-> Gatekeeper may block the install flow in two places:
->
-> - When you open the downloaded DMG, macOS may show a warning such as "cannot be opened because the developer cannot be verified." If you trust the release source, go to **System Settings > Privacy & Security** and click **Open Anyway**.
-> - After copying the app into **Applications**, macOS may block the first app launch again. If that happens, open the app once, then return to **System Settings > Privacy & Security** and click **Open Anyway**.
->
-> If the app still doesn't open because it remains quarantined, and you trust the app, one practical workaround is:
->
-> ```bash
-> xattr -dr com.apple.quarantine "/Applications/Spring AI Playground.app"
-> ```
->
-> **Windows**
->
-> The most common warning appears when you run the downloaded installer (`.exe`).
->
-> If Microsoft Defender SmartScreen shows a warning such as "Windows protected your PC" or says the app is unrecognized:
->
-> - Click **More info**
-> - Then click **Run anyway**
->
-> **Linux**
->
-> Separate Gatekeeper- or SmartScreen-style reputation warnings are uncommon. When installing the `.deb` or `.rpm` package, you usually only need to complete the normal package-install confirmation steps.
->
-> For more detailed platform guidance and first-launch configuration screens, see [Getting Started](getting-started/index.md).
+    Gatekeeper may block the install flow in two places:
 
-<div style="text-align: center;">
-  <b>First-Launch Configuration Screen</b><br/>
-  The configuration editor stacks every card on one scrollable screen - numbered top to bottom below
-</div>
+    - When you open the downloaded DMG, macOS may show a warning such as "cannot be opened because the developer cannot be verified." If you trust the release source, go to **System Settings > Privacy & Security** and click **Open Anyway**.
+    - After copying the app into **Applications**, macOS may block the first app launch again. If that happens, open the app once, then return to **System Settings > Privacy & Security** and click **Open Anyway**.
 
-<div style="text-align: center;">
-  <a href="assets/images/launcher-first-launch.png">
-    <img src="assets/images/launcher-first-launch.png" width="600" alt="Spring AI Playground first-launch configuration screen with numbered markers 1 to 8 from top to bottom - 1 Current Config and Setup Notes, 2 Spring AI Playground Config, 3 Ollama Startup, 4 Local Speech-to-Text, 5 Default MCP Tools, 6 Environment Variables, 7 JVM Settings, 8 the Save and Launch action bar"/>
-  </a>
-</div>
+    If the app still doesn't open because it remains quarantined, and you trust the app, one practical workaround is:
 
-The markers run top to bottom, and each card has a detailed step in the [Desktop App configuration walkthrough](getting-started/desktop.md#desktop-configuration-walkthrough):
+    ```bash
+    xattr -dr com.apple.quarantine "/Applications/Spring AI Playground.app"
+    ```
 
-1. **Current Config and Setup Notes** - explains the selected setting before you edit it ([details](getting-started/desktop.md#1-read-the-setup-notes-first))
-2. **Spring AI Playground Config** - pick the provider type, choose a saved setting, and edit the override YAML ([details](getting-started/desktop.md#2-choose-a-config-type))
-3. **Ollama Startup** - Ollama endpoint, install / connection status, and the configured models ([details](getting-started/desktop.md#6-understand-the-ollama-startup-card))
-4. **Local Speech-to-Text** - opt in to on-device voice input and download a Whisper model ([details](getting-started/desktop.md#local-speech-to-text-whisper))
-5. **Default MCP Tools** - choose which preset of built-in tools the MCP server exposes at boot ([details](getting-started/desktop.md#8-pick-your-default-mcp-tools))
-6. **Environment Variables** - API keys and tool secrets, encrypted by your OS keychain ([details](getting-started/desktop.md#9-use-environment-variables-for-keys-and-secrets))
-7. **JVM Settings** - optional launch-time JVM options and application args ([details](getting-started/desktop.md#10-set-jvm-and-app-args-only-when-needed))
-8. **Save and Launch action bar** - Export, Import, Factory Reset, Save, and Save and Launch ([details](getting-started/desktop.md#4-save-clone-delete-or-reset-settings))
+    **Windows**
 
-<div style="text-align: center;">
-  <b>Ollama Model Manager</b><br/>
-  Review recommended models, search exact Ollama names on ollama.com, and manage downloaded models
-</div>
+    The most common warning appears when you run the downloaded installer (`.exe`).
 
-<div style="text-align: center;">
-  <a href="assets/images/launcher-ollama-config.png">
-    <img src="assets/images/launcher-ollama-config.png" width="600" alt="Spring AI Playground Ollama model manager - status bar, download queue, and recommended and downloaded MLX models"/>
-  </a>
-</div>
+    If Microsoft Defender SmartScreen shows a warning such as "Windows protected your PC" or says the app is unrecognized:
 
-The model manager opens from the Ollama Startup card; see [Download and Manage Ollama Models](getting-started/desktop.md#7-download-and-manage-ollama-models) for the full walkthrough, including how to copy an exact model name from ollama.com.
+    - Click **More info**
+    - Then click **Run anyway**
 
-### 3. Start with the Built-in Desktop Runtime
+    **Linux**
 
-The desktop build is intended to be the easiest way to get started without setting up Docker or running the server manually.
+    Separate Gatekeeper- or SmartScreen-style reputation warnings are uncommon. When installing the `.deb` or `.rpm` package, you usually only need to complete the normal package-install confirmation steps.
 
-### 4. Optional: Use Docker Instead
+    For more detailed platform guidance and first-launch configuration screens, see [Getting Started](getting-started/index.md).
 
-By default the container behaves like the desktop / source app - Vaadin web UI on `http://localhost:8282` and a `streamable-http` MCP server in the same process. To use it as a stdio MCP server for Claude Desktop and other MCP clients instead, add `-e SPRING_PROFILES_INCLUDE=mcp-stdio` (see the [Docker section in Alternative Runtimes](getting-started/alternative-runtimes.md#docker)).
+??? info "The first-launch configuration screen"
 
-```bash
-docker run -d -p 8282:8282 --name spring-ai-playground \
-  -e SPRING_AI_OLLAMA_BASE_URL=http://host.docker.internal:11434 \
-  -v spring-ai-playground:/root \
-  --restart unless-stopped \
-  ghcr.io/spring-ai-community/spring-ai-playground:latest
-```
+    <div style="text-align: center;">
+      <b>First-Launch Configuration Screen</b><br/>
+      The configuration editor stacks every card on one scrollable screen - numbered top to bottom below
+    </div>
 
-Then open `http://localhost:8282`.
+    <div style="text-align: center;">
+      <a href="assets/images/launcher-first-launch.png">
+        <img src="assets/images/launcher-first-launch.png" width="600" alt="Spring AI Playground first-launch configuration screen with numbered markers 1 to 8 from top to bottom - 1 Current Config and Setup Notes, 2 Spring AI Playground Config, 3 Ollama Startup, 4 Local Speech-to-Text, 5 Default MCP Tools, 6 Environment Variables, 7 JVM Settings, 8 the Save and Launch action bar"/>
+      </a>
+    </div>
+
+    The markers run top to bottom, and each card has a detailed step in the [Desktop App configuration walkthrough](getting-started/desktop.md#desktop-configuration-walkthrough):
+
+    1. **Current Config and Setup Notes** - explains the selected setting before you edit it ([details](getting-started/desktop.md#1-read-the-setup-notes-first))
+    2. **Spring AI Playground Config** - pick the provider type, choose a saved setting, and edit the override YAML ([details](getting-started/desktop.md#2-choose-a-config-type))
+    3. **Ollama Startup** - Ollama endpoint, install / connection status, and the configured models ([details](getting-started/desktop.md#6-understand-the-ollama-startup-card))
+    4. **Local Speech-to-Text** - opt in to on-device voice input and download a Whisper model ([details](getting-started/desktop.md#local-speech-to-text-whisper))
+    5. **Default MCP Tools** - choose which preset of built-in tools the MCP server exposes at boot ([details](getting-started/desktop.md#8-pick-your-default-mcp-tools))
+    6. **Environment Variables** - API keys and tool secrets, encrypted by your OS keychain ([details](getting-started/desktop.md#9-use-environment-variables-for-keys-and-secrets))
+    7. **JVM Settings** - optional launch-time JVM options and application args ([details](getting-started/desktop.md#10-set-jvm-and-app-args-only-when-needed))
+    8. **Save and Launch action bar** - Export, Import, Factory Reset, Save, and Save and Launch ([details](getting-started/desktop.md#4-save-clone-delete-or-reset-settings))
+
+??? info "The Ollama model manager"
+
+    <div style="text-align: center;">
+      <b>Ollama Model Manager</b><br/>
+      Review recommended models, search exact Ollama names on ollama.com, and manage downloaded models
+    </div>
+
+    <div style="text-align: center;">
+      <a href="assets/images/launcher-ollama-config.png">
+        <img src="assets/images/launcher-ollama-config.png" width="600" alt="Spring AI Playground Ollama model manager - status bar, download queue, and recommended and downloaded MLX models"/>
+      </a>
+    </div>
+
+    The model manager opens from the Ollama Startup card; see [Download and Manage Ollama Models](getting-started/desktop.md#7-download-and-manage-ollama-models) for the full walkthrough, including how to copy an exact model name from ollama.com.
+
+??? note "Prefer Docker? Run the same app in a container"
+
+    By default the container behaves like the desktop / source app - Vaadin web UI on `http://localhost:8282` and a `streamable-http` MCP server in the same process. To use it as a stdio MCP server for Claude Desktop and other MCP clients instead, add `-e SPRING_PROFILES_INCLUDE=mcp-stdio` (see the [Docker section in Alternative Runtimes](getting-started/alternative-runtimes.md#docker)).
+
+    ```bash
+    docker run -d -p 8282:8282 --name spring-ai-playground \
+      -e SPRING_AI_OLLAMA_BASE_URL=http://host.docker.internal:11434 \
+      -v spring-ai-playground:/root \
+      --restart unless-stopped \
+      ghcr.io/spring-ai-community/spring-ai-playground:latest
+    ```
+
+    Then open `http://localhost:8282`.
+
+## :material-star-outline: Key Features { #key-features }
+
+Unlike many playgrounds that stop at prompt testing, this project connects AI conversations to real actions while making the tools it manages inside the app safer and easier to inspect before reuse:
+
+- **connect your AI over MCP and let it do the work, inside one safety net** - Claude, ChatGPT, Cursor or any MCP client connects to the playground's `/mcp` once, reads the [guides, start prompts and example tools the app serves](features/mcp-server/ai-guides.md), with this app's own sandbox limits filled in, and through the `saip_*` [management tools](features/mcp-server/management-tools.md) does the work itself:
+    - writes, tests and publishes JavaScript tools that earn their Local Pass ([Tutorial 18](tutorials/18-ai-authors-a-tool.md))
+    - registers external MCP servers and proxies their tools as one list ([Tutorial 20](tutorials/20-ai-registers-an-mcp-server.md#why))
+    - builds RAG knowledge from your documents and turns it into search tools ([Tutorial 21](tutorials/21-ai-builds-a-knowledge-server.md))
+    - monitors the app itself - tool calls, approvals, traces, logs and running servers - with the same numbers you see in Observability ([Tutorial 19](tutorials/19-knowledge-server-to-chatgpt.md#audit), [Tutorial 21](tutorials/21-ai-builds-a-knowledge-server.md#watch))
+    - runs the app's chat as a sub-agent ([Tutorial 22](tutorials/22-ai-chat-as-a-subagent.md))
+    - ships tools, proxied tools and knowledge as standalone MCP servers with Shipyard and runs them on Docker ([Tutorial 19](tutorials/19-knowledge-server-to-chatgpt.md#reship), [Tutorial 21](tutorials/21-ai-builds-a-knowledge-server.md#use))
+
+    Every change it makes and every call you mark asks you first in that client, and everything is logged and audited, readable from your AI with the `saip_monitor_*` tools and in the [Observability](features/observability/index.md) dashboards
+
+- build JavaScript tools directly in the app
+- earn a **Local Pass** by test-running each tool against sample arguments you define
+- **add tools live to the built-in MCP server** the moment each passes - no restart, no redeploy
+- start immediately with **116 pre-loaded default tools** - web, files, GitHub, Wikipedia, weather, finance, geo and Korean services ([browse below](#what-used-to-take-an-afternoon-already-wired-in))
+- connect external services in one click with **58 preset MCP server connections** - Gmail, Notion, Slack, GitHub, BigQuery, Tavily and more ([browse below](#what-used-to-take-an-afternoon-already-wired-in))
+- validate retrieval pipelines against your own documents
+- run agentic chat that combines tool use and grounded context (e.g. *"Get today's weather and send it to Slack"*)
+- **ship what passed as its own MCP server** with [Shipyard](features/mcp-server/index.md#shipyard) - tools, proxied tools and RAG knowledge in a Docker bundle that runs without the playground
+- run every tool in a **defense-in-depth GraalVM sandbox** with a visible **Risk Level** (L0-L5), and risk-score every external MCP server you connect ([AI Agent Tool Safety](safety-architecture.md))
+- **see every chat, tool call, vector query and MCP invocation** in the fourteen built-in [Observability dashboards](features/observability/index.md), down to the span timeline and back to the conversation
+
+??? abstract "Feature pages at a glance"
+
+    - [:material-robot-outline: AI Models](getting-started/external-connections.md#connect-model-providers): switch between Ollama, OpenAI, and OpenAI-compatible runtime paths.
+    - [:material-tools: Tool Studio](features/tool-studio/index.md): build low-code tools in JavaScript and expose them instantly through MCP.
+    - [:material-connection: MCP Server](features/mcp-server/index.md): inspect external MCP servers, read a live **risk score** (L0-L5) before connecting, and **proxy** their tools onto the built-in server - compose multiple servers into one surface - each gated by per-tool human-in-the-loop, with an optional bearer token on the built-in `/mcp` endpoint. Behind that token the same server offers the `saip_*` [management tools](features/mcp-server/management-tools.md), so an external AI can operate the app with your approval.
+    - [:material-ferry: Shipyard](features/mcp-server/index.md#shipyard): ship Local Pass tools, proxied tools and RAG knowledge as a standalone MCP server in Docker that runs without the playground, on local or remote Docker, behind a bearer token of its own.
+    - [:material-server-network: Default MCP Servers](features/default-mcp-catalog/index.md): 58 preset external MCP server connections (Gmail, Notion, Slack, GitHub, Tavily, ...) gated on `${ENV_VAR}` placeholders.
+    - [:material-database-search: RAG](features/vector-database.md): upload content, chunk it, enrich it, embed it, then compose a **Modular RAG pipeline** over it - query rewriting, multi-query expansion, re-ranking, prompt augmentation - and test it against the same executor chat uses.
+    - [:material-chat-processing: Agentic Chat](features/agentic-chat/index.md): combine grounded context, built-in tools, and explicitly trusted MCP connections in one interaction flow - with a Prompt Library of ready-to-use [presets](features/agentic-chat/prompt-presets.md) and [`{{variable}}` templates](features/agentic-chat/prompt-templates.md), [dynamic tool discovery](features/agentic-chat/dynamic-tool-discovery.md), per-turn reasoning effort, [document attachments with size-tiered ingest](features/rag/chat-attachments.md), [image attachments as multimodal vision input](features/agentic-chat/image-attachments.md), review-then-act [action cards](features/agentic-chat/index.md#action-cards) (email, calendar, map) and clickable file paths, on-device voice input, and rich code/math/diagram rendering.
+    - [:material-chart-line: Observability](features/observability/index.md): fourteen in-app dashboards covering token economics, tool and MCP behavior, RAG quality, host runtime, and a live trace tail.
+
+## :material-sitemap-outline: How it all connects { #how-it-all-connects }
+
+Spring AI Playground is **one local app with three roles**: an MCP **server** that publishes tools to your agents at `/mcp`, an MCP **client** that reaches external services, and a **workbench** where you build and vet tools. Your AI clients call its tools over `/mcp` (Claude Desktop through the `mcp-stdio` profile) or operate it through the `saip_*` [management tools](features/mcp-server/management-tools.md), and every change that matters comes back to you as an approval question. Tools from the built-in library, [Tool Studio](features/tool-studio/index.md) and [proxied external servers](features/mcp-server/proxy.md) are vetted before an agent can call them ([AI Agent Tool Safety](safety-architecture.md)), [Shipyard](features/mcp-server/index.md#shipyard) ships what passed as a standalone MCP server, and everything that runs lands in [Observability](features/observability/index.md). Models run local-first: Ollama by default, OpenAI and OpenAI-compatible runtimes optional.
+
+![Spring AI Playground integration architecture - used by you and your AI clients, which call the built-in MCP server's tools over /mcp or operate the app through the saip_* management tools after reading the saip://guide/* resources, with approval questions coming back to you; the server publishes built-in plus authored plus proxied and composed MCP tools under safety and observability; Shipyard ships tools, proxied tools and RAG knowledge as standalone MCP servers in Docker; local-first models and your documents below](assets/images/integration-architecture.svg){ loading=lazy }
+
+## :material-format-quote-close: Mentions and Coverage
+
+**[Introducing the Spring AI Community GitHub Organization](https://spring.io/blog/2025/10/07/spring-ai-community-announcement/)** - spring.io, October 7, 2025. Listed under Incubating Projects:
+
+> Spring AI Playground - Self-hosted web UI for AI experimentation and testing, enabling developers to explore Spring AI capabilities interactively. Led by Jemin Huh.
+
+**[This Week in Spring - June 2nd, 2026](https://spring.io/blog/2026/06/02/this-week-in-spring-june-2-2026/)** - spring.io, June 2, 2026. Josh Long in the weekly Spring ecosystem roundup:
+
+> the Spring AI Playground seems like a *very* interesting project indeed
+
+**[Client-Side Tool Risk Gating for MCP Hosts](https://owasp.org/www-project-mcp-top-10/2025/recommended-controls/Client-Side-Tool-Risk-Gating)** - OWASP MCP Top 10, merged July 29, 2026. Contributed from this project and accepted as a recommended control, written vendor-neutrally as a host-side pattern, with Spring AI Playground cited as its open-source reference implementation.
+
+**[The Complete Guide to AI Agent Development with Spring AI 2.0](https://jm-lab.github.io/spring-ai-agent-book/)** - Wikibooks, September 17, 2026, in Korean, written by this project's lead maintainer. Its [Spring AI Playground appendix](https://jm-lab.github.io/spring-ai-agent-book/appendix/23-spring-ai-playground/) introduces the app and connects the book's MCP servers to it; the companion site is free in English and Korean, and the [book](https://wikibook.co.kr/springai-agents/) itself is in Korean.
+
+Also carried on the [Spring AI Community project page](https://springaicommunity.mintlify.app/projects/incubating/spring-ai-playground) with the Incubating badge, and listed under UI Clients in [awesome-spring-ai](https://github.com/spring-ai-community/awesome-spring-ai). The full record of coverage and ecosystem listings lives on the [Mentions](mentions.md) page.
 
 ## :material-flash: What used to take an afternoon - already wired in
 
@@ -500,7 +518,7 @@ Installing an external MCP server normally means cloning a repo, installing the 
 
 </div>
 
-<p class="home-spotlight-cta">→ <a href="features/default-tools/index.md">Browse all 116 default tools</a> across Examples (29) · Utilities (26) · Filesystem (18) · Global (21) · Korea (22).</p>
+<p class="home-spotlight-cta">→ <a href="features/default-tools/">Browse all 116 default tools</a> across Examples (29) · Utilities (26) · Filesystem (18) · Global (21) · Korea (22).</p>
 
 ### External MCP - one click in the sidebar, fill `${ENV_VAR}`, done
 
@@ -551,51 +569,42 @@ Installing an external MCP server normally means cloning a repo, installing the 
 
 </div>
 
-<p class="home-spotlight-cta">→ <a href="features/default-mcp-catalog/index.md">Browse all 58 preset MCP connections</a> across Productivity & Communication (8) · Dev & Project Management (12) · Data & Cloud (18) · Business (12) · Search (6) · Examples (2). New to this surface? Walk through <a href="tutorials/9-mcp-everything.md">Tutorial 9 - MCP Everything: All 8 Primitives in One Walkthrough</a>.</p>
-
-## :material-view-grid-outline: What You Can Do
-
-- [:material-robot-outline: AI Models](getting-started/external-connections.md#connect-model-providers): switch between Ollama, OpenAI, and OpenAI-compatible runtime paths.
-- [:material-tools: Tool Studio](features/tool-studio/index.md): build low-code tools in JavaScript and expose them instantly through MCP.
-- [:material-connection: MCP Server](features/mcp-server/index.md): inspect external MCP servers, read a live **risk score** (L0-L5) before connecting, and **proxy** their tools onto the built-in server - compose multiple servers into one surface - each gated by per-tool human-in-the-loop, with an optional bearer token on the built-in `/mcp` endpoint.
-- [:material-server-network: Default MCP Servers](features/default-mcp-catalog/index.md): 58 preset external MCP server connections (Gmail, Notion, Slack, GitHub, Tavily, ...) gated on `${ENV_VAR}` placeholders.
-- [:material-database-search: RAG](features/vector-database.md): upload content, chunk it, enrich it, embed it, then compose a **Modular RAG pipeline** over it - query rewriting, multi-query expansion, re-ranking, prompt augmentation - and test it against the same executor chat uses.
-- [:material-chat-processing: Agentic Chat](features/agentic-chat/index.md): combine grounded context, built-in tools, and explicitly trusted MCP connections in one interaction flow - with a Prompt Library of ready-to-use [presets](features/agentic-chat/prompt-presets.md) and [`{{variable}}` templates](features/agentic-chat/prompt-templates.md), [dynamic tool discovery](features/agentic-chat/dynamic-tool-discovery.md), per-turn reasoning effort, [document attachments with size-tiered ingest](features/rag/chat-attachments.md), [image attachments as multimodal vision input](features/agentic-chat/image-attachments.md), review-then-act [action cards](features/agentic-chat/index.md#action-cards) (email, calendar, map) and clickable file paths, on-device voice input, and rich code/math/diagram rendering.
-- [:material-chart-line: Observability](features/observability/index.md): fourteen in-app dashboards covering token economics, tool and MCP behaviour, RAG quality, host runtime, and a live trace tail.
+<p class="home-spotlight-cta">→ <a href="features/default-mcp-catalog/">Browse all 58 preset MCP connections</a> across Productivity & Communication (8) · Dev & Project Management (12) · Data & Cloud (18) · Business (12) · Search (6) · Examples (2). New to this surface? Walk through <a href="tutorials/9-mcp-everything/">Tutorial 9 - MCP Everything: All 8 Primitives in One Walkthrough</a>.</p>
 
 ## :material-lightbulb-on-outline: Why This Project Exists
 
 As AI agents start calling real tools, what matters is no longer just the model's answer - it is which tool runs, what it can reach, whether it was tested, and whether you can see what it did afterward. Spring AI Playground started as a place to explore Spring AI's features; as agents and MCP became central to how AI apps are built, it grew into a tool-first environment for building, testing, validating, and operationalizing MCP tools - a safe local execution layer for the tools agents call.
 
-Its current focus is:
+??? quote "What the project focuses on now"
 
-- providing a UI-driven environment for building, testing, and validating MCP tools in a practical workflow
-- making test-before-publish the default path for built-in local tool exposure
-- testing tool execution flows, environment-backed tool configuration, and RAG integration in one place
-- making tools easier to inspect, easier to test, and easier to operationalize before they are reused elsewhere
-- supporting practical single-agent workflows through Agentic Chat with tools and grounded context. See [Agentic Chat Architecture Overview](features/agentic-chat/index.md#agentic-chat-architecture-overview).
-- promoting validated built-in tools into reusable MCP-hosted runtimes that can be shared across multiple MCP-compatible hosts and clients
+    Its current focus is:
 
-It is intentionally opinionated and scope-limited in its current stage. The goal is a stable, reproducible platform for practical MCP tool work rather than a feature-complete agent orchestration product.
+    - providing a UI-driven environment for building, testing, and validating MCP tools in a practical workflow
+    - making test-before-publish the default path for built-in local tool exposure
+    - testing tool execution flows, environment-backed tool configuration, and RAG integration in one place
+    - making tools easier to inspect, easier to test, and easier to operationalize before they are reused elsewhere
+    - supporting practical single-agent workflows through Agentic Chat with tools and grounded context. See [Agentic Chat Architecture Overview](features/agentic-chat/index.md#agentic-chat-architecture-overview).
+    - promoting validated built-in tools into reusable MCP-hosted runtimes that can be shared across multiple MCP-compatible hosts and clients, and shipping them with proxied tools and RAG knowledge as standalone MCP servers through Shipyard
+    - letting an external AI operate the app over MCP through the management tools, with human approval on every change that matters
 
-## :material-book-open-page-variant: Documentation Flow
-
-- Getting Started: install the desktop app first, configure models, and understand alternative runtimes
-- Architecture: runtime layers, data flows, and extension points (Application + AI Agent Tool Safety)
-- Features: the main product areas and what they do
-- Tutorials: follow real workflows for tools, MCP, vector search, and agentic chat
+    It is intentionally opinionated and scope-limited in its current stage. The goal is a stable, reproducible platform for practical MCP tool work rather than a feature-complete agent orchestration product.
 
 ## Further Reading
 
 - [Getting Started](getting-started/index.md): install the desktop app, configure models, and understand alternative runtimes
-- [Application Architecture](architecture.md): runtime layers, data flows, and extension points
-- [AI Agent Tool Safety Architecture](safety-architecture.md): defense-in-depth sandbox model, policy resolution, threat model, and Risk Level reference
-- [AI Agent Observability Architecture](observability-architecture.md): trace pipeline, storage tiers, configuration, and external export paths behind the fourteen dashboards
-- [Context Engineering Architecture](context-engineering-architecture.md): how each chat turn's context window is assembled from system prompt, retrieved documents, tools, memory, and per-request options
-- [Agent Loop](agent-loop-architecture.md): per-turn state, round bounds, and the interceptor chain that governs the Agentic Chat tool-calling loop
-- [OWASP MCP Top 10 Coverage](mcp-owasp-top-10.md): how the shipped controls map to MCP01-MCP10 and where coverage is partial, alongside [Client-Side Tool Risk Gating for MCP Hosts](https://owasp.org/www-project-mcp-top-10/2025/recommended-controls/Client-Side-Tool-Risk-Gating), the upstream OWASP recommended control contributed from this project
 - [Features](features/index.md): the main product areas and what they do
 - [Tutorials](tutorials/index.md): follow end-to-end workflows for tools, MCP, vector search, and agentic chat
+
+??? info "Architecture pages"
+
+    - [Application Architecture](architecture.md): runtime layers, data flows, and extension points
+    - [AI Agent Tool Safety Architecture](safety-architecture.md): defense-in-depth sandbox model, policy resolution, threat model, and Risk Level reference
+    - [OWASP MCP Top 10 Coverage](mcp-owasp-top-10.md): how the shipped controls map to MCP01-MCP10 and where coverage is partial, alongside [Client-Side Tool Risk Gating for MCP Hosts](https://owasp.org/www-project-mcp-top-10/2025/recommended-controls/Client-Side-Tool-Risk-Gating), the upstream OWASP recommended control contributed from this project
+    - [Agent Loop](agent-loop-architecture.md): per-turn state, round bounds, and the interceptor chain that governs the Agentic Chat tool-calling loop
+    - [Context Engineering Architecture](context-engineering-architecture.md): how each chat turn's context window is assembled from system prompt, retrieved documents, tools, memory, and per-request options
+    - [AI Agent Observability Architecture](observability-architecture.md): trace pipeline, storage tiers, configuration, and external export paths behind the fourteen dashboards
+    - [Shipyard Architecture](shipyard-architecture.md): one ship request from three entry points, the three bundle contributions, the fail-closed container and the freshness check
+    - [AI Operations Architecture](ai-operations-architecture.md): how an external AI operates the app over MCP, the one approval gate, the guides the app serves and the audit trail
 
 ## Analytics
 

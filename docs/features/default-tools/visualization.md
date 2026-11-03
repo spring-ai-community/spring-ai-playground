@@ -1,3 +1,4 @@
+videos: ep2
 title: Visualization & cards
 description: Default Tools - Visualization reference. 18 free L0 tools that return a saip-action block the chat renders as a rich interactive card - charts, maps, diagrams, tables, diffs, and more.
 

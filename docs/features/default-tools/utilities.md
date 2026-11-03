@@ -1,3 +1,4 @@
+videos: ep1
 description: Default Tools - Utilities reference. 26 pure-compute tools - text, datetime, math, security, encoding, crypto, CSV. No network, no env vars, no filesystem.
 
 # Default Tools - Utilities

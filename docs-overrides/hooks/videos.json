@@ -1,0 +1,72 @@
+{
+ "start": {
+  "id": "pOgsT-SOri4",
+  "kicker": "Start here",
+  "title": "Run real MCP tools safely with local AI"
+ },
+ "ep1": {
+  "id": "WiuBG9PxqwY",
+  "kicker": "EP 1",
+  "title": "Weather, a map and a drafted email you send yourself"
+ },
+ "ep2": {
+  "id": "A7Uv8MKyar0",
+  "kicker": "EP 2",
+  "title": "Live earthquake data on a map and a chart"
+ },
+ "ep3": {
+  "id": "J7zApmncelU",
+  "kicker": "EP 3",
+  "title": "A spreadsheet analyzed without uploading it"
+ },
+ "ep4": {
+  "id": "FIXmWACBl6I",
+  "kicker": "EP 4",
+  "title": "The model equips only the tool it needs"
+ },
+ "bonus": {
+  "id": "HVoM-tse_q8",
+  "kicker": "Bonus",
+  "title": "Every tool call, token, cost and risk"
+ },
+ "ep5": {
+  "id": "c1rxulSC9bw",
+  "kicker": "EP 5",
+  "title": "Write a tool, pass the Local Pass, call it from chat"
+ },
+ "ep6": {
+  "id": "9t9DELt2bRM",
+  "kicker": "EP 6",
+  "title": "Photos mapped from EXIF, approval before every delete"
+ },
+ "ep7": {
+  "id": "zARRVLg-7xA",
+  "kicker": "EP 7",
+  "title": "Korea's official stats charted through KOSIS MCP"
+ },
+ "ep8": {
+  "id": "8WJ7NfLv2Z0",
+  "kicker": "EP 8",
+  "title": "Drop a file into chat, then compose a RAG pipeline"
+ },
+ "proxy": {
+  "id": "xyAN8YVmtQY",
+  "kicker": "Video",
+  "title": "A safe MCP proxy for AI agents"
+ },
+ "ep9": {
+  "id": "uz2kNthufyQ",
+  "kicker": "EP 9",
+  "title": "An AI ships and runs an MCP server, every risky step asks"
+ },
+ "ep10": {
+  "id": "laVoocfuDiw",
+  "kicker": "EP 10",
+  "title": "An AI registers and proxies an MCP server"
+ },
+ "ep11": {
+  "id": "95dHiubJcUE",
+  "kicker": "EP 11",
+  "title": "An AI builds RAG knowledge and ships it as a server"
+ }
+}

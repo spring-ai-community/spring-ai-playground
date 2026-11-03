@@ -1,3 +1,4 @@
+videos: start
 title: Getting Started
 description: Pick your install path - desktop app, Docker, or source - then connect a model provider and run your first agentic chat.
 

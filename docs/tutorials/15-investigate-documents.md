@@ -1,3 +1,4 @@
+videos: ep3
 description: Tutorial 15 - investigate documents with the Document detective preset. Upload a file with requestFileUpload, then find, grep, and slice it the Unix-pipeline way.
 
 # Tutorial 15 - Investigate Documents with a Pipeline

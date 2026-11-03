@@ -1,3 +1,4 @@
+videos: ep6
 description: Tutorial 11 - turn on human-in-the-loop approval for a tool, then approve and decline its calls from inside Agentic Chat - the runtime safety gate that asks before a tool runs.
 
 # Tutorial 11 - Approve a Tool in Chat

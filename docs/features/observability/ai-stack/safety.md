@@ -1,3 +1,4 @@
+videos: bonus
 title: Safety
 description: MCP risk-model and sandbox safety signals - L0-L5 risk distribution, tool-poisoning hits, content-hash tamper rejects, HITL approval rate, sandbox guard blocks, and the audit trail of the management tools an external AI calls, all from lifetime counters.
 

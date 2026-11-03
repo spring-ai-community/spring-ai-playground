@@ -1,3 +1,4 @@
+videos: bonus
 title: Observability
 description: Fourteen in-app dashboards surfacing what a Spring AI Playground agent did - token economics, tool and MCP behavior, RAG quality, host runtime, Ollama monitoring, and a live trace tail.
 

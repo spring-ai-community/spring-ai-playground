@@ -1,3 +1,4 @@
+videos: bonus
 title: Overview
 description: The Observability landing dashboard - eight KPI cards, fifteen charts across six sections, and a live activity grid summarising every other tab's headline number.
 

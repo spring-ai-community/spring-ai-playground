@@ -1,3 +1,4 @@
+videos: ep8
 description: Tutorial 6 - run a single chat turn that needs both grounded knowledge and live tool execution. The full Spring AI Playground composition flow.
 
 # Tutorial 6 - Tools and RAG Together

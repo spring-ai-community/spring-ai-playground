@@ -1,3 +1,4 @@
+videos: proxy
 title: MCP Server Safety
 description: How Spring AI Playground vets external MCP servers and re-exposed tools - L0-L5 risk, poisoning scan, fingerprint ledger, shadowing rules, and HITL mitigation.
 

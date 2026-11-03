@@ -1,3 +1,4 @@
+videos: ep5 ep9
 description: Tutorial 16 - wrap a public REST API you already have access to as a tool, gate it behind human approval, and ship it with Shipyard as its own MCP server that any MCP client can call.
 
 # Tutorial 16 - From a Public API to Your Own MCP Server

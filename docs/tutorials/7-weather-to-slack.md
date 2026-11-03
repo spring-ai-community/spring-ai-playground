@@ -1,3 +1,4 @@
+videos: ep1 ep2
 description: Tutorial 7 - chain two built-in tools (getWeather → sendSlackMessage) in a single chat turn. See the agent loop chain real actions.
 
 # Tutorial 7 - Weather to Slack - A Two-Tool Chain

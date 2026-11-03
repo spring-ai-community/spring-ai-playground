@@ -1,6 +1,7 @@
 ---
 title: Shipyard Architecture
 description: How Spring AI Playground turns what passed its gates into a standalone MCP server - one ship request from three entry points, three bundle contributions, a fail-closed container that serves only its manifest, and the freshness check that marks a bundle out of date.
+videos: ep9 ep11
 ---
 
 # Shipyard Architecture

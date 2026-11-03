@@ -1,3 +1,4 @@
+videos: ep6 ep9
 title: Human-in-the-Loop Approval
 description: How Spring AI Playground gates tool calls behind human approval - one per-tool flag enforced at the caller's entry point: chat dialog or MCP elicitation, fail-safe.
 
