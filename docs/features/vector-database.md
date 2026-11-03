@@ -1,3 +1,4 @@
+videos: ep8 ep11
 description: Vector Database and RAG - Spring AI's ETL pipeline and Modular RAG architecture, mapped one to one onto the Playground's indexing, pipeline authoring, and chat surfaces.
 
 # Vector Database and RAG

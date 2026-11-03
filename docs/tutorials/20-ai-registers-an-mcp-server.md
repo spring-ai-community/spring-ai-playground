@@ -1,5 +1,6 @@
 ---
 description: Tutorial 20 - put a safety net in front of external MCP servers - connect your AI to the playground once, let ChatGPT find an MCP server in the catalog, register it and expose one of its tools through the built-in server behind human approval, call it, then compare the AI's own monitoring report with the Safety dashboard.
+videos: ep10
 ---
 
 # Tutorial 20 - Let an AI Proxy External MCP Servers Through a Safety Net

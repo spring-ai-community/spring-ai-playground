@@ -1,5 +1,6 @@
 ---
 description: Tutorial 19 - index two documents, ship them with Shipyard as a knowledge MCP server in Docker, connect ChatGPT to it, let ChatGPT add a tool and re-ship the server through the management MCP tools, then check what it did on the Safety dashboard.
+videos: ep9
 ---
 
 # Tutorial 19 - Ship a Knowledge Server and Hand It to ChatGPT

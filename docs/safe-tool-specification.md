@@ -1,4 +1,5 @@
 ---
+videos: ep5
 title: Safe Tool Specification
 description: Normative JSON spec for tools runnable in Spring AI Playground's Safe Local Execution Layer - two-field safety model, Risk Level L0-L5, lifecycle, JSON Schema.
 ---

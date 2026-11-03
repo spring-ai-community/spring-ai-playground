@@ -1,5 +1,6 @@
 ---
 description: Tutorial 21 - let ChatGPT build RAG knowledge from two documents over the management MCP tools, check it with a search, and ship it as its own knowledge MCP server in Docker, approving only the docker command; then ask the shipped server from any MCP client.
+videos: ep11
 ---
 
 # Tutorial 21 - Let an AI Build and Ship a Knowledge Server

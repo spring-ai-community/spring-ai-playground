@@ -1,3 +1,4 @@
+videos: bonus
 title: Traces
 description: The raw trace stream every other dashboard aggregates from, shown without rollup. Filter by model, status, or conversation, and open any row's Trace Detail.
 

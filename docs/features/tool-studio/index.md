@@ -1,3 +1,4 @@
+videos: ep5
 description: Tool Studio - low-code JavaScript tool authoring with deny-first sandbox, Draft state, built-in MCP exposure control, per-tool capability overrides.
 
 # Tool Studio

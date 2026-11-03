@@ -1,3 +1,4 @@
+videos: ep7
 description: Default MCP Servers - 58 preset external MCP server connections (50 remote + 8 stdio per OS), browsable + filterable across 6 category pages.
 
 # Default MCP Servers

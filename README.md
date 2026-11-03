@@ -8,48 +8,24 @@ Spring AI Playground is a cross-platform desktop app for building, testing, vali
 
 Every tool you build earns a **Local Pass** - a local test-run with your sample arguments. Only passing tools are added live to the built-in MCP server and become callable from Agentic Chat. A tool that has not passed is never exposed to an agent.
 
-> **Security scope.** The in-process sandbox is defense-in-depth for the local build-and-vet loop. It is not adversarial-grade isolation and not a gateway. To run tool code you do not trust, nest it in container or microVM isolation. See [Isolation tiers](https://spring-ai-community.github.io/spring-ai-playground/safety-architecture/#isolation-tiers).
-
 Safe execution does not end at publication. Every chat, tool call, vector lookup, and MCP invocation that runs in the app lands in the built-in **Observability dashboards** spanning Overview, Tokens & Cost, AI Models, Tool Studio, MCP Servers, MCP Inspector, Vector Database, Agentic Chat, Safety, Host, Ollama, Web Application, Logs, and Traces, backed by a ring buffer with dated disk persistence. Drill from a row into the trace timeline and raw spans, jump to the conversation thread, and deep-link back into Agentic Chat - so the tools you let an agent call are also the tools you can see in detail after the fact.
 
 In Tool Studio, new or updated built-in tools are test-run before they are published to the built-in MCP server. You do not need to know Java, Spring, or JVM internals to use it. If you can install a desktop app and write a small JavaScript function, you can build tools here and connect them to hosts and clients such as Claude Desktop, Claude Code, Cursor, IDEs, and other MCP-compatible environments.
 
-Ships with a **bundled catalog of default tools** - web fetch, datetime, math, security, encoding, crypto, filesystem, GitHub, Wikipedia, weather, finance, geo, and a Korean-domain bundle (Upbit, Bithumb, Naver, Kakao, KMA, KOFIC, KRX, data.go.kr keychain) - searchable and filterable in the [Default Tools directory](docs/features/default-tools/index.md#browse-all-tools).
-
-Plus a **preset catalog of external MCP servers** - Gmail, Notion, Slack, GitHub, Linear, Atlassian, Tavily, Firecrawl, Microsoft-Teams, Sentry, and more - grouped by category with `${ENV_VAR}` placeholders so disabled servers can't be activated without setup. Browse the full list in the [Default MCP Catalog](docs/features/default-mcp-catalog/index.md).
+> **Security scope.** The in-process sandbox is defense-in-depth for the local build-and-vet loop. It is not adversarial-grade isolation and not a gateway. To run tool code you do not trust, nest it in container or microVM isolation. See [Isolation tiers](https://spring-ai-community.github.io/spring-ai-playground/safety-architecture/#isolation-tiers).
 
 <p align="center">
   <b>Spring AI Playground - Demo</b><br/>
-  It sees your photos, maps them from EXIF · destructive deletes pause for your approval · 100% local
+  ChatGPT ships and runs an MCP server for you · every risky step waits for your approval · 100% local
 </p>
 
 <p align="center">
-  <a href="https://youtu.be/9t9DELt2bRM">
-    <img src="docs/assets/images/spring-ai-playground-ep6-poster.png" width="800" alt="Spring AI Playground demo - a local model reads photo EXIF, pins the shots on a map, and pauses at a tool approval dialog before deleting files"/>
+  <a href="https://youtu.be/uz2kNthufyQ">
+    <img src="docs/assets/images/spring-ai-playground-ep9-poster.png" width="800" alt="Spring AI Playground demo - ChatGPT writes and publishes a tool, ships a new version of a knowledge MCP server, and every destructive step pauses at an approval card for a person"/>
   </a>
   <br/>
-  <sub>▶ <a href="https://youtu.be/9t9DELt2bRM">Watch: It Asks Before It Deletes (1 minute)</a> · <a href="https://youtu.be/dR6XRs2-nEY">30-second trailer</a> · <a href="https://www.youtube.com/playlist?list=PLfizCrbCZK9k">full demo series (YouTube playlist)</a> · more on the <a href="https://spring-ai-community.github.io/spring-ai-playground/">docs site</a></sub>
+  <sub>▶ <a href="https://youtu.be/uz2kNthufyQ">Watch: An AI Ships and Runs an MCP Server (2.5 minutes)</a> · <a href="https://youtu.be/9t9DELt2bRM">It Asks Before It Deletes (1 minute)</a> · <a href="https://youtu.be/dR6XRs2-nEY">30-second trailer</a> · <a href="https://www.youtube.com/playlist?list=PLfizCrbCZK9k">full demo series (YouTube playlist)</a> · more on the <a href="https://spring-ai-community.github.io/spring-ai-playground/">docs site</a></sub>
 </p>
-
-## The Problem
-
-AI agents can generate tools quickly, but generated tools are not inherently safe to execute.
-
-- It is often unclear what actually runs at execution time
-- Failures are difficult to predict before real usage
-- Execution is not easily traceable or inspectable
-
-Most platforms focus on creation.
-
-Very few make verification part of the default workflow for built-in tool publication, and even fewer leave a clear trail of what each tool actually did after it ran. Spring AI Playground treats both as part of safe local execution - Local Pass at the gate, Observability dashboards on the inside.
-
-## Who is this for?
-
-- Developers building MCP tools who want validation built into the default workflow
-- Teams running MCP tools in agent host environments (Claude Code, Cursor, IDE plugins, mixed-stack runtimes) who need a stable local execution layer instead of ad-hoc local scripts
-- Teams who need a clear, local audit trail of token cost, latency, and per-call traces for chat, tool, vector, and MCP invocations
-- Spring developers looking for a working end-to-end reference implementation of Spring AI's ChatClient, MCP client/server, RAG advisor, vector store, and Observation API
-- Users of Claude Desktop, Claude Code, Cursor, and other MCP-compatible environments
 
 ## Quick Start
 
@@ -107,41 +83,27 @@ Every release ships with a matching `.sha256` checksum file and a Sigstore SLSA 
 
 Free code signing provided by [SignPath.io](https://signpath.io), certificate by [SignPath Foundation](https://signpath.org). See our [Code Signing Policy](CODE_SIGNING_POLICY.md) for how releases are built, signed, and verified.
 
+Windows installers are signed once the SignPath Foundation release certificate is issued (targeted for 1.0.0); until then they ship unsigned, so verify them with the published checksums and provenance attestations.
+
 The desktop launcher handles first-run setup on one screen - provider config, Default MCP Tools curation, and JVM/environment cards - and includes an Ollama model manager to review, search, and download models. See [Getting Started](https://spring-ai-community.github.io/spring-ai-playground/getting-started/) and [Model Configuration](https://spring-ai-community.github.io/spring-ai-playground/getting-started/#model-configuration).
 
-## Documentation
+## Key Features
 
-Detailed installation, configuration, features, and tutorials live in the documentation site:
+- **Connect Your AI over MCP and Let It Do the Work, Inside One Safety Net**: connect Claude, ChatGPT (Codex), Cursor or any MCP client to the playground's `/mcp` once. It reads the [guides, start prompts and example tools the app serves](https://spring-ai-community.github.io/spring-ai-playground/features/mcp-server/ai-guides/) over MCP, with this app's own sandbox limits filled in, and, through the `saip_*` [management tools](https://spring-ai-community.github.io/spring-ai-playground/features/mcp-server/management-tools/), does the work itself:
+  - writes, tests and publishes JavaScript tools that earn their Local Pass ([Tutorial 18](https://spring-ai-community.github.io/spring-ai-playground/tutorials/18-ai-authors-a-tool/))
+  - registers external MCP servers and proxies their tools as one list ([Tutorial 20](https://spring-ai-community.github.io/spring-ai-playground/tutorials/20-ai-registers-an-mcp-server/#why))
+  - builds RAG knowledge from your documents and turns it into search tools ([Tutorial 21](https://spring-ai-community.github.io/spring-ai-playground/tutorials/21-ai-builds-a-knowledge-server/))
+  - monitors the app itself: tool calls, approvals, risk events, traces, logs and running servers, the same numbers as the Observability dashboards ([Tutorial 19](https://spring-ai-community.github.io/spring-ai-playground/tutorials/19-knowledge-server-to-chatgpt/#audit), [Tutorial 21](https://spring-ai-community.github.io/spring-ai-playground/tutorials/21-ai-builds-a-knowledge-server/#watch))
+  - runs the app's chat as a sub-agent ([Tutorial 22](https://spring-ai-community.github.io/spring-ai-playground/tutorials/22-ai-chat-as-a-subagent/))
+  - ships tools, proxied tools and knowledge as standalone MCP servers with Shipyard and runs them on Docker ([Tutorial 19](https://spring-ai-community.github.io/spring-ai-playground/tutorials/19-knowledge-server-to-chatgpt/#reship), [Tutorial 21](https://spring-ai-community.github.io/spring-ai-playground/tutorials/21-ai-builds-a-knowledge-server/#use))
 
-- Documentation site: https://spring-ai-community.github.io/spring-ai-playground/
-- Getting Started: https://spring-ai-community.github.io/spring-ai-playground/getting-started/
-- Application Architecture: https://spring-ai-community.github.io/spring-ai-playground/architecture/
-- **AI Agent Tool Safety Architecture**: https://spring-ai-community.github.io/spring-ai-playground/safety-architecture/ - defense-in-depth sandbox model, policy resolution, threat model, and per-tool Risk Level reference
-- Features: https://spring-ai-community.github.io/spring-ai-playground/features/
-- Tutorials: https://spring-ai-community.github.io/spring-ai-playground/tutorials/
-- Demo videos ("Local Model, Real Agent" series): https://www.youtube.com/playlist?list=PLfizCrbCZK9k
-
-Alternative runtimes are still supported. The same Spring Boot fat JAR drives every channel; switching to a stdio MCP transport is opt-in via the `mcp-stdio` Spring profile.
-
-For the **app/web experience** (default - `streamable-http` MCP server on port 8282, Vaadin UI front and center):
-
-- Docker - `docker run -p 8282:8282 -v spring-ai-playground:/root ghcr.io/spring-ai-community/spring-ai-playground`
-- Local source run - `./mvnw -Pproduction spring-boot:run`
-
-For the **stdio MCP server** (drop-in for Claude Desktop, Claude Code, IDEs, and any other MCP-compatible client) - set `SPRING_PROFILES_INCLUDE=mcp-stdio` to layer the stdio transport on top of the default profile (so model config like Ollama / OpenAI is preserved):
-
-- Docker - `docker run -i --rm -e SPRING_PROFILES_INCLUDE=mcp-stdio -v spring-ai-playground:/root ghcr.io/spring-ai-community/spring-ai-playground`. Add `-p 8282:8282` if you also want browser access to the Vaadin Inspector alongside the stdio channel.
-- Raw fat JAR - download `spring-ai-playground-*.jar` from [Releases](https://github.com/spring-ai-community/spring-ai-playground/releases) (or `./mvnw -Pproduction package`) and run `SPRING_PROFILES_INCLUDE=mcp-stdio java -jar spring-ai-playground-*.jar`. No Docker required, ideal for Java/Spring developers and CI integrations.
-
-Full setup details for both modes live in [Getting Started: Alternative Runtimes](https://spring-ai-community.github.io/spring-ai-playground/getting-started/alternative-runtimes/).
-
-## Why Spring AI Playground?
-
+  Every change it makes and every call you mark asks you first in your client, and everything is logged and audited, readable from your AI with the `saip_monitor_*` tools and in the app's Observability dashboards.
 - **Built-In MCP Server**: Publish tools directly from the app and expose them immediately through the built-in MCP server instead of wiring ad-hoc local scripts by hand.
-- **External MCP Catalog**: a preset catalog of external MCP server connections (Gmail, Notion, Slack, GitHub, Linear, Atlassian, Tavily, Microsoft-Teams, Sentry, and more) grouped by category with `${ENV_VAR}` placeholders so disabled servers can't be activated without setup. One-click activation from the sidebar once the required env vars exist. Browse the full list in the [Default MCP Catalog](docs/features/default-mcp-catalog/index.md).
+- **External MCP Catalog**: a preset catalog of external MCP server connections (Gmail, Notion, Slack, GitHub, Linear, Atlassian, Tavily, Microsoft Teams, Sentry, and more) grouped by category with `${ENV_VAR}` placeholders so disabled servers can't be activated without setup. One-click activation from the sidebar once the required env vars exist. Browse the full list in the [Default MCP Catalog](docs/features/default-mcp-catalog/index.md).
 - **MCP Server Proxy**: Select tools from any connected external MCP server and re-expose them on the built-in `/mcp` endpoint - compose multiple servers into one surface callable from Agentic Chat, the Inspector, and external MCP clients, each gated by per-tool human-in-the-loop.
+- **Shipyard - ship what you validated as a standalone MCP server**: pick Local Pass tools, proxied external tools and RAG knowledge (a frozen snapshot of chunks and vectors behind a `search_` tool) and export a self-contained server bundle - a manifest with content hashes, `Dockerfile` / `compose` / README, and a `server.json` for the MCP registry. The bundle boots fail-closed, serves exactly what the manifest lists behind a bearer token of its own (`SAIP_MCP_AUTH_TOKEN`), enforced the same way as on the built-in server, and carries each tool's approval gate with it. Built servers are managed in one place: **Run** on local or remote Docker, status and logs, an **Out of date** banner when a source changed after shipping, and a Connect panel with one-click deep links and copy-ready snippets for common MCP clients.
 - **No Pass, No Run Workflow**: A new tool starts as a **Draft** - invisible to the MCP server and to chat. It only crosses the exposure gate after a Local Pass (a successful test run with its declared sample inputs), making validation part of the default product flow instead of an optional afterthought.
-- **Built-in MCP Server Native Tools**: The launcher's Default MCP Tools card and Tool Studio's Built-in MCP Server Native Tools drawer both edit the same `default-tools-preference.json` - pick a preset (`Starter 5`, `Dev Essentials`, `Korea Toolkit`, `File Toolkit`, `Everything`) plus optional per-tool include / exclude rules to decide exactly which subset of the bundled tools the built-in MCP server exposes.
+- **Built-in MCP Server Native Tools**: The launcher's Default MCP Tools card writes `default-tools-preference.json` - pick a preset (`Starter 5`, `Dev Essentials`, `Korea Toolkit (free)`, `File Toolkit`, `Everything`) plus optional per-tool include / exclude rules to decide which bundled tools the built-in MCP server exposes at boot; Tool Studio's Built-in MCP Server Native Tools drawer then adjusts that exposure tool by tool.
 - **Executable Tool Validation**: Test tools with real inputs, outputs, and runtime constraints before you reuse them from other MCP-compatible hosts and clients.
 - **Defense-in-depth Sandbox + Risk Level**: Every tool runs through a deny-first class allowlist, SSRF-guarded `fetch`, rooted `safety.fs`, statement and wall-clock limits, with a visible per-tool **Risk Level (L0-L5)** computed from the declared capabilities - surface every tool's blast radius before you publish it.
 - **Human-in-the-Loop Approval**: Sensitive tool calls pause for explicit approval - both Agentic Chat and the built-in MCP server gate per-tool execution behind a human confirmation, so an agent never runs a risky tool without your sign-off.
@@ -151,7 +113,7 @@ Full setup details for both modes live in [Getting Started: Alternative Runtimes
 - **OS-Independent Tool Runtime**: Tools are authored once as JavaScript and run through the same bundled runtime, so the same tool definition works consistently across macOS, Windows, and Linux.
 - **RAG You Can Inspect**: Vector Database splits RAG the way Spring AI does - an **offline ETL** flow (reader auto-picked from the file, chunk preview with per-chunk opt-out, optional LLM keyword / summary enrichment) and a **Pipeline Studio** that composes Modular RAG stages (rewrite, compression, translation, multi-query, retrieval scope, re-rank, augmentation) into saved pipelines. Agentic Chat picks a document or a pipeline as its RAG source and prints every stage, query, and score in the RAG panel. See [Vector Database and RAG](docs/features/vector-database.md).
 - **Chat Document Attachments**: Drop a PDF, DOCX, PPTX, Markdown, HTML, or text file on the prompt. Small files are injected in full; larger ones are chunked, embedded, and summarized into an always-present overview with scoped excerpt search, and stay private to the conversation until one click registers them in the Vector Database. See [Chat Attachments](docs/features/rag/chat-attachments.md).
-- **Locked-down or Model-free Deployments**: switch the built-in server's **Authentication** from None to **Bearer token** in the MCP Server settings drawer (generate, reveal, copy, applied without a restart) or set `spring.ai.playground.mcp-server.auth-token` for declarative deployments, and `/mcp` requires the token (a shared secret by design; outbound connections to external MCP servers keep full OAuth 2.1), and boot with `spring.ai.model.chat=none` / `spring.ai.model.embedding=none` to run the tool runtime and MCP server with no model provider at all.
+- **Locked-down or Model-free Deployments**: switch the built-in server's **Authentication** from None to **Bearer token** in the MCP Server settings drawer (generate, reveal, copy, applied without a restart), or set `spring.ai.playground.mcp-server.auth-token` for declarative deployments; `/mcp` then requires the token (a shared secret by design; outbound connections to external MCP servers keep full OAuth 2.1). Boot with `spring.ai.model.chat=none` / `spring.ai.model.embedding=none` to run the tool runtime and MCP server with no model provider at all. Set `SPRING_AI_PLAYGROUND_UI_ENABLED=false` to run the app, or a server shipped by Shipyard, as a headless MCP server with every screen answering `404`.
 - **Single-Agent Execution**: Use validated built-in tools together with grounded context (RAG) in Agentic Chat to handle focused, practical workflows without needing a larger orchestration layer. Agentic Chat can also call tools exposed by MCP servers that you explicitly connect and trust.
 - **Agentic Chat Workbench**: A Prompt Library of ready-to-use presets and `{{variable}}` templates, per-turn reasoning effort (Off/Low/Medium/High), a configurable per-chat memory window, dynamic tool discovery, document attachments routed by size into conversation-scoped RAG, image attachments as native multimodal input for vision models, review-then-act action cards (email, calendar, map), clickable file paths, on-device voice input, and rich rendering of syntax-highlighted code, KaTeX math, and Mermaid diagrams. See [Agentic Chat](docs/features/agentic-chat/index.md).
 - **Observability Dashboards**: Built-in dashboards spanning Overview, Tokens & Cost, AI Models, Tool Studio, MCP Servers, MCP Inspector, Vector Database, Agentic Chat, Safety, Host, Ollama, Web Application, Logs, and Traces, backed by an in-memory ring buffer with dated disk persistence. Drill from a row into the trace timeline and raw spans, jump to the full conversation thread, and deep-link straight back into Agentic Chat.
@@ -164,6 +126,41 @@ The intended workflow is practical and composable:
 - inspect everything live through MCP Inspector
 - index knowledge in Vector Database and shape retrieval in Pipeline Studio
 - combine tools and documents in Agentic Chat
+- ship what passed as a standalone MCP server with Shipyard, or let an external AI drive the same steps through the management tools with your approval
+
+Ships with a **bundled catalog of default tools** - web fetch, datetime, math, security, encoding, crypto, filesystem, GitHub, Wikipedia, weather, finance, geo, and a Korean-domain bundle (Upbit, Bithumb, Naver, Kakao, KMA, KOFIC, KRX, data.go.kr keychain) - searchable and filterable in the [Default Tools directory](docs/features/default-tools/index.md#browse-all-tools).
+
+Plus a **preset catalog of external MCP servers** - Gmail, Notion, Slack, GitHub, Linear, Atlassian, Tavily, Firecrawl, Microsoft Teams, Sentry, and more - grouped by category with `${ENV_VAR}` placeholders so disabled servers can't be activated without setup. Browse the full list in the [Default MCP Catalog](docs/features/default-mcp-catalog/index.md).
+
+## Featured In
+
+- **[Introducing the Spring AI Community GitHub Organization](https://spring.io/blog/2025/10/07/spring-ai-community-announcement/)** (spring.io) listed Spring AI Playground as an Incubating Project of the Spring AI Community.
+- **[This Week in Spring, June 2nd 2026](https://spring.io/blog/2026/06/02/this-week-in-spring-june-2-2026/)** (spring.io) called it "a *very* interesting project indeed".
+- **[Client-Side Tool Risk Gating for MCP Hosts](https://owasp.org/www-project-mcp-top-10/2025/recommended-controls/Client-Side-Tool-Risk-Gating)** (OWASP MCP Top 10) publishes a control pattern contributed from this project, citing Spring AI Playground as its open-source reference implementation.
+- **[The Complete Guide to AI Agent Development with Spring AI 2.0](https://jm-lab.github.io/spring-ai-agent-book/)** (Wikibooks, 2026, in Korean), written by this project's lead maintainer, introduces Spring AI Playground in its [appendix](https://jm-lab.github.io/spring-ai-agent-book/appendix/23-spring-ai-playground/) and connects the book's MCP servers to it.
+
+More coverage and ecosystem listings: [Mentions](https://spring-ai-community.github.io/spring-ai-playground/mentions/).
+
+## The Problem
+
+AI agents can generate tools quickly, but generated tools are not inherently safe to execute.
+
+- It is often unclear what actually runs at execution time
+- Failures are difficult to predict before real usage
+- Execution is not easily traceable or inspectable
+
+Most platforms focus on creation.
+
+Very few make verification part of the default workflow for built-in tool publication, and even fewer leave a clear trail of what each tool actually did after it ran. Spring AI Playground treats both as part of safe local execution - Local Pass at the gate, Observability dashboards on the inside.
+
+## Who is this for?
+
+- Developers building MCP tools who want validation built into the default workflow
+- Teams running MCP tools in agent host environments (Claude Code, Cursor, IDE plugins, mixed-stack runtimes) who need a stable local execution layer instead of ad-hoc local scripts
+- Teams who need a clear, local audit trail of token cost, latency, and per-call traces for chat, tool, vector, and MCP invocations
+- Teams who want to hand a vetted set of tools or knowledge to others as a standalone MCP server, or let an AI assistant run the app's own workflow under their approval
+- Spring developers looking for a working end-to-end reference implementation of Spring AI's ChatClient, MCP client/server, RAG advisor, vector store, and Observation API
+- Users of Claude Desktop, Claude Code, Cursor, and other MCP-compatible environments
 
 ## Why Not Just Use Agent Builders?
 
@@ -187,13 +184,35 @@ It also doubles as a working reference implementation of the Spring AI framework
 
 The version tracks the latest Spring AI release; use it as a reference when integrating these same features into your own Spring Boot app.
 
-## Featured In
+## Documentation
 
-- **[Introducing the Spring AI Community GitHub Organization](https://spring.io/blog/2025/10/07/spring-ai-community-announcement/)** (spring.io) listed Spring AI Playground as an Incubating Project of the Spring AI Community.
-- **[This Week in Spring, June 2nd 2026](https://spring.io/blog/2026/06/02/this-week-in-spring-june-2-2026/)** (spring.io) called it "a *very* interesting project indeed".
-- **[Client-Side Tool Risk Gating for MCP Hosts](https://owasp.org/www-project-mcp-top-10/2025/recommended-controls/Client-Side-Tool-Risk-Gating)** (OWASP MCP Top 10) publishes a control pattern contributed from this project, citing Spring AI Playground as its open-source reference implementation.
+Detailed installation, configuration, features, and tutorials live in the documentation site:
 
-More coverage and ecosystem listings: [Mentions](https://spring-ai-community.github.io/spring-ai-playground/mentions/).
+- Documentation site: https://spring-ai-community.github.io/spring-ai-playground/
+- Getting Started: https://spring-ai-community.github.io/spring-ai-playground/getting-started/
+- Application Architecture: https://spring-ai-community.github.io/spring-ai-playground/architecture/
+- **AI Agent Tool Safety Architecture**: https://spring-ai-community.github.io/spring-ai-playground/safety-architecture/ - defense-in-depth sandbox model, policy resolution, threat model, and per-tool Risk Level reference
+- Shipyard: https://spring-ai-community.github.io/spring-ai-playground/features/mcp-server/#shipyard - ship what passed as a standalone MCP server in Docker
+- Management MCP Tools: https://spring-ai-community.github.io/spring-ai-playground/features/mcp-server/management-tools/ - let an external AI read the app's guides as MCP resources and operate the app with your approval
+- AI Guides, Templates and Samples: https://spring-ai-community.github.io/spring-ai-playground/features/mcp-server/ai-guides/ - the guides, start prompts and example tools the built-in server hands an AI, word for word, and how to read them from your own app
+- Shipyard Architecture: https://spring-ai-community.github.io/spring-ai-playground/shipyard-architecture/ and AI Operations Architecture: https://spring-ai-community.github.io/spring-ai-playground/ai-operations-architecture/ - the bundle, the container and the approval gate behind both
+- Features: https://spring-ai-community.github.io/spring-ai-playground/features/
+- Tutorials: https://spring-ai-community.github.io/spring-ai-playground/tutorials/
+- Demo videos ("Local Model, Real Agent" series): https://www.youtube.com/playlist?list=PLfizCrbCZK9k
+
+Alternative runtimes are still supported. The same Spring Boot fat JAR drives every channel; switching to a stdio MCP transport is opt-in via the `mcp-stdio` Spring profile.
+
+For the **app/web experience** (default - `streamable-http` MCP server on port 8282, Vaadin UI front and center):
+
+- Docker - `docker run -p 8282:8282 -v spring-ai-playground:/root ghcr.io/spring-ai-community/spring-ai-playground`
+- Local source run - `./mvnw -Pproduction spring-boot:run`
+
+For the **stdio MCP server** (drop-in for Claude Desktop, Claude Code, IDEs, and any other MCP-compatible client) - set `SPRING_PROFILES_INCLUDE=mcp-stdio` to layer the stdio transport on top of the default profile (so model config like Ollama / OpenAI is preserved):
+
+- Docker - `docker run -i --rm -e SPRING_PROFILES_INCLUDE=mcp-stdio -v spring-ai-playground:/root ghcr.io/spring-ai-community/spring-ai-playground`. Add `-p 8282:8282` if you also want browser access to the Vaadin Inspector alongside the stdio channel.
+- Raw fat JAR - download `spring-ai-playground-*.jar` from [Releases](https://github.com/spring-ai-community/spring-ai-playground/releases) (or `./mvnw -Pproduction package`) and run `SPRING_PROFILES_INCLUDE=mcp-stdio java -jar spring-ai-playground-*.jar`. No Docker required, ideal for Java/Spring developers and CI integrations.
+
+Full setup details for both modes live in [Getting Started: Alternative Runtimes](https://spring-ai-community.github.io/spring-ai-playground/getting-started/alternative-runtimes/).
 
 ## Project Scope & Positioning
 
@@ -202,7 +221,7 @@ Spring AI Playground is a **tool-first environment** for building, testing, vali
 It is best understood as a **safe local execution layer for AI agent tools**.
 
 > **Note:** This project is intentionally focused in its current stage.  
-> The goal is to make MCP tool building, validation, inspection, and runtime exposure simple and reliable, so the tools you create here can be reused from MCP-compatible hosts and clients such as Claude Code, Claude Desktop, IDEs, and other agent environments.
+> The goal is to make MCP tool building, validation, inspection, runtime exposure, and shipping simple and reliable, so the tools you create here can be reused from MCP-compatible hosts and clients such as Claude Code, Claude Desktop, IDEs, and other agent environments.
 
 Current focus:
 
@@ -211,13 +230,14 @@ Current focus:
 - testing tool execution flows, environment-backed tool configuration, and RAG integration in one place
 - making tools easier to inspect, easier to test, and easier to operationalize before they are reused elsewhere
 - supporting practical single-agent workflows through Agentic Chat with tools and grounded context. See [Agentic Chat Architecture Overview](https://spring-ai-community.github.io/spring-ai-playground/features/agentic-chat/#agentic-chat-architecture-overview).
-- promoting validated built-in tools into reusable MCP-hosted runtimes that can be shared across multiple MCP-compatible hosts and clients
+- promoting validated built-in tools into reusable MCP-hosted runtimes that can be shared across multiple MCP-compatible hosts and clients, and shipping them with proxied tools and RAG knowledge as standalone MCP servers through Shipyard
+- letting an external AI operate the app over MCP through the management tools, with human approval on every change that matters
 
 It is not trying to replace the tools where agents actually run. It is designed to give you a clearer path from local tool prototype to inspectable, reusable MCP server.
 
 ## Contributing & Scope
 
-Please read this section before opening issues or submitting contributions.
+Please read this section before opening issues or submitting contributions. This section sets the scope: what we accept, what we do not, and what is planned. [CONTRIBUTING.md](CONTRIBUTING.md) explains how to contribute within it, step by step.
 
 ### Current Scope
 
@@ -227,11 +247,17 @@ Please read this section before opening issues or submitting contributions.
 
 ### Out of Scope For Now
 
-- feature requests and code contributions - the project is currently in a maintainer-driven phase with limited bandwidth. We are not accepting code PRs or feature proposals from outside contributors at this time. Bug reports and documentation fixes are very welcome.
+- feature requests and code contributions - the project is currently in a maintainer-driven phase with limited bandwidth. We are not accepting code PRs or feature proposals from outside contributors at this time. Bug reports and documentation fixes are very welcome. Local tools are the one planned exception, see [Planned: Local Tool Contributions](#planned-local-tool-contributions).
 - badge, directory-listing, and promotional-link PRs. The README carries build, release, and download badges only, matching the convention in `spring-projects` repositories. PRs that add third-party ranking, leaderboard, or referral badges are closed without further discussion. Being indexed by a directory does not require a badge, and we are glad to stay listed either way.
 - experimental model integrations outside the current supported provider list (currently: Ollama, OpenAI, and OpenAI-compatible APIs)
 - high-level multi-agent orchestration layers
 - platform-level marketplace or governance features
+
+### Planned: Local Tool Contributions
+
+Advance notice: we plan to open one kind of external contribution, **local tools** built in Tool Studio, written by a person, an AI agent, or both. A tool must earn its Local Pass in the app first. CI then re-runs the Local Pass, an LLM reviews the PR, and only then does the maintainer review and merge it. Accepted tools ship with the next release as a Community bundle.
+
+The acceptance rules, the CI and the review pipeline are being built now, so this is not open yet; please do not send tool PRs until it is. The plan, the draft rules and how to prepare a tool today are in [CONTRIBUTING.md](CONTRIBUTING.md#planned-local-tool-contributions).
 
 ### Reporting Issues
 
@@ -245,7 +271,7 @@ Pick the right channel:
 
 We triage issues regularly, and issues outside the current scope may be closed with guidance.
 
-If you have a contribution that fits the current scope (bug report, doc fix, usage example), submit a PR or a targeted issue. For anything else, please open a Discussion first - but be aware we may not act on it given current capacity.
+If you have a contribution that fits the current scope (bug report, doc fix, usage example), submit a PR or a targeted issue; [CONTRIBUTING.md](CONTRIBUTING.md#how-to-contribute-today) lists what each one needs. For anything else, please open a Discussion first - but be aware we may not act on it given current capacity.
 
 ## Anonymous Usage Telemetry
 
@@ -276,4 +302,4 @@ These are the next pieces we plan to add while keeping the project focused on pr
 
 ### Next Up
 
-- **Shipyard - ship what you validated as a standalone MCP server**: pick Local-Pass tools (then proxied external tools and RAG pipelines) and export a self-contained server bundle - a manifest with content hashes, `Dockerfile` / `compose` / README, and a `server.json` for the MCP registry. The bundle boots fail-closed and serves exactly what the manifest lists, behind the same bearer token as the built-in server. Built servers are managed in one place: **Run locally** on Docker, status and logs, and a Connect panel with one-click deep links and copy-ready snippets for common MCP clients. Only Local Pass capabilities can ship.
+- **1.0.0** - Shipyard and the management MCP tools, listed here while they were being built, shipped in 0.2.0-M14. The next steps toward the first stable release are support for the notifications the newest MCP spec still carries, opening [local tool contributions](#planned-local-tool-contributions) behind a review CI, signing the Windows installer with the SignPath Foundation certificate once it is issued, and the Microsoft Store listing. Another milestone may ship before 1.0.0.

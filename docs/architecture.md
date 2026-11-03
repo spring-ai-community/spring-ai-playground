@@ -1,3 +1,4 @@
+videos: start
 title: Application
 description: Spring AI Playground architecture - runtime layers, feature modules, data flows, and extension points across Tool Studio, MCP, RAG, and Agentic Chat.
 

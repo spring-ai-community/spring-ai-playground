@@ -1,3 +1,4 @@
+videos: bonus
 title: Tokens & Cost
 description: Token and money spend per turn, model, and provider, with the Model Pricing Manager for per-model rates, display currency, and paid-vs-free interpretation.
 

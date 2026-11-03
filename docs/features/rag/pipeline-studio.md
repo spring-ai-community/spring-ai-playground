@@ -1,3 +1,4 @@
+videos: ep8 ep11
 description: Author and test a Spring AI Modular RAG pipeline in the Playground - the four-stage wizard, the full mapping from each control to its Spring AI class, and the shared executor that makes the test match chat.
 
 # Pipeline Studio

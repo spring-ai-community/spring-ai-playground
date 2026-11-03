@@ -1,6 +1,7 @@
 ---
 title: AI Operations Architecture
 description: How an external AI operates Spring AI Playground over MCP - the saip_* management tools registered behind a bearer token, one approval gate that asks the person through elicitation, the same services the screens call, guides the app serves to the AI, and an audit trail that the Safety dashboard and the AI read alike.
+videos: ep9 ep10 ep11
 ---
 
 # AI Operations Architecture

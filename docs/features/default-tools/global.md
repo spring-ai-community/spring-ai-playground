@@ -1,3 +1,4 @@
+videos: ep1 ep2
 description: Default Tools - Global reference. 21 tools that call public HTTPS APIs - GitHub, Wikipedia, weather, finance, geo, search.
 
 # Default Tools - Global

@@ -1,5 +1,6 @@
 ---
 description: The guides, start prompts and example tools the built-in MCP server hands an external AI - the full text of every guide, what this app fills in at read time, the four prompts, the bundled examples, and how to read them yourself with the MCP Inspector or curl.
+videos: ep9 ep10 ep11
 ---
 
 # AI Guides, Templates and Samples

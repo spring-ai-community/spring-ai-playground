@@ -1,3 +1,4 @@
+videos: ep3
 title: Default Tool Examples
 description: Default Tools - Examples reference. 11 starter tools covering web fetch, datetime, productivity, search, AI, messaging, and image description.
 

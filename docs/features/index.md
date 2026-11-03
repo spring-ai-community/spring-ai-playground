@@ -1,3 +1,4 @@
+videos: start
 description: Explore Spring AI Playground features: Tool Studio, MCP Server, Vector Database, Agentic Chat, Shipyard, Observability, the management MCP tools that let an AI operate the app, and the safe local execution architecture.
 
 # Features

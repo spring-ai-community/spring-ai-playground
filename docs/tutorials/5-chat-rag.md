@@ -1,3 +1,4 @@
+videos: ep8
 description: Tutorial 5 - RAG without tools. Use an indexed document as grounded context in a chat answer, read the retrieval trace, then upgrade the same question to a staged Modular RAG pipeline.
 
 # Tutorial 5 - Chat With RAG

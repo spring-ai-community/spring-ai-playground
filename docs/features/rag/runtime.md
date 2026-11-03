@@ -1,3 +1,4 @@
+videos: ep8
 description: The runtime half of RAG - picking a pipeline or a document as the RAG source in Agentic Chat, reading the per-turn retrieval trace, and how the advisor drives the shared executor.
 
 # Runtime: RAG in Chat

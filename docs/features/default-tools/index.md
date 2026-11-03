@@ -1,3 +1,4 @@
+videos: ep1 ep2
 description: Default Tools - 116 ready-to-call JavaScript tools across 6 source bundles, exposed through the built-in MCP server, OS-agnostic by design.
 
 # Default Tools

@@ -1,3 +1,4 @@
+videos: ep8
 description: The offline half of RAG - Spring AI's ETL pipeline in the Playground, with every document reader, splitter setting, and metadata enricher mapped to its framework class.
 
 # Offline: Indexing

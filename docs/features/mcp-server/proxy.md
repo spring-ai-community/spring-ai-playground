@@ -1,3 +1,4 @@
+videos: proxy ep10
 description: MCP Server Proxy - a safety net for every external MCP server your AI uses - compose their tools into one list, gate calls with HITL approval, and log and monitor every call through the built-in server.
 
 # MCP Server Proxy - a Safety Net for External MCP Servers

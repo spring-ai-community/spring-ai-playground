@@ -33,6 +33,7 @@ plugins:
         color: "#FFFFFF"
 hooks:
   - docs-overrides/hooks/count_guard.py
+  - docs-overrides/hooks/related_videos.py
 theme:
   name: material
   custom_dir: docs-overrides

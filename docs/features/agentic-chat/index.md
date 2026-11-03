@@ -1,3 +1,4 @@
+videos: ep1 ep4
 description: Agentic Chat - one local runtime combining documents, tools, models, and memory, with system-prompt presets, per-turn reasoning, and rich Markdown rendering.
 
 # Agentic Chat

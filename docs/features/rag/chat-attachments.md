@@ -1,5 +1,6 @@
 ---
 description: Drop a document on the Agentic Chat prompt and it becomes conversation knowledge - size-tiered ingest through the offline ETL, an always-injected document overview, and threshold-free scoped retrieval, with every search printed in the chat RAG panel.
+videos: ep8
 ---
 
 # Chat Attachments
