@@ -105,13 +105,40 @@ The right half of the pipeline surface is a chat-style test conversation, and it
 
 ![The pipeline surface after a test run - the configuration summary on the left, and on the right the question, a Retrieved 2 docs result with per-document similarity scores, and the collapsible Final prompt and Trace sections](../../assets/images/rag/pipeline-studio-run.png)
 
-Each run exposes three collapsible sections:
+While a run is in flight, the bubble first lists the steps this pipeline will execute with their settings (Pre-Retrieval, Retrieval, Post-Retrieval, Augment, LLM), each pending. Each step ticks the moment it finishes and shows its own time and its result right away (the retrieved documents and scores, the final documents, the assembled prompt). The step that is running shows a live `running N s` timer under a `Running pipeline... N s` header, so a long LLM step is visibly still working. When the run completes, the **Final Answer** (or the final prompt when Run LLM is off) takes the top of the bubble and the rest folds underneath: **Steps (N)**, then the headline `Retrieved X docs → Y final · N.N s`, then the Documents, Final prompt and Trace sections.
 
+Each run exposes four collapsible sections:
+
+- **Steps** - every step with its settings, its own time, and its result
 - **Documents** - what retrieval actually returned, after post-processing
 - **Final prompt** - the exact text the augmenter produced
 - **Trace** - stage-by-stage events, including the transformed query each stage handed to the next
 
-The conversation keeps its history, so Compression has something to compress. Re-selecting the same pipeline preserves the conversation; **Clear** resets it.
+The conversation keeps its history, so Compression has something to compress. Re-selecting the same pipeline preserves the conversation; the **Clear** (eraser) button next to **Run** resets it.
+
+**Ship** in the summary bar, next to **Edit**, opens [Shipyard](../mcp-server/index.md#shipyard) with this pipeline as a knowledge source and carries your last test question into **Try**.
+
+## Declare pipelines in configuration
+
+A pipeline is a record with the dialog's fields, so it can be declared in configuration and applied on every start.
+The name is the key: an existing pipeline with that name is updated in place, documents are referenced by title or id.
+
+```yaml
+spring:
+  ai:
+    playground:
+      rag:
+        pipelines:
+          - name: Advanced RAG
+            documents: [Field Service Handbook]
+            pre-retrieval: {rewrite: true, multi-query: true, multi-query-count: 3}
+            retrieval: {top-k: 6}
+            post-retrieval: {re-rank-by-score: true}
+```
+
+Declared pipelines carry a **Config** badge in the list (hover: *Managed by configuration*) and cannot be edited or
+deleted from the dialog. A Shipyard server declared under `spring.ai.playground.shipyard.servers` can name such a pipeline as its
+knowledge source, which turns one configuration file into a complete knowledge MCP server declaration.
 
 ## The default pipeline
 

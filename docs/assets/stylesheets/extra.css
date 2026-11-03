@@ -2,6 +2,21 @@
    hierarchical nav (Features and Tutorials sections + sub-pages) is reachable
    without diving into the hamburger on desktop. */
 
+@media screen and (max-width: 76.234375em) {
+  .md-header__button[for="__drawer"] {
+    order: -1;
+  }
+
+  .md-header__button.md-logo {
+    display: inline-block;
+    margin: 0.2rem 0;
+  }
+
+  .md-header__title {
+    margin-left: 0.4rem;
+  }
+}
+
 /* Top-tab hover dropdown - rendered by docs-overrides/partials/tabs-item.html.
    Each top tab whose section has multiple sub-pages gets a panel that lists
    those sub-pages. The tab link itself still navigates to the section index;

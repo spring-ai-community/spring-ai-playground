@@ -2,7 +2,7 @@ description: Default MCP Servers - Productivity & Communication reference: 8 pre
 
 # Default MCP Servers - Productivity & Communication
 
-Email, calendar, notes, chat, team messaging - the surfaces an agent most often reaches into on behalf of a user. Every entry is a vendor-official remote MCP server and uses OAuth 2.1 Authorization Code; the Microsoft entries route through Microsoft 365 Agent365 and need `MS_TENANT_ID` set as an OS environment variable before connect.
+Email, calendar, notes, chat, team messaging - the surfaces an agent most often reaches into on behalf of a user. Every entry is a vendor-official remote MCP server, and all except Kakao PlayMCP (Bearer token) use OAuth 2.1 Authorization Code; the Microsoft entries route through Microsoft 365 Agent365 and need `MS_TENANT_ID` set as an OS environment variable before connect.
 
 ## Entries (8)
 
@@ -36,7 +36,7 @@ Read, search, and send Gmail messages, manage labels and drafts. Google Workspac
 
 **Stability** - PREVIEW · **Tier** - Tier 1
 
-**Required env** - -
+**Required env** - `GMAIL_OAUTH_CLIENT_ID`
 
 **Tags** - global · preview
 
@@ -90,7 +90,7 @@ Read, send, and organise Outlook mail across folders. Routed through Microsoft 3
 
 **Stability** - GA · **Tier** - Tier 1
 
-**Required env** - `MS_TENANT_ID`
+**Required env** - `MS_TENANT_ID` · `OUTLOOK_MAIL_OAUTH_CLIENT_ID`
 
 **Tags** - global
 
@@ -144,7 +144,7 @@ Create, list, and manage Google Calendar events, attendees, reminders, and recur
 
 **Stability** - PREVIEW · **Tier** - Tier 1
 
-**Required env** - -
+**Required env** - `GOOGLE_CALENDAR_OAUTH_CLIENT_ID`
 
 **Tags** - global · preview
 
@@ -196,7 +196,7 @@ Browse Outlook calendars, schedule and update meetings, manage availability via 
 
 **Stability** - GA · **Tier** - Tier 1
 
-**Required env** - `MS_TENANT_ID`
+**Required env** - `MS_TENANT_ID` · `OUTLOOK_CALENDAR_OAUTH_CLIENT_ID`
 
 **Tags** - global
 
@@ -251,7 +251,7 @@ Browse, create, and edit Notion pages, databases, and properties. Vendor-hosted 
 
 **Stability** - GA · **Tier** - Tier 1
 
-**Required env** - -
+**Required env** - `NOTION_OAUTH_CLIENT_ID`
 
 **Tags** - global
 
@@ -398,7 +398,7 @@ Read and post Slack messages across channels and DMs, search the workspace, mana
 
 **Stability** - GA · **Tier** - Tier 1
 
-**Required env** - -
+**Required env** - `SLACK_OAUTH_CLIENT_ID`
 
 **Tags** - global
 
@@ -440,7 +440,7 @@ Send messages to Teams chats and channels, search conversations, manage meetings
 
 **Stability** - GA · **Tier** - Tier 1
 
-**Required env** - `MS_TENANT_ID`
+**Required env** - `MS_TENANT_ID` · `MICROSOFT_TEAMS_OAUTH_CLIENT_ID`
 
 **Tags** - global
 
@@ -481,7 +481,7 @@ The eight entries on this page are usually most useful as **pairs or triplets** 
 
 ## Auth & secrets { #auth-secrets }
 
-Every entry on this page uses OAuth 2.1 Authorization Code. Two also need an OS environment variable on top of OAuth, supplied as a `${VAR}` placeholder in the URL or `requiredEnv`:
+Every entry except Kakao PlayMCP uses OAuth 2.1 Authorization Code. Four also need an OS environment variable, supplied as a `${VAR}` placeholder in the URL or `requiredEnv`:
 
 | Connection | OAuth issuer | Extra env |
 |---|---|---|

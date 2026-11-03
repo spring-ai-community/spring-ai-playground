@@ -49,7 +49,7 @@ Throughout this document:
 - *Spec* refers to a single conforming JSON document.
 - *Resolver* refers to the implementation that turns `sandboxOverrides` into `toolSafety`. The reference resolver is `SandboxPostureCalculator` in the Spring AI Playground codebase.
 - *Runtime* refers to the JavaScript executor that runs the tool's `code` after the posture is resolved.
-- *Catalog* refers to the bundled set of specs shipped with the playground (`src/main/resources/tool/default-tool-specs-*.json`).
+- *Catalog* refers to the bundled set of specs shipped with the playground (`src/main/resources/tool/default-tool-specs*.json`).
 
 ### 1.3 Conformance
 
@@ -84,7 +84,7 @@ The gap they leave open:
 - **Where is the tool body?** In MCP, OpenAI, Anthropic, and Google function specs, the body is application code, not part of the document. Two engineers receiving the same spec write two different implementations.
 - **What enforcement runs around the body?** None of the wire-format specs has a field that says "this tool needs filesystem read access" or "this tool's egress is restricted to `api.example.com`." Safety is something the host application implements separately - if it does at all.
 - **How is the tool validated before publish?** None of the others define a publish gate. The Safe Tool Spec's `testValue` + Local Pass turns the spec into its own validation artifact: a spec that does not pass its own declared test does not reach the wire.
-- **What does the audit log record?** Wire-format specs are silent on this. The Safe Tool Spec writes the resolved `toolSafety` block into the audit log on every invocation, so "what was actually enforced at this call" is a property of the spec, not of out-of-band instrumentation.
+- **What does the audit log record?** Wire-format specs are silent on this. The Safe Tool Spec requires a conforming runtime to write the resolved `toolSafety` block into the audit log on every invocation (Section 11.4), so "what was actually enforced at this call" is a property of the spec, not of out-of-band instrumentation.
 
 #### 1.4.1 How Safe Tool Spec composes with the wire formats
 
@@ -110,7 +110,7 @@ What flows through each boundary:
 - **Spec → MCP entry**: the playground's MCP server emits each non-draft Safe Tool Spec as an MCP `tools/list` entry containing exactly the model-visible subset - `name`, `description`, and `params` lowered into JSON Schema. `code`, `staticVariables`, `sandboxOverrides`, `toolSafety`, `testValue`, and `draft` are stripped. The model never sees them.
 - **MCP entry → LLM**: identical to any other MCP-served tool. The LLM treats it as an opaque named function with typed arguments. A Safe Tool Spec is indistinguishable from any other tool at this layer.
 - **`tools/call` → runtime**: when the LLM invokes the tool, the playground executes `code` under the resolved `toolSafety`. From the LLM's perspective this is a normal MCP `tools/call`; from the runtime's perspective it is a sandboxed JS invocation with the audit trail described in Section 11.4.
-- **Audit ← runtime**: every invocation records the resolved `toolSafety` block alongside the request. Operators reading the audit log can answer "what posture was active when this tool was called" *from the spec itself*, without re-running the resolver or correlating across logs.
+- **Audit ← runtime**: a conforming runtime records the resolved `toolSafety` block alongside every request (Section 11.4; the reference runtime does not implement this record yet). Operators reading the audit log can answer "what posture was active when this tool was called" *from the spec itself*, without re-running the resolver or correlating across logs.
 
 The pattern is the same separation MCP itself draws: protocol vs. execution. MCP standardizes the wire; the Safe Tool Spec standardizes the on-disk artifact that produces the wire output, gates publication on Local Pass, and writes the enforcement record back into the audit log when the wire call returns.
 
@@ -160,7 +160,7 @@ flowchart TB
     SPEC --- BK
 ```
 
-The three blocks correspond to three of the four product-positioning words from Section 1.1: **Identity** is "for AI Agent Tools" (the model-visible surface), **Code** is "Execution Layer" (the JS the runtime actually runs), **Safety** is "Safe" (what the sandbox guarantees). Sections 4-9 cover Identity and Code, Section 10 is the entire Safety block, Sections 11-12 cover lifecycle and bookkeeping.
+The three blocks correspond to three of the four product-positioning words from [Application → Safe Tool Spec](architecture.md#safe-tool-spec): **Identity** is "for AI Agent Tools" (the model-visible surface), **Code** is "Execution Layer" (the JS the runtime actually runs), **Safety** is "Safe" (what the sandbox guarantees). Sections 4-9 cover Identity and Code, Section 10 is the entire Safety block, Sections 11-12 cover lifecycle and bookkeeping.
 
 The literal JSON shape:
 
@@ -399,7 +399,7 @@ When the resolved posture grants the corresponding capability, the runtime expos
 | Helper | Required posture | Purpose |
 |---|---|---|
 | `safety.fs/v1` (read group) | `capabilities.fileRead = true` | `readText`, `list`, `exists`, `stat`, `grep`, `searchInFiles`, `lineCount`, `slice`, `cut`, `sort`, `find` - all rooted at `fsBasePath` with path-escape protection |
-| `safety.fs/v1` (write group) | `capabilities.fileWrite = true` | `writeText`, `appendText`, `editText`, `copy` (create / amend inside the workspace); `move`, `delete`, `deleteDir` additionally require `destructive: true` and are irreversible |
+| `safety.fs/v1` (write group) | `capabilities.fileWrite = true` | `writeText`, `appendText`, `editText`, `copy`, `move`, `delete`, `deleteDir`; `move`, `delete` and `deleteDir` are irreversible, so a tool that uses them SHOULD declare `destructive: true` (scored L5) |
 | `safety.parser/v1` (or `tool-safety-helpers/v1#parser`) | always available | Jsoup HTML, SnakeYAML `load`, RFC 4180 CSV, DTD/XXE-hardened XML - see Section 8.4 for the per-helper contract and known security caveats |
 | `safety.http/v1` | `capabilities.network.mode != "blocked"` | Outbound HTTP via `fetch` with the SSRF four-layer guard active in `strict` mode (in `allowlist` mode only the explicit host allow-list is enforced - no IP/DNS-rebind guard) |
 | `tool-safety-helpers/v1#crypto` | always available | The `crypto.subtle` API and related primitives |
@@ -438,7 +438,7 @@ Catalog-conformant authors SHOULD pick from the list above. Authors publishing p
 `tags` are cohort labels distinct from `category`. Where `category` answers "*what does the tool do?*" `tags` answers "*what cohort does it belong to?*"
 
 - `tags` MUST contain at most **2** values per spec. Catalog tooling rejects specs that exceed this on import.
-- `tags` are drawn from a controlled vocabulary in the bundled catalog: `korea` · `example` · `util` · `pipeline` · `github` · `search` · `finance` · `weather` · `geo`. Future minor versions of this spec MAY enlarge the vocabulary; vocabulary additions are non-breaking.
+- `tags` are drawn from a controlled vocabulary in the bundled catalog: `korea` · `example` · `util` · `pipeline` · `visualization` · `github` · `search` · `finance` · `weather` · `geo`. Future minor versions of this spec MAY enlarge the vocabulary; vocabulary additions are non-breaking.
 - `tags` MUST NOT carry capability or auth signals. Capability lives in `sandboxOverrides`; secret-backing lives in `staticVariables`. Encoding the same fact in two places is a maintenance hazard.
 
 ### 9.3 Locale rule
@@ -593,9 +593,9 @@ The algorithm is **monotonic with respect to risk**: nothing in `sandboxOverride
 | `capabilities.fileRead` | boolean | Resolved read capability |
 | `capabilities.fileWrite` | boolean | Resolved write capability |
 
-`toolSafety` is the auditable record of what the runtime is committed to enforce. The audit log records this block per invocation; downstream consumers SHOULD treat it as authoritative for "what posture was active at this call."
+`toolSafety` is the auditable record of what the runtime is committed to enforce. A conforming runtime's audit log records this block per invocation (Section 11.4); downstream consumers SHOULD treat it as authoritative for "what posture was active at this call."
 
-> **Implementation note.** In the reference Spring AI Playground runtime (v0.2.x), `toolSafety` is written by Tool Studio at publish-time but is **not** re-derived on every load - the persisted block is the writer's last snapshot. Downstream consumers that need byte-fresh policy MUST re-run the resolver against `sandboxOverrides` rather than trusting `toolSafety` for enforcement decisions on a foreign spec.
+> **Implementation note.** In the reference Spring AI Playground runtime (v0.2.x), `toolSafety` is neither generated nor read: the bundled catalog specs carry a maintained snapshot, Tool Studio does not write one, and both enforcement and the Risk Level are derived from `sandboxOverrides` on every call. The per-invocation audit record of Section 11.4 is not implemented in the reference runtime. Consumers MUST re-run the resolver against `sandboxOverrides` rather than trusting `toolSafety`.
 
 ### 10.4 Network mode behavioral table
 
@@ -616,7 +616,7 @@ The default at the *baseline* level is `blocked`. Authors who do not declare `ne
 |---|---|---|---|
 | `false` (or null inheriting false) | `false` | not exposed | The helper is not even installed in the runtime's `safety` object. |
 | `true` | `false` | exposed, read-only group | `writeText` throws; all other `fs.*` work, scoped under `fsBasePath`. |
-| `false` | `true` | exposed, write-only | Only `writeText` works; all other `fs.*` throw. |
+| `false` | `true` | exposed, write group only | The write helpers (`writeText`, `appendText`, `editText`, `copy`, `move`, `delete`, `deleteDir`) work; the read helpers are not installed. |
 | `true` | `true` | exposed, full | All `fs.*` work. |
 
 `fsBasePath` is the root the helper enforces. Any path argument the tool passes to `fs.*` is resolved relative to `fsBasePath` and then re-normalized; arguments that escape (`..` traversal) MUST be refused with a `SECURITY` `JsHelperException`.
@@ -635,7 +635,7 @@ if fileWrite:                                risk := max(risk, L4)
 elif fileRead:                               risk := max(risk, L3)
 if destructive:                              risk := max(risk, L5)
 
-for cls in (baseline.deny - sandboxOverrides.removeDenyClasses):
+for cls in (baseline.deny ∩ sandboxOverrides.removeDenyClasses):
     if cls matches System|Runtime|Process|ProcessBuilder:  risk := max(risk, L5)
 if |removed-from-baseline-deny| ≥ 3:                       risk := max(risk, L4)
 elif |removed-from-baseline-deny| ≥ 1:                     risk := max(risk, L3)
@@ -672,7 +672,7 @@ The two modes:
 - **`REQUIRED`** - every call is gated. In Agentic Chat the user sees an approve/decline dialog; an external MCP client is asked through MCP `elicitation/create`. A decline (or timeout, or a client that cannot ask) means the tool does **not** run - approval is deny-by-default.
 - **`DISABLED`** - the tool runs without any approval step (the sandbox still applies).
 
-Enabling this block does **not** change the tool's computed Risk Level - the two are orthogonal. The runtime enforcement (the two gates, the loopback de-duplication, and the fail-safe behavior) is specified in **[Human-in-the-Loop Approval](hitl-architecture.md)**; this section only defines the on-disk shape.
+Enabling this block does **not** change the tool's inherent Risk Level, which still drives the sandbox and the audit log; the playground shows a one-band-lower *effective* level beside it (`L5 → L4`) unless the description trips the poisoning scan - see [MCP Server Safety → Composed risk and HITL mitigation](mcp-server-safety.md#composed-risk). The runtime enforcement (the two gates, the loopback de-duplication, and the fail-safe behavior) is specified in **[Human-in-the-Loop Approval](hitl-architecture.md)**; this section only defines the on-disk shape.
 
 ## 11. Lifecycle
 
@@ -741,6 +741,8 @@ Every invocation MUST record (at minimum):
 
 The audit record is the source of truth for "what was actually enforced." Implementations MAY append additional fields (`cid`, request id, MCP client metadata).
 
+> **Implementation note.** The reference Spring AI Playground runtime (v0.2.x) does not implement this per-invocation record yet: tool calls are logged and traced, but those entries do not carry the `toolSafety` block.
+
 ## 12. Persistence
 
 ### 12.1 File layout
@@ -760,7 +762,7 @@ The bundle file contains both the spec list and the MCP server settings:
 }
 ```
 
-Specs that originate from the bundled catalog (`src/main/resources/tool/default-tool-specs-*.json`) are excluded from the bundle on save - they are reloaded from the classpath on startup, with user overrides matched by `toolId` and merged on top.
+Specs that originate from the bundled catalog (`src/main/resources/tool/default-tool-specs*.json`) are excluded from the bundle on save - they are reloaded from the classpath on startup, with user overrides matched by `toolId` and merged on top.
 
 Implementations are free to choose a different file layout (one file per spec, sharded by category, database-backed) as long as the round-trip JSON shape of each spec conforms to this specification.
 
@@ -769,7 +771,7 @@ Implementations are free to choose a different file layout (one file per spec, s
 Writers MUST commit changes atomically:
 
 1. Serialize the bundle to a sibling temp file (`toolSpecsMcpSetting.json.tmp`).
-2. `renameSync` the temp file over the target. POSIX rename guarantees atomicity within the same filesystem.
+2. Atomically rename the temp file over the target (`Files.move` with `ATOMIC_MOVE` in the reference runtime). POSIX rename guarantees atomicity within the same filesystem.
 
 Readers MUST read after the rename completes - a writer that crashes mid-rename leaves the previous bundle intact.
 
@@ -779,8 +781,8 @@ Readers MUST read after the rename completes - a writer that crashes mid-rename 
 
 The Spring AI Playground build ships the catalog twice:
 
-- `src/main/resources/tool/default-tool-specs-*.json` - the JVM resource classpath
-- `electron/resources/catalog/default-tool-specs-*.json` - the Electron-bundled mirror
+- `src/main/resources/tool/default-tool-specs*.json` - the JVM resource classpath
+- `electron/resources/catalog/default-tool-specs*.json` - the Electron-bundled mirror
 
 The two MUST be byte-identical. The build is responsible for enforcing this (the reference build uses `prepare-resources.mjs`); the spec format itself is silent on it. Catalog publishers consuming this spec independently MAY omit the mirror requirement.
 
@@ -833,7 +835,7 @@ Validate any candidate spec by loading the schema and checking it with a 2020-12
 
 ## 17. Canonical examples
 
-The bundled catalog ships every example variant below. Each is shown abbreviated; the full version is in `src/main/resources/tool/default-tool-specs-*.json`.
+The bundled catalog ships every example variant below. Each is shown abbreviated; the full version is in `src/main/resources/tool/default-tool-specs*.json`.
 
 ### 17.1 Pure compute - `base64`
 
@@ -925,7 +927,7 @@ Tool fetches arbitrary user-supplied URLs; SSRF guard runs in `strict` mode.
 {
   "name": "extractPageContent",
   "category": "WEB",
-  "tags": ["util"],
+  "tags": ["example"],
   "params": [
     { "name": "url", "type": "STRING", "required": true, "testValue": "https://example.com" }
   ],
@@ -958,7 +960,7 @@ Risk Level: **L3** (read only).
 
 ### 17.6 Filesystem write - `writeTextFile`
 
-Write access. Highest risk level the bundled catalog ships.
+Write access (L4). The catalog's destructive file tools (`moveFile`, `deleteFile`, `deleteDir`) add `destructive: true` and score L5.
 
 ```json
 {

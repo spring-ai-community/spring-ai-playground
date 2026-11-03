@@ -650,7 +650,7 @@ return { status: 'ok' };
 
 ## Composition patterns (starter chains)
 
-These eleven tools are picked so any pair plugs together - a perfect first agentic-workflow surface. Two patterns you can reproduce after Local Pass:
+These eleven tools are picked so any pair plugs together - a perfect first agentic-workflow surface. Three patterns you can reproduce after Local Pass:
 
 - **Search → summarise** - `googlePseSearch(query)` returns ranked snippets; pass them as a prompt fragment into `openaiResponseGenerator` so the model cites recent sources rather than parametric memory.
 - **Fetch → notify** - `getWeather(location)` (or `getOpenMeteoForecast` from [Global](global.md)) → `sendSlackMessage(text)` to post a daily threshold alert to a channel.

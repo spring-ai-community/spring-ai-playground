@@ -4,7 +4,7 @@ description: Default Tools - Korea reference. 22 Korea-locale tools - Upbit, Bit
 
 The 22 tools in `default-tool-specs-kr.json` are **Korea-locale services** - crypto exchanges (Upbit, Bithumb), search and local discovery (Naver, Kakao, K-pop iTunes, K-beauty, Korea Tourism), government open-data services (data.go.kr keychain, Seoul Open Data Plaza), and Korea-specific finance and disaster feeds (KAMIS, KOFIC, KRX, MOLIT, MFDS, MOIS).
 
-Most return **Korean text in their response payloads** - names, addresses, codenames - so a chat agent calling them should be locale-aware. Eight are no-key (Upbit endpoints, Bithumb endpoints, iTunes K-pop, Open Beauty Facts), the other thirteen need provider-issued keys. Provider keys live in the tool's static variables as `${ENV_VAR}` placeholders that resolve at runtime from the JVM environment - they are not committed to the spec.
+Most return **Korean text in their response payloads** - names, addresses, codenames - so a chat agent calling them should be locale-aware. Eight are no-key (Upbit endpoints, Bithumb endpoints, iTunes K-pop, Open Beauty Facts), the other fourteen need provider-issued keys. Provider keys live in the tool's static variables as `${ENV_VAR}` placeholders that resolve at runtime from the JVM environment - they are not committed to the spec.
 
 Like the global network tools, every fetch runs through [the SSRF four-layer guard](../tool-studio/index.md#ssrf-four-layer-guard) in the default host-`allowlist` egress mode.
 
@@ -2146,10 +2146,10 @@ The Korea bundle is heavier on data sources, so most chains are *Korean source �
 - **Cross-exchange spread (kimchi premium)** - `getUpbitTicker(markets='KRW-BTC')` + `getBithumbTicker(symbol='BTC')` → `evalExpression(expression='(a-b)/b*100', variables={a, b})` for the live KRW spread between the two majors. No keys, no setup.
 - **Local + weather** - `searchKakaoLocal(query)` for POI lat/lon → `getKmaShortTermForecast(latitude, longitude)` for the next 72h hourly forecast in the KMA grid - "Will it rain tomorrow at this Gyeongju temple?"
 - **Tour + box office** - `searchKoreaTour(keyword)` for festivals in a region → `getKoficBoxOffice(targetDate)` to cross-reference what is also showing in cinemas that weekend.
-- **Agri price tracker** - `getKamisAgriPrice(itemCode='211', startDay, endDay)` for napa cabbage (or any 4-digit KAMIS code) → `formatCsv` the rows → `writeTextFile` snapshot for a monthly price history.
+- **Agri price tracker** - `getKamisAgriPrice(itemCode='211', startDay, endDay)` for napa cabbage (or any other KAMIS item code) → `formatCsv` the rows → `writeTextFile` snapshot for a monthly price history.
 - **Disaster → Slack** - `getKoreaEmergencyAlerts(area='경주', fromDate, toDate)` → conditional → `sendSlackMessage(text)` to fan out emergency-alert SMS history to a channel.
 
-[Tutorial 8: Default Tool Recipes](../../tutorials/8-default-tool-recipes.md) walks the **cross-exchange spread** and **disaster → Slack** patterns end-to-end.
+[Tutorial 8: Default Tool Recipes](../../tutorials/8-default-tool-recipes.md) walks the **cross-exchange spread** pattern end-to-end (Recipe 4, `kimchiPremium`).
 
 ## Keys & secrets
 

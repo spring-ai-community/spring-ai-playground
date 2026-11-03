@@ -104,14 +104,14 @@ Preset selection for the built-in MCP server happens **inside the configuration 
 
 Do not confuse this with the chat-side default: these presets decide which built-in tools are **active on the MCP server**, while a brand-new Agentic Chat opens with the **Self-equipping agent** prompt preset ([`chat.default-preset`](configuration.md#mcp)), which uses dynamic discovery to search whatever this card has activated.
 
-The card writes `default-tools-preference.json`; the same preference can also be pinned via CLI / yaml. The app reads it at startup to decide which built-in tools are **Local-Passed (active)**. Tool Studio's **Built-in MCP Server Native Tools** drawer is a separate concern - it picks which Local-Passed tools the built-in MCP server *exposes*, not which are active.
+The card writes `default-tools-preference.json`; the same preference can also be pinned via CLI / yaml. The app reads it at startup to decide which built-in tools the MCP server **exposes**; whether a built-in tool is Local-Passed depends only on whether the environment variables it declares are set. Tool Studio's **Built-in MCP Server Native Tools** drawer then changes exposure tool by tool, among the Local-Passed tools.
 
 The five presets:
 
 - `Starter 5` (default, no API keys) - `getCurrentTime`, `getWeather`, `searchWikipedia`, `extractPageContent`, `evalExpression`.
 - `Dev Essentials` - local dev utilities (`uuid`, `hash`, `base64`, `jwtDecode`, `regexExtract`) plus `getCurrentTime` and `evalExpression`.
 - `Korea Toolkit (free)` - free Korean services (Upbit, Bithumb, iTunes K-pop, K-beauty search) plus `getCurrentTime` and `evalExpression`.
-- `File Toolkit` - filesystem pipeline (`readTextFile`, `listDir`, `grepFile`, `findFiles`, `sliceFile`, `sortFile`, `cutFileFields`) plus `getCurrentTime` and `evalExpression`. Set `SPRING_AI_PLAYGROUND_TOOL_STUDIO_FS_BASE_PATH` to pin a custom workspace root.
+- `File Toolkit` - filesystem pipeline (`listAllowedDirectories`, `readTextFile`, `listDir`, `grepFile`, `searchInFiles`, `findFiles`, `sliceFile`, `sortFile`, `cutFileFields`) plus `getCurrentTime` and `evalExpression`. Set `SPRING_AI_PLAYGROUND_TOOL_STUDIO_FS_BASE_PATH` to pin a custom workspace root.
 - `Everything` - exposes every default tool. Heavy MCP catalog.
 
 The non-Starter presets each carry only `getCurrentTime` and `evalExpression` from Starter 5 by design - they do not stack on top of it.
@@ -184,7 +184,7 @@ Every other action lives in the **action bar pinned to the bottom of the screen*
 
 1. **Export** - writes the current setting to a portable config file you can share or back up
 2. **Import** - loads a previously exported config file
-3. **Factory Reset** - deletes all saved configs, profiles, and stored API keys, then restarts the launcher
+3. **Factory Reset** - deletes all saved configs, profiles and stored API keys, and the app home folder with your tools, documents and conversations, then restarts the app
 4. **Save** - stores the current launcher state without starting the app
 5. **Save and Launch** - saves first, then boots Spring AI Playground; this is the button you use for a normal launch
 
@@ -230,46 +230,48 @@ On Apple Silicon the model names shown here are the MLX-optimized builds (for ex
 
 The `Download and Manage Ollama Models` button on the [Ollama Startup card](#6-understand-the-ollama-startup-card) above opens a separate model-manager window. This is where you pull the chat and embedding models your setting needs before you launch. The window starts with profile context at the top: the selected config name, Ollama install status, endpoint, and current connection state.
 
-![Ollama model manager header - Config, Ollama install status, Endpoint, and Connection mini-cards](../assets/images/launcher/ollama-manager-top.png)
+??? note "Details"
 
-#### Finding and downloading a model by name
+    ![Ollama model manager header - Config, Ollama install status, Endpoint, and Connection mini-cards](../assets/images/launcher/ollama-manager-top.png)
 
-The `Download by model name` field takes an exact Ollama model identifier (`model` or `model:tag`) and queues a download. The reliable way to get that identifier right is to copy it straight from the model's tag list on ollama.com.
+    #### Finding and downloading a model by name
 
-`Find on Ollama` opens the Ollama model search in your browser, pre-filled with whatever you typed. Open the model you want - for example [qwen3.6](https://ollama.com/library/qwen3.6) - then open its **Tags** list. Every variant is listed there, and hovering a row reveals a **copy button** at the end of it. For an Apple-Silicon build, hover the `-mlx` tag you want (for example `qwen3.6:27b-mlx`) and click its copy button (marker 1):
+    The `Download by model name` field takes an exact Ollama model identifier (`model` or `model:tag`) and queues a download. The reliable way to get that identifier right is to copy it straight from the model's tag list on ollama.com.
 
-![ollama.com tags list for qwen3.6 - one row per model variant including qwen3.6:27b-mlx, with marker 1 on the copy button that appears at the end of the 27b-mlx row on hover](../assets/images/launcher/ollama-qwen36-mlx-list.png)
+    `Find on Ollama` opens the Ollama model search in your browser, pre-filled with whatever you typed. Open the model you want - for example [qwen3.6](https://ollama.com/library/qwen3.6) - then open its **Tags** list. Every variant is listed there, and hovering a row reveals a **copy button** at the end of it. For an Apple-Silicon build, hover the `-mlx` tag you want (for example `qwen3.6:27b-mlx`) and click its copy button (marker 1):
 
-Then it is just copy and paste:
+    ![ollama.com tags list for qwen3.6 - one row per model variant including qwen3.6:27b-mlx, with marker 1 on the copy button that appears at the end of the 27b-mlx row on hover](../assets/images/launcher/ollama-qwen36-mlx-list.png)
 
-1. in the tags list, hover the model variant you want and click its **copy button** (marker 1)
-2. switch back to the manager and paste into `Download by model name` - keep only the model identifier (for example `qwen3.6:27b-mlx`)
-3. click the download button - labelled `Queue download` - to add it to the queue
+    Then it is just copy and paste:
 
-Queuing only pulls the model into Ollama; it does not change the current YAML profile by itself. To make a downloaded model the default, set it in the config YAML ([step 2](#2-choose-a-config-type) of the walkthrough).
+    1. in the tags list, hover the model variant you want and click its **copy button** (marker 1)
+    2. switch back to the manager and paste into `Download by model name` - keep only the model identifier (for example `qwen3.6:27b-mlx`)
+    3. click the download button - labeled `Queue download` - to add it to the queue
 
-#### Recommended and Downloaded tabs
+    Queuing only pulls the model into Ollama; it does not change the current YAML profile by itself. To make a downloaded model the default, set it in the config YAML ([step 2](#2-choose-a-config-type) of the walkthrough).
 
-The default `Recommended` tab lists the embedding model configured for the current profile first, then the chat models from the active YAML profile:
+    #### Recommended and Downloaded tabs
 
-![Ollama model manager Recommended tab - mlx chat models with Downloaded / Available to download badges, the default embedding model first](../assets/images/launcher/ollama-manager-recommended-wide.png)
+    The default `Recommended` tab lists the embedding model configured for the current profile first, then the chat models from the active YAML profile:
 
-Each row shows whether the model is already downloaded, badges such as `Embedding`, `Chat`, `Default embedding`, and `Current chat model`, and a per-model download button that queues that model when it is not yet available locally.
+    ![Ollama model manager Recommended tab - mlx chat models with Downloaded / Available to download badges, the default embedding model first](../assets/images/launcher/ollama-manager-recommended-wide.png)
 
-The `Downloaded` tab focuses on models that already exist in the local Ollama store, grouped by type:
+    Each row shows whether the model is already downloaded, badges such as `Embedding`, `Chat`, `Default embedding`, and `Current chat model`, and a per-model download button that queues that model when it is not yet available locally.
 
-![Ollama model manager Downloaded tab - downloaded chat and embedding models with copy and delete buttons](../assets/images/launcher/ollama-manager-downloaded-wide.png)
+    The `Downloaded` tab focuses on models that already exist in the local Ollama store, grouped by type:
 
-- `Copy model as...` duplicates a model under a new Ollama name
-- `Delete model` removes the selected model from the local Ollama store
+    ![Ollama model manager Downloaded tab - downloaded chat and embedding models with copy and delete buttons](../assets/images/launcher/ollama-manager-downloaded-wide.png)
 
-#### The download queue
+    - `Copy model as...` duplicates a model under a new Ollama name
+    - `Delete model` removes the selected model from the local Ollama store
 
-Anything you queue - from `Download by model name`, the `Recommended` tab, or a per-model download button - lands in the **Download Tasks** panel at the top of the manager. Downloads run one at a time.
+    #### The download queue
 
-![Ollama model manager Download Tasks panel - a running download with a live progress bar and a Cancel button, plus a queued download that also shows a Cancel button](../assets/images/launcher/ollama-manager-download-tasks.png)
+    Anything you queue - from `Download by model name`, the `Recommended` tab, or a per-model download button - lands in the **Download Tasks** panel at the top of the manager. Downloads run one at a time.
 
-Each task shows a live progress bar, the downloaded / total size, and a status badge (`Queued`, `Preparing`, `Downloading`, `Completed`, `Canceled`, or `Failed`). While a task is still `Queued`, `Preparing`, or `Downloading`, the **Cancel (x)** button stops it; a `Failed` task shows a **Retry** button instead. Canceling the running download lets the next queued model start.
+    ![Ollama model manager Download Tasks panel - a running download with a live progress bar and a Cancel button, plus a queued download that also shows a Cancel button](../assets/images/launcher/ollama-manager-download-tasks.png)
+
+    Each task shows a live progress bar, the downloaded / total size, and a status badge (`Queued`, `Preparing`, `Downloading`, `Completed`, `Canceled`, or `Failed`). While a task is still `Queued`, `Preparing`, or `Downloading`, the **Cancel (x)** button stops it; a `Failed` task shows a **Retry** button instead. Canceling the running download lets the next queued model start.
 
 ### 8. Pick Your Default MCP Tools
 
@@ -283,44 +285,46 @@ Pick a preset - the default `Starter 5` needs no API keys. The full per-preset t
 
 When the selected setting or bundled tools need secrets, the launcher shows an **Environment Variables** section. This is where you keep API keys and tool secrets out of YAML. For the full list of configuration knobs (beyond secrets) and how each maps to a property or env var, see the [Configuration reference](configuration.md).
 
-![Environment variables card](../assets/images/launcher/launcher-env-card.png)
+??? note "Details and examples"
 
-Typical entries include:
+    ![Environment variables card](../assets/images/launcher/launcher-env-card.png)
 
-- `OPENAI_API_KEY`
-- `GOOGLE_API_KEY`
-- `GOOGLE_PSE_ID`
-- `SLACK_WEBHOOK_URL`
-- custom variables added with `Add Environment Variable`
+    Typical entries include:
 
-The launcher behavior is important here:
+    - `OPENAI_API_KEY`
+    - `GOOGLE_API_KEY`
+    - `GOOGLE_PSE_ID`
+    - `SLACK_WEBHOOK_URL`
+    - custom variables added with `Add Environment Variable`
 
-- values are stored per saved setting
-- values are exported only for the app launch process
-- values are not meant to be written into the YAML override
-- the UI can list both backend-required keys and optional tool-related keys
+    The launcher behavior is important here:
 
-The card also shows the current **secret-storage mode**:
+    - values are stored per saved setting
+    - values are exported only for the app launch process
+    - values are not meant to be written into the YAML override
+    - the UI can list both backend-required keys and optional tool-related keys
 
-- **Encrypted by your OS secure storage** - Electron's `safeStorage` API is using the platform secure store under the hood: **macOS Keychain**, **Windows DPAPI** (current-user scope), or **libsecret / GNOME Keyring / KWallet** on Linux. The launcher writes the ciphertext to `<userData>/spring-ai-playground/config/secrets.store` on disk; the decryption key never leaves the OS keychain.
-- **OS-backed encryption unavailable - stored as plain text in this session** - fallback when no platform secure store is reachable (typical on bare Linux without a keyring daemon, or in some sandboxed Linux containers). The same file is written in plain JSON so values still survive the launch, but they are no longer encrypted at rest.
+    The card also shows the current **secret-storage mode**:
 
-The launcher's secret workflow is the same in both modes:
+    - **Encrypted by your OS secure storage** - Electron's `safeStorage` API is using the platform secure store under the hood: **macOS Keychain**, **Windows DPAPI** (current-user scope), or **libsecret / GNOME Keyring / KWallet** on Linux. The launcher writes the ciphertext to `<userData>/configs/secrets.store` on disk; the decryption key never leaves the OS keychain.
+    - **OS-backed encryption unavailable - stored as plain text in this session** - fallback when no platform secure store is reachable (typical on bare Linux without a keyring daemon, or in some sandboxed Linux containers). The same file is written in plain JSON so values still survive the launch, but they are no longer encrypted at rest.
 
-- values are stored **per saved setting** (`configId` keyed)
-- values are **exported only as environment variables to the launched Spring AI Playground JVM** - they never get written into the YAML override or into chat history
-- the secrets file is rewritten on every save; a legacy `secrets.json.enc` from older versions is auto-renamed to `secrets.store` on first read
-- on macOS and Linux the secrets file is written with owner-only permissions (`chmod 600`) so other accounts on the machine cannot read it
+    The launcher's secret workflow is the same in both modes:
 
-This is why the env-var pathway is the recommended place for `OPENAI_API_KEY`, `SLACK_WEBHOOK_URL`, `GOOGLE_API_KEY`, and any other tool-side secret - the value reaches `Tool Studio` and the bundled tools through `System.getenv()` rather than through a config file checked into git.
+    - values are stored **per saved setting** (`configId` keyed)
+    - values are **exported only as environment variables to the launched Spring AI Playground JVM** - they never get written into the YAML override or into chat history
+    - the secrets file is rewritten on every save; a legacy `secrets.json.enc` from older versions is auto-renamed to `secrets.store` on first read
+    - on macOS and Linux the secrets file is written with owner-only permissions (`chmod 600`) so other accounts on the machine cannot read it
 
-**The resolved value is also masked from `console.log` output** in Tool Studio's Debug Console and in Agentic Chat's tool-call trace - any tool that references the env var as a static variable (or builds a string containing its resolved value) sees the secret substring replaced before the line surfaces in the UI. See [Tool Studio → Built-in JavaScript Helpers - `console.log`](../features/tool-studio/index.md#built-in-javascript-helpers) for the masking rule details (anchored full-string env-refs are auto-collected; substring-concatenated values are masked best-effort).
+    This is why the env-var pathway is the recommended place for `OPENAI_API_KEY`, `SLACK_WEBHOOK_URL`, `GOOGLE_API_KEY`, and any other tool-side secret - the value reaches `Tool Studio` and the bundled tools through `System.getenv()` rather than through a config file checked into git.
 
-For the current desktop behavior:
+    **The resolved value is also masked from `console.log` output** in Tool Studio's Debug Console and in Agentic Chat's tool-call trace - any tool that references the env var as a static variable (or builds a string containing its resolved value) sees the secret substring replaced before the line surfaces in the UI. See [Tool Studio → Built-in JavaScript Helpers - `console.log`](../features/tool-studio/index.md#built-in-javascript-helpers) for the masking rule details (anchored full-string env-refs are auto-collected; substring-concatenated values are masked best-effort).
 
-- `OpenAI` requires `OPENAI_API_KEY` before launch
-- `OpenAI-Compatible` can show an API key field, but it is only needed when that compatible server expects one
-- `Ollama` usually does not require an API key for the backend itself, but optional tool integrations may still use environment variables
+    For the current desktop behavior:
+
+    - `OpenAI` requires `OPENAI_API_KEY` before launch
+    - `OpenAI-Compatible` can show an API key field, but it is only needed when that compatible server expects one
+    - `Ollama` usually does not require an API key for the backend itself, but optional tool integrations may still use environment variables
 
 ### 10. Set JVM and App Args Only When Needed
 
@@ -405,7 +409,7 @@ If the window itself is gone while the server is still running, reopening recrea
 
 `Recent Activity` lists the pages you last had open in the app - up to seven of them in the menu, most recent first - and clicking one reopens the app directly on that page instead of on Home.
 
-- entries are recorded from main-window navigation, including in-page route changes, and are labelled with the page title when there is one and with the route name otherwise (`Agentic Chat`, `MCP Server`, `Vector Database`, `Tool Studio`, `Observability`, `Home`)
+- entries are recorded from main-window navigation, including in-page route changes, and are labeled with the page title when there is one and with the route name otherwise (`Agentic Chat`, `MCP Server`, `Vector Database`, `Tool Studio`, `Observability`, `Home`)
 - an Agentic Chat entry keeps its `?conv=` query, so it reopens on that conversation
 - OAuth completion pages are skipped, and only pages served by the running app are recorded
 - the list is stored in `<userData>/configs/recent-activity.json` and survives restarts; it keeps the last 20 entries
@@ -449,32 +453,34 @@ To install the `-mlx` builds, open [Download and Manage Ollama Models](#7-downlo
 
 The desktop app can transcribe voice input for [Agentic Chat](../features/agentic-chat/index.md#voice-input) **on-device** - it runs a local **Whisper** model on your machine, set up here in the config editor, so audio never leaves your machine. This is a desktop-only capability; in a browser the chat mic falls back to the cloud-backed Web Speech API instead.
 
-Speech-to-text is **off by default, and the model is not bundled with the app** - you opt in and download a model once from the config editor's **Local Speech-to-Text** card:
+??? note "Setup and model details"
 
-![The Local Speech-to-Text card - a one-line status showing voice input on and the active model, a Use voice input checkbox, and a Download and Manage Voice Models button](../assets/images/launcher/launcher-stt-card.png)
+    Speech-to-text is **off by default, and the model is not bundled with the app** - you opt in and download a model once from the config editor's **Local Speech-to-Text** card:
 
-1. Open the **Local Speech-to-Text** card in the config editor. Its header line summarizes the current state - whether voice input is on and which model is active.
-2. Tick **Use voice input** to load Whisper on demand.
-3. Click **Download and Manage Voice Models**. Model management opens in its own window, with status cards for voice input, the active model, and the model folder:
+    ![The Local Speech-to-Text card - a one-line status showing voice input on and the active model, a Use voice input checkbox, and a Download and Manage Voice Models button](../assets/images/launcher/launcher-stt-card.png)
 
-    ![The Download and Manage Speech-to-Text Models window - status cards for voice input, active model, and model folder, above the model chooser with Download, Refresh, and Open folder buttons](../assets/images/launcher/launcher-stt-manager.png)
+    1. Open the **Local Speech-to-Text** card in the config editor. Its header line summarizes the current state - whether voice input is on and which model is active.
+    2. Tick **Use voice input** to load Whisper on demand.
+    3. Click **Download and Manage Voice Models**. Model management opens in its own window, with status cards for voice input, the active model, and the model folder:
 
-4. Pick a model in the manager. Larger models are more accurate but use more disk and memory:
+        ![The Download and Manage Speech-to-Text Models window - status cards for voice input, active model, and model folder, above the model chooser with Download, Refresh, and Open folder buttons](../assets/images/launcher/launcher-stt-manager.png)
 
-    | Model | Download | Notes |
-    |---|---|---|
-    | `tiny` | ~74 MB | English only in practice, short utterances |
-    | `base` / `small` | ~141 / ~465 MB | multilingual, basic to fair |
-    | `medium-q5` | ~514 MB | multilingual, good |
-    | **`large-v3-turbo-q5`** | **~547 MB** | **recommended** - multilingual, best speed/quality balance |
-    | `large-v3` | ~2.9 GB | most accurate, slowest |
+    4. Pick a model in the manager. Larger models are more accurate but use more disk and memory:
 
-5. Click **Download model**. A progress bar shows the transfer with a **Cancel** option; files are saved under `~/.spring-ai-playground/whisper/`.
-6. **Restart the app** to apply - the card and the manager both show a restart hint whenever a change needs one.
+        | Model | Download | Notes |
+        |---|---|---|
+        | `tiny` | ~74 MB | English only in practice, short utterances |
+        | `base` / `small` | ~141 / ~465 MB | multilingual, basic to fair |
+        | `medium-q5` | ~514 MB | multilingual, good |
+        | **`large-v3-turbo-q5`** | **~547 MB** | **recommended** - multilingual, best speed/quality balance |
+        | `large-v3` | ~2.9 GB | most accurate, slowest |
 
-The manager window also offers **Set active** (switch to an already-downloaded model), **Refresh** (re-check installed models), and **Open folder** (reveal the Whisper directory). A model uses extra memory only while it is transcribing, so the runtime memory cost scales with the model you choose.
+    5. Click **Download model**. A progress bar shows the transfer with a **Cancel** option; files are saved under `~/.spring-ai-playground/whisper/`.
+    6. **Restart the app** to apply - the card and the manager both show a restart hint whenever a change needs one.
 
-Voice input is supported on **Apple Silicon Macs**. Intel Macs are not supported yet; there the chat mic shows a short notice, and in a browser it uses Web Speech instead. See [Agentic Chat → Voice input](../features/agentic-chat/index.md#voice-input) for how the mic behaves in a conversation.
+    The manager window also offers **Set active** (switch to an already-downloaded model), **Refresh** (re-check installed models), and **Open folder** (reveal the Whisper directory). A model uses extra memory only while it is transcribing, so the runtime memory cost scales with the model you choose.
+
+    Voice input is supported on **Apple Silicon Macs**. Intel Macs are not supported yet; there the chat mic shows a short notice, and in a browser it uses Web Speech instead. See [Agentic Chat → Voice input](../features/agentic-chat/index.md#voice-input) for how the mic behaves in a conversation.
 
 ## Further Reading
 

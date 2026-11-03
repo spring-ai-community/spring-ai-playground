@@ -8,7 +8,7 @@ description: Tutorial 10 - proxy an MCP server through the built-in server: expo
     Re-publish the tools of the external MCP servers you've connected **through the playground's own built-in MCP server** - the [MCP Server Proxy](../features/mcp-server/proxy.md). Expose a **whole server**, a **curated subset**, or a **combination of several servers** on one governed endpoint (`/mcp`). Every proxied tool is wrapped with a risk level, optional human approval (HITL), logging, and secret masking, and becomes callable from **Agentic Chat *and* any external `/mcp` client**.
 
 !!! tip "No-credential examples - DeepWiki + MCP Everything"
-    This walkthrough connects two Default MCP Servers from the *Example* category: **DeepWiki** (free, no-auth Streamable HTTP; three read tools - `read_wiki_structure`, `read_wiki_contents`, `ask_question`) and **MCP Everything** (the reference test server; stdio). Any active connection proxies the same way - these two just need no credentials.
+    This walkthrough connects two Default MCP Servers from the *Example* category: **DeepWiki** (free, no-auth Streamable HTTP; three read tools - `read_wiki_structure`, `read_wiki_contents`, `ask_wiki_question`) and **MCP Everything** (the reference test server; stdio). Any active connection proxies the same way - these two just need no credentials.
 
 ## How the proxy works
 
@@ -56,14 +56,14 @@ Click the chevron on a selected tool to open its **Exposed name** and **Descript
 
 ## Step 7 - Apply
 
-Click **Apply**. The selected tools join the built-in server immediately - no restart. Select the built-in server in the sidebar and its [Inspector](../features/mcp-server/inspector.md#tools) now lists the proxied tools alongside your native ones. (They show `L0 - Verified` here because the built-in server bypasses the risk model for its own tools; the upstream's real level still shows on *its* connection's Inspector.)
+Click **Apply**. The selected tools join the built-in server immediately - no restart. Select the built-in server in the sidebar and its [Inspector](../features/mcp-server/inspector.md#tools) now lists the proxied tools alongside your native ones. (Each one carries its composed level - server plus tool - so DeepWiki's read tools show `L2 - Low` here too, and a tool you ticked HITL shows the credit, `L2 → L1 - Safe`. Only the built-in server's own `Server:` chip reads `L0 - Verified`.)
 
-![Built-in server Inspector with deepwiki typed into the tool search - the three proxied deepwiki_ tools now served by the built-in server at L0 - Verified](../assets/images/mcp-server/proxy-result.png){ loading=lazy }
-*The header count (`18 tools` here) stays at the server's full total - 12 native plus the 6 composed - while the search narrows the cards.*
+![Built-in server Inspector with deepwiki typed into the tool search - the three proxied deepwiki_ tools now served by the built-in server, two at L2 - Low and the HITL one at L2 → L1 - Safe](../assets/images/mcp-server/proxy-result.png){ loading=lazy }
+*The header count stays at the server's full total - the native tools it exposes (five by default) plus every composed tool - while the search narrows the cards.*
 
 ## Step 8 - Name the proxy endpoint (what clients see)
 
-External `/mcp` clients see your built-in server's **name** and **description** in their server list. These come from **configuration**, not the connection form - the built-in identity is sourced from your settings so it stays stable (and keeps matching the `L0 - Verified` bypass). The sidebar shows the current values:
+External `/mcp` clients see your built-in server's **name** and **description** in their server list. These come from **configuration**, not the connection form - the built-in identity is sourced from your settings so it stays stable (and keeps the built-in server's own `L0 - Verified` chip). The sidebar shows the current values:
 
 ![Built-in server identity on the MCP Server Info pane - the Server name 'spring-ai-playground-built-in-mcp' and the Description that external MCP clients see, both sourced from configuration](../assets/images/mcp-server/proxy-builtin-identity.png){ loading=lazy }
 
@@ -87,7 +87,11 @@ Defaults are `spring-ai-playground-built-in-mcp` and a generated description. Yo
 - **Any external MCP client** pointed at the playground's `/mcp` endpoint sees the proxied tools in `tools/list` under their exposed aliases - your built-in server has become a governed front for several upstreams at once.
 
 !!! info "What the proxy guarantees"
-    Each proxied tool is wrapped, not copied: it carries a composed risk level, emits `mcp.tool.start` / `done` / `crash` spans tagged with the upstream origin and risk, masks upstream secrets in errors, and (when marked HITL) persists the approval flag. Before it's published it also passes a description **poisoning scan**, a **fingerprint ledger** (so a silently-redefined upstream tool is flagged for re-review), and **shadowing rules**. See [MCP Server Safety → The safe-wrapping contract](../mcp-server-safety.md#wrapping-contract).
+    Each proxied tool is wrapped, not copied: it carries a composed risk level, emits `mcp.tool.start` / `done` / `crash` spans tagged with the upstream origin and risk, masks upstream secrets in errors, and (when marked HITL) persists the approval flag. Before it's published it also passes a description **poisoning scan**, a **fingerprint ledger** (a silently-redefined upstream tool shows **Definition changed** in the drawer and stays withheld until you tick **Accept new definition**; **Reconnect** on the server form re-syncs its tools), and **shadowing rules**. See [MCP Server Safety → The safe-wrapping contract](../mcp-server-safety.md#wrapping-contract).
+
+## Step 10 - (Optional) Ship the proxy as its own server
+
+The composition you just applied can leave this app. Click **Ship MCP Server** (the anchor icon) in the MCP Server header: Shipyard opens its ship flow with your exposed Tool Studio tools ticked and the proxied tools ticked under **Proxied tools**. Name the server and click **Ship**. The bundle carries the aliases, HITL flags and risk cap you set here plus the upstream connection files, so its own container reconnects to DeepWiki and serves `deepwiki_read_wiki_structure` by itself. Only HTTP upstreams without OAuth can ship; see [Ship tools as a standalone server](../features/mcp-server/index.md#shipyard).
 
 ## Where to go next
 

@@ -10,7 +10,7 @@ Spring AI Playground ships through three runtimes that all boot the same Spring 
 | Path | Best for | Bundled | Java toolchain |
 |---|---|---|---|
 | **[Desktop App](desktop.md)** *(recommended)* | First-time users; anyone who wants a one-click installer with a configuration editor, OS-encrypted secret storage, and a built-in Ollama model manager | Electron launcher + JVM + Spring Boot fat JAR | not required (bundled) |
-| **[Docker](alternative-runtimes.md#docker)** | Containerised deployments; users who already run Docker; quick MCP stdio setup for Claude Desktop without installing Java | Spring Boot fat JAR + JVM in the published container image | not required |
+| **[Docker](alternative-runtimes.md#docker)** | Containerized deployments; users who already run Docker; quick MCP stdio setup for Claude Desktop without installing Java | Spring Boot fat JAR + JVM in the published container image | not required |
 | **[From Source](alternative-runtimes.md#from-source)** | Developers modifying the codebase; Java users who want fat-JAR portability and full GraalVM speed for the JS sandbox | nothing - you build it | Java 21+ (GraalVM recommended) |
 
 The desktop installer is the recommended default. Docker and direct source execution are equally supported alternatives - same product, same UI, same MCP server.
@@ -123,7 +123,7 @@ Spring AI Playground is provider-agnostic with a local-first **Ollama** default 
 
 Each release ships with two integrity guarantees. Verifying is optional, but recommended for production use.
 
-Replace `<VERSION>` in the commands below with the version printed in the installer filename you downloaded (for example `0.2.0`). On this page, JavaScript substitutes the latest release version automatically when GitHub is reachable.
+Replace `<VERSION>` in the commands below with the version printed in the installer filename you downloaded (for example `0.2.0-M14`). On this page, JavaScript substitutes the latest release version automatically when GitHub is reachable.
 
 ### 1. SHA-256 checksum
 

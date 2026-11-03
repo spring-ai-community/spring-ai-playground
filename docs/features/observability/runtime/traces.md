@@ -12,7 +12,7 @@ description: The raw trace stream every other dashboard aggregates from, shown w
 ## When to look here
 
 - *"Show me everything that just happened"* - open the tab, watch the live stream.
-- *"I have a trace ID from a log line - find it"* - Conv id contains filter (conversation id only; for a trace ID, use the Logs tab Jump to trace).
+- *"I have a trace ID from a log line - find it"* - Conv id contains filter (conversation id only; for a trace ID, use **Open trace** in the Logs tab's Log line dialog).
 - *"What's in this trace's span tree?"* - click any row → Trace Detail dialog.
 - *"Filter to a specific model"* - Model dropdown.
 - *"Find every errored trace"* - Status filter → ERROR.
@@ -58,6 +58,7 @@ Click any trace row to open. Provides:
 | **Timeline** | Custom `SpanTimelineCanvas` web component rendering each span as a horizontal Gantt bar |
 | **Spans list** | `<span name> · <duration ms> · status=<OK/ERROR>` plus inline attributes |
 | **Open conversation thread** button | Navigates to the [Conversation Thread dialog](#drilldown-conversation-thread-dialog) for the parent conversation (sibling drilldown documented below) |
+| **Server: / Tool:** buttons | One per MCP server and tool the turn used; each jumps to that server's page or that tool in Tool Studio |
 | **Show raw JSON** button | Opens a sub-dialog with the full `TraceRecord` JSON for the selected trace |
 | **Close** button | Dismiss |
 

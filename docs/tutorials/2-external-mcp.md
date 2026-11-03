@@ -8,7 +8,7 @@ description: Tutorial 2 - connect an external MCP server (Streamable HTTP / STDI
     Add an external MCP server connection (Streamable HTTP, STDIO, or SSE), wire up authentication if the server requires it, validate the schema in the Inspector, and run a tool through it directly - *before* relying on it from chat.
 
 !!! tip "Shortcut - use the built-in catalog"
-    For 58 of the most common external surfaces (Gmail, Outlook, Notion, Slack, GitHub, Linear, Atlassian, Stripe, BigQuery, MCP Everything, ...) the playground ships a preset catalog. Look in the sidebar's **Inactive MCP** section, click the entry you want, and the configuration form pre-fills with the right transport, URL or stdio command, OAuth defaults, and `${ENV_VAR}` placeholders - you fill in only your key/tenant and click **Save & Connect**. The rest of this tutorial covers the **manual path** for anything *not* in the catalog. See the [MCP Catalog directory](../features/default-mcp-catalog/index.md) for the full per-category listing.
+    For 58 of the most common external surfaces (Gmail, Outlook, Notion, Slack, GitHub, Linear, Atlassian, Stripe, BigQuery, MCP Everything, ...) the playground ships a preset catalog. Look in the sidebar's **Inactive MCP** section, click the entry you want, and the configuration form pre-fills with the right transport, URL or stdio command, OAuth defaults, and `${ENV_VAR}` placeholders - you fill in only your key/tenant and click **Save & Connect**. Keys come from environment variables read at startup: if a placeholder such as `${KAKAO_PLAYMCP_TOKEN}` is not set, the entry is saved but not connected, with `Saved, but not connected. Set KAKAO_PLAYMCP_TOKEN as an environment variable, restart the app, then Save & Connect again.` The rest of this tutorial covers the **manual path** for anything *not* in the catalog. See the [MCP Catalog directory](../features/default-mcp-catalog/index.md) for the full per-category listing.
 
 ## Steps
 
@@ -71,13 +71,13 @@ The eight tabs split into **server primitives** the server exposes (Tools, Resou
 
 Once a server is connected and its tools check out, you can **re-expose** selected tools on the playground's *built-in* MCP server, so they are published on `/mcp` and become selectable in Agentic Chat alongside your Tool Studio tools.
 
-7. Click the **gear icon** on the MCP Server Info header to open the **Built-in MCP Server Composed Tools** drawer. Pick what the built-in server publishes under **What the built-in server exposes** (`Both built-in and composed` is the default, or `Built-in tools only` / `Composed tools only`), set the **Max risk to expose** cap (it opens at `L5`), optionally tick **Mark all selected tools for human review (HITL, -1 risk band)**, then expand a server and tick the tools you want.
+7. Click the **gear icon** on the MCP Server Info header to open the **Built-in MCP Server** drawer and scroll to its **Composed Tools** section. Pick what the built-in server publishes under **What the built-in server exposes** (`Both built-in and composed` is the default, or `Built-in tools only` / `Composed tools only`), set the **Max risk to expose** cap (it opens at `L5`), optionally tick **Mark all selected tools for human review (HITL, -1 risk band)**, then expand a server and tick the tools you want.
 
 ![Built-in MCP Server drawer - Authentication on top, then Composed Tools with the max-risk cap, HITL toggle, a server row with its risk chip, and the list of tools currently exposed on the built-in server](../assets/images/mcp-server/expose-tools-drawer.png)
 
 8. Each tool shows its own risk chip; rename the exposed alias or edit the description inline if you like. Ticking **HITL** on a tool lowers its effective risk by one band (shown as a `HITL -1` badge).
 
-![DeepWiki expanded - read_wiki_structure shows L1 - Safe with a HITL -1 badge and a ticked HITL box; read_wiki_contents and ask_question stay L2 - Low](../assets/images/mcp-server/expose-tools-expanded.png)
+![DeepWiki expanded - read_wiki_structure shows L1 - Safe with a HITL -1 badge and a ticked HITL box; read_wiki_contents and ask_wiki_question stay L2 - Low](../assets/images/mcp-server/expose-tools-hitl.png)
 
 9. Click **Apply**. The selected tools join the built-in server - visible at the top of the sidebar and callable from chat. See [MCP Server → Expose external tools](../features/mcp-server/index.md#expose-external-tools) for the composition rules, shadowing checks, and risk math.
 

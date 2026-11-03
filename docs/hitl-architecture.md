@@ -9,7 +9,7 @@ This is the runtime checkpoint that the [AI Agent Tool Safety](safety-architectu
 
 Pages this gate connects to:
 
-- [Agent Loop](agent-loop-architecture.md) - the round governance this gate runs as one interceptor of
+- [Agent Loop](agent-loop-architecture.md) - the round governance in which this gate runs as one interceptor
 - [MCP Server Safety](mcp-server-safety.md) - how a tool from an external server is wrapped so it can carry the flag
 - [AI Agent Tool Safety](safety-architecture.md) - the sandbox that bounds what an approved call may touch
 - [Safe Tool Specification](safe-tool-specification.md) - the `humanInTheLoop` block that declares the flag
@@ -64,7 +64,7 @@ record HumanInTheLoop(Mode mode, String promptTemplate) {
 
 The chat-side decision logic is centralized in [`ToolSpecService.requiresApproval`](https://github.com/spring-ai-community/spring-ai-playground/blob/main/src/main/java/org/springaicommunity/playground/service/tool/ToolSpecService.java), which gates a call only when its mode is `REQUIRED`. The server-side MCP gate likewise decorates only `REQUIRED` tools.
 
-The optional **`promptTemplate`** customizes the question text. `{toolName}` and `{args}` are substituted at call time; the default is *"Run '{toolName}' with arguments {args}?"*.
+The optional **`promptTemplate`** customizes the question text. `{toolName}` and `{args}` are substituted at call time; the default is *"Run '{toolName}' with arguments {args}?"* in the chat dialog and *"Approve running tool '{toolName}' with arguments {args}?"* in the MCP elicitation.
 
 ## Where the approval flag comes from { #flag-source }
 
@@ -83,6 +83,8 @@ There is **one per-tool policy**, enforced wherever a call enters - and the spli
 - **External MCP client over `/mcp`** (Claude Desktop, another app) - this caller never touches the `ChatClient`, its advisor chain, or the `ToolCallingManager`. The MCP server SDK invokes the tool's `callHandler` directly, so the only place to gate it is by **wrapping that handler at registration** ([`McpServerHitlToolGate`](https://github.com/spring-ai-community/spring-ai-playground/blob/main/src/main/java/org/springaicommunity/playground/service/mcp/McpServerHitlToolGate.java)), which asks via MCP elicitation.
 
 The two never fire for the same call: when Chat reaches a built-in or proxied tool through the self-loopback MCP client, the server-side gate sees the loopback caller and **skips** - the chat loop already asked (see [loopback de-duplication](#loopback)).
+
+A third caller reuses the first gate with a different asker: a chat turn that an **external MCP client starts with `saip_chat_ask`** runs the same in-process loop, but its approval questions travel back to that client as elicitation instead of a dialog (see [chat turn started over MCP](#management-chat-gate)).
 
 ```mermaid
 flowchart TB
@@ -107,11 +109,23 @@ flowchart TB
         B1 --> B2
     end
 
+    CALLER -->|"External MCP client<br/>via saip_chat_ask"| C1
+
+    subgraph MGMT["Chat turn started over MCP"]
+        direction TB
+        C1["Headless chat turn<br/>(same agent loop)"]
+        C2["Approval check<br/>before each tool call"]
+        C3["Elicitation to the<br/>client that asked"]
+        C1 --> C2 --> C3
+    end
+
     A3 -->|Approve| RUN["Run the tool"]
     A3 -->|"Decline / timeout"| STOP["Not run"]
-    B2 -->|Approve| RUN
+    B2 -->|Accept| RUN
     B2 -->|"Decline / error"| STOP
     B2 -.->|"self-loopback:<br/>chat already asked"| RUN
+    C3 -->|Accept| RUN
+    C3 -->|"Decline / timeout /<br/>cannot ask"| STOP
 ```
 
 ### On-device chat - approval dialog { #chat-gate }
@@ -122,7 +136,7 @@ Each `HumanQuestion` also carries the tool's **inherent risk level** (`ToolSpecS
 
 - **Approve** → the call executes normally.
 - **Decline** → the call is removed from the batch and a `ToolResponse` is synthesized telling the model the user declined, it was **not** executed, and not to call it again for this request. The tool is also remembered as declined for the rest of the turn, so a re-request is auto-declined without a second dialog. The model continues with the remaining (approved) calls, if any.
-- **Timeout** (the `approval-timeout-seconds` setting, default 2 minutes), dialog closed, or UI error → **decline** (fail-safe).
+- **Timeout** (the shared [approval wait](#wait), default 3 minutes; the dialog counts it down beside *Decline*), dialog closed, or UI error → the call is **not run** (fail-safe). A timeout synthesizes `Tool 'x' was not run: no approval within N s` and is counted as `timeout`, separate from a decline.
 
 Keying by tool call id matters: if the model emits the *same* gated tool with the *same* arguments twice in one round, each call gets its own verdict, so declining both cannot let the first slip through. All the round's questions share one dialog, so the wait never stacks past the stream's inter-signal timeout. Approved and declined calls in the same round are handled together, and the original ordering is preserved so the conversation history stays consistent.
 
@@ -130,12 +144,36 @@ Keying by tool call id matters: if the model emits the *same* gated tool with th
 
 When a tool is published on the built-in MCP server, [`ToolSpecService`](https://github.com/spring-ai-community/spring-ai-playground/blob/main/src/main/java/org/springaicommunity/playground/service/tool/ToolSpecService.java) wraps its specification with [`McpServerHitlToolGate`](https://github.com/spring-ai-community/spring-ai-playground/blob/main/src/main/java/org/springaicommunity/playground/service/mcp/McpServerHitlToolGate.java) when the tool's mode is `REQUIRED`. At call time the gate, before delegating to the real handler:
 
-1. **Loopback?** If the caller is this device's own chat (the [self-loopback](#loopback) client), pass straight through - the chat dialog already asked.
+1. **Loopback?** If the caller is this device's own chat (the [self-loopback](#loopback) client), pass straight through - the chat dialog already asked. A loopback call that carries `_meta.playgroundInteractiveHitl=true` - what the MCP Inspector sends when it runs a tool on the built-in server - is not passed through; it is gated by elicitation like an external client.
 2. **Elicitation capable?** If the calling client did not advertise the `elicitation` capability, **deny** - there is no way to ask, so the call cannot be approved.
-3. **Ask.** Issue `exchange.createElicitation(prompt, schema)`. On `ACCEPT` run the tool; on `DECLINE` / `CANCEL` return a denied `CallToolResult` (`isError = true`).
-4. **Any error** (transport drop, SDK timeout, exception) → **deny** (fail-safe).
+3. **Ask.** Issue `exchange.createElicitation(prompt, schema)`. Run the tool only on `ACCEPT` with `approve: ["run"]` in the answer; on `DECLINE` / `CANCEL`, or an `ACCEPT` where the choice is unticked or missing, return a denied `CallToolResult` (`isError = true`).
+4. **Expired.** When the playground's own client lets the [approval wait](#wait) run out, it answers `CANCEL` with a `playgroundApprovalExpired` marker in `_meta`; the gate reports `Tool 'x' was not run: no approval within N s`, logs `hitl.server.timeout`, and counts `timeout`. The gate also stops waiting on its own when the approval wait elapses, whatever the client does, so an external client that answers late lands on the same result and its late answer is ignored.
+5. **Any other error** (transport drop, exception) → **deny** (fail-safe).
 
-The prompt schema is an empty object - this is a confirmation, not a data form - so a compliant client renders a plain *approve / decline* card. Because MCP elicitation has no severity field, the gate prefixes the message text with the tool's risk level (e.g. `[risk L5 Critical] Approve running tool 'deleteFile' ...`), so external clients see the same signal the chat dialog shows as a chip. (In the playground's own [MCP Inspector](features/mcp-server/inspector.md#elicitation), that arrives as an `ElicitationRequestPrimitive` card.)
+The prompt schema asks for one required field, `approve`, and nothing else (`ApprovalConfirmation.SCHEMA`): a one-item choice, **Run this call**, ticked by default. A client renders it as a single checkbox that is already ticked above its **Accept** and **Deny** buttons, so the person's answer is one click on **Accept**, and unticking it or denying refuses. An empty schema would look the same without the checkbox, but a client that fills in empty forms by itself, as Codex does when its approvals are switched off, would pass the gate without a person; with the field present such a client declines instead, and an `ACCEPT` that does not carry the ticked choice is treated as a decline. Because MCP elicitation has no severity field, the gate prefixes the message text with the tool's risk level (e.g. `[risk L5 Critical] Approve running tool 'deleteFile' ...`), so external clients see the same signal the chat dialog shows as a chip. (In the playground's own [MCP Inspector](features/mcp-server/inspector.md#elicitation), that arrives as an `ElicitationRequestPrimitive` card.) Elicitation has no deadline field either, so the message ends with the wait notice, `Answer within 180 s, or the call is refused.`, and while the call waits the gate sends `notifications/progress` every 10 seconds (`Waiting for approval: 170 s left`, progress = seconds elapsed, total = the wait) to a client that put a `progressToken` on the call; a client without a token gets the notice only.
+
+### Chat turn started over MCP - elicitation through the caller { #management-chat-gate }
+
+The management tools' own approval questions (publish, exposure change, register, run) are the server-side elicitation of the previous section issued by `ManagementApprovalGate` before a management call runs; the [AI Operations Architecture](ai-operations-architecture.md#gate) page walks through that gate. This section covers the case where a management call starts a whole chat turn.
+
+The management tool `saip_chat_ask` ([Management Tools](features/mcp-server/management-tools.md#asking-the-apps-chat)) runs one turn of Agentic Chat without the screen. [`HeadlessChatService`](https://github.com/spring-ai-community/spring-ai-playground/blob/main/src/main/java/org/springaicommunity/playground/service/chat/HeadlessChatService.java) drives the same `ChatTurnService` the chat view uses, so the turn goes through the same `AgentLoopManager` round and the same `HitlApprovalInterceptor`. What changes is the `HumanQuestionHandler` in the tool context: instead of the Vaadin dialog it is an [`ElicitationQuestionHandler`](https://github.com/spring-ai-community/spring-ai-playground/blob/main/src/main/java/org/springaicommunity/playground/service/management/ElicitationQuestionHandler.java) bound to the management caller. For each gated call it sends one elicitation to the client that started the turn, with the risk prefix and the question text the dialog would have shown (`[risk L2] Chat turn started by this client wants to run a tool. Run 'deepwiki_read_wiki_structure' with arguments {...}? Answer within 180 s, or the call is refused.`), wrapped in the same [approval wait](#wait) with progress ticks when the outer call carries a `progressToken`.
+
+The decision maps onto the chat gate's verdicts, so the model receives exactly what it would after a dialog: `ACCEPT` with **Run this call** ticked runs the tool; `DECLINE`, `CANCEL` or an accept with the choice unticked or missing is a decline; an expired wait is a timeout; a client that did not advertise elicitation, or whose elicitation fails, is declined without a prompt. The handler never returns an approval it did not get (fail-safe), which matters because the interceptor would otherwise run every gated tool when no handler is present. The loopback de-duplication still applies: the built-in server's own gate sees the loopback caller of the headless turn and skips, so the person is asked once, by their own client.
+
+The caller is identified by the elicitation channel that [`ManagementApprovalGate`](https://github.com/spring-ai-community/spring-ai-playground/blob/main/src/main/java/org/springaicommunity/playground/service/management/ManagementApprovalGate.java) puts on the `ManagementCaller` when it dispatches the management call; a caller without that channel (a script without an elicitation callback) can still run a turn, but every gated tool in it is declined and the answer says so.
+
+### One wait, derived timeouts { #wait }
+
+`spring.ai.playground.hitl.approval-wait-seconds` (180 s by default, capped at 240 under the chat stream's 300-second inter-signal timeout) is the only number a person sets. Everything that waits on a human derives from it:
+
+| Wait | Value |
+|------|-------|
+| Chat approval, upload, and image dialogs (`ChatHumanQuestionHandler`, `ChatFileUploadHandler`, `ChatImageReferenceHandler`) | the wait |
+| Client-side elicitation and sampling window (`McpClientService`, the pending card's countdown) | the wait |
+| Loopback client used for an Inspector HITL call (`McpClientService`, created on first use for the built-in server) | the wait + 30 s |
+| Built-in server `spring.ai.mcp.server.request-timeout` (`McpServerRequestTimeoutAligner`) | raised to the wait + 30 s unless configured larger |
+
+The ordering guarantees that the human-facing window always closes first and the transports never cut a pending decision short: the Inspector call outlives the elicitation it is waiting on, and the server's own request timeout only ever fires for a client that never answers at all.
 
 ## Proxied external tools - the full runtime path { #proxied }
 
@@ -176,14 +214,14 @@ sequenceDiagram
 The key properties this path guarantees:
 
 - **HITL happens first, the network call second.** The upstream external server is **not** contacted until after approval - a declined call never leaves the machine.
-- **Approved once, not twice.** The chat dialog (step 3) is the only prompt; the server-side gate is on the path (step 7) but skips because the caller is the self-loopback client.
+- **Approved once, not twice.** The chat dialog (step 3) is the only prompt; the server-side gate is on the path (steps 8-9) but skips because the caller is the self-loopback client.
 - **The result is processed identically.** After the upstream `CallToolResult` returns, it flows back through the same `AgentLoopManager` round as any built-in tool - same tool-result event, same conversation history, same observability spans.
 
-The same proxied tool called by an **external** MCP client instead of on-device chat takes the other gate: step 3's dialog is replaced by the server-side **elicitation** in `McpServerHitlToolGate` (step 6 is no longer loopback, so it does **not** skip), and steps 8-13 are identical. Either way the upstream call is reached only after an explicit approval.
+The same proxied tool called by an **external** MCP client instead of on-device chat takes the other gate: step 3's dialog is replaced by the server-side **elicitation** in `McpServerHitlToolGate` (step 9 is no longer loopback, so it does **not** skip), and steps 10-14 are identical. Either way the upstream call is reached only after an explicit approval.
 
 ## Loopback de-duplication { #loopback }
 
-Agentic Chat reaches the built-in server's tools through a **self-loopback MCP client**. Without care, such a call would be gated twice - once by the chat dialog and again by the server elicitation. `McpServerHitlToolGate` compares the caller's client info against `McpClientService.selfLoopbackServerName()` and, on a match, **skips the elicitation** and delegates immediately. The user is asked exactly once, by the chat dialog. External clients do not match the loopback name, so they are always gated by the server elicitation.
+Agentic Chat reaches the built-in server's tools through a **self-loopback MCP client**. Without care, such a call would be gated twice - once by the chat dialog and again by the server elicitation. `McpServerHitlToolGate` compares the caller's client info against `McpClientService.selfLoopbackServerName()` and, on a match, **skips the elicitation** and delegates immediately, unless the call is marked interactive (`_meta.playgroundInteractiveHitl=true`, sent by the MCP Inspector, whose call has no chat dialog in front of it). The user is asked exactly once, by the chat dialog. External clients do not match the loopback name, so they are always gated by the server elicitation.
 
 ## Why fail-safe matters { #fail-safe }
 
@@ -194,7 +232,7 @@ Approval is a **deny-by-default** gate: the call runs only on an explicit, affir
 HITL and the L0-L5 risk model reinforce each other:
 
 - **Defaults track risk.** When you author a tool, the approval mode defaults to `DISABLED` at `L0` and `REQUIRED` above `L0` - the more capable the tool, the more it asks by default. Lowering that protection prompts a confirmation.
-- **Approval lowers *displayed* risk.** Marking a re-exposed external tool HITL also lowers its composed risk by one band (`McpToolRiskComposer.applyHitlMitigation`, floored at `L1`) - a human gating every call genuinely reduces exposure. Built-in tools whose spec requires approval get the same one-band credit, shown as a dual chip (`L5 → L4`): the inherent level keeps driving sandbox permissions and the audit log, the effective level reflects the mandatory gate. The credit is conditional - a tool whose description trips the poisoning scanner keeps its inherent level, since a deceptive description undermines the very approval dialog the credit relies on. See [MCP Server Safety → Composed risk and HITL mitigation](mcp-server-safety.md#composed-risk).
+- **Approval lowers *displayed* risk.** Marking a re-exposed external tool HITL also lowers its composed risk by one band (`McpToolRiskComposer.applyHitlMitigation`; no credit at or below `L1`) - a human gating every call genuinely reduces exposure. Built-in tools whose spec requires approval get the same one-band credit, shown as a dual chip (`L5 → L4`): the inherent level keeps driving sandbox permissions and the audit log, the effective level reflects the mandatory gate. The credit is conditional - a tool whose description trips the poisoning scanner keeps its inherent level, since a deceptive description undermines the very approval dialog the credit relies on. See [MCP Server Safety → Composed risk and HITL mitigation](mcp-server-safety.md#composed-risk).
 
 The risk level is the *advice*; HITL is the *enforcement* that makes a high-risk tool safe to keep within reach.
 
@@ -206,6 +244,7 @@ The risk level is the *advice*; HITL is the *enforcement* that makes a high-risk
 | Composed Tools drawer → **HITL** column | Per-tool approval for a re-exposed external tool (attaches the `REQUIRED` flag to its wrapper) | [MCP Server Proxy](features/mcp-server/proxy.md) |
 | Agentic Chat | The **Approve / Decline** dialog when a gated tool is called | [Tutorial 11 - Approve a Tool in Chat](tutorials/11-human-approval.md) |
 | MCP Inspector → **Elicitation** | The approval card an external client would see | [MCP Inspector](features/mcp-server/inspector.md#elicitation) |
+| Management tools (`saip_*`) ([AI Operations](ai-operations-architecture.md#gate)) | The approval question an external AI gets before it publishes, deletes or changes exposure, and the per-call question for a tool it published with `humanApproval` | [Tutorial 18 - Let an AI Author a Tool](tutorials/18-ai-authors-a-tool.md) |
 
 ## Further reading
 

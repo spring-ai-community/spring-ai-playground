@@ -1,8 +1,8 @@
-description: Explore Spring AI Playground features: Tool Studio, MCP Server, Vector Database, Agentic Chat, Observability, and the safe local execution architecture.
+description: Explore Spring AI Playground features: Tool Studio, MCP Server, Vector Database, Agentic Chat, Shipyard, Observability, the management MCP tools that let an AI operate the app, and the safe local execution architecture.
 
 # Features
 
-Spring AI Playground is organized around five product surfaces, designed to be understood in this order. The first four are the author / consume surfaces; **Observability** is the operator surface that watches them.
+Spring AI Playground is organized around six product surfaces, designed to be understood in this order. The first four are the author / consume surfaces, **Shipyard** is the exit that turns what passed into standalone servers, and **Observability** is the operator surface that watches them all.
 
 <div class="grid cards" markdown>
 
@@ -31,15 +31,21 @@ Spring AI Playground is organized around five product surfaces, designed to be u
 
     Unified runtime that composes tools and RAG context in one conversational interface - chain workflows and agentic tool-use side by side. Drop a document on the prompt and it becomes [conversation knowledge](rag/chat-attachments.md), routed by size and registered in the Vector Database with one click.
 
+-   :material-ferry:{ .lg .middle } **[Shipyard](mcp-server/index.md#shipyard)**
+
+    ---
+
+    Ship what passed as a standalone MCP server: Local Pass tools, proxied tools and RAG knowledge packed into a Docker bundle that runs without the playground, on local or remote Docker, behind the same bearer token. An external AI can do the same over MCP with the `saip_shipyard_*` [management tools](mcp-server/management-tools.md#shipping-an-mcp-server); the [Shipyard Architecture](../shipyard-architecture.md) page explains the bundle and the container.
+
 -   :material-chart-line:{ .lg .middle } **[Observability](observability/index.md)**
 
     ---
 
-    Fourteen in-app dashboards across four groups (AI Usage · AI Stack · Runtime · Overview) covering token economics, tool and MCP behaviour, RAG quality, host runtime, and a live trace tail - the operator surface that watches the other four.
+    Fourteen in-app dashboards across four groups (AI Usage · AI Stack · Runtime · Overview) covering token economics, tool and MCP behavior, RAG quality, host runtime, and a live trace tail - the operator surface that watches the other five, the management tool calls of an external AI included.
 
 </div>
 
-The first four surfaces are intentionally connected. A tool authored in **Tool Studio** is exposed by the **built-in MCP server**, verified through the **MCP Inspector**, and consumed by **Agentic Chat** together with documents indexed in the **Vector Database** - without restart or redeploy at any step. Every chat turn, tool call, MCP exchange, and vector query is captured by **Observability** as it happens.
+The first four surfaces are intentionally connected. A tool authored in **Tool Studio** is exposed by the **built-in MCP server**, verified through the **MCP Inspector**, and consumed by **Agentic Chat** together with documents indexed in the **Vector Database** - without restart or redeploy at any step. Every chat turn, tool call, MCP exchange, and vector query is captured by **Observability** as it happens. The same chain works with an AI at the controls: over the built-in server's [management tools](mcp-server/management-tools.md), an external client does the authoring, registering, indexing and shipping, and you approve at the gates ([AI Operations Architecture](../ai-operations-architecture.md)).
 
 For a system-level view - runtime layers, data flows, and extension points behind these surfaces - see [Architecture](../architecture.md).
 

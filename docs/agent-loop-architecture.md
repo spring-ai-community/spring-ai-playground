@@ -94,7 +94,7 @@ The upload and image interceptors are why the loop is *interactive*: a tool call
 
 Interactive dialogs block a round thread while they wait. Two things keep that safe:
 
-- **Fail-safe timeouts.** Each dialog waits only for its configured timeout (approval 120s, upload/image 180s), both clamped below the 300s stream timeout, then resolves to decline / not-provided.
+- **Fail-safe timeouts.** Each dialog waits only for the shared [approval wait](hitl-architecture.md#wait) (180s by default, capped at 240s under the 300s stream timeout), then resolves to not-run / not-provided.
 - **Stream-end cleanup.** When the stream ends early - an error or the UI detaching - `ChatService` marks the turn cancelled and calls `cancelPending()` on each interactive handler, which completes the blocked wait and closes any open dialog. This prevents an orphaned modal from outliving the response.
 
 One consequence worth noting: the upload and approval dialogs are **modal**, so while one is open the chat's Stop button is behind the backdrop and cannot be clicked. Aborting an open dialog is done with its own **Cancel** / **Decline** button (which ends the tool cleanly and lets the model wrap up); `cancelPending` covers the error/detach cases, not the Stop button.
@@ -106,7 +106,7 @@ Every synthetic response follows one rule: **state what happened, then say what 
 ## Observability { #observability }
 
 - `chat.tool.loop` counter, tagged by `outcome` (`wrap-up`, `hard-stop`, `cancelled`, `repeated`, `declined-repeat`, `interaction-budget`) - how often each guard fired.
-- `mcp.hitl.decision` counter, tagged `outcome` (`approved`, `declined`, `ask-failed`) and `side=chat` - approval decisions (the server gate reports `side=server`). See [Human-in-the-Loop Approval](hitl-architecture.md).
+- `mcp.hitl.decision` counter, tagged `outcome` (`approved`, `declined`, `timeout`, `ask-failed`) and `side=chat` - approval decisions (the server gate reports `side=server`). See [Human-in-the-Loop Approval](hitl-architecture.md).
 - The process panel in Agentic Chat shows each round's user message, tool calls, and tool results, emitted by `AgentLoopHarness`.
 
 ## Related
